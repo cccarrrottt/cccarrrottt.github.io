@@ -231,6 +231,18 @@
     border:1px solid var(--line);background:var(--panel-2);color:var(--ink-faint);
   }
   body.read-only .view-badge{display:block;margin-left:auto;}
+  /* The owner's way in, on the published site only (see 36-site-owner.js).
+     Quiet on purpose: every reader sees it, and nearly none of them are
+     the owner. */
+  .owner-btn{
+    margin-left:10px;flex:0 0 auto;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;letter-spacing:0.4px;
+    text-transform:uppercase;white-space:nowrap;
+    padding:6px 12px;border-radius:5px;cursor:pointer;
+    border:1px solid var(--line);background:transparent;color:var(--ink-faint);
+  }
+  .owner-btn:hover{color:var(--ink);border-color:var(--ink-faint);}
+  .owner-btn[hidden]{display:none;}
   /* Everything that writes to the chart is hidden outright in a read-only
      view rather than left visible and failing on click. Reading, search,
      tag filters, language tabs and the bio cards all stay. */

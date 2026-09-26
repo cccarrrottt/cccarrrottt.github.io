@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 35 files, one per subsystem — see "One scope, many
+  app/         the program, 36 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
 build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
@@ -33,28 +33,29 @@ tools/shards.js
 tools/bench.js what a rebuild costs, and how much of it is text measurement;
                the numbers in CLAUDE.md come from here, so they can be
                re-run rather than believed
+worker/        the write service: owner sign-in through GitHub, and Save as a
+               commit to src/data.js — see "The published site" below
 tests/
   regression.js   the browser suite, run against dist and against src
   build_guard.py  checks the built page against what src/ says it should be
+  worker.js       the write service against a GitHub held in memory
 package.json   npm run build / test / test:src / test:fast / test:list /
                test:build / lint / check:data / bench
 .github/workflows/ci.yml
-               data check, build, guard, lint, both suites in four shards
-               each; publishes the standalone copy to Pages from main
+               data check, build, guard, lint, the write service's tests,
+               both suites in four shards each; on main, publishes the page
+               to Pages and deploys the write service
 .backups/      the last three copies of src/data.js and dist/nexus.html,
                written before either is overwritten; not part of the sources
 dist/          GENERATED — not in the repository, see "The repository" below
-  Two questions, independent, so four files: may it be edited, and is it a
-  whole document rather than a fragment the artifact host wraps itself?
-  nexus.html                   editable   fragment  → published WITH write access
-  nexus-share.html             read-only  fragment  → published WITHOUT it
-  nexus-standalone.html        editable   document  → to keep, host or open off disk
-  nexus-share-standalone.html  read-only  document  → what Pages serves
+  nexus.html   the chart, one whole document, for everywhere: the site, a
+               disk, claude.ai. Who may edit it is decided when it opens,
+               not when it is built — see "The published site" below
 ```
 
 ## One scope, many files
 
-`src/app/` holds 35 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 36 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -74,7 +75,7 @@ is exactly what the published page is. A function declaration hoists over the
 script it is written in, so as separate scripts the program's start-up reaches
 for hundreds of names whose part has not run yet. (It therefore has to be
 served over HTTP; for a file you can open by double-clicking, build and use
-`dist/nexus-standalone.html`.)
+`dist/nexus.html`.)
 
 Three things could quietly break the order, and the build refuses all three: a
 part `APP_PARTS` names that `src/app/` does not have, a part `src/app/` has
@@ -134,7 +135,7 @@ python3 build.py     # writes dist/
 
 CI runs on every push and pull request: the data check (before the build, so
 it sees the checkout's own chart rather than one made from it a step
-earlier), the build, the build guard, the lint,
+earlier), the build, the build guard, the lint, the write service's tests,
 and the regression suite twice — once against `dist`, once against `src`,
 because they load the program by different paths and a green run on one says
 nothing about the other. Each of those two runs is split across four shards
@@ -142,37 +143,78 @@ that run at the same time, so a regression job is about a minute and a half
 rather than six. The built files are attached to each run as an artifact, so
 a copy is always downloadable without building.
 
-On `main`, and only after everything above is green,
-`dist/nexus-share-standalone.html` is published to GitHub Pages as
-`index.html`: the copy that is both a whole document, which a page on the
-open web has to be, and read-only, which a page anyone can open ought to be.
-The site is <https://cccarrrottt.github.io>, which is what naming the
-repository after the account buys: a page served at the bare address rather
-than under a path. The source of that site must stay **GitHub Actions**
-(Settings → Pages → Build and deployment). Set to a branch instead, Pages
-renders `README.md` through Jekyll and serves that — a site that builds
-perfectly and is not the chart.
+On `main`, and only after everything above is green, `dist/nexus.html` is
+published to GitHub Pages as `index.html`. The site is
+<https://cccarrrottt.github.io>, which is what naming the repository after
+the account buys: a page served at the bare address rather than under a path.
+The source of that site must stay **GitHub Actions** (Settings → Pages →
+Build and deployment). Set to a branch instead, Pages renders `README.md`
+through Jekyll and serves that — a site that builds perfectly and is not the
+chart.
 
-This used to publish `nexus-standalone.html`, which is a document and is
-**editable** — so everyone who opened the site got the full editor. Nothing
-they did could reach anyone else: Pages serves a static file, and a page with
-no host to publish to saves into the reader's own browser, keyed to the
-address. But an edit survived a reload, so a reader had every reason to think
-they had changed the chart everybody sees. Export still works in the
-published copy — read-only stops writing to *this* chart, not taking a copy
-away.
+## The published site, and who may edit it
 
-The copy it hands over is an **editable** page. Read-only is true of the
-published address, where nobody but the owner may write; it is not true of a
-file on your own disk, which has no host to refuse a write and no other
-reader to mislead. The declaration is written into the file, though, so it
-used to travel with the export and freeze the copy as well — and there was
-no way back out of it, since reloading, re-exporting or importing that file
-all landed in the same place. The export now takes the declaration back off,
-and what you get is the editable build.
+There is one page, and on the site it is the same file for everybody. It
+opens as a reader; the owner presses **Owner sign-in**, signs in with GitHub,
+and the same tab becomes the editor. **Save** then commits the chart's
+regions into `src/data.js` on `main`, and CI rebuilds the site from that
+commit, so a save is on the site a few minutes after it is made.
 
-> Pages has to be switched on once, by hand: **Settings → Pages → Source →
-> GitHub Actions**. Until then the `pages` job is the only one that fails.
+What keeps everybody else out is not the hidden controls — every reader
+receives the editor's code. It is that a static page cannot be written to,
+and the one place a write can go is the write service in `worker/`, which:
+
+- signs people in through a GitHub App and hands out a session only to a
+  login listed in `OWNERS`, and only to the site's own address;
+- commits with that person's own GitHub token, so GitHub refuses the write
+  unless the account can push to the repository *and* the app is installed on
+  it with Contents write — nothing on the page can change either answer;
+- refuses a save made on top of anything but the `data.js` currently in the
+  repository. The page carries the git id of the file it was built from
+  (`DATA_SHA`, written in by `build.py`), so a page that is behind — a second
+  tab, or this one reloaded before the site caught up — cannot write an older
+  chart over a newer one. The owner's page says so when it opens rather than
+  when they press Save.
+
+Anywhere other than the site's address — a disk, somebody else's host, the
+test server — the page is its holder's own copy and saves into their browser,
+as it always has. A copy exported from the site is exactly that: it opens off
+a disk as an editor of its own.
+
+There used to be four builds — editable or read-only, fragment or document —
+because who could edit was decided when the page was built. Pages once served
+the editable one, so every visitor got an editor whose edits survived a
+reload in their own browser. None of that can recur: there is one file, and
+on the site it is a reader unless the service says otherwise.
+
+### Setting up the write service
+
+Done once. Until it is, `SITE_API` points at nothing and the site is
+read-only for everybody, the owner included.
+
+1. **Cloudflare.** Make a free account and open *Workers & Pages* once, which
+   gives the account its `*.workers.dev` subdomain. The service will live at
+   `https://rhizome-edit.<subdomain>.workers.dev`; if the subdomain is not
+   `cccarrrottt`, change `SITE_API` in `src/app/01-store.js` to match.
+2. **A GitHub App** (GitHub → Settings → Developer settings → GitHub Apps →
+   New). Homepage: the site. Callback URL:
+   `https://rhizome-edit.<subdomain>.workers.dev/callback`. Keep *Expire user
+   authorization tokens* on. Webhook: off. Repository permissions:
+   **Contents — Read and write**, nothing else. Installable only on this
+   account. Generate a client secret, then **Install** it on this repository
+   only.
+3. **Deploying from CI.** A Cloudflare API token from the *Edit Cloudflare
+   Workers* template, and the account id, as the repository secrets
+   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Every push to `main`
+   then deploys `worker/`; without them that job says so and does nothing.
+4. **The service's own secrets**, in Cloudflare (Worker → Settings →
+   Variables and Secrets): `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from
+   the app, and `SESSION_SECRET`, any random string of 32 characters or more
+   (`openssl rand -hex 32`). They stay in Cloudflare; a deploy does not touch
+   them, and nobody else needs to see them.
+
+`worker/wrangler.toml` holds the rest: the repository, the branch, the owner
+logins and the site's address.
 
 ## Where the chart's contents actually live
 
@@ -190,7 +232,10 @@ Not in `src/data.js`. Pressing **Save** in the published page rewrites the
 /* @@EDIT:COMMENTS:START@@ */   suggestions (feature currently switched off)
 ```
 
-So the live artifact, not the repository, holds the current chart. A plain
+On claude.ai, then, the live artifact, not the repository, holds the current
+chart. (On the published site it is the other way round: Save there commits
+to `src/data.js` itself, so the repository is always current — see above.)
+A plain
 `build.py` run knows this: it carries those regions over from the existing
 `dist/nexus.html` rather than resetting them to the seed data in the
 sources. If you have edited the chart in the browser since the last build,
@@ -228,19 +273,13 @@ The build now says the same two things itself — that it had nothing to carry
 from, or that what it carried differs from the sources — so neither case is
 silent.
 
-## The copies published to the artifact host
+## The copy published to the artifact host
 
-`dist/nexus.html` is published with the `artifact` runtime capability, which
-is what lets the page publish new versions of itself — that is the Save
-button. A page holding that capability appears not to be shareable to a
-public link, which makes sense: a public link is opened by anyone, signed in
-or not, and such a viewer cannot be granted write access.
-
-`dist/nexus-share.html` exists for that reason. It is the same chart built
-with no capability at all, so it can be made public; it knows it is a reader
-from the first frame instead of discovering it when someone presses Save.
-Rebuild and republish both together — the share copy does not follow the
-original on its own.
+`dist/nexus.html` can still be published to claude.ai with the `artifact`
+runtime capability, which is what lets the page publish new versions of
+itself there. It is the same file the site serves; on claude.ai it asks the
+host, not the write service, whether it may write. There is no separate
+read-only build any more — a public, read-only copy of the chart is the site.
 
 ## Working on it locally
 
@@ -248,13 +287,13 @@ original on its own.
 python3 -m http.server 8000 --directory src
 ```
 
-Everything works offline except **Save**, which needs the claude.ai artifact
-runtime.
+Everything works offline. Served like this the page is your own copy, so
+**Save** keeps the chart in this browser.
 
 
 ## Running it without claude.ai
 
-The chart does not need claude.ai, and does not need any server. `dist/nexus-standalone.html`
+The chart does not need claude.ai, and does not need any server. `dist/nexus.html`
 is a complete document: put it on any web space, or open it straight off a disk, and it works —
 the same archetypes, the same routing, the same editing. Nothing loads from a network. (The two
 webfonts do, when a network is there; without one the page falls back to system faces and is
@@ -265,10 +304,12 @@ What changes when there is no host is only where **Save** writes:
 | Where the page is open | What Save does |
 | --- | --- |
 | Published on claude.ai | publishes a new version of the page, as it always has |
+| The published site, signed in as the owner | commits the chart to the repository; the site shows it after CI |
+| The published site, anyone else | nothing — the page is a reader there |
 | Any other host, or `file://` | keeps the chart in that browser, keyed to the page's own address |
 
-The page decides this at load time by looking for the host's runtime, and the **File** panel
-states in words which of the two applies, so the answer is never a guess.
+The page decides this at load time from the host's runtime and its own address, and the **File**
+panel states in words which applies, so the answer is never a guess.
 
 ### Export and Import
 
@@ -279,12 +320,10 @@ openable anywhere, with nothing to import. **Import** is the other direction, li
 out of such a file into the page you have open; it validates before it replaces anything, and
 refuses a file that holds no chart rather than half-loading it.
 
-One asymmetry worth knowing: what gets **published** to the artifact host stays a *fragment*
-(no `<!doctype>`, no `<html>`), because the host wraps it in a skeleton of its own — nesting a
-second document inside that would be malformed. What gets **exported** is wrapped into a real
-document, because a file on disk has no host to wrap it. The same is true of the build: the
-`nexus.html` / `nexus-share.html` pair are fragments for publishing, and `nexus-standalone.html`
-is the wrapped document for everywhere else.
+One asymmetry worth knowing: what the page **publishes** of itself to the artifact host is tried
+as a *fragment* first (no `<!doctype>`, no `<html>`), because an older host wraps it in a
+skeleton of its own, and as a document if the host asks for one. What gets **exported** is always
+a real document, because a file on disk has no host to wrap it — and so is the build.
 
 ### Why Export behaves differently on claude.ai
 
@@ -294,10 +333,9 @@ possible failure mode for a button whose job is saving your work. The viewer med
 through a `downloads` capability that asks the person first, so the editable copy declares it and
 saves through it.
 
-The read-only share copy deliberately declares **no capabilities at all**, because declaring any
-is what stops a page being publicly shareable — and being shareable is that copy's entire reason
-to exist. It therefore cannot hand anyone a file, so it disables its own Export button on open
-and says why, rather than presenting a control that fails after the click.
+A copy published there with **no capabilities at all** — the only way a page there can be shared
+publicly — cannot hand anyone a file, so it disables its own Export button on open and says why,
+rather than presenting a control that fails after the click.
 
 One wrinkle: `.html` sits in the viewer's *extended* download set and is not always enabled. When
 it is refused, the same bytes are offered as `.html.txt` with a note to rename it — a file you

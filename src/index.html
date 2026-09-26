@@ -56,6 +56,7 @@
     </div>
     <button class="save-btn" id="saveBtn" disabled title="Publish your changes to this page (Ctrl+S)">Save</button>
     <div class="view-badge" id="viewBadge" title="You are viewing this chart; only its owner can change it">View only</div>
+    <button class="owner-btn" id="ownerBtn" hidden title="Sign in with GitHub to edit this chart. Only its owner can.">Owner sign-in</button>
     <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
   </div>
 
@@ -800,6 +801,7 @@
     '33-leader.js',
     '34-add-node.js',
     '35-draw-out.js',
+    '36-site-owner.js',
   ];
   var NL = String.fromCharCode(10);
   Promise.all(PARTS.map(function(p){
@@ -820,7 +822,7 @@
       'This page could not load the program.' + NL + NL + e.message + NL + NL +
       'src/index.html has to be served over HTTP — opening it straight off disk ' +
       'blocks the fetches. For a file you can open by double-clicking, build and ' +
-      'use dist/nexus-standalone.html.</pre>';
+      'use dist/nexus.html.</pre>';
   });
 })();
 </script>
