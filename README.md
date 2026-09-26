@@ -126,8 +126,8 @@ on every run. Committing them would grow the history by that much per version
 and would never be the thing anyone reads. So: clone, then build.
 
 ```bash
-git clone https://github.com/cccarrrottt/Rhizome.Project
-cd Rhizome.Project
+git clone https://github.com/cccarrrottt/cccarrrottt.github.io
+cd cccarrrottt.github.io
 npm install          # eslint and playwright; there is no lockfile yet
 python3 build.py     # writes dist/
 ```
@@ -146,6 +146,12 @@ On `main`, and only after everything above is green,
 `dist/nexus-share-standalone.html` is published to GitHub Pages as
 `index.html`: the copy that is both a whole document, which a page on the
 open web has to be, and read-only, which a page anyone can open ought to be.
+The site is <https://cccarrrottt.github.io>, which is what naming the
+repository after the account buys: a page served at the bare address rather
+than under a path. The source of that site must stay **GitHub Actions**
+(Settings → Pages → Build and deployment). Set to a branch instead, Pages
+renders `README.md` through Jekyll and serves that — a site that builds
+perfectly and is not the chart.
 
 This used to publish `nexus-standalone.html`, which is a document and is
 **editable** — so everyone who opened the site got the full editor. Nothing
