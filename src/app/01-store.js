@@ -7,12 +7,16 @@
    from a disk, or served from anywhere else, it drew perfectly and then
    refused to remember anything.
 
-   It now keeps its work through whichever of two backends is actually
+   It now keeps its work through whichever of three backends is actually
    available, decided at load:
 
      artifact  — running inside claude.ai with write access. Saving
                  publishes a new version of this page, exactly as before,
                  and the host reloads the view afterwards.
+     site      — on the published site, for its owner only: Saving commits
+                 the chart to the repository through the write service, and
+                 the site shows it once CI has rebuilt it. See SITE_ORIGINS
+                 below and 36-site-owner.js.
      standalone— everywhere else: a file on a disk, a plain web server, a
                  local dev build. Saving writes the chart to this browser's
                  storage for this document, and takes effect immediately
@@ -44,6 +48,40 @@ const STORE_KEY = STORE_PREFIX + (location.pathname + location.search || 'defaul
 // that nothing here can publish, and it is worth knowing synchronously:
 // the boot-time restore below cannot wait on a promise.
 const HOSTED = typeof claude !== 'undefined' && claude && typeof claude.use === 'function';
+
+/* -------------------------------------------------------------------------
+   The published site, and who may write to it.
+
+   There used to be four builds of this page, because whether a copy could
+   be edited was decided when it was BUILT: an editable one for the owner,
+   a read-only one for everybody else, each as a fragment and as a whole
+   document. The page the public saw and the page the owner edited were
+   different files, and nothing but discipline kept them in step.
+
+   Now there is one file, and the question is asked when it is OPENED. On
+   the site's own address the page starts as a reader, and becomes an
+   editor only when the write service below confirms that the person
+   holding it signed in as the chart's owner. Hiding the controls is not
+   what keeps anybody out — every reader receives the editor's code, and
+   is welcome to read it. What keeps them out is that the only place a
+   write can go is that service, and it checks the signature itself.
+
+   Anywhere else — a file on a disk, a copy somebody hosts, the test
+   server — the page is that person's own copy and edits into their own
+   browser, exactly as it always has. SITE_API empty means the service is
+   not set up yet: the site is then read-only for everybody, the owner
+   included, which is the safe way for that to be wrong.
+   ------------------------------------------------------------------------- */
+const SITE_ORIGINS = ['https://cccarrrottt.github.io'];
+const SITE_API = 'https://rhizome-edit.cccarrrottt.workers.dev';
+const ON_SITE = !HOSTED && SITE_ORIGINS.indexOf(location.origin) >= 0;
+/* The git blob id of the src/data.js this page was built from, written in
+   by build.py. The write service refuses a save whose base is not the file
+   currently in the repository, so a page that is behind — a second tab, or
+   this one reloaded before the site caught up with the last save — cannot
+   quietly replace newer work with older. null when the parts are run
+   straight from src/, which is never the site. */
+const DATA_SHA = /* @@DATA_SHA@@ */ null;
 
 function storageOk(){
   try{
@@ -118,8 +156,14 @@ function readStoredChart(){
 /* Work saved in this browser wins over what is baked into the file — that
    is what saving means. It is applied only when this page has no way to
    publish, so on claude.ai the published document always speaks for
-   itself and a stale local copy can never shadow it. */
-if(!HOSTED){
+   itself and a stale local copy can never shadow it.
+
+   The same goes for the published site, and for a sharper reason: a copy
+   kept there was written back when the site still served an editable page,
+   by a reader who believed they were changing the chart. Letting it win
+   would show that reader their own old edit, forever, as if it were what
+   everybody sees. On the site the file speaks for itself. */
+if(!HOSTED && !ON_SITE){
   const stored = readStoredChart();
   if(stored){
     /* A region the stored copy does not carry is a region it has nothing

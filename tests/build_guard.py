@@ -13,6 +13,7 @@ can touch the real src/data.js.
 
     python3 tests/build_guard.py
 """
+import hashlib
 import re
 import shutil
 import subprocess
@@ -157,27 +158,22 @@ def main():
     check('and every region is reported with its count',
           all(n in r.stdout for n in ('NODES', 'STICKERS', 'MEDIA', 'SETTINGS')),
           r.stdout)
-    for name in ('nexus.html', 'nexus-share.html', 'nexus-standalone.html',
-                 'nexus-share-standalone.html'):
-        check(f'dist/{name} was written', (tmp / 'dist' / name).exists())
-
-    # Two independent questions — may it be edited, is it a whole document —
-    # and all four answers have to have a file. Three of them did, and the
-    # missing one was read-only-and-a-document: so GitHub Pages, which needs
-    # a document, was given the editable build and anybody who opened the
-    # published site got an editor.
-    grid = {'nexus.html':                   (False, False),
-            'nexus-share.html':             (True,  False),
-            'nexus-standalone.html':        (False, True),
-            'nexus-share-standalone.html':  (True,  True)}
-    for name, (want_ro, want_doc) in grid.items():
-        body = (tmp / 'dist' / name).read_text(encoding='utf-8')
-        is_ro = body.count('markReadOnly(false);') == 1
-        is_doc = body.lstrip().lower().startswith('<!doctype html>')
-        check(f'{name} is {"read-only" if want_ro else "editable"} and '
-              f'{"a whole document" if want_doc else "a fragment"}',
-              is_ro == want_ro and is_doc == want_doc,
-              f'read-only {is_ro}, document {is_doc}')
+    # One file, and it is a whole document. There used to be four — editable
+    # or read-only, fragment or document — because who may edit was decided
+    # here; it is decided when the page opens now, and a second file would
+    # only be a second thing to forget to publish. GitHub Pages and a disk
+    # both need a document, and the artifact host takes either.
+    check('dist/nexus.html is the only file the build writes',
+          sorted(f.name for f in (tmp / 'dist').iterdir()) == ['nexus.html'],
+          str(sorted(f.name for f in (tmp / 'dist').iterdir())))
+    built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    check('and it is a whole document',
+          built.lstrip().lower().startswith('<!doctype html>'), built[:80])
+    # Read-only is the page's own decision, from where it was opened; a
+    # declaration written in here would travel with every copy exported
+    # from the site and freeze it on the reader's disk.
+    check('with no read-only declaration built into it',
+          '@@SHARE' not in built and '<title>Rhizome Project</title>' in built)
 
     # 7. Nothing that holds the chart's contents is written over without the
     #    previous copy being put aside first.
@@ -260,6 +256,10 @@ def main():
     joined = ''.join((tmp / 'src' / 'app' / n).read_text(encoding='utf-8')
                      for n in parts)
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    # Verbatim but for one thing, the build's single edit to the program:
+    # the id of the data.js the page was built from (see 10c).
+    built = re.sub(r"const DATA_SHA = '[0-9a-f]{40}';",
+                   "const DATA_SHA = /* @@DATA_SHA@@ */ null;", built)
     check('and the built page contains the parts concatenated verbatim',
           joined in built, f'{len(joined)} chars of parts, {len(built)} of page')
 
@@ -283,68 +283,41 @@ def main():
     check('and putting the newline back lets it build again',
           r.returncode == 0, r.stdout + r.stderr)
 
-    # 10c. The share copy is made by replacing a marker that exists for that
-    #      and nothing else. It used to be made by finding a function
-    #      declaration that happened to sit in the right place, so renaming
-    #      that function was a change to how the share copy is built.
+    # 10c. The page carries the git blob id of the data.js it was built from.
+    #      The write service refuses a save whose base is not the file in the
+    #      repository, so this id being wrong would lock the owner out of
+    #      saving — or, worse, being the same for two different files would
+    #      let a page that is behind write over a newer chart.
     tmp = sandbox()
     r = run(tmp)
-    share = (tmp / 'dist' / 'nexus-share.html').read_text(encoding='utf-8')
-    editable = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
-    check('the share copy declares itself read-only and the editable one does not',
-          share.count('markReadOnly(false);') == 1 and
-          'markReadOnly(false);' not in editable,
-          f'share {share.count("markReadOnly(false);")}, editable '
-          f'{editable.count("markReadOnly(false);")}')
-    # The marker is a comment in the sources, so the editable page keeps it,
-    # exactly as it keeps every other comment; the share copy is the one
-    # where it is spent. Both halves are worth pinning: a marker still
-    # present in the share copy would mean the replacement silently did not
-    # happen, and one missing from the editable page would mean the build
-    # was rewriting a page it has no business rewriting.
-    check('the marker is spent in the share copy and left alone in the editable one',
-          '@@SHARE:READONLY@@' not in share and '@@SHARE:READONLY@@' in editable)
-    # What replaces it is marked at both ends, because Export has to take it
-    # back out: a copy on a reader's own disk has no host to refuse a write,
-    # and one that arrived still declaring itself read-only was frozen by a
-    # permission that had stopped applying. A block written without the
-    # marks would publish perfectly and freeze every exported copy — nothing
-    # would look wrong until somebody tried to edit the file they had just
-    # been handed. See editableCopyOf in src/app/22-file-comments.js.
-    begin, end, call = '@@SHARE:READONLY:BEGIN@@', '@@SHARE:READONLY:END@@', 'markReadOnly(false);'
-    marked = (share.count(begin) == 1 and share.count(end) == 1 and
-              share.index(begin) < share.index(call) < share.index(end))
-    check('the read-only block is marked at both ends, so an export can cut it out',
-          marked and begin not in editable and end not in editable,
-          f'share begin {share.count(begin)}, end {share.count(end)}, in order {marked}')
-    # And the title it is renamed with, in the exact form the export takes
-    # back off — a copy on a disk should not announce a state it is no
-    # longer in.
-    ro_title = '<title>Rhizome Project — read-only</title>'
-    check('and the share copy says so in its title, in the form the export undoes',
-          ro_title in share and ro_title not in editable
-          and '<title>Rhizome Project</title>' in editable)
+    raw = (tmp / 'src' / 'data.js').read_bytes()
+    want = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
+    built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    check('the page names the data.js it was built from, as git names it',
+          f"const DATA_SHA = '{want}';" in built, want)
+    (tmp / 'src' / 'data.js').write_bytes(raw + b'\n// one more line\n')
+    run(tmp)
+    again = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    check('and a different data.js gives a different name',
+          f"const DATA_SHA = '{want}';" not in again and 'const DATA_SHA = \'' in again)
+    part = tmp / 'src' / 'app' / '01-store.js'
+    kept = part.read_text(encoding='utf-8')
+    part.write_text(kept.replace('/* @@DATA_SHA@@ */ null', 'null'), encoding='utf-8')
+    r = run(tmp)
+    check('losing the marker stops the build and says where it lived',
+          r.returncode != 0 and '01-store.js' in (r.stdout + r.stderr), r.stdout + r.stderr)
+    part.write_text(kept, encoding='utf-8')
 
-    part = next(p for p in parts_of(tmp)
-                if '@@SHARE:READONLY@@' in (tmp / 'src' / 'app' / p).read_text(encoding='utf-8'))
-    f = tmp / 'src' / 'app' / part
-    kept = f.read_text(encoding='utf-8')
-    # Renaming the function that used to be the anchor must now be nothing
-    # to do with the build.
-    f.write_text(kept.replace('function isReadOnlyError(e){',
-                              'function isRefusalAboutWriting(e){')
-                     .replace('isReadOnlyError(', 'isRefusalAboutWriting('),
-                 encoding='utf-8')
+    # 10d. Files the old builds made are taken away, not left looking current
+    #      beside the one that is: one of them is exactly the file somebody
+    #      would reach for to publish.
+    tmp = sandbox()
+    for gone in ('nexus-share.html', 'nexus-standalone.html', 'nexus-share-standalone.html'):
+        (tmp / 'dist' / gone).write_text('an old build', encoding='utf-8')
     r = run(tmp)
-    check('renaming the function that used to be the anchor no longer matters',
-          r.returncode == 0, r.stdout + r.stderr)
-    # Losing the marker must stop the build, and say where it lived.
-    f.write_text(kept.replace('/* @@SHARE:READONLY@@ */', ''), encoding='utf-8')
-    r = run(tmp)
-    check('but losing the marker stops the build and names its file',
-          r.returncode != 0 and '22-file-comments.js' in (r.stdout + r.stderr),
-          r.stdout + r.stderr)
-    f.write_text(kept, encoding='utf-8')
+    check('a build removes what the four-build days left in dist/',
+          r.returncode == 0 and sorted(f.name for f in (tmp / 'dist').iterdir()) == ['nexus.html'],
+          str(sorted(f.name for f in (tmp / 'dist').iterdir())))
 
     # 11. The chart lives in two places and only one of them is committed.
     #     dist/ is generated and ignored, so a clean checkout has no live page

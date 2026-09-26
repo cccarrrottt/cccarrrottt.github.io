@@ -25,24 +25,23 @@ module system.
 
 src/index.html is a real, standalone document: open it through any local
 server and the chart runs, with the stylesheet and scripts loaded normally.
-Only the built file has them inlined, and the built file also drops the
-doctype/head/body wrapper, because the artifact host supplies its own.
+Only the built file has them inlined.
 
-THREE OUTPUTS
+ONE OUTPUT
 
-  dist/nexus.html        the editable chart; published WITH the artifact
-                         write capability, which is what makes Save work
-  dist/nexus-share.html  the same chart with no write capability, so it can
-                         be shared to a public link; it knows it is a reader
-                         from the first frame rather than finding out when
-                         someone presses Save
-  dist/nexus-standalone.html
-                         the same chart wrapped in a real <!doctype html>
-                         document, for hosting anywhere or opening straight
-                         off disk. Nothing about the page needs claude.ai:
-                         with no host to publish to, Save keeps the chart in
-                         the browser instead, and Export writes a fresh copy
-                         of this same file with the current data baked in.
+  dist/nexus.html        the chart, as a whole <!doctype html> document.
+
+There used to be four: editable or read-only, fragment or document, because
+whether a copy could be edited was decided here, at build time. It is decided
+when the page is opened now (see SITE_ORIGINS in src/app/01-store.js). On the
+published site it is a reader until the owner signs in; opened off a disk or
+served from anywhere else it is that person's own copy and saves into their
+browser; on claude.ai it publishes itself through the artifact capability as
+it always did. One file, so there is no second copy to forget to republish.
+
+It is a document rather than the fragment the artifact host once wanted,
+because the host accepts either — the page tries both shapes when it
+publishes itself — and GitHub Pages and a disk accept only a document.
 
 WHERE THE CHART'S CONTENTS LIVE
 
@@ -65,6 +64,7 @@ build says when it had nothing to carry from, and says when what it carried
 differs from the sources; tools/data_check.py asks the same question on its
 own and answers with an exit code.
 """
+import hashlib
 import re
 import shutil
 import sys
@@ -125,6 +125,7 @@ APP_PARTS = [
     '33-leader.js',
     '34-add-node.js',
     '35-draw-out.js',
+    '36-site-owner.js',
 ]
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'
@@ -415,6 +416,30 @@ def build():
     page = (f'{charset}\n{PAGE_BEGIN}\n{head_rest}\n\n<style>{css}</style>{body}\n\n'
             f'<script>\n{data_js.rstrip(chr(10))}\n{app_js}</script>\n{PAGE_END}\n')
 
+    # Which data.js this page was built from, as git names it: the blob id
+    # of the file's bytes. The write service compares it with the file in
+    # the repository before it commits a save, so a page that is behind the
+    # repository cannot write an older chart over a newer one. In CI — the
+    # only place the site is built — the page's data IS this file.
+    raw = (SRC / 'data.js').read_bytes()
+    data_sha = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
+    sha_mark = '/* @@DATA_SHA@@ */ null'
+    if page.count(sha_mark) != 1:
+        sys.exit(f'build: expected exactly one {sha_mark} in the program; see src/app/01-store.js')
+    page = page.replace(sha_mark, f"'{data_sha}'")
+
+    # The document skeleton a browser needs. The markers stay around exactly
+    # the same content they always did, so the page cuts itself out of this
+    # document the same way it cut itself out of a fragment. The charset is
+    # repeated in the wrapper's own head because one declared from inside
+    # <body> is read too late to count.
+    page = ('<!doctype html>\n<html lang="en">\n<head>\n'
+            '<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            '</head>\n<body>\n'
+            + page +
+            '</body>\n</html>\n')
+
     DIST.mkdir(exist_ok=True)
     # dist/nexus.html is what the NEXT plain rebuild carries its data from, so
     # overwriting it with a bad build is how the chart's contents are lost
@@ -423,78 +448,13 @@ def build():
     (DIST / 'nexus.html').write_text(page, encoding='utf-8')
     print(f'  dist/nexus.html        {len(page):>8,} chars')
 
-    # The share copy: same page, minus any ability to write itself.
-    title = '<title>Rhizome Project</title>'
-    if page.count(title) != 1:
-        sys.exit('build: expected exactly one <title> to rename for the share copy')
-    share = page.replace(title, '<title>Rhizome Project — read-only</title>')
-
-    # A marker that exists FOR this, rather than a line of the program that
-    # happens to sit in the right place. Searching for the declaration that
-    # follows it worked, and tied the share copy's build to a function's
-    # name: renaming it would have stopped the build for a reason with no
-    # connection to what the person had done. See the note beside the marker.
-    anchor = '/* @@SHARE:READONLY@@ */'
-    if share.count(anchor) != 1:
-        sys.exit(f'build: expected exactly one {anchor} to mark where the share copy\n'
-                 '       declares itself read-only; see src/app/22-file-comments.js')
-    # What it writes carries marks of its own, because Export has to be able
-    # to take it back out again. A copy saved to somebody's disk has no host
-    # to refuse a write and no other reader to mislead, so the declaration
-    # that belongs to the PUBLISHED page has no business travelling with the
-    # file — see editableCopyOf in src/app/22-file-comments.js, which is the
-    # other half of this and cuts out exactly what is written here.
-    share = share.replace(anchor,
-                          '/* @@SHARE:READONLY:BEGIN@@ */\n'
-                          '// SHARE COPY: published with no write capability at all, so it\n'
-                          '// is a reader by construction and can say so immediately.\n'
-                          'markReadOnly(false);\n'
-                          '/* @@SHARE:READONLY:END@@ */')
-    (DIST / 'nexus-share.html').write_text(share, encoding='utf-8')
-    print(f'  dist/nexus-share.html  {len(share):>8,} chars')
-
-    # The standalone copy. Identical code — the page decides at runtime that
-    # there is no host to publish to — but wrapped in the document skeleton
-    # the artifact host would otherwise supply, so it is standards-mode HTML
-    # rather than a fragment a browser has to guess the shape of.
-    # The same marked fragment, inside a real document. Keeping the markers
-    # around exactly the same content everywhere means the page extracts
-    # itself identically however it was opened. The charset and viewport are
-    # repeated in the wrapper's own head because a charset declared from
-    # inside <body> is read too late to count.
-    def whole_document(fragment):
-        return ('<!doctype html>\n<html lang="en">\n<head>\n'
-                '<meta charset="utf-8">\n'
-                '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-                '</head>\n<body>\n'
-                + fragment +
-                '</body>\n</html>\n')
-
-    alone = whole_document(page)
-    (DIST / 'nexus-standalone.html').write_text(alone, encoding='utf-8')
-    print(f'  dist/nexus-standalone.html {len(alone):>8,} chars')
-
-    # The fourth copy, and the one the public site is.
-    #
-    # There are two questions about a build and they are independent: may it
-    # be edited, and is it a whole document. Three of the four answers had a
-    # file and the fourth did not — so the only page that was BOTH a document
-    # and read-only did not exist, and GitHub Pages, which needs a document,
-    # got the editable one.
-    #
-    # Nobody could deface anything with it: Pages serves a static file, and a
-    # page with no host to publish to saves into the reader's own browser,
-    # keyed to the address. But it opened as an editor, and an edit survived
-    # a reload, so a reader had every reason to believe they had changed the
-    # chart everyone else sees. A public page should not be able to give
-    # anybody that impression.
-    #
-    # Export is deliberately still there: read-only stops writing to THIS
-    # chart, not taking a copy away, and a reader who wants to build on it
-    # should be able to.
-    alone_share = whole_document(share)
-    (DIST / 'nexus-share-standalone.html').write_text(alone_share, encoding='utf-8')
-    print(f'  dist/nexus-share-standalone.html {len(alone_share):>8,} chars')
+    # The files the other three builds used to be. Left behind by an older
+    # build they would still be sitting in dist/, looking current, and one of
+    # them is exactly the file somebody would reach for to publish.
+    for gone in ('nexus-share.html', 'nexus-standalone.html', 'nexus-share-standalone.html'):
+        if (DIST / gone).exists():
+            (DIST / gone).unlink()
+            print(f'  removed dist/{gone}, which this build no longer makes')
 
 
 if __name__ == '__main__':

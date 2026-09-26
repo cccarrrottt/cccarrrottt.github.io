@@ -6,6 +6,32 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## Unreleased — one page for everybody
+
+- **One build.** `build.py` writes `dist/nexus.html`, a whole document, and
+  nothing else; `nexus-share.html`, `nexus-standalone.html` and
+  `nexus-share-standalone.html` are gone, and a build removes any left in
+  `dist/`. The `@@SHARE:READONLY@@` marker and `editableCopyOf` went with them.
+- **Who may edit is decided when the page opens.** On `SITE_ORIGINS` the page
+  is a reader (`if(ON_SITE) markReadOnly(false)` in `22-file-comments.js`)
+  until the write service confirms the owner, and `markEditable` lets them in.
+  Everywhere else it is its holder's own copy, as before. A chart kept in
+  localStorage is never restored on the site.
+- **Owner sign-in and Save on the site** (`36-site-owner.js`): sign-in through
+  GitHub in a popup, so unsaved work survives it; Save posts the regions to
+  the service, which commits them to `src/data.js` on `main`. `DATA_SHA`, the
+  git id of the `data.js` the page was built from, is the base a save must
+  stand on.
+- **The write service** (`worker/`, Cloudflare Workers): `/login`,
+  `/callback`, `/me`, `/save`. Sealed stateless sessions, an `OWNERS`
+  allow-list, sessions handed only to `ALLOWED_ORIGINS`, commits made with the
+  owner's own GitHub App token as a fast-forward only. Deployed from CI when
+  the repository has Cloudflare secrets.
+- **Checks**: `tests/worker.js` (29 checks, most of them refusals); the
+  suite's "the copy the public site is" became "the page on the published
+  site" (25 checks, driven at the real address); `build_guard` pins the one
+  file, the `DATA_SHA` it carries, and the removal of the old ones.
+
 ## 0.9.31 — "A card with four bands" — 2026-09-18
 
 - **Heads under the entry** (`arrowLayerFor` in `12-ports-draw.js`): only

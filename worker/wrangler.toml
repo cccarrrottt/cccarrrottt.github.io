@@ -1,0 +1,20 @@
+# The chart's write service. See index.js for what it does and why.
+#
+# Deployed from CI on every push to main (the "Deploy the write service" job),
+# once the repository has CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+# secrets. Its own three secrets — GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and
+# SESSION_SECRET — are set once in the Cloudflare dashboard (Worker →
+# Settings → Variables and Secrets) and a deploy leaves them alone.
+#
+# The address this gets, https://rhizome-edit.<account>.workers.dev, has to
+# match SITE_API in src/app/01-store.js.
+name = "rhizome-edit"
+main = "index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+REPO = "cccarrrottt/cccarrrottt.github.io"
+BRANCH = "main"
+OWNERS = "cccarrrottt"
+ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
