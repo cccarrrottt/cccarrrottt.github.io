@@ -646,6 +646,7 @@ function syncImageFieldVisibility(select, field){
   const addShape = document.getElementById('addNodeShape');
   editShape.addEventListener('change', ()=>{
     syncCardFieldVisibility();
+    syncEditCorners();
     syncBioCardField(editShape);
     syncImageFieldVisibility(editShape, editImageField);
     syncLabelFieldForShape(editShape);

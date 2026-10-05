@@ -419,7 +419,7 @@ function applyRichCommand(surface, kind, arg, restyle){
   }
   if(kind === 'color'){
     const hex = arg;
-    if(!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex || '')) return;
+    if(!HEX_RE.test(hex || '')) return;
     const sel = window.getSelection();
     if(!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
     const range = sel.getRangeAt(0);
@@ -584,7 +584,7 @@ function wireSwatchStrip(inputId, stripId){
     parts.forEach(c=>{
       const chip = document.createElement('span');
       chip.className = 'swatch-chip';
-      const ok = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c);
+      const ok = HEX_RE.test(c);
       chip.style.background = ok ? c : 'transparent';
       chip.title = ok ? c : c + ' — not a valid hex color';
       if(!ok) chip.style.borderColor = 'var(--accent)';
@@ -661,7 +661,7 @@ const DEFAULT_TEXT_COLOR = '#20242b';
 document.querySelectorAll('.tb-hex').forEach(box=>{
   const paint = ()=>{
     const v = box.value.trim();
-    const ok = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v);
+    const ok = HEX_RE.test(v);
     box.classList.toggle('bad', !ok);
     // Empty draws an empty swatch, the same as an unset border colour does,
     // rather than a stale colour that no longer describes the field.
@@ -687,7 +687,7 @@ document.querySelectorAll('.tb-hex').forEach(box=>{
     /* The wash goes with the trip. Leaving it painted after the caret has
        gone somewhere else entirely would be a highlight over words nothing
        is about to happen to. */
-    if(typeof paintHeldSelection === 'function') paintHeldSelection(null); });
+    paintHeldSelection(null); });
   box.addEventListener('click', ev=> ev.stopPropagation());
 
   /* Pressing the swatch is what applies the colour — the separate "A"
@@ -837,7 +837,7 @@ document.querySelectorAll('[data-hex-reset]').forEach(btn=>{
                         : surfaceForToolbar(btn.closest('.mini-toolbar'));
     if(!surface) return;
     if(box) heldSelection.delete(box);
-    if(typeof paintHeldSelection === 'function') paintHeldSelection(null);
+    paintHeldSelection(null);
     surface.focus({preventScroll:true});
     const all = document.createRange();
     all.selectNodeContents(surface);

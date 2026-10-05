@@ -114,6 +114,11 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const borderKey = borderStyleOf(n);
   const borderDash = (BORDER_STYLES[borderKey] || BORDER_STYLES.solid).dash;
   const isWavy = isWavyBorder(n);
+  /* And whether its corners are rounded or square. Every radius below goes
+     through `rad`, so the outline, its rings, a card's clip and the
+     scenery copied from the outline all agree on which it is. */
+  const square = hasSquareCorners(n);
+  const rad = (r)=> square ? 0 : Math.max(0, r);
   const z = n.z || 0;
   const g = el('g',{class:'node', 'data-id':n.id},
                  z < 0 ? backLayer : z > 0 ? frontLayer : nodeLayer);
@@ -200,14 +205,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     n.x = n.slotX + (n.slotW - w)/2;
   }
   n.w = w;
-  /* How much of each side the border takes before the words may start.
+  /* How much of each side the border takes before the words may start —
+     the same for every border style.
    *
-     A rippled border is not where its baseline is: it swings a whole
-     amplitude either side of the box and is stroked on top of that, so
-     the last two or three pixels inside the box belong to the border.
-     With the ordinary padding the longest line ran straight into the
-     ripple and the letters sat on the wave. */
-  const inkPad = NODE_PAD_X + (isWavy ? POCKET_AMP + 1 : 0);
+     A rippled border used to take two and a half pixels more, on the
+     grounds that the wave swings inward and the longest line ran into it.
+     That was true of an older, deeper ripple; this one reaches 1.5 inside
+     the box and its stroke 0.8 further, which leaves the ordinary padding
+     nearly five pixels of paper. What the extra did do was make an entry
+     WIDER the moment its border was set to wavy, so changing how an edge
+     is drawn moved the entry and everything routed round it. A border
+     style is a look; it does not get to change the size. */
+  const inkPad = NODE_PAD_X;
   const maxChars = noWrap ? Infinity : Math.max(8, Math.round((w - inkPad*2) / (fontSize*0.55)));
   // Hard pixel ceiling for a line of this node's text, so no script's
   // glyph widths can push a label past the border (see wrapLabel's `fit`).
@@ -552,7 +561,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         el('rect', {
           x: n.x - grow, y: n.y - grow,
           width: rw, height: rh,
-          rx: 5 + grow, stroke: c, class: 'hub-echo',
+          rx: rad(5 + grow), stroke: c, class: 'hub-echo',
           style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
                  `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +
                  `--echo-sx0:${sx0.toFixed(4)};--echo-sy0:${sy0.toFixed(4)};` +
@@ -571,7 +580,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
          not, so the sheets go back to plain rectangles with it. */
       const sheetShape = (x, y)=> isWavy
         ? {tag:'path', attrs:{d: wavyRectPath(x, y, n.w, h, 0)}}
-        : {tag:'rect', attrs:{x, y, width:n.w, height:h, rx:3}};
+        : {tag:'rect', attrs:{x, y, width:n.w, height:h, rx:rad(3)}};
       /* A sheet is a COPY OF THE ENTRY'S OUTLINE, and an outline has a
          style. The ripple was carried across and nothing else was, so a
          dashed entry stood in front of a stack of solid rectangles and a
@@ -594,7 +603,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
                                   y: n.y - own - off + BORDER_DOUBLE_GAP,
                                   width: Math.max(0, n.w - BORDER_DOUBLE_GAP*2),
                                   height: Math.max(0, h - BORDER_DOUBLE_GAP*2),
-                                  rx: Math.max(0, 3 - BORDER_DOUBLE_GAP)}};
+                                  rx: rad(3 - BORDER_DOUBLE_GAP)}};
           el(inner.tag, {
             ...inner.attrs,
             stroke: c, class: 'local-sheet', 'data-sheet': LOCAL_SHEETS - i,
@@ -696,7 +705,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        clip and the border all take. */
     const cardShape = (i)=> isWavy
       ? {tag:'path', attrs:{d: wavyRectPath(n.x+i, n.y+i, w-i*2, h-i*2)}}
-      : {tag:'rect', attrs:{x:n.x+i, y:n.y+i, width:w-i*2, height:h-i*2, rx:Math.max(0, 5-i)}};
+      : {tag:'rect', attrs:{x:n.x+i, y:n.y+i, width:w-i*2, height:h-i*2, rx:rad(5-i)}};
     const clipId = defId('cardclip-', n.id);
     const clip = el('clipPath', {id:clipId}, nodeDefs);
     { const sh = cardShape(0); el(sh.tag, sh.attrs, clip); }
@@ -806,7 +815,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const paint = paintColors.length>1 ? makeGradient(paintColors, false, nodeDefs) : paintColors[0];
     // fill is set via inline style, not the plain attribute, because the
     // .node rect{fill:var(--panel)} stylesheet rule otherwise wins over it
-    borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:Math.max(0,5-i)}),
+    borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:rad(5-i)}),
                paint, bgFillStyle);
     textFill = paint;
   } else if(isBio){
@@ -872,7 +881,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       borderRing('rect',
         (ins)=>({x:n.x-grow+ins, y:n.y-grow+ins,
                  width:n.w+grow*2-ins*2, height:h+grow*2-ins*2,
-                 rx:Math.max(0, 5+grow-ins)}),
+                 rx:rad(5+grow-ins)}),
         c, i>0 ? 'fill:none;' : bgFillStyle);
     });
   }
@@ -1325,7 +1334,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const drawer = document.getElementById('detail');
       if(drawer && drawer.classList.contains('open')){
         drawer.classList.remove('open');
-        if(typeof updateZoomCtlPosition === 'function') updateZoomCtlPosition();
+        updateZoomCtlPosition();
       }
     }
     /* A card's picture is its own thing to edit. A double click on the
@@ -1365,10 +1374,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     }
     /* A callout is an entry, and its words are on the card it is drawn as
        — so they are written there, not in a panel beside it. */
-    if(isCallout){
-      closeCalloutPopover();
-      if(openNodeEditor(n.id)) return;
-    }
+    if(isCallout && openNodeEditor(n.id)) return;
     /* A portrait holds a PICTURE, not words. Its words are on the card
        beside it, and that is where a double click on the card opens them;
        a double click on the circle is a double click on an image, and what

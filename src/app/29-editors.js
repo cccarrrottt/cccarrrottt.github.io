@@ -179,7 +179,7 @@ function commitNodeEdit(){
   if(colorsRaw){
     newColors = colorsRaw.split(',').map(s=>s.trim()).filter(Boolean);
     for(const c of newColors){
-      if(!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c)){
+      if(!HEX_RE.test(c)){
         setEditStatus('err', `"${c}" isn't a valid hex color yet (e.g. #c23b22) — the borders keep their current colours.`);
         return;
       }
@@ -190,7 +190,7 @@ function commitNodeEdit(){
   if(bgRaw){
     newBg = bgRaw.split(',').map(s=>s.trim()).filter(Boolean);
     for(const c of newBg){
-      if(!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c)){
+      if(!HEX_RE.test(c)){
         setEditStatus('err', `"${c}" isn't a valid hex color yet (e.g. #f4e9c9) — the background keeps what it has.`);
         return;
       }
@@ -230,7 +230,7 @@ function commitNodeEdit(){
      the entry holds is read back into the chips before the form is
      collected; without it, saving anything at all in this form would put
      back whatever the tab said when the form was opened. */
-  if(typeof syncLangTabTexts === 'function') syncLangTabTexts(nodes.get(id));
+  syncLangTabTexts(nodes.get(id));
   const newLangTabs = newMultiLang ? collectLangTabs(editLangTabList) : [];
   // Turning multi-language on before naming a tab is a normal
   // half-finished state, not an error to shout about — an unnamed chip is
@@ -252,6 +252,9 @@ function commitNodeEdit(){
     if(newColors.length) opts.colors = capColors(newColors, newShape); else delete opts.colors;
     if(newBg.length) opts.bg = newBg; else delete opts.bg;
     if(newBorder && newBorder !== 'solid') opts.border = newBorder; else delete opts.border;
+    /* Kept whatever the border is, so going to wavy and back does not lose
+       it: the ripple simply ignores it while it is there. */
+    if(editCorners.value === 'square') opts.square = true; else delete opts.square;
     if(newTags.length) opts.tags = newTags; else delete opts.tags;
     if(newFont) opts.font = newFont; else delete opts.font;
     if(newFontSize) opts.fontSize = newFontSize; else delete opts.fontSize;
@@ -261,8 +264,7 @@ function commitNodeEdit(){
     /* Both belong to a card that HAS a picture: they are answers about
        one, and an entry that is no longer a card should not carry the
        answer back if it becomes one again with something else in it. */
-    const cardImg = (typeof cardImageOptsFromForm === 'function')
-      ? cardImageOptsFromForm() : {crop:false};
+    const cardImg = cardImageOptsFromForm();
     if(newCard && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
     /* The picture's own size is set on the picture, by dragging its
        corners, so this form carries whatever it already had rather than
@@ -326,7 +328,7 @@ function commitEntry(mutate){
 function serializeEdgeStyles(list){
   if(!list.length) return 'const EDGE_STYLES = [];';
   return 'const EDGE_STYLES = [\n' + list.map(s=>
-    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}},`
+    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square ? `, square:true` : ''}},`
   ).join('\n') + '\n];';
 }
 
@@ -400,10 +402,29 @@ styleRoutingSel.addEventListener('click', ev=> ev.stopPropagation());
 // "Sinusoid (wavy)" is one more option in the Line strip rather than a
 // separate switch — reading it back out into the two underlying fields
 // (dash pattern + independent sinusoid flag) happens via selDashValue().
-const styleDashSel = makeChoiceGroup('styleDash', ()=>applyLiveEdgeStyle());
+const styleDashSel = makeChoiceGroup('styleDash', ()=>{ syncCornerChoice(); applyLiveEdgeStyle(); });
 function selDashValue(){
   const v = styleDashSel.value;
   return v==='sinusoid' ? {dash:'solid', sinusoid:true} : {dash:v, sinusoid:false};
+}
+/* Rounded or square elbows. Kept apart from the line strip because it is a
+   different question — a dashed line can turn either way — and greyed for
+   a sinusoid, whose wave is laid along a rounded line whatever this says. */
+const styleCornersSel = makeChoiceGroup('styleCorners', ()=>applyLiveEdgeStyle());
+/* Greys a corner choice that the thing it belongs to will not obey, rather
+   than hiding it: the row still says the setting exists, and why it does
+   nothing here is in its title. */
+function greyChoice(group, off, why){
+  group.root.classList.toggle('disabled', !!off);
+  group.root.querySelectorAll('button').forEach(b=>{
+    b.disabled = !!off;
+    if(!b.dataset.title) b.dataset.title = b.title;
+    b.title = off ? why : b.dataset.title;
+  });
+}
+function syncCornerChoice(){
+  greyChoice(styleCornersSel, styleDashSel.value === 'sinusoid',
+             'A wavy line keeps its rounded turns');
 }
 
 /* Arrowheads are two independent toggles, not one either/or: a connector
@@ -483,8 +504,7 @@ const styleColorRow = document.getElementById('styleColorRow');
 const styleColorPreview = document.getElementById('styleColorPreview');
 
 // Colours are typed as hex rather than picked from a swatch, so an exact
-// value can be pasted in and read back out.
-const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+// value can be pasted in and read back out. HEX_RE is in 01-store.js.
 function readHex(input){
   const v = input.value.trim();
   const ok = HEX_RE.test(v);
@@ -515,7 +535,7 @@ function isDefaultEdgeStyle(style){
     style.arrow===DEFAULT_EDGE_STYLE.arrow && !style.arrowIn && !style.sinusoid &&
     !style.note && !style.color &&
     !style.gradient && !style.fromSide && !style.toSide && !style.fromRing && !style.toRing &&
-    !(style.bends && style.bends.length);
+    !style.square && !(style.bends && style.bends.length);
 }
 function setEdgeStyleOverride(from, to, style){
   const idx = EDGE_STYLES.findIndex(s=>s.from===from && s.to===to);
@@ -546,21 +566,4 @@ function positionEdgePopover(evt){
   edgePopover.style.top = y + 'px';
 }
 
-/* ---------------------------------------------------------------------
-   The callout's own panel.
-
-   A callout is an entry, and for a while that meant clicking one opened
-   the entry editor: an archetype dropdown, a link field, border colours,
-   tags, language tabs — a form about a thing that has none of those. What
-   a callout has is words, and one decision beyond them: whether to keep
-   it. So it gets a panel that is exactly that, wearing the connector
-   popover's shell, because the two are the same kind of object — a small
-   card that opens on the drawing beside what it belongs to.
-
-   The words ARE the entry's label, so nothing new is stored and everything
-   that already reads a label — search, export, the chart itself — goes on
-   working without knowing this panel exists.
-   ------------------------------------------------------------------ */
-const calloutPopover = document.getElementById('calloutPopover');
-let calloutTarget = null;          // the callout the panel is open on
 

@@ -164,7 +164,7 @@ if(document.fonts && document.fonts.ready){
        reaches forward rather than growing a second fonts.ready handler
        that could be registered, or removed, independently of this one. */
     blockCache.clear();
-    if(typeof rebuildChart === 'function' && nodes && nodes.size) rebuildChart();
+    if(nodes && nodes.size) rebuildChart();
   }).catch(()=>{});
 }
 // Lays out one wrapped line's word-tokens into `textEl`, centered on

@@ -40,8 +40,8 @@ function edgeHit(d, from, to){
        let go of the selection. The connectors that stay lit belong to
        what is selected, and those still open. */
     if(edgeIsStepBack(from, to)){
-      if(typeof closeFreeMenu === 'function') closeFreeMenu();
-      if(typeof closeBioCard === 'function') closeBioCard();
+      closeFreeMenu();
+      closeBioCard();
       deselect();
       return;
     }
@@ -191,7 +191,7 @@ function redrawEdges(){
       : drawPts === pts ? d
       : style.routing === 'straight'
         ? `M${drawPts[0].x},${drawPts[0].y} L${drawPts[drawPts.length-1].x},${drawPts[drawPts.length-1].y}`
-        : roundedPath(drawPts, EDGE_CORNER_R);
+        : roundedPath(drawPts, edgeCornerR(style));
     const attrs = {class:'edge struct', d: drawD, stroke: paint, 'data-from':e.from,'data-to':e.to};
     if(dash){
       attrs['stroke-dasharray'] = dash;

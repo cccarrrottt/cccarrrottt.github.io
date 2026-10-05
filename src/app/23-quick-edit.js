@@ -193,8 +193,27 @@ const editBioSide = makeChoiceGroup('editBioSide', ()=>{ queueNodeEditCommit(0);
    colour fields it belongs with; makeChoiceGroup is a function declaration
    further down the file and is hoisted. */
 const editBorderStyle = makeChoiceGroup('editBorderStyle', ()=>{
+  syncEditCorners();
   queueNodeEditCommit(0);
 });
+/* Rounded or square corners. Greyed while the border ripples or the entry
+   has no box corners at all — see hasSquareCorners, which is what the
+   drawing asks; this only says the same thing in the panel. */
+const editCorners = makeChoiceGroup('editCorners', ()=>{ queueNodeEditCommit(0); });
+function syncEditCorners(){
+  const shape = (editShapeInput && editShapeInput.value) || 'rect';
+  const noBox = SQUARE_CORNER_SHAPES.includes(shape);
+  const wavy = editBorderStyle.value === 'wavy' && !WAVY_BORDER_SHAPES.includes(shape);
+  /* A callout pinned to a connector wears that connector's corners, so the
+     choice is made in the connector's popover; here it would be a button
+     that changes nothing. Cut loose, the callout is its own card again. */
+  const n = nodes.get(selectedId);
+  const pinned = isCalloutNode(n) && !!n.leader;
+  greyChoice(editCorners, noBox || wavy || pinned,
+             noBox ? 'This element has no box corners to square'
+             : pinned ? 'A callout takes its corners from its connector'
+                      : 'A wavy border keeps its rounded corners');
+}
 const editTagsInput = document.getElementById('editTagsInput');
 /* An entry's own face and size were four hidden controls: a pair in the
    Label box's toolbar and a pair mirroring them in the language rows'. None
@@ -377,7 +396,7 @@ function makeLangTabRow(list, tab){
   };
   name.addEventListener('input', ()=>{
     preview();
-    if(typeof queueNodeEditCommit === 'function') queueNodeEditCommit();
+    queueNodeEditCommit();
   });
   // A chip is as wide as the name in it, like every other chip in this row.
   name.addEventListener('input', ()=>{ name.size = Math.max(2, name.value.length + 1); });
@@ -391,7 +410,7 @@ function makeLangTabRow(list, tab){
     ev.stopPropagation();
     chip.remove();
     preview();
-    if(typeof queueNodeEditCommit === 'function') queueNodeEditCommit(0);
+    queueNodeEditCommit(0);
   });
 
   chip.appendChild(name);
@@ -437,13 +456,13 @@ function clearEditStatus(){ detailEditStatusEl.className = 'editor-status'; deta
 function closeEditForm(){
   // A change still sitting in the typing pause is a change the user made;
   // closing settles it rather than throwing it away.
-  if(typeof flushNodeEditCommit === 'function') flushNodeEditCommit();
-  if(typeof endLabelPreview === 'function') endLabelPreview(false);
+  flushNodeEditCommit();
+  endLabelPreview(false);
   detailEditForm.style.display = 'none';
   detailEditToggle.classList.remove('active');
   showNoteBlock(true);
   clearEditStatus();
-  if(typeof syncTagLiveliness === 'function') syncTagLiveliness();
+  syncTagLiveliness();
 }
 
 detailEditToggle.onclick = (ev)=>{
@@ -470,6 +489,7 @@ detailEditToggle.onclick = (ev)=>{
     if(paintEditBgSwatches) paintEditBgSwatches();
     if(typeof window.syncBgResetState === 'function') window.syncBgResetState();
     editBorderStyle.value = borderStyleOf(n);
+    editCorners.value = n.square ? 'square' : 'round';
     editShapeInput.value = n.shape || 'rect';
     editImageInput.value = n.image || '';
     if(editBioCardCheck) editBioCardCheck.checked = !!n.bioCard;
@@ -490,6 +510,7 @@ detailEditToggle.onclick = (ev)=>{
     syncImageFieldVisibility(editShapeInput, editImageField);
     if(typeof window.syncColorsResetState === 'function') window.syncColorsResetState();
     syncCardFieldVisibility();
+    syncEditCorners();
     syncTextColorVisibility();
     syncColorFieldVisibility();
     editMultiLangCheck.checked = !!n.multiLang;
@@ -596,8 +617,7 @@ function renderLabelPreview(){
   const g = qNode(`.node[data-id="${cssEscape(labelPreview.id)}"]`);
   if(g) g.classList.add('selected');
   // The entry has just changed shape under the field, so the field follows.
-  if(typeof nodeEditorTarget !== 'undefined' && nodeEditorTarget &&
-     typeof positionNodeEditor === 'function') positionNodeEditor();
+  if(typeof nodeEditorTarget !== 'undefined' && nodeEditorTarget) positionNodeEditor();
 }
 function queueLabelPreview(){
   if(!labelPreview) return;

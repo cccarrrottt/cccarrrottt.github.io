@@ -349,7 +349,7 @@ function refIndex(key){
  * setting now, and lives in SETTINGS with the other chart-wide choices. */
 const DEFAULT_REF_COLOR = '#c23b22';
 function refColor(){
-  return (SETTINGS && SETTINGS.refColor) || DEFAULT_REF_COLOR;
+  return (SETTINGS && isHexColor(SETTINGS.refColor)) ? SETTINGS.refColor : DEFAULT_REF_COLOR;
 }
 function refMarkText(key){
   const i = refIndex(key);

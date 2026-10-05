@@ -78,12 +78,9 @@ askOverlay.addEventListener('keydown', ev=>{
 /* References render into the Management panel's one list, below the tags.
    `refsPanel` is that panel — the same element the tag list lives in. */
 const refsPanel = document.getElementById('legend');
-function setRefsStatus(kind, msg){
-  const el = document.getElementById('refsStatus');
-  if(!el) return;
-  el.textContent = msg || '';
-  el.className = 'legend-status' + (kind ? ' ' + kind : '');
-}
+/* The references and the tags share one panel, so they share its one
+   status line — see setLegendStatus. */
+function setRefsStatus(kind, msg){ setLegendStatus(kind, msg); }
 function openRefsPanel(focusKey){
   refsPanel.classList.add('open');
   buildManagement();
@@ -157,6 +154,7 @@ function refBodyText(r){
   if(d && t && d.indexOf(t) < 0) return t + ' — ' + d;
   return d || t;
 }
+const REFUSED_LINK = 'That link was not saved: only http, https, mailto and ftp addresses are allowed.';
 async function refPrompt(existing, title){
   const got = await askFields(title, [
     {name:'detail', label:'Reference',        value: refBodyText(existing), multiline:true},
@@ -165,9 +163,15 @@ async function refPrompt(existing, title){
   if(!got) return null;
   const url = (got.url || '').trim();
   // title:'' on the way out — see refBodyText.
+  /* A link that is not safe to keep is refused — and refused, not
+     emptied: an edit used to write `url:''` over the reference, so typing
+     a bad address into one that had a good link threw the good link away,
+     and the "Added" or nothing that followed hid the refusal itself. The
+     reference keeps whatever link it had, and the refusal is what the
+     panel says. */
   if(url && !safeUrl(url)){
-    setRefsStatus('err', 'That link was not saved: only http, https, mailto and ftp addresses are allowed.');
-    return {title:'', detail:(got.detail||'').trim(), url:''};
+    return {title:'', detail:(got.detail||'').trim(),
+            url: existing ? (existing.url || '') : '', refused: true};
   }
   return {title:'', detail:(got.detail||'').trim(), url};
 }
@@ -177,15 +181,20 @@ async function addRef(){
   const key = uniqueRefKey(got.detail || 'ref');
   applyEdit(()=> REFS.push({key, title:got.title, detail:got.detail, url:got.url}));
   buildManagement(); rebuildChart();
-  setRefsStatus('ok', `Added [${REFS.length}].`);
+  if(got.refused) setRefsStatus('err', REFUSED_LINK);
+  else setRefsStatus('ok', `Added [${REFS.length}].`);
 }
 async function editRef(key){
   const i = refIndex(key);
   if(i < 0) return;
   const got = await refPrompt(REFS[i], 'Edit reference');
   if(!got) return;
-  applyEdit(()=> Object.assign(REFS[i], got));
+  const fields = Object.assign({}, got);
+  delete fields.refused;
+  applyEdit(()=> Object.assign(REFS[i], fields));
   buildManagement(); rebuildChart();
+  // After the edit, which refreshes the status and would say over it.
+  if(got.refused) setRefsStatus('err', REFUSED_LINK);
 }
 /* Put a reference where another one is. A reference's number IS its place
    in this list, so moving the row is the only way to change it — and every
@@ -228,16 +237,6 @@ async function deleteRef(key){
   });
   buildManagement(); rebuildChart();
   setRefsStatus('ok', 'Deleted.');
-}
-{
-  // Kept working for anything that still calls it, though the button it
-  // was on is gone: references live in the Management panel now.
-  const t = document.getElementById('refsToggle');
-  if(t) t.onclick = (ev)=>{
-    ev.stopPropagation();
-    if(refsPanel.classList.contains('open')) refsPanel.classList.remove('open');
-    else openRefsPanel(null);
-  };
 }
 
 
@@ -284,11 +283,22 @@ svg.addEventListener('click', ev=>{
   ev.preventDefault(); ev.stopPropagation();
 }, true);
 
+/* Why something asked for in the panel did not happen.
+ *
+ * The panel has no running commentary — that line was taken out on
+ * purpose, and "Added", "Deleted" and the like are what the panel itself
+ * now shows by changing. But both of these went on writing into the
+ * element that had been taken out, so the REFUSALS went with it: a tag
+ * whose name was taken, a link that was not safe to keep, a citation with
+ * no reference to cite — the action simply did not happen, and nothing
+ * said why. A refusal is the one message that cannot be read off the
+ * panel, so it is said where the page says everything else about the
+ * state of the work: the status in the top bar. Confirmations stay
+ * silent. */
 function setLegendStatus(kind, msg){
-  const el = document.getElementById('legendStatus');
-  if(!el) return;
-  el.textContent = msg || '';
-  el.className = 'legend-status' + (kind ? ' ' + kind : '');
+  if(kind !== 'err' || !msg) return;
+  setSaveState('err', msg);
+  saveStateTimer = setTimeout(refreshSaveUI, 4000);
 }
 
 function createTag(raw){

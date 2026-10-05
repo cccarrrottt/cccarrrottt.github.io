@@ -188,11 +188,11 @@ function computeBounds(){
 
 function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
-  if(typeof syncAlignGrid === 'function') syncAlignGrid();
+  syncAlignGrid();
   // The bio card is an HTML overlay in screen space, so it has to be
   // re-anchored whenever the drawing moves under it.
-  if(typeof positionBioCard === 'function') positionBioCard();
-  if(typeof positionSwapButton === 'function') positionSwapButton();
+  positionBioCard();
+  positionSwapButton();
   /* The in-node field stands on its entry, so it moves with the drawing.
      Its type is scaled by the zoom as well, which is what keeps what is
      being typed the same size as what it will be. */
@@ -673,13 +673,81 @@ function pushCandidates(group){
        one: carry the merge up into the row of parents it is made of and
        they give way. So the only merged lineage that is skipped is the one
        whose PARENT is being carried. */
-    if(typeof isAmalgamMember === 'function' && isAmalgamMember(e.from, e.to)
+    if(isAmalgamMember(e.from, e.to)
        && fromHeld) return;
     let rec = byId.get(otherId);
     if(!rec){ rec = dragPiece(otherId); rec.links = new Set(); byId.set(otherId, rec); }
     rec.links.add(fromHeld ? e.from : e.to);
   });
+  /* An entry that is part of a merge is not pushed on its own: the whole
+   * merge is.
+   *
+   * A merge is a row of lineages hanging one bar between them and the
+   * entry they feed, and its shape is the arrangement. Shoving the one
+   * lineage the carried box happened to run into pulled that lineage out
+   * of the row — its drop onto the bar grew, the bar tilted its landings,
+   * and the merge came out of the gesture rearranged by a box that was
+   * only ever pushed against one corner of it. So the lineage in the way
+   * takes its merge with it: every other lineage, and the amalgam, travel
+   * by exactly the push it was given.
+   *
+   * Carrying the AMALGAM up into its own lineages is the same gesture
+   * from the inside: the row gives way as a row, rather than only the
+   * parents standing over the entry. Carrying one of the LINEAGES is not —
+   * that is rearranging the merge from within, and the sibling in the way
+   * is pushed aside on its own exactly as before. */
+  const teams = new Map();             // a member's id -> its team
+  [...byId.values()].forEach(rec=>{
+    if(teams.has(rec.id)) return;
+    const whole = mergeStructureOf(rec.id);
+    if(whole.size < 2) return;
+    // A lineage in the hand means the merge is being rearranged, not moved.
+    const carried = [...whole].filter(id=> held.has(id));
+    if(carried.some(id=> (nodes.get(id) || {}).shape !== 'amalgam')) return;
+    const team = {pieces: []};
+    whole.forEach(id=>{
+      if(held.has(id)) return;
+      const other = nodes.get(id);
+      if(!other || isFreeShape(other.shape || '')) return;
+      let piece = byId.get(id);
+      if(!piece){ piece = dragPiece(id); piece.links = new Set(); byId.set(id, piece); }
+      piece.team = team;
+      team.pieces.push(piece);
+      teams.set(id, team);
+    });
+    /* And the hand-set bends between them, for the reason the drag's own
+       group carries its bends (see bendCarry): a bend is a point on the
+       chart, and a merge pushed as a row would otherwise be re-drawn back
+       through the place it was pushed away from. */
+    const ids = new Set(team.pieces.map(q=> q.id));
+    team.bends = EDGE_STYLES
+      .filter(o=> Array.isArray(o.bends) && o.bends.length && ids.has(o.from) && ids.has(o.to))
+      .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])}));
+  });
   return [...byId.values()];
+}
+/* Every entry that belongs to the same merge as this one — the amalgams it
+   feeds or is, every lineage of those, and so on outwards, since a
+   lineage can feed two merges and tie them into one arrangement. A merge
+   is an amalgam with at least two lineages; with one, it is an ordinary
+   connector and nothing hangs between them. */
+function mergeStructureOf(id){
+  const out = new Set();
+  const queue = [id];
+  while(queue.length){
+    const cur = queue.pop();
+    if(out.has(cur)) continue;
+    out.add(cur);
+    nodes.forEach(b=>{
+      if((b.shape || '') !== 'amalgam') return;
+      const ps = (b.parents || []).filter(pid=> nodes.has(pid));
+      if(ps.length < 2) return;
+      if(b.id !== cur && !ps.includes(cur)) return;
+      queue.push(b.id);
+      ps.forEach(pid=> queue.push(pid));
+    });
+  }
+  return out.size > 1 ? out : new Set([id]);
 }
 /* Shove whatever the carried entries have run into, once per pointer move.
  *
@@ -723,7 +791,21 @@ function pushBlockers(st){
         moved = true;
       } else return;
     });
+  });
+  /* A merge moves as one: every member takes the largest push any of
+     them was given, on each axis — see pushCandidates. */
+  const seen = new Set();
+  st.pushable.forEach(p=>{
+    if(!p.team || seen.has(p.team)) return;
+    seen.add(p.team);
+    const most = (k)=> p.team.pieces.reduce((a, q)=> Math.abs(q[k]) > Math.abs(a) ? q[k] : a, 0);
+    const px = most('pushX'), py = most('pushY');
+    p.team.pieces.forEach(q=>{ q.pushX = px; q.pushY = py; });
+    carryBends({bendCarry: p.team.bends}, px, py);
+  });
+  st.pushable.forEach(p=>{
     if(!p.pushX && !p.pushY) return;
+    const b = p.node;
     b.x = p.originX + p.pushX;
     b.y = p.originY + p.pushY;
     if(p.g) p.g.setAttribute('transform',
@@ -1163,7 +1245,7 @@ window.addEventListener('mousemove', e=>{
   let iw = Math.max(CARD_IMG_MINH, Math.min(CARD_MAXW, Math.abs(p.x - cx) * 2));
   let ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, p.y - n.y));
   if(e.shiftKey){
-    const r = (typeof imageAspect === 'function') ? imageAspect(n.image) : 0;
+    const r = imageAspect(n.image);
     if(r) ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, iw * r));
   }
   if(!st.moved && Math.abs(iw - st.startW) < 1 && Math.abs(ih - st.startH) < 1) return;

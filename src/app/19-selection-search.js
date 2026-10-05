@@ -60,7 +60,7 @@ function paintSelectionHighlight(id){
     auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
     fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
     qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
-    if(typeof paintBioCardDim === 'function') paintBioCardDim();
+    paintBioCardDim();
     syncTagLiveliness();
     return;
   }
@@ -148,14 +148,14 @@ function paintSelectionHighlight(id){
     p.classList.toggle('lit', lit);
     p.classList.toggle('dim', !lit);
   });
-  if(typeof paintBioCardDim === 'function') paintBioCardDim();
+  paintBioCardDim();
   syncTagLiveliness();
 }
 function paintMultiSelection(){
   qNodes('.node').forEach(g=>{
     g.classList.toggle('multi', multiSelection.size > 1 && multiSelection.has(g.dataset.id));
   });
-  if(typeof positionSwapButton === 'function') positionSwapButton();
+  positionSwapButton();
 }
 function setSelection(ids, primary){
   multiSelection.clear();
@@ -212,14 +212,13 @@ function selectNode(id, opts){
     return;
   }
   /* …and so does moving to a different entry. */
-  if(typeof cardImgEditId !== 'undefined' && cardImgEditId && cardImgEditId !== id
-     && typeof closeCardImageEdit === 'function') closeCardImageEdit();
+  if(typeof cardImgEditId !== 'undefined' && cardImgEditId && cardImgEditId !== id) closeCardImageEdit();
   // A plain selection replaces the set; the multi-select paths add to it
   // themselves before calling in here.
   if(!(opts && opts.keepSelection)){
     if(!multiSelection.has(id)){ multiSelection.clear(); multiSelection.add(id); }
   }
-  if(!(opts && opts.keepEditForm) && typeof closeEditForm === 'function') closeEditForm();
+  if(!(opts && opts.keepEditForm)) closeEditForm();
   paintSelectionHighlight(id);
   /* A callout says everything it has to say on the card. Opening the entry
      drawer beside it would fill the right-hand third of the screen with a
@@ -236,8 +235,8 @@ function selectNode(id, opts){
   /* The form is only refilled as it OPENS, so a field shut for one
      archetype has to be reconsidered whenever the selection moves —
      otherwise a picture's shut Label row stayed shut on the next entry. */
-  if(typeof syncLabelFieldForShape === 'function') syncLabelFieldForShape(null);
-  if(typeof syncBioCardField === 'function' && typeof editShapeInput !== 'undefined'){
+  syncLabelFieldForShape(null);
+  if(typeof editShapeInput !== 'undefined'){
     /* The same reconsideration the Label row gets: a field offered for one
        archetype has to be taken away again on the next entry. */
     syncBioCardField({value: n.shape || 'rect'});
@@ -286,12 +285,12 @@ function selectNode(id, opts){
      stays shut until the selection narrows back to one. */
   const many = multiSelection.size > 1;
   document.getElementById('detail').classList.toggle('open', !many);
-  if(many && typeof closeEditForm === 'function') closeEditForm();
+  if(many) closeEditForm();
   updateZoomCtlPosition();
 }
 
 svg.addEventListener('click', ()=>{
-  if(typeof closeFreeMenu === 'function') closeFreeMenu();
+  closeFreeMenu();
   // A finished marquee ends with a click on the canvas, which would
   // otherwise immediately clear the selection it just made.
   if(suppressCanvasClick){ suppressCanvasClick = false; return; }
@@ -303,23 +302,23 @@ function deselect(){
   markEntryOpen(false);
   /* A picture being resized belongs to the entry that was open; letting
      go of the entry lets go of the picture. */
-  if(typeof closeCardImageEdit === 'function') closeCardImageEdit();
+  closeCardImageEdit();
   multiSelection.clear();
   qNodes('.node.multi').forEach(g=>g.classList.remove('multi'));
   qNodes('.node').forEach(g=>{ g.classList.remove('selected'); g.classList.remove('dim'); });
   auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
   fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
   qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
-  if(typeof paintBioCardDim === 'function') paintBioCardDim();
+  paintBioCardDim();
   syncTagLiveliness();
   document.getElementById('detail').classList.remove('open');
-  if(typeof closeEditForm === 'function') closeEditForm();
+  closeEditForm();
   /* A picture's or a caption's menu belongs to the element it was opened
      for. With nothing selected there is no such element, and leaving the
      menu up left a live Delete button — and a text field that still
      committed — pointing at something the reader had just let go of. */
-  if(typeof closeFreeMenu === 'function') closeFreeMenu();
-  if(typeof positionSwapButton === 'function') positionSwapButton();
+  closeFreeMenu();
+  positionSwapButton();
   updateZoomCtlPosition();
 }
 document.getElementById('detailClose').onclick = (e)=>{ e.stopPropagation(); deselect(); };
@@ -469,7 +468,6 @@ document.addEventListener('keydown', e=>{
     if(bioCardNodeId){ closeBioCard(); return; }
     if(noteOverlay && noteOverlay.classList.contains('open')){ noteOverlay.classList.remove('open'); return; }
     if(aboutOverlay.classList.contains('open')){ aboutOverlay.classList.remove('open'); return; }
-    if(calloutPopover.classList.contains('open')){ closeCalloutPopover(); return; }
     if(edgePopover.classList.contains('open')){ closeEdgePopover(); return; }
     // A picture's or a caption's own menu is a panel like any other, and
     // was the one Escape never reached — so it stayed open, still holding
@@ -489,15 +487,6 @@ document.addEventListener('keydown', e=>{
     // hijacked while the user is actually typing (Backspace has to keep
     // erasing text in every field, including these two keys' own textareas).
     if(typingInField()) return;
-    /* A callout's own card is open on it, so Delete means that card —
-       exactly as it means the connector's when the connector's card is
-       open. It reads its own Delete button rather than reaching for
-       deleteNodes, so the panel closes with it. */
-    if(calloutPopover.classList.contains('open') && calloutTarget){
-      e.preventDefault();
-      document.getElementById('calloutDelete').click();
-      return;
-    }
     if(edgePopover.classList.contains('open') && currentEdgeStyleTarget){
       e.preventDefault();
       styleDeleteBtn.click();

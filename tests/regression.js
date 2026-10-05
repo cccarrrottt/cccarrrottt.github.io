@@ -5450,8 +5450,20 @@ async function main(){
                  deepest the ripple ever reaches instead, because the
                  offset for its own point could not be trusted; it can
                  now, since it is read off the drawn line. */
+              /* …and on an outer ring, which has no fill behind it, a
+                 headless line stops by the HIGHEST the wave stands
+                 anywhere under its width, less half the border's stroke:
+                 stopped by its middle, the low corner of its square end
+                 came out under the ring into the gap within it. */
+              let hiAcross = -Infinity;
+              if(f) for(let k = -4; k <= 4; k++){
+                const u = 0.8 * k / 4;
+                hiAcross = Math.max(hiAcross,
+                  f(vert ? base : q.x + u, vert ? q.y + u : base));
+              }
               const want = (head ? tip
-                            : drop - (ring > 0 ? POCKET_UNDERLAP : POCKET_BITE)) + trim;
+                            : ring > 0 ? hiAcross - 0.8
+                            : drop - POCKET_BITE) + trim;
               seen++;
               if(Math.abs(signed - want) > 0.35) bad++;
               if(head){
@@ -5607,7 +5619,7 @@ async function main(){
     await wait(350);
     // …and puts nothing over the drawing: Delete is the key's job.
     out.oneClickSelects = selectedId === 'coC' &&
-                          !document.getElementById('calloutPopover').classList.contains('open');
+                          !document.querySelector('.edge-popover.open');
     document.querySelector('.node[data-id="coC"]').dispatchEvent(
       new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:420, clientY:420}));
     await wait(400);
@@ -5621,7 +5633,6 @@ async function main(){
     await wait(400);
     out.panelWrites = (nodes.get('coC') || {}).label === 'Rewritten';
     closeNodeEditor(true);
-    closeCalloutPopover();
     await wait(250);
 
     /* The side its leader arrives at offers no port. */
@@ -8566,7 +8577,7 @@ async function main(){
         const hex = document.querySelector('#nodeEditorBar .tb-hex');
         out.calloutNoColour = !hex || getComputedStyle(hex).display === 'none';
       }
-      closeNodeEditor(true); closeCalloutPopover(); await wait(200);
+      closeNodeEditor(true); await wait(200);
       // an ordinary entry keeps its colour box, because the colour is its own
       dbl(document.querySelector('.node[data-id="w1"]'));
       await wait(420);
@@ -10985,7 +10996,7 @@ async function main(){
          under every arrow on an entry with more than one border. */
       out.capIsTheLine = caps.length > 0 && !!line &&
         caps.every(c=> c.getAttribute('d') === line.getAttribute('d') &&
-                       /^url\(#/.test(c.getAttribute('clip-path') || ''));
+                       /^url\(#/.test(c.getAttribute('mask') || ''));
       out.capD = caps.length ? caps[0].getAttribute('d').slice(0, 30) : '';
     }
 
@@ -11362,6 +11373,325 @@ async function main(){
   check('and a parent carried into the merge does not push it back',
         rC.parentHeldMerge);
 
+  });
+
+  await scenario("a ripple that keeps its size, corners by choice, a merge that moves whole", async () => {
+  const rW = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(420, 280);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+
+    /* ---- a border style is a look: wavy is the same size as solid ---- */
+    {
+      const sizes = {};
+      for(const B of ['solid', 'wavy']){
+        applyEdit(()=>{
+          workingNodes.length = 0; refill(EDGE_STYLES, []);
+          workingNodes.push(['wz', 'asdasdи and more', null, null, null, null,
+                             {pos:[X, Y], colors:['#222', '#c3c'], border:B}]);
+        });
+        const n = nodes.get('wz');
+        sizes[B] = [n.w, n.h];
+      }
+      out.wavySize = JSON.stringify(sizes);
+      out.wavySame = sizes.solid[0] === sizes.wavy[0] && sizes.solid[1] === sizes.wavy[1];
+    }
+
+    /* ---- a cap stops where the inner ring's STROKE begins ---- */
+    {
+      applyEdit(()=>{
+        workingNodes.length = 0; refill(EDGE_STYLES, []);
+        workingNodes.push(['wa', 'A', null, null, null, null, {pos:[X, Y], colors:['#222', '#c3c']}]);
+        workingNodes.push(['wb', 'asdasdи', 'wa', null, null, null,
+                           {pos:[X, Y + 160], colors:['#222', '#c3c'], border:'wavy'}]);
+        refill(EDGE_STYLES, [{from:'wa', to:'wb', fromSide:'bottom', toSide:'top',
+                              fromRing:1, toRing:0, arrow:false}]);
+      });
+      await wait(150);
+      const cap = document.querySelector('.edge-cap[data-to="wb"]');
+      const ref = cap && (cap.getAttribute('mask') || '').match(/#([^)]+)/);
+      const mask = ref && document.getElementById(ref[1]);
+      const cut = mask && mask.querySelector('path');
+      out.capMasked = !!cut && cut.getAttribute('fill') === '#000' &&
+        Math.abs(+cut.getAttribute('stroke-width') - 1.6) < 1e-6;
+    }
+
+    /* ---- square corners ---- */
+    {
+      applyEdit(()=>{
+        workingNodes.length = 0; refill(EDGE_STYLES, []);
+        workingNodes.push(['sqA', 'Square', null, null, null, null,
+                           {pos:[X, Y], colors:['#222', '#c3c'], square:true}]);
+        workingNodes.push(['sqB', 'Round', 'sqA', null, null, null, {pos:[X + 260, Y + 160]}]);
+        workingNodes.push(['sqW', 'Wavy', 'sqA', null, null, null,
+                           {pos:[X - 260, Y + 160], border:'wavy', square:true}]);
+        workingNodes.push(['sqK', 'A remark', null, null, null, 'callout',
+                           {pos:[X + 160, Y + 40], leader:{from:'sqA', to:'sqB', at:0.5}}]);
+        refill(EDGE_STYLES, [{from:'sqA', to:'sqB', square:true, note:'hi'}]);
+      });
+      await wait(200);
+      const rx = (id)=> [...document.querySelectorAll(`.node[data-id="${id}"] > rect[stroke]`)]
+        .map(r=> +r.getAttribute('rx'));
+      out.squareRx = JSON.stringify({A: rx('sqA'), B: rx('sqB'), K: rx('sqK')});
+      out.squareBox = rx('sqA').length === 2 && rx('sqA').every(v=> v === 0) &&
+                      rx('sqB').every(v=> v > 0);
+      // A ripple keeps its own corners whatever the setting says.
+      const wavyD = document.querySelector('.node[data-id="sqW"] > path').getAttribute('d');
+      const nW = nodes.get('sqW');
+      out.wavyIgnores = !hasSquareCorners(nW) && wavyD === wavyRectPath(nW.x, nW.y, nW.w, nW.h, 0);
+      // The connector's corners square its elbows, its plate and its callout.
+      const line = document.querySelector('#edgeLayer path.edge.struct[data-from="sqA"][data-to="sqB"]');
+      out.edgeSquare = !!line && !/Q/.test(line.getAttribute('d'));
+      const plate = document.querySelector('.edge-note[data-from="sqA"] .edge-note-plate');
+      out.plateSquare = !!plate && +plate.getAttribute('rx') === 0;
+      out.calloutFollows = rx('sqK').length > 0 && rx('sqK').every(v=> v === 0);
+      out.serialized = /square:true/.test(serializeEdgeStyles(EDGE_STYLES));
+      // …and the panels set it.
+      selectNode('sqB');
+      detailEditToggle.click();
+      await wait(100);
+      document.querySelector('#editCorners button[data-value="square"]').click();
+      flushNodeEditCommit();
+      await wait(150);
+      out.panelWrites = !!entryOpts(workingEntry('sqB').entry).square && rx('sqB').every(v=> v === 0);
+      document.querySelector('#editBorderStyle button[data-value="wavy"]').click();
+      out.panelGreys = document.getElementById('editCorners').classList.contains('disabled');
+      flushNodeEditCommit();
+      closeEditForm();
+      deselect();
+      await wait(100);
+    }
+
+    /* ---- the bar gives way in whole steps, and only when it must ---- */
+    {
+      const bars = [];
+      for(let k = 0; k <= 9; k++){
+        applyEdit(()=>{
+          workingNodes.length = 0; refill(EDGE_STYLES, []);
+          for(let i = 0; i < 4; i++)
+            workingNodes.push(['bp' + i, 'Beast Wars: Uprising', null, null, null, null,
+                               {pos:[X + i * 150, Y]}]);
+          workingNodes.push(['bm', 'Beast Wars: Uprising', ['bp0','bp1','bp2','bp3'],
+                             null, null, 'amalgam', {pos:[X + 220, Y + 150 - k * 10]}]);
+        });
+        const n = nodes.get('bm'), bar = amalgamBars.get('bm');
+        bars.push({entry: n.y, bar: bar.cross, gap: n.y - bar.cross});
+      }
+      const steps = bars.slice(1).map((b, i)=> +(bars[i].bar - b.bar).toFixed(3));
+      out.barSteps = JSON.stringify(bars.map(b=> [b.entry, b.bar]));
+      /* Every move is nothing or a whole grid step, and the bar does not
+         move while the arrow still has its room. */
+      out.barWhole = steps.every(d=> d === 0 || Math.abs(d - GRID) < 1e-6);
+      out.barWaits = bars.every((b, i)=> i === 0 || steps[i-1] === 0 ||
+                                bars[i-1].entry - 10 - bars[i-1].bar < AMALGAM_GAP);
+    }
+
+    /* ---- a lineage in the way takes its whole merge with it ---- */
+    {
+      applyEdit(()=>{
+        workingNodes.length = 0; refill(EDGE_STYLES, []);
+        workingNodes.push(['mx', 'Outsider', null, null, null, null, {pos:[X, Y - 160]}]);
+        for(let i = 0; i < 4; i++)
+          workingNodes.push(['mw' + i, 'Parent ' + i, i === 0 ? 'mx' : i === 2 ? 'mw1' : null,
+                             null, null, null, {pos:[X + i * 150, Y]}]);
+        workingNodes.push(['mm', 'Merge of every one', ['mw0','mw1','mw2','mw3'], null, null,
+                           'amalgam', {pos:[X + 200, Y + 160]}]);
+        // A bend set by hand on a connector the merge carries whole.
+        refill(EDGE_STYLES, [{from:'mw1', to:'mw2', bends:[[X + 285, Y + 110]]}]);
+      });
+      await wait(400);
+      const at = ()=> Object.fromEntries(['mx','mw0','mw1','mw2','mw3','mm']
+        .map(id=> [id, [nodes.get(id).x, nodes.get(id).y]]));
+      const carry = async (id, dy)=>{
+        const g = document.querySelector('.node[data-id="' + id + '"]');
+        const r = g.getBoundingClientRect();
+        const sx = r.x + r.width/2, sy = r.y + r.height/2;
+        g.dispatchEvent(new MouseEvent('mousedown',
+          {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
+        for(let k = 1; k <= 12; k++){
+          window.dispatchEvent(new MouseEvent('mousemove',
+            {bubbles:true, clientX:sx, clientY: sy + (dy/12) * k}));
+          await wait(14);
+        }
+        window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+        await wait(400);
+      };
+      const was = at();
+      await carry('mx', 150 * vs);
+      const now = at();
+      const dys = ['mw0','mw1','mw2','mw3','mm'].map(id=> now[id][1] - was[id][1]);
+      out.wholeMerge = JSON.stringify(dys);
+      out.wholeMoved = dys[0] > 0 && dys.every(d=> Math.abs(d - dys[0]) < 1e-6);
+      const bend = (EDGE_STYLES.find(o=> o.from === 'mw1' && o.to === 'mw2') || {}).bends;
+      out.bendAt = JSON.stringify(bend);
+      out.bendCarried = !!bend && bend.length === 1 &&
+        Math.abs(bend[0][0] - (X + 285)) < 1e-6 && Math.abs(bend[0][1] - (Y + 110 + dys[1])) < 1e-6;
+      // Carried from the inside, the row gives way as a row.
+      const was2 = at();
+      await carry('mm', -200 * vs);
+      const now2 = at();
+      const ups = ['mw0','mw1','mw2','mw3'].map(id=> now2[id][1] - was2[id][1]);
+      out.rowUp = JSON.stringify(ups);
+      out.rowMoved = ups[0] < 0 && ups.every(d=> Math.abs(d - ups[0]) < 1e-6);
+    }
+
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    refill(EDGE_STYLES, beforeStyles); });
+    await wait(300);
+    return out;
+  });
+  check('a wavy border does not make the entry any bigger', rW.wavySame, rW.wavySize);
+  check('a cap over an inner ring stops where that ring’s stroke begins', rW.capMasked);
+  check('square corners square the box and every ring of it', rW.squareBox, rW.squareRx);
+  check('a wavy border keeps its rounded corners whatever the setting says', rW.wavyIgnores);
+  check('a square connector has no rounded elbows', rW.edgeSquare);
+  check('and its note plate is square too', rW.plateSquare);
+  check('a callout takes its connector’s corners', rW.calloutFollows, rW.squareRx);
+  check('the corners are written into the saved chart', rW.serialized);
+  check('the entry panel sets square corners', rW.panelWrites);
+  check('and greys the choice while the border is wavy', rW.panelGreys);
+  check('the merge’s bar moves in whole grid steps or not at all', rW.barWhole, rW.barSteps);
+  check('and stays put while the merged arrow still has its room', rW.barWaits, rW.barSteps);
+  check('a lineage pushed by an outsider takes its whole merge with it',
+        rW.wholeMoved, rW.wholeMerge);
+  check('a merge carried into its lineages moves them as a row', rW.rowMoved, rW.rowUp);
+  check('a pushed merge carries the bends set by hand between its members',
+        rW.bendCarried, rW.bendAt + ' after ' + rW.wholeMerge);
+  });
+
+  await scenario("colours that are colours, and a form that offers corners", async () => {
+  const rC = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const beforeRef = SETTINGS.refColor;
+    const w0 = clientToWorld(420, 280);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+    /* A colour is a hex value wherever it is READ. A chart arrives from a
+       file, from storage and from a hand-edited data.js, and escaping kept
+       a colour inside its attribute but not inside its declaration. */
+    const bad = 'red;background:url(https://example.org/x.png)';
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      workingNodes.push(['hx', 'Hex', null, null, null, null,
+                         {pos:[X, Y], colors:[bad, '#123456'], bg:[bad]}]);
+      workingNodes.push(['hy', 'Other', 'hx', null, null, null, {pos:[X, Y + 160]}]);
+      refill(EDGE_STYLES, [{from:'hx', to:'hy', color:bad, noteBg:bad, gradient:[bad, '#fff']}]);
+      SETTINGS.refColor = bad;
+    });
+    await wait(150);
+    const n = nodes.get('hx'), st = edgeStyleFor('hx', 'hy');
+    out.nodeColors = JSON.stringify([n.colors, n.color, n.bg]);
+    out.nodeClean = JSON.stringify(n.colors) === '["#123456"]' && n.color === '#123456' && n.bg === null;
+    out.edgeClean = st.color === null && st.noteBg === null && st.gradient === null;
+    out.refClean = refColor() === DEFAULT_REF_COLOR;
+    out.noUrl = !/example\.org/.test(document.body.innerHTML);
+
+    /* The new-entry form offers corners, greyed as the entry panel greys them. */
+    document.getElementById('addNodeToggle').onclick();
+    const pick = (group, v)=> document.querySelector('#' + group + ' button[data-value="' + v + '"]').click();
+    const greyed = ()=> document.getElementById('addNodeCorners').classList.contains('disabled');
+    out.formRound = addNodeCorners.value === 'round' && !greyed();
+    pick('addNodeBorderStyle', 'wavy');
+    out.formGreysWavy = greyed();
+    pick('addNodeBorderStyle', 'solid');
+    out.formUngreys = !greyed();
+    // And its background reset empties the field it sits in.
+    addNodeBg.value = '#abcdef';
+    addNodeBg.dispatchEvent(new Event('input', {bubbles:true}));
+    const reset = document.getElementById('addNodeBgReset');
+    const wasLive = !reset.disabled;
+    reset.click();
+    out.bgReset = wasLive && addNodeBg.value === '' && reset.disabled;
+    pick('addNodeCorners', 'square');
+    setRichValue(addNodeLabel, 'Squared at birth');
+    const ids = new Set(workingNodes.map(it=> it[0]));
+    document.getElementById('addNodeSubmit').onclick();
+    await wait(150);
+    const made = workingNodes.find(it=> !ids.has(it[0]));
+    out.formWrites = !!made && !!(made[6] && made[6].square) && hasSquareCorners(nodes.get(made[0]));
+
+    /* A callout pinned to a connector takes its corners from the connector,
+       so the entry panel greys the choice there instead of offering a
+       button that changes nothing. */
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      workingNodes.push(['ca', 'A', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['cb', 'B', 'ca', null, null, null, {pos:[X, Y + 200]}]);
+      workingNodes.push(['ck', 'Pinned', null, null, null, 'callout',
+                         {pos:[X + 220, Y + 100], leader:{from:'ca', to:'cb', at:0.5}}]);
+      workingNodes.push(['cl', 'Loose', null, null, null, 'callout', {pos:[X + 220, Y + 300]}]);
+      refill(EDGE_STYLES, []);
+    });
+    await wait(150);
+    const cornersGreyFor = (id)=>{
+      deselect();
+      openEntrySettings(id);
+      return document.getElementById('editCorners').classList.contains('disabled');
+    };
+    out.pinnedLeader = !!nodes.get('ck').leader;
+    out.pinnedGrey = cornersGreyFor('ck');
+    out.looseLive = !cornersGreyFor('cl');
+    deselect();
+
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    refill(EDGE_STYLES, beforeStyles); SETTINGS.refColor = beforeRef; });
+    await wait(300);
+    return out;
+  });
+  check('a colour that is not hex is dropped from an entry', rC.nodeClean, rC.nodeColors);
+  check('and from a connector, its note ground and its gradient', rC.edgeClean);
+  check('and from the citation colour', rC.refClean);
+  check('and never reaches the drawing', rC.noUrl);
+  check('the new-entry form offers rounded corners first', rC.formRound);
+  check('and greys them for a wavy border, and gives them back', rC.formGreysWavy && rC.formUngreys);
+  check('its background reset empties the field', rC.bgReset);
+  check('and a square entry is made square', rC.formWrites);
+  check('a callout pinned to a connector has its corners greyed', rC.pinnedLeader && rC.pinnedGrey);
+  check('a loose callout keeps the choice', rC.looseLive);
+  });
+
+  await scenario("the management panel says why", async () => {
+  const rM = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeRefs = REFS.map(r=> Object.assign({}, r));
+    const beforeCats = JSON.stringify(TAG_CATS);
+    /* A refusal is said in the top bar. Both of the panel's messages went
+       into a status line the page no longer has, so it was dropped. */
+    const st = document.getElementById('saveState');
+    out.statusExists = !!st;
+    createTag('A tag nobody has');
+    createTag('A tag nobody has');
+    out.dupShown = !!st && st.classList.contains('err') && /already exists/.test(st.textContent);
+    /* A bad link typed over a good one keeps the good one. */
+    const realAsk = askFields;
+    try{
+      applyEdit(()=> REFS.push({key:'rqTest', title:'', detail:'A source', url:'https://example.org/'}));
+      window.askFields = async ()=> ({detail:'A source', url:'javascript:alert(1)'});
+      await editRef('rqTest');
+      const r = REFS.find(x=> x.key === 'rqTest');
+      out.keptLink = !!r && r.url === 'https://example.org/' && !('refused' in r);
+      out.refusalShown = /not saved/.test(st ? st.textContent : '');
+    } finally { window.askFields = realAsk; }
+    applyEdit(()=>{
+      REFS.length = 0; beforeRefs.forEach(r=> REFS.push(r));
+      const cats = JSON.parse(beforeCats);
+      TAG_CATS.length = 0; cats.forEach(c=> TAG_CATS.push(c));
+    });
+    refreshSaveUI();
+    await wait(100);
+    return out;
+  });
+  check('a name that is taken is refused out loud', rM.statusExists && rM.dupShown);
+  check('a bad link typed over a good one keeps the good one', rM.keptLink);
+  check('and says the link was not saved', rM.refusalShown);
   });
 
   /* ---- 29. nothing threw along the way ---- */

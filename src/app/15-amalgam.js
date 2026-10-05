@@ -4,7 +4,11 @@
    of it — and it showed as an invisible wall a whole box-width short of a
    neighbour whenever a parent was slid along the bar. Two radii and a
    little air is enough for both corners to keep their shape. */
-const AMALGAM_GAP = 24, AMALGAM_LEAD = 34, AMALGAM_PITCH = 2 * 6 + 3;
+/* AMALGAM_GAP is the closest the bar may come to the entry it feeds: the
+   merged arrow's head (9.5), the bead it leaves from (3.6) and a little
+   shaft between them, so it still reads as an arrow. It was 24, which
+   gave way a whole step before it had to; see amalgamGeometry. */
+const AMALGAM_GAP = 18, AMALGAM_LEAD = 34, AMALGAM_PITCH = 2 * 6 + 3;
 // The furthest the shared bar may stand off its entry, and the furthest
 // along that bar a lineage may land.
 /* The span cap stops the bar growing across the chart — but it is also
@@ -22,6 +26,11 @@ const amalgamBars = new Map();
    corner radii and a little over, so the bend onto the bar always has a
    full radius of leg to sit in and can never square off. */
 const AMALGAM_APPROACH = EDGE_CORNER_R * 2 + 4;
+/* …and the least it can be squeezed to while the bar is still giving way
+   in whole steps (see amalgamGeometry): one corner and a little straight.
+   Only closer than that does the bar leave the step and settle between
+   the lineages and the entry. */
+const AMALGAM_SQUEEZE = EDGE_CORNER_R + 2;
 // The joint beads between neighbouring stretches of the bar. A shade
 // smaller than the junction's, so the point the merged arrow leaves from
 // still reads as the principal one.
@@ -125,8 +134,32 @@ function amalgamGeometry(list, ports){
    * hanging off one of those connectors. The only floor left is the one
    * the shape itself imposes: the bar may not be inside the entry it
    * feeds. */
-  const barDist = Math.max(AMALGAM_GAP,
-    Number.isFinite(nearest) ? nearest - AMALGAM_LEAD : AMALGAM_GAP);
+  /* …and when the entry comes close enough that the floor takes over, the
+   * bar gives way in whole GRID steps from where it rests, never by the
+   * odd few pixels the floor happens to be short by.
+   *
+   * It used to be put exactly AMALGAM_GAP in front of the entry. An entry
+   * is carried in grid steps and the bar rests a lineage's LEAD below the
+   * parents, which is on no particular step — so the first step that
+   * crossed the floor moved the bar by whatever the remainder was, two
+   * pixels or three, and only then did it start travelling with the entry
+   * in whole steps. That first nudge is the extra shift seen when an
+   * amalgam is carried up under its lineages: the bar moved when the room
+   * left was perfectly good. Stepping from the resting place instead
+   * means the bar either stays exactly where it was or moves exactly as
+   * far as the entry did. The floor itself was lowered to what the merged
+   * arrow actually needs — its head, the bead it leaves from, and a sliver
+   * of shaft — so the bar no longer gives way while there is room. Where
+   * stepping would take the bar closer than a turn's run-up to the
+   * lineages (a merge squeezed tight), it settles between the two as it
+   * always did. */
+  const rest = Number.isFinite(nearest) ? nearest - AMALGAM_LEAD : AMALGAM_GAP;
+  let barDist = rest;
+  if(barDist < AMALGAM_GAP){
+    barDist = rest + Math.ceil((AMALGAM_GAP - rest) / GRID - 1e-9) * GRID;
+    if(Number.isFinite(nearest) && barDist > nearest - AMALGAM_SQUEEZE)
+      barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
+  }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
           cx: port.x + nrm.x * barDist, cy: port.y + nrm.y * barDist};
 }
@@ -551,7 +584,7 @@ function drawAmalgam(list, ports){
     const onEnd = (i === 0 || i === n-1);
     const bar = Math.abs(inward - o) > 0.5 ? barPt(inward) : null;
     const joined = (bar && onEnd) ? pts.concat([bar]) : pts;
-    let d = style.sinusoid ? wavyPath(joined) : roundedPath(joined, EDGE_CORNER_R);
+    let d = style.sinusoid ? wavyPath(joined) : roundedPath(joined, edgeCornerR(style));
     if(bar && !onEnd) d += ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
     /* What the reader sees, whichever way the corner was drawn. `joined`
        carries the bar leg only for the two end lineages, so anchoring a

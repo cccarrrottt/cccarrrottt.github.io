@@ -199,6 +199,8 @@ function openEdgeStylePopover(from, to, evt){
   edgeStyleLabelEl.title = edgeStyleLabelEl.textContent;
   styleRoutingSel.value = style.routing;
   styleDashSel.value = style.sinusoid ? 'sinusoid' : style.dash;
+  styleCornersSel.value = style.square ? 'square' : 'round';
+  syncCornerChoice();
   styleArrowEnds.set('in', !!style.arrowIn);
   styleArrowEnds.set('out', style.arrow !== false);
   /* A lineage feeding an amalgam has no arrowhead of its own: it runs into
@@ -310,6 +312,7 @@ function applyLiveEdgeStyle(){
     routing: styleRoutingSel.value, dash,
     arrow: styleArrowEnds.get('out'), arrowIn: styleArrowEnds.get('in') || undefined,
     sinusoid,
+    square: styleCornersSel.value === 'square' || undefined,
     note: noteFromForm(),
     // Only meaningful alongside a note; without one it would be a stored
     // setting that changes nothing.

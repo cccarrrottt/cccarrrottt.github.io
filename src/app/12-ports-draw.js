@@ -46,26 +46,39 @@ function ringOutlinePath(n, ring){
     const r = w/2, cx = x + w/2, cy = y + h/2;
     return `M${cx-r},${cy} a${r},${r} 0 1 0 ${r*2},0 a${r},${r} 0 1 0 ${-r*2},0 Z`;
   }
-  const rr = Math.max(0, 5 + grow);
+  const rr = hasSquareCorners(n) ? 0 : Math.max(0, 5 + grow);
   return `M${x+rr},${y} H${x+w-rr} A${rr},${rr} 0 0 1 ${x+w},${y+rr} ` +
          `V${y+h-rr} A${rr},${rr} 0 0 1 ${x+w-rr},${y+h} ` +
          `H${x+rr} A${rr},${rr} 0 0 1 ${x},${y+h-rr} ` +
          `V${y+rr} A${rr},${rr} 0 0 1 ${x+rr},${y} Z`;
 }
 /* The ground a ring cap may be drawn on: outside the ring the connector
-   ends at, and no further out than the entry's own outermost border. An
-   annulus, written as one path with the even-odd rule — the box round the
-   outside, the ring's outline inside it. */
+   ends at, and no further out than the entry's own outermost border.
+ *
+   Outside the ring's STROKE, not outside the line it is stroked along. It
+   was a clip path — the box with the ring's outline cut out of it — and a
+   clip has no width, so the cap was drawn over the outer half of the very
+   border it was meant to stop at. On a straight side that is half a
+   stroke under the width of the line, and nobody saw it. On a ripple it is
+   wherever the wave slopes under the line: the cap's square end sat over
+   the border on one side of the line and short of it on the other, which
+   read as the connector coming through the inner border of an entry with
+   several. A mask can cut out a stroke as well as a fill, so the cap now
+   stops where the border begins and the border is whole over the join —
+   exactly what an entry with one border looks like, where the line runs
+   under the entry and the border is drawn over its end. */
 const ringCapClips = new Map();
 function ringCapClipId(n, ring, reach){
   const key = n.id + '|' + ring;
   if(ringCapClips.has(key)) return ringCapClips.get(key);
   const id = defId('ringcap-', n.id) + '-r' + ring;
-  const clip = el('clipPath', {id, clipPathUnits:'userSpaceOnUse'}, edgeDefs);
   const pad = Math.max(2, reach) + 3;
   const bx = n.x - pad, by = n.y - pad, bw = n.w + pad*2, bh = n.h + pad*2;
-  const box = `M${bx},${by} H${bx+bw} V${by+bh} H${bx} Z `;
-  el('path', {d: box + ringOutlinePath(n, ring), 'clip-rule':'evenodd'}, clip);
+  const mask = el('mask', {id, maskUnits:'userSpaceOnUse', x:bx, y:by,
+                           width:bw, height:bh}, edgeDefs);
+  el('rect', {x:bx, y:by, width:bw, height:bh, fill:'#fff'}, mask);
+  el('path', {d: ringOutlinePath(n, ring), fill:'#000', stroke:'#000',
+              'stroke-width': BORDER_HALF * 2}, mask);
   ringCapClips.set(key, id);
   return id;
 }
@@ -132,7 +145,7 @@ function drawRingCap(port, paint, dash, from, to, dbl, lineD){
   const clipId = (lineD && owner) ? ringCapClipId(owner, ring, reach) : null;
   const attrs = clipId ? {
     class: 'edge struct edge-cap',
-    d: lineD, stroke: paint, 'clip-path': `url(#${clipId})`,
+    d: lineD, stroke: paint, mask: `url(#${clipId})`,
     'data-from': from || '', 'data-to': to || ''
   } : {
     class: 'edge struct edge-cap',

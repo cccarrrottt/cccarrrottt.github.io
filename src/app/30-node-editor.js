@@ -324,7 +324,7 @@ function closeNodeEditor(keep){
   if(noteEditorPaintFrame){ cancelAnimationFrame(noteEditorPaintFrame); noteEditorPaintFrame = 0; }
   const wasNote = nodeEditorTarget.kind === 'note';
   if(keep !== false) commitNodeEditorText();
-  if(typeof endLabelPreview === 'function') endLabelPreview(keep !== false);
+  endLabelPreview(keep !== false);
   nodeEditor.hidden = true;
   nodeEditorTarget = null;
   nodeEditorUndoPushed = false;
@@ -381,41 +381,5 @@ document.addEventListener('mousedown', ev=>{
   const t = ev.target;
   if(t && t.closest && t.closest(NODE_EDITOR_SATELLITES)) return;
   closeNodeEditor(true);
-}, true);
-/* A callout's little card is no longer opened by anything — a click only
-   selects, and Delete removes what is selected. What is left here only
-   makes sure a card that is somehow still up can be put away. */
-function closeCalloutPopover(){
-  calloutPopover.classList.remove('open');
-  calloutTarget = null;
-}
-document.getElementById('calloutClose').onclick = (ev)=>{ ev.stopPropagation(); closeCalloutPopover(); };
-document.getElementById('calloutDelete').onclick = (ev)=>{
-  ev.stopPropagation();
-  const id = calloutTarget;
-  closeCalloutPopover();
-  if(id && !readOnlyView) deleteNodes([id]);
-};
-calloutPopover.addEventListener('mousedown', ev=> ev.stopPropagation());
-calloutPopover.addEventListener('click', ev=> ev.stopPropagation());
-/* Anywhere else closes it, the way every other card on this page closes —
-   except while a callout is being placed or carried, when the click is
-   part of the gesture rather than a click somewhere else. */
-document.addEventListener('click', (ev)=>{
-  if(!calloutPopover.classList.contains('open')) return;
-  /* A click INSIDE the card is not a click elsewhere.
-   *
-     This listens in the capture phase — it has to, or a click on the
-     drawing would be swallowed by the drawing before it ever reached
-     here — and capture runs before the target's own handler. So a press on
-     the card's own Delete button closed the card first, clearing the
-     callout it was about, and the button then had nothing to delete: the
-     panel shut and the remark stayed on the chart. The popover's own
-     stopPropagation cannot help, because propagation had not reached it
-     yet. Containment is the test that answers correctly in either
-     phase. */
-  if(calloutPopover.contains(ev.target)) return;
-  if(leaderPick || leaderJustPlaced) return;
-  closeCalloutPopover();
 }, true);
 
