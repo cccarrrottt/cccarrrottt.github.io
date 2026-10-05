@@ -166,6 +166,10 @@ site") and `build_guard`:
   has rebuilt.
 - **What the page sends for a region is the text between its markers,
   byte for byte.** Otherwise every save would rewrite all of `data.js`.
+- **A push that changes only `src/data.js` skips CI's checks** and is
+  published at once — that is what a Save on the site is, and the owner
+  asked not to wait for the suite. The `changes` job decides from the
+  pushed trees, so any other file in the push runs everything.
 - **On the site a chart in localStorage is never restored** — it could only
   be a reader's edit from the days the site served an editor.
 - Read-only is still a flag (`body.read-only`, `readOnlyView`), and
