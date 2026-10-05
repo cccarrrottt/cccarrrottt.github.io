@@ -1,0 +1,6 @@
+{
+  "name": "rhizome-edit",
+  "private": true,
+  "type": "module",
+  "description": "The chart's write service: owner sign-in through GitHub, and Save as a commit to src/data.js."
+}

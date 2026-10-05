@@ -110,10 +110,10 @@ async function exportChart(){
   clearFileStatus();
   let out, name;
   try{
-    /* editableCopyOf, because what is being written is a copy for somebody's
-       own disk: see the note beside it. On every build but the share copy it
-       is a no-op. */
-    out = ensureFullDocument(editableCopyOf(writeChart(await readOwnSource())));
+    /* The copy is the one file there is. Opened from somebody's disk it is
+       their own chart and edits into their own browser — the site is the only
+       address where it starts as a reader. */
+    out = ensureFullDocument(writeChart(await readOwnSource()));
     name = chartFileName();
   }catch(e){
     setFileStatus('err', 'Export failed: ' + (e && e.message ? e.message : 'unknown error'));
@@ -124,9 +124,8 @@ async function exportChart(){
   if(!dl){
     /* No capability. Off claude.ai that is normal and the link simply works.
        On claude.ai it means this copy was published without the downloads
-       capability — the read-only share copy is, deliberately, because
-       declaring any capability at all is what stops a page being shared
-       publicly. The link is then almost certainly inert, and saying
+       capability — a copy shared publicly has to be, because declaring any
+       capability at all is what stops a page being shared that way. The link is then almost certainly inert, and saying
        "Exported" would be a lie. Try it anyway, since it costs nothing and
        may work, but describe it as an attempt. */
     saveViaLink(out, name);
@@ -357,9 +356,9 @@ fileImportInput.addEventListener('change', ()=>{
 });
 
 /* Whether Export can deliver anything is knowable before the button is
-   pressed, so it is settled before the button is offered. On the read-only
-   share copy — published with no capabilities at all, so that it stays
-   publicly shareable — nothing can hand the viewer a file, and a button
+   pressed, so it is settled before the button is offered. On claude.ai, a
+   copy published with no capabilities at all — so that it stays publicly
+   shareable — has nothing to hand the viewer a file with, and a button
    that explains its own failure after the click is worse than a button
    that was never live. Resolved once, on first open of the panel. */
 let exportGateDone = false;
@@ -381,6 +380,10 @@ function describeWhereItSaves(){
   if(!el) return;
   el.textContent = HOSTED
     ? 'Save publishes a new version of this page on claude.ai.'
+    : ON_SITE
+    ? (readOnlyView
+        ? 'Only the chart\u2019s owner can change this page. Export takes a copy of your own that you can edit.'
+        : 'Save sends the chart to the repository; the site shows it once it has been rebuilt, in a few minutes.')
     : (STORAGE_OK
         ? 'Save keeps this chart in this browser, for this file. Export to move it anywhere else.'
         : 'This browser will not let the page store anything, so Export is the only way to keep your work.');
@@ -393,7 +396,7 @@ document.getElementById('fileToggle').onclick = ()=>{
   describeWhereItSaves();
   gateExport();
   const forget = document.getElementById('fileForget');
-  forget.style.display = (!HOSTED && STORAGE_OK && readStoredChart()) ? '' : 'none';
+  forget.style.display = (!HOSTED && !ON_SITE && STORAGE_OK && readStoredChart()) ? '' : 'none';
   filePopover.classList.toggle('open', willOpen);
 };
 document.getElementById('fileClose').onclick = ()=> filePopover.classList.remove('open');
@@ -448,22 +451,22 @@ function markReadOnly(sticky){
   try{ closeEditForm(); }catch(e){}
   try{ closeEdgePopover(); }catch(e){}
 }
-/* @@SHARE:READONLY@@ */
-/* The line above is where build.py makes the share copy.
- *
- * That copy is published with no write capability at all, so it is a reader
- * by construction and can say so on the first frame instead of finding out
- * when somebody presses Save. The build says so by putting a call to
- * markReadOnly in at this point.
- *
- * It used to find the place by searching for `function isReadOnlyError(e){`
- * and inserting before it — which meant renaming a function, or moving it,
- * silently became a change to how the share copy is built. The build did
- * check that it found exactly one, so it would have stopped rather than
- * produced a wrong page; but it would have stopped for a reason with no
- * connection to what the person had actually done. A marker that exists FOR
- * the build cannot be broken by accident, because there is nothing else it
- * could be for. */
+/* On the published site every visitor starts as a reader, and says so on
+   the first frame rather than drawing an editor and taking it away. The
+   owner is let back in by markEditable below, once the write service has
+   confirmed who they are — see SITE_API in 01-store.js and the sign-in in
+   36-site-owner.js. */
+if(ON_SITE) markReadOnly(false);
+/* The way back, which only the site uses. Everything that hides an editing
+   control does it through `body.read-only` or by asking readOnlyView while
+   it draws, so lifting the flag and drawing again is the whole of it. */
+function markEditable(){
+  if(!readOnlyView) return;
+  readOnlyView = false;
+  document.body.classList.remove('read-only');
+  try{ rebuildChart(); }catch(e){}
+  try{ refreshSaveUI(); }catch(e){}
+}
 function isReadOnlyError(e){
   const code = e && e.code;
   return code === 'not_writer' || code === 'not_granted' ||
@@ -480,45 +483,6 @@ function isPermanentRefusal(e){
    file onto a disk and make it look frozen. */
 if(HOSTED){
   try{ if(localStorage.getItem(READONLY_KEY) === '1') markReadOnly(true); }catch(e){}
-}
-
-/* The same rule, for the one read-only answer that is not remembered but
-   BUILT IN: the share copy's own declaration, written into the file by
-   build.py.
-
-   It is true where that copy is published and nowhere else. Export hands
-   the reader a complete page for their own disk, and on a disk there is no
-   host to refuse a publish and nobody else looking at the file — Save
-   writes into that reader's own browser, which is theirs to write to. A
-   copy that arrived frozen was being refused by a permission that had
-   stopped applying the moment it left the site, and the reader had no way
-   back: the flag is in the file, so reloading, re-exporting and importing
-   it all landed in the same place.
-
-   So the export undoes exactly what the share build does, and only that:
-   the marked block it writes, and the title it renames with it. The marks
-   are spelled in two pieces because this code is INSIDE the page being
-   searched — the same reason PAGE_BEGIN_MARK is, where the argument is
-   written out at length. Nothing here decides who may write; it removes a
-   claim that has no author left to make it. */
-const SHARE_BEGIN_MARK = '/* @@SHARE' + ':READONLY:BEGIN@@ */';
-const SHARE_END_MARK = '/* @@SHARE' + ':READONLY:END@@ */';
-const SHARE_ANCHOR_MARK = '/* @@SHARE' + ':READONLY@@ */';
-function editableCopyOf(src){
-  if(typeof src !== 'string') return src;
-  const a = src.indexOf(SHARE_BEGIN_MARK);
-  if(a < 0) return src;                    // an editable build already
-  const b = src.indexOf(SHARE_END_MARK, a);
-  if(b < 0) return src;
-  /* The anchor goes back where the block stood, rather than a hole: what
-     comes out is then the editable build, line for line, and the comment
-     below it still has the line it says it is talking about. */
-  const out = src.slice(0, a) + SHARE_ANCHOR_MARK + src.slice(b + SHARE_END_MARK.length);
-  /* And the title, so the file on the disk does not announce a state it is
-     no longer in. Matched on the suffix rather than on the whole name: the
-     page's title is the chart's, and this code has no business knowing what
-     the chart is called. */
-  return out.replace(/<title>([^<]*?)\s*\u2014\s*read-only<\/title>/i, '<title>$1</title>');
 }
 
 // Comments panel.

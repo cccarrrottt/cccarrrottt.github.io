@@ -9733,42 +9733,99 @@ async function main(){
         Math.abs(parseFloat(rMv.sheetStagger) + 0.85) < 1e-6, rMv.sheetStagger);
   });
 
-  /* ---- 32. the copy the public site is ----
+  /* ---- 32. the page on the published site ----
    *
-   * There are two independent questions about a build — may it be edited,
-   * and is it a whole document — and for a while only three of the four
-   * answers had a file. GitHub Pages needs a document, so it got the
-   * editable one: anybody who opened the published site got the full
-   * editor, and since a page with no host to publish to saves into the
-   * reader's own browser, their edit survived a reload. Nothing they did
-   * could reach anyone else, but nothing told them so either.
+   * There used to be four builds, because whether a copy could be edited
+   * was decided when it was built — and for a while the one the site needed
+   * did not exist, so Pages served the editor to everybody. Now there is one
+   * file and the question is asked when it opens: on the site's own address
+   * it is a reader until the write service says the owner is signed in, and
+   * anywhere else it is whoever holds it's own copy.
    *
-   * Driven against the built file itself rather than against a claim in a
-   * workflow, because the workflow copies whatever it is pointed at. */
-  await scenario("the copy the public site is", async () => {
+   * Driven at the real address. The browser is given the built file when it
+   * asks for the site, and the write service is answered from here, so what
+   * is exercised is the page deciding from location.origin and SITE_API, as
+   * it will on the day — not a flag the suite set for it. */
+  await scenario("the page on the published site", async () => {
   if(MODE === 'src'){
-    check('the published copy is built, so there is nothing to check from src', true);
+    check('the site serves the built file, so there is nothing to check from src', true);
     return;
   }
-  const site = await ctx.newPage();
-  await site.goto(`http://127.0.0.1:${PORT}/nexus-share-standalone.html`, {waitUntil:'load'});
+  const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
+  const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
+  const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
+  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
+  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
+  const dataSha = require('crypto').createHash('sha1')
+    .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
+  const regionOf = (text, name) => {
+    const a = `/* @@EDIT:${name}:START@@ */`, b = `/* @@EDIT:${name}:END@@ */`;
+    return text.slice(text.indexOf(a) + a.length, text.indexOf(b)).replace(/^\n/, '').replace(/\n$/, '');
+  };
+
+  /* The write service, as the page sees it. */
+  const api = {sha: dataSha, saves: [], asked: 0};
+  const c = await browser.newContext({viewport:{width:1500, height:950}});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
+  await c.route(SITE_API + '/**', async r => {
+    const q = r.request(), u = new URL(q.url());
+    const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN,
+                  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
+    const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
+    if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
+    if(u.pathname === '/login'){
+      // What the real service does at the end of a sign-in, minus GitHub.
+      return r.fulfill({status: 200, contentType: 'text/html', body:
+        `<script>opener.postMessage({rhizomeSession:'good-session'}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
+    }
+    api.asked++;
+    if(q.headers()['authorization'] !== 'Bearer good-session') return reply(401, {error: 'not signed in.'});
+    if(u.pathname === '/me') return reply(200, {owner: true, login: 'the-owner', sha: api.sha});
+    if(u.pathname === '/save'){
+      const b = JSON.parse(q.postData());
+      api.saves.push(b);
+      if(b.base !== api.sha) return reply(409, {error: 'the repository has a newer chart.'});
+      api.sha = 'sha-after-save-' + api.saves.length;
+      return reply(200, {sha: api.sha});
+    }
+    return reply(404, {error: 'not found'});
+  });
+  /* A chart left in this browser from the days when the site served an
+     editor, by a reader who thought they had changed it. */
+  await c.addInitScript(([origin]) => {
+    if(location.origin !== origin) return;
+    try{
+      if(!sessionStorage.getItem('suite.seeded')){
+        localStorage.setItem('rhizome.chart:/', JSON.stringify({v:1, nodes:[['old','A READER’S OLD EDIT']]}));
+        sessionStorage.setItem('suite.seeded', '1');
+      }
+    }catch(e){}
+  }, [SITE_ORIGIN]);
+  const errs = [];
+
+  /* ---- a reader ---- */
+  const site = await c.newPage();
+  site.on('pageerror', e => errs.push(e.message));
+  await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
   await site.waitForFunction(() => typeof rebuildChart === 'function');
+  await wait(300);
   const r = await site.evaluate(async () => {
+    const shown = id => { const b = document.getElementById(id); return !!b && getComputedStyle(b).display !== 'none'; };
     const out = {
       wholeDocument: document.doctype !== null && document.documentElement.tagName === 'HTML',
+      onSite: ON_SITE,
       readOnly: readOnlyView,
       bodySaysSo: document.body.classList.contains('read-only'),
       drew: document.querySelectorAll('#nodeLayer .node').length,
-      saveHidden: getComputedStyle(document.getElementById('saveBtn')).display === 'none',
-      // Read-only stops writing to THIS chart; taking a copy away is not
-      // writing, and a reader who wants to build on it should be able to.
-      exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(id => {
-        const b = document.getElementById(id);
-        return !!b && getComputedStyle(b).display !== 'none';
-      }),
-      // …and importing INTO it is writing, so that one is refused.
-      importRefused: getComputedStyle(document.getElementById('fileImport')).display === 'none' ||
-                     readOnlyView
+      oldEditShown: workingNodes.some(n => n[1] === 'A READER’S OLD EDIT'),
+      saveHidden: !shown('saveBtn'),
+      signIn: shown('ownerBtn') ? document.getElementById('ownerBtn').textContent : null,
+      exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(shown),
+      importRefused: !shown('fileImport') || readOnlyView
     };
     const was = workingNodes[0][1];
     applyEdit(() => { workingNodes[0][1] = 'A VISITOR WROTE THIS'; });
@@ -9776,87 +9833,145 @@ async function main(){
     out.stillClean = !isDirty();
     return out;
   });
-  /* And what the reader carries away is a copy of their own.
-   *
-   * The published page says it is read-only because it is published: on
-   * that address nobody but the owner can write, and it stopped pretending
-   * otherwise. A file on a reader's disk is a different thing — there is no
-   * host to refuse a publish and nobody else looking at it — but the
-   * declaration was written into the file, so it travelled with the export
-   * and froze the copy too. There was no way back out of it either: the
-   * flag was in the bytes, so re-exporting or importing the file landed in
-   * the same place.
-   *
-   * Driven through the button, with the download plumbing stubbed out
-   * rather than the export function called directly: what is checked is
-   * the path a reader actually walks. */
+  check('the site is served the one built file, a whole document', r.wholeDocument && r.onSite,
+        JSON.stringify({doc: r.wholeDocument, onSite: r.onSite}));
+  check('and on the site it is a reader on the first frame',
+        r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
+  check('it draws the chart', r.drew > 0, `${r.drew} nodes`);
+  check('a chart left in this browser by the old editable site is not shown', !r.oldEditShown);
+  check('it offers no Save', r.saveHidden);
+  check('but it does offer the owner a way in', r.signIn === 'Owner sign-in', r.signIn);
+  check('an edit made in it does nothing', r.editRefused && r.stillClean,
+        JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
+  check('a reader may still take a copy away', r.exportOffered);
+  check('and may not write one back in', r.importRefused);
+  check('a reader with no session never asks the write service anything', api.asked === 0, `${api.asked} requests`);
+  const forged = await site.evaluate(async () => {
+    window.postMessage({rhizomeSession: 'good-session'}, '*');
+    await new Promise(res => setTimeout(res, 400));
+    return {readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')};
+  });
+  check('a session offered by anyone but the write service is ignored',
+        forged.readOnly && forged.stored === null, JSON.stringify(forged));
+
+  /* What the reader carries away is a copy of their own. Driven through the
+     button, with the download plumbing stubbed, and opened the way a reader
+     opens it: off a disk, with no server at all. */
   const taken = await site.evaluate(async () => {
-    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
     const realCreate = URL.createObjectURL;
     const realClick = HTMLAnchorElement.prototype.click;
     let grabbed = null;
     URL.createObjectURL = (blob)=>{ grabbed = blob; return 'blob:taken-by-the-suite'; };
-    HTMLAnchorElement.prototype.click = function(){};   // the save itself is the browser's business
+    HTMLAnchorElement.prototype.click = function(){};
     try{
       document.getElementById('fileExport').click();
-      for(let i = 0; i < 200 && !grabbed; i++) await wait(25);
+      for(let i = 0; i < 200 && !grabbed; i++) await new Promise(res => setTimeout(res, 25));
     }finally{
       URL.createObjectURL = realCreate;
       HTMLAnchorElement.prototype.click = realClick;
     }
     return grabbed ? await grabbed.text() : null;
   });
-  await site.close();
-
-  /* Opened the way the reader opens it — off a disk, with no server at all,
-     which is also the case where the page cannot fetch its own source. */
   const kept = path.join(os.tmpdir(), `rhizome-taken-copy-${process.pid}.html`);
   let r2 = null;
   if(taken){
     fs.writeFileSync(kept, taken, 'utf8');
     try{
-      const opened = await ctx.newPage();
+      const opened = await c.newPage();
       await opened.goto('file://' + kept, {waitUntil:'load'});
       await opened.waitForFunction(() => typeof rebuildChart === 'function');
       r2 = await opened.evaluate(() => {
         const out = {
           readOnly: readOnlyView,
-          bodySaysSo: document.body.classList.contains('read-only'),
           drew: document.querySelectorAll('#nodeLayer .node').length,
           saveOffered: getComputedStyle(document.getElementById('saveBtn')).display !== 'none',
-          title: document.title
+          signIn: !document.getElementById('ownerBtn').hidden
         };
-        const was = workingNodes[0][1];
         applyEdit(() => { workingNodes[0][1] = 'ITS OWN READER WROTE THIS'; });
         out.editTook = workingNodes[0][1] === 'ITS OWN READER WROTE THIS';
-        applyEdit(() => { workingNodes[0][1] = was; });
         return out;
       });
       await opened.close();
     }finally{ try{ fs.unlinkSync(kept); }catch(e){} }
   }
-
-  check('what Pages serves is a whole document', r.wholeDocument);
-  check('and it knows it is read-only on the first frame',
-        r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
-  check('it draws the chart', r.drew > 0, `${r.drew} nodes`);
-  check('it offers no Save', r.saveHidden);
-  check('an edit made in it does nothing', r.editRefused && r.stillClean,
-        JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
-  check('but a reader may still take a copy away', r.exportOffered);
-  check('and may not write one back in', r.importRefused);
-  check('the copy they take away carries no read-only declaration',
-        !!taken && !/markReadOnly\(false\);/.test(taken),
-        taken ? `${(taken.match(/markReadOnly\(false\);/g) || []).length} such calls in it`
-              : 'nothing was exported');
-  check('nor a title that says it is one',
-        !!taken && !/<title>[^<]*read-only<\/title>/i.test(taken));
-  check('and off a disk it opens as an editor, not as a reader',
-        !!r2 && !r2.readOnly && !r2.bodySaysSo && r2.saveOffered,
-        JSON.stringify(r2));
+  check('off a disk the copy a reader took opens as an editor',
+        !!r2 && !r2.readOnly && r2.saveOffered && r2.editTook, JSON.stringify(r2));
   check('it draws the same chart there', !!r2 && r2.drew === r.drew,
         JSON.stringify({site: r.drew, taken: r2 && r2.drew}));
-  check('and an edit made in it holds', !!r2 && r2.editTook);
+  check('and offers no sign-in, having no site to sign in to', !!r2 && !r2.signIn);
+
+  /* ---- the owner signs in ---- */
+  const popup = c.waitForEvent('page');
+  await site.click('#ownerBtn');
+  await popup;
+  await site.waitForFunction(() => !readOnlyView, null, {timeout: 5000}).catch(() => {});
+  const inn = await site.evaluate(() => ({
+    readOnly: readOnlyView,
+    button: document.getElementById('ownerBtn').textContent,
+    stored: localStorage.getItem('rhizome.site.session'),
+    saveShown: getComputedStyle(document.getElementById('saveBtn')).display !== 'none'
+  }));
+  check('signing in in a popup makes the same tab an editor',
+        !inn.readOnly && inn.saveShown && inn.stored === 'good-session', JSON.stringify(inn));
+  check('and the button offers to sign out', inn.button === 'Sign out', inn.button);
+
+  const saved = await site.evaluate(async () => {
+    const out = {sha: DATA_SHA};
+    applyEdit(() => { workingNodes[0][1] = 'THE OWNER WROTE THIS'; });
+    await saveNow();
+    out.dirty = isDirty();
+    out.state = document.getElementById('saveStateText').textContent;
+    applyEdit(() => { workingNodes[0][1] = 'AND THEN THIS'; });
+    await saveNow();
+    out.state2 = document.getElementById('saveStateText').textContent;
+    return out;
+  });
+  const first = api.saves[0], second = api.saves[1];
+  check('the page knows which data.js it was built from', saved.sha === dataSha, `${saved.sha} vs ${dataSha}`);
+  check('Save sends the chart to the write service, on top of that data.js',
+        !!first && first.base === dataSha && first.parts.NODES.includes('THE OWNER WROTE THIS'),
+        first ? first.base : 'nothing was sent');
+  check('and says the site will catch up, leaving nothing unsaved',
+        !saved.dirty && /Saved/.test(saved.state) && /few minutes/.test(saved.state), saved.state);
+  check('a second save stacks on the first rather than on the file the page was built from',
+        !!second && second.base === 'sha-after-save-1' && /Saved/.test(saved.state2), second ? second.base : 'nothing sent');
+  /* The regions the page sends are the text between the markers of the file
+     it will be written into. If they were not — a different indent, a
+     trailing newline — every save would rewrite the whole of data.js, and
+     the history of the chart would be a list of commits that each changed
+     everything. */
+  const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
+    .filter(n => first.parts[n] !== regionOf(html, n)) : ['everything'];
+  check('what it sends for an untouched region is that region, byte for byte', same.length === 0, same.join(', '));
+
+  /* ---- the owner, when the site is behind the repository ---- */
+  api.sha = 'a-newer-data-js';
+  const behind = await c.newPage();
+  await behind.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+  await behind.waitForFunction(() => typeof rebuildChart === 'function');
+  await wait(600);
+  const rb = await behind.evaluate(() => ({readOnly: readOnlyView,
+                                           said: document.getElementById('saveStateText').textContent}));
+  check('an owner whose page is older than the repository is not handed an editor',
+        rb.readOnly && /newer chart/.test(rb.said), JSON.stringify(rb));
+  await behind.close();
+
+  /* ---- and when the session has run out ---- */
+  api.sha = dataSha;
+  const stale = await c.newPage();
+  await stale.addInitScript(() => { try{ localStorage.setItem('rhizome.site.session', 'expired-session'); }catch(e){} });
+  await stale.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+  await stale.waitForFunction(() => typeof rebuildChart === 'function');
+  await wait(600);
+  const rs = await stale.evaluate(() => ({readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')}));
+  check('an expired session leaves a reader, and is forgotten', rs.readOnly && rs.stored === null, JSON.stringify(rs));
+  await stale.close();
+
+  await site.evaluate(() => document.getElementById('ownerBtn').click());
+  const out = await site.evaluate(() => ({readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')}));
+  check('signing out makes the tab a reader again', out.readOnly && out.stored === null, JSON.stringify(out));
+  check('and none of it raised an error', errs.length === 0, errs.join(' | '));
+  await c.close();
   });
 
   /* ---- 33. guides, grounds, a swap and a dark page ---- */

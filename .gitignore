@@ -1,9 +1,9 @@
-# The built page. Three files, ~2.4 MB each, almost all of it the two base64
-# blobs in src/data.js — and every byte of it is reproducible from src/ by
+# The built page. One file, ~2.6 MB, almost all of it the two base64 blobs in
+# src/data.js — and every byte of it is reproducible from src/ by
 # `python3 build.py`, which tests/build_guard.py checks on every run. Keeping
-# them here would add ~7 MB to the history per version and never be the thing
-# anyone reads. CI builds them; the workflow publishes the standalone copy to
-# Pages and attaches all three to the run.
+# it here would add megabytes to the history per version and never be the
+# thing anyone reads. CI builds it, publishes it to Pages and attaches it to
+# the run.
 dist/
 
 # build.py keeps three generations of src/data.js and dist/nexus.html here

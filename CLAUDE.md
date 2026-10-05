@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 35 files. **They are not modules.** The page is a single
+`src/app/` holds 36 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -24,13 +24,16 @@ So:
   `//# sourceURL=app.js`. It does not use a `<script>` tag per part: as
   separate scripts, start-up reaches for hundreds of names whose part has not
   run yet. It therefore needs an HTTP server; for double-click use, build
-  `dist/nexus-standalone.html`.
+  `dist/nexus.html`.
 
 ## Where the chart's contents actually live
 
-**Not in `src/data.js`.** The published page rewrites its own `@@EDIT@@`
-regions when someone presses Save, so the live artifact holds the current
-chart and the repository holds a seed.
+**On the published site, in `src/data.js`** — Save there commits the regions
+to the repository through the write service (`worker/`), so the repository is
+current by construction. **On claude.ai, not in `src/data.js`.** The artifact
+rewrites its own `@@EDIT@@` regions when someone presses Save, so the live
+artifact holds the current chart and the repository holds a seed. Everything
+below is about that second case.
 
 Before doing anything that will be published, pull the live copy back:
 
@@ -73,13 +76,14 @@ can happen in silence any more.
 
 ## Before you say anything is done
 
-Five checks, and all five have to be green:
+Six checks, and all six have to be green:
 
 ```bash
 python3 build.py
 python3 tools/data_check.py      # ~instant, and run it AFTER the build
 python3 tests/build_guard.py     # ~seconds
 python3 tools/lint.py            # ~seconds
+node tests/worker.js             # ~instant, the write service
 node tests/regression.js         # ~6 minutes, against dist
 node tests/regression.js src     # ~6 minutes, against src
 ```
@@ -126,49 +130,47 @@ the scenario it belongs to. When a claim turns out to be wrong — including
 one this file makes — the fix is a check that would have caught it, not a
 note.
 
-## The four builds, and which goes where
+## One build, and who may edit it
 
-Two questions decide a build and they are **independent**: may it be edited,
-and is it a whole document or a fragment the artifact host wraps itself?
+There used to be four builds — editable or read-only, fragment or document —
+because who could edit was decided when the page was built. For a while the
+one Pages needed (read-only AND a document) did not exist, so the site served
+the editor; later an exported copy carried the read-only declaration onto
+readers' disks and froze it there. Both were consequences of deciding at
+build time.
 
-| | fragment | whole document |
-| --- | --- | --- |
-| editable | `nexus.html` — published WITH the `artifact` capability, which is what makes Save work | `nexus-standalone.html` — to keep, to host, or to open off a disk |
-| read-only | `nexus-share.html` — built with `capabilities: {}` so it can be shared to a public link | `nexus-share-standalone.html` — **what Pages serves** |
+Now `build.py` writes one file, `dist/nexus.html`, a whole document, and the
+page decides when it opens:
 
-`build.py` makes a read-only copy by replacing the `/* @@SHARE:READONLY@@ */`
-marker in `22-file-comments.js` with a call to `markReadOnly(false)`, and a
-whole document by wrapping a fragment in the skeleton the host would
-otherwise supply. The fourth file is those two things at once, and for a
-while it did not exist — so Pages, which has to have a document, was given
-the editable one. Anybody who opened the published site got the full editor,
-and because a page with no host to publish to saves into the reader's own
-browser, their edit survived a reload. Nothing they did reached anyone else;
-nothing told them so either.
+| where it is opened | what it is |
+| --- | --- |
+| claude.ai | asks the artifact host, as it always did |
+| `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner |
+| anywhere else (disk, other hosts, the test server) | its holder's own copy, saving into their browser |
 
-The grid is pinned in `tests/build_guard.py` and the published copy is driven
-in the suite, so neither half can drift again.
+Things that follow, and are pinned in the suite ("the page on the published
+site") and `build_guard`:
 
-Read-only is a flag, not a second program: `body.read-only` hides every
-writing control and nearly every mutating function opens with a `readOnlyView`
-guard. Republish **both** together — the share copy does not follow the
-original on its own.
-
-**Read-only belongs to the published page, and Export takes it back off.**
-The declaration is written into the file, so it used to travel with the
-export: a reader who took a copy away got one frozen by a permission that
-had stopped applying the moment the file left the site — with no way back,
-since reloading, re-exporting and importing it all landed in the same
-place. On a disk there is no host to refuse a publish and no other reader
-to mislead, so `editableCopyOf` (`22-file-comments.js`) cuts the marked
-block out again and undoes the title with it; what comes out is the
-editable build, line for line. That is why the block `build.py` writes
-carries `@@SHARE:READONLY:BEGIN@@`/`:END@@` marks of its own — writing it
-without them would publish perfectly and freeze every exported copy, and
-nothing would look wrong until somebody tried to edit the file they had
-just been handed. Both halves are pinned: the marks in `build_guard`, and
-the copy itself in the suite, which exports it through the button and
-opens the result off a disk.
+- **The hidden controls are not the security.** Every reader gets the
+  editor's code. The write service (`worker/index.js`) is what refuses:
+  session sealed with `SESSION_SECRET`, login in `OWNERS`, session handed
+  only to `ALLOWED_ORIGINS`, and the commit made with the owner's own GitHub
+  App user token so GitHub checks it again. `tests/worker.js` is mostly
+  about what it refuses.
+- **A page that is behind the repository may not save.** `build.py` writes
+  the git blob id of `src/data.js` into the page (`DATA_SHA`, replacing the
+  `/* @@DATA_SHA@@ */ null` marker in `01-store.js`); the service refuses a
+  save whose base is not the file on `main`, and the owner's page refuses to
+  become an editor when `/me` reports a different id. Moving to the next
+  base after a save is what lets two saves in a row work before the site
+  has rebuilt.
+- **What the page sends for a region is the text between its markers,
+  byte for byte.** Otherwise every save would rewrite all of `data.js`.
+- **On the site a chart in localStorage is never restored** — it could only
+  be a reader's edit from the days the site served an editor.
+- Read-only is still a flag (`body.read-only`, `readOnlyView`), and
+  `markEditable` is its way back; lifting it means drawing again, because
+  some parts ask `readOnlyView` while they draw.
 
 ## What has been measured, so it need not be argued
 
@@ -322,9 +324,9 @@ Do not re-propose these without new evidence:
 ## Priorities
 
 1. **Independence from the claude.ai runtime.** This is the standing top
-   priority. Pages already serves the standalone copy; what remains is moving
-   media out of the page and deciding where Save writes when there is no
-   artifact host.
+   priority. Pages serves the page and Save on the site commits to the
+   repository through `worker/`; what remains is moving media out of the
+   page, which also shrinks every save by the megabyte of base64 it carries.
 2. **Bughunting**, and removing behaviour that is unwanted or surprising, over
    new features.
 

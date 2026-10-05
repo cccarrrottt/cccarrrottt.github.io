@@ -404,6 +404,7 @@ async function saveNow(){
   saveBtn.disabled = true;
   try{
     if(cap) await saveToArtifact(cap);
+    else if(ON_SITE) await saveToSite();
     else saveToBrowser();
   }catch(e){
     const code = e && e.code;
@@ -413,7 +414,16 @@ async function saveNow(){
        is still unsaved". The reader is told what actually happened and
        what to do about it, and the Save button comes back enabled. */
     if(code==='conflict'){
-      setSaveState('err', 'Someone else published a newer version — export your copy, then reload');
+      setSaveState('err', ON_SITE
+        ? 'The repository has a newer chart than this page — export your copy, then reload once the site has caught up'
+        : 'Someone else published a newer version — export your copy, then reload');
+    }
+    /* The one refusal that is fixed without losing anything: signing in
+       again happens in a popup, so the edit is still here to save. */
+    else if(code === 'signed_out'){
+      siteOwner = null;
+      updateOwnerBtn();
+      setSaveState('err', 'Your sign-in has expired — press Owner sign-in, then Save again');
     }
     else if(isReadOnlyError(e)){
       markReadOnly(isPermanentRefusal(e));

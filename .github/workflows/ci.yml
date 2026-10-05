@@ -7,6 +7,7 @@
 #   tools/lint.py         does the program, assembled and read as one scope,
 #                         still have no undefined, unused or twice-declared name
 #   tests/regression.js   does the page still DO what it did, in a real browser
+#   tests/worker.js       does the write service still refuse what it must
 #
 # The regression suite runs twice, against two different things: `dist` drives
 # the built single file, `src` drives the same program served as separate
@@ -15,7 +16,8 @@
 # minutes, so they run as two jobs rather than one after the other.
 #
 # dist/ is not in the repository — it is rebuilt here, attached to the run as
-# an artifact, and, on main, the standalone copy becomes the published site.
+# an artifact, and, on main, it becomes the published site — the same file,
+# which is a reader there for everybody but the signed-in owner.
 
 name: CI
 
@@ -68,6 +70,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Write service
+        run: node tests/worker.js
 
       - name: Keep the built page with the run
         uses: actions/upload-artifact@v4
@@ -134,18 +139,13 @@ jobs:
       - name: Build
         run: python3 build.py
 
-      # The READ-ONLY standalone copy. Two questions decide which of the four
-      # builds belongs here and they are independent: a page on the open web
-      # has to be a whole document, and it must not present itself as an
-      # editor. This used to publish nexus-standalone.html, which answered
-      # the first and not the second — so anyone who opened the site got the
-      # full editor, and because a page with no host to publish to saves into
-      # the reader's own browser, their edit survived a reload and looked for
-      # all the world like they had changed the chart everybody sees.
+      # The one file there is. On this address it opens as a reader, and
+      # becomes an editor only for the owner, once the write service has
+      # confirmed the sign-in — see SITE_ORIGINS in src/app/01-store.js.
       - name: Stage the site
         run: |
           mkdir -p _site
-          cp dist/nexus-share-standalone.html _site/index.html
+          cp dist/nexus.html _site/index.html
 
       - uses: actions/configure-pages@v5
 
@@ -155,3 +155,33 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  # The write service (worker/), deployed to Cloudflare from main.
+  #
+  # Skipped, with a line saying so, until the repository has the two secrets
+  # it needs — so a fork, or this repository before the service is set up,
+  # stays green. The service's own secrets (the GitHub App's id and secret,
+  # and the session key) live in Cloudflare and a deploy leaves them alone.
+  worker:
+    name: Deploy the write service
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Deploy
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "No Cloudflare secrets in this repository; the write service is not deployed."
+            exit 0
+          fi
+          npx --yes wrangler@4 deploy
