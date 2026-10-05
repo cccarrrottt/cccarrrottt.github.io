@@ -20,5 +20,8 @@ workers_dev = true
 [vars]
 REPO = "cccarrrottt/cccarrrottt.github.io"
 BRANCH = "main"
+GITHUB_CLIENT_ID = "GITHUB_CLIENT_ID"
+GITHUB_CLIENT_SECRET = "GITHUB_CLIENT_SECRET"
 OWNERS = "cccarrrottt"
 ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
+SESSION_SECRET = "SESSION_SECRET"
