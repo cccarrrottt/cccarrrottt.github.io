@@ -2,5 +2,9 @@
   "name": "rhizome-edit",
   "private": true,
   "type": "module",
-  "description": "The chart's write service: owner sign-in through GitHub, and Save as a commit to src/data.js."
+  "description": "The chart's write service: owner sign-in through GitHub, and Save as a commit to src/data.js.",
+  "scripts": {
+    "build": "echo 'Nothing to build: index.js is deployed as it is.'",
+    "deploy": "wrangler deploy"
+  }
 }

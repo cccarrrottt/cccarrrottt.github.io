@@ -73,7 +73,7 @@ const HOSTED = typeof claude !== 'undefined' && claude && typeof claude.use === 
    included, which is the safe way for that to be wrong.
    ------------------------------------------------------------------------- */
 const SITE_ORIGINS = ['https://cccarrrottt.github.io'];
-const SITE_API = 'https://rhizome-edit.cccarrrottt.workers.dev';
+const SITE_API = 'https://cccarrrottt-github-io.wowwodptr2.workers.dev';
 const ON_SITE = !HOSTED && SITE_ORIGINS.indexOf(location.origin) >= 0;
 /* The git blob id of the src/data.js this page was built from, written in
    by build.py. The write service refuses a save whose base is not the file

@@ -6,9 +6,13 @@
 # SESSION_SECRET — are set once in the Cloudflare dashboard (Worker →
 # Settings → Variables and Secrets) and a deploy leaves them alone.
 #
-# The address this gets, https://rhizome-edit.<account>.workers.dev, has to
-# match SITE_API in src/app/01-store.js.
-name = "rhizome-edit"
+# Cloudflare builds this from the repository on every push (Workers Builds,
+# root directory `worker`), and a connected build refuses a config whose name
+# differs from the Worker it is connected to — so this is that Worker's name,
+# the one the dashboard gave it when the repository was imported. The address
+# it makes, https://cccarrrottt-github-io.<account>.workers.dev, has to match
+# SITE_API in src/app/01-store.js.
+name = "cccarrrottt-github-io"
 main = "index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
