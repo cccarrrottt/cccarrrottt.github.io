@@ -324,7 +324,7 @@ function closeNodeEditor(keep){
   if(noteEditorPaintFrame){ cancelAnimationFrame(noteEditorPaintFrame); noteEditorPaintFrame = 0; }
   const wasNote = nodeEditorTarget.kind === 'note';
   if(keep !== false) commitNodeEditorText();
-  if(typeof endLabelPreview === 'function') endLabelPreview(keep !== false);
+  endLabelPreview(keep !== false);
   nodeEditor.hidden = true;
   nodeEditorTarget = null;
   nodeEditorUndoPushed = false;

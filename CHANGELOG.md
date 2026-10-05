@@ -6,7 +6,9 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
-## Unreleased — one page for everybody
+## 0.10.0 — "A site of its own" — 2026-10-05
+
+### One page for everybody
 
 - **One build.** `build.py` writes `dist/nexus.html`, a whole document, and
   nothing else; `nexus-share.html`, `nexus-standalone.html` and
@@ -32,7 +34,7 @@ Releases before 0.9.0 were not numbered.
   site" (25 checks, driven at the real address); `build_guard` pins the one
   file, the `DATA_SHA` it carries, and the removal of the old ones.
 
-## Unreleased — corners, ripples and merges
+### Corners, ripples and merges
 
 - **A headless connector on an outer rippled ring stops inside that ring's
   stroke across its whole width** (`openRingEnd` in `07-router-ortho.js`).
@@ -75,6 +77,23 @@ Releases before 0.9.0 were not numbered.
   it since a click stopped doing so) with its Escape and Delete branches,
   the hidden `refsToggle` button and its handler, and fifteen stylesheet
   rules for classes and ids no markup carries any more.
+- **Merges carry their hand-set bends when pushed** (`team.bends` in
+  `pushCandidates`, carried in `pushBlockers`): a connector with both ends
+  in the pushed merge travels with it, as a dragged group's already did.
+- **Colours are hex wherever they are read** (`HEX_RE`, `isHexColor`,
+  `hexColors` in `01-store.js`): an entry's border and background colours,
+  a connector's colour, note ground and gradient, and the citation colour.
+  A non-hex value is treated as absent. Escaping kept a colour inside its
+  attribute but not inside its declaration — `red;background:url(…)` was
+  still a request. The seven copies of the pattern are one.
+- **Corners in the new-entry form** (`addNodeCorners`), greyed as in the
+  entry panel; and the entry panel greys them on a callout pinned to a
+  connector, where the connector decides.
+- **The new-entry form's background ⟲ empties the field.** It was drawn and
+  never wired.
+- **Removed** 37 `typeof f === 'function'` guards around functions that are
+  declarations in the one script, hoisted and therefore always defined, and
+  seven `id`s nothing reads.
 
 ## 0.9.31 — "A card with four bands" — 2026-09-18
 

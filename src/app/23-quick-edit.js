@@ -204,9 +204,15 @@ function syncEditCorners(){
   const shape = (editShapeInput && editShapeInput.value) || 'rect';
   const noBox = SQUARE_CORNER_SHAPES.includes(shape);
   const wavy = editBorderStyle.value === 'wavy' && !WAVY_BORDER_SHAPES.includes(shape);
-  greyChoice(editCorners, noBox || wavy,
+  /* A callout pinned to a connector wears that connector's corners, so the
+     choice is made in the connector's popover; here it would be a button
+     that changes nothing. Cut loose, the callout is its own card again. */
+  const n = nodes.get(selectedId);
+  const pinned = isCalloutNode(n) && !!n.leader;
+  greyChoice(editCorners, noBox || wavy || pinned,
              noBox ? 'This element has no box corners to square'
-                   : 'A wavy border keeps its rounded corners');
+             : pinned ? 'A callout takes its corners from its connector'
+                      : 'A wavy border keeps its rounded corners');
 }
 const editTagsInput = document.getElementById('editTagsInput');
 /* An entry's own face and size were four hidden controls: a pair in the
@@ -390,7 +396,7 @@ function makeLangTabRow(list, tab){
   };
   name.addEventListener('input', ()=>{
     preview();
-    if(typeof queueNodeEditCommit === 'function') queueNodeEditCommit();
+    queueNodeEditCommit();
   });
   // A chip is as wide as the name in it, like every other chip in this row.
   name.addEventListener('input', ()=>{ name.size = Math.max(2, name.value.length + 1); });
@@ -404,7 +410,7 @@ function makeLangTabRow(list, tab){
     ev.stopPropagation();
     chip.remove();
     preview();
-    if(typeof queueNodeEditCommit === 'function') queueNodeEditCommit(0);
+    queueNodeEditCommit(0);
   });
 
   chip.appendChild(name);
@@ -450,13 +456,13 @@ function clearEditStatus(){ detailEditStatusEl.className = 'editor-status'; deta
 function closeEditForm(){
   // A change still sitting in the typing pause is a change the user made;
   // closing settles it rather than throwing it away.
-  if(typeof flushNodeEditCommit === 'function') flushNodeEditCommit();
-  if(typeof endLabelPreview === 'function') endLabelPreview(false);
+  flushNodeEditCommit();
+  endLabelPreview(false);
   detailEditForm.style.display = 'none';
   detailEditToggle.classList.remove('active');
   showNoteBlock(true);
   clearEditStatus();
-  if(typeof syncTagLiveliness === 'function') syncTagLiveliness();
+  syncTagLiveliness();
 }
 
 detailEditToggle.onclick = (ev)=>{
@@ -611,8 +617,7 @@ function renderLabelPreview(){
   const g = qNode(`.node[data-id="${cssEscape(labelPreview.id)}"]`);
   if(g) g.classList.add('selected');
   // The entry has just changed shape under the field, so the field follows.
-  if(typeof nodeEditorTarget !== 'undefined' && nodeEditorTarget &&
-     typeof positionNodeEditor === 'function') positionNodeEditor();
+  if(typeof nodeEditorTarget !== 'undefined' && nodeEditorTarget) positionNodeEditor();
 }
 function queueLabelPreview(){
   if(!labelPreview) return;

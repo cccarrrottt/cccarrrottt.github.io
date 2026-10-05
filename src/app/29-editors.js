@@ -179,7 +179,7 @@ function commitNodeEdit(){
   if(colorsRaw){
     newColors = colorsRaw.split(',').map(s=>s.trim()).filter(Boolean);
     for(const c of newColors){
-      if(!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c)){
+      if(!HEX_RE.test(c)){
         setEditStatus('err', `"${c}" isn't a valid hex color yet (e.g. #c23b22) — the borders keep their current colours.`);
         return;
       }
@@ -190,7 +190,7 @@ function commitNodeEdit(){
   if(bgRaw){
     newBg = bgRaw.split(',').map(s=>s.trim()).filter(Boolean);
     for(const c of newBg){
-      if(!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c)){
+      if(!HEX_RE.test(c)){
         setEditStatus('err', `"${c}" isn't a valid hex color yet (e.g. #f4e9c9) — the background keeps what it has.`);
         return;
       }
@@ -230,7 +230,7 @@ function commitNodeEdit(){
      the entry holds is read back into the chips before the form is
      collected; without it, saving anything at all in this form would put
      back whatever the tab said when the form was opened. */
-  if(typeof syncLangTabTexts === 'function') syncLangTabTexts(nodes.get(id));
+  syncLangTabTexts(nodes.get(id));
   const newLangTabs = newMultiLang ? collectLangTabs(editLangTabList) : [];
   // Turning multi-language on before naming a tab is a normal
   // half-finished state, not an error to shout about — an unnamed chip is
@@ -264,8 +264,7 @@ function commitNodeEdit(){
     /* Both belong to a card that HAS a picture: they are answers about
        one, and an entry that is no longer a card should not carry the
        answer back if it becomes one again with something else in it. */
-    const cardImg = (typeof cardImageOptsFromForm === 'function')
-      ? cardImageOptsFromForm() : {crop:false};
+    const cardImg = cardImageOptsFromForm();
     if(newCard && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
     /* The picture's own size is set on the picture, by dragging its
        corners, so this form carries whatever it already had rather than
@@ -505,8 +504,7 @@ const styleColorRow = document.getElementById('styleColorRow');
 const styleColorPreview = document.getElementById('styleColorPreview');
 
 // Colours are typed as hex rather than picked from a swatch, so an exact
-// value can be pasted in and read back out.
-const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+// value can be pasted in and read back out. HEX_RE is in 01-store.js.
 function readHex(input){
   const v = input.value.trim();
   const ok = HEX_RE.test(v);

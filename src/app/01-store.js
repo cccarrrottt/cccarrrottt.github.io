@@ -195,6 +195,22 @@ const PRISTINE_HTML = (()=>{
   catch(e){ return null; }
 })();
 
+/* Every colour the chart keeps is a hex value, and is asked to be one
+   wherever it is READ, not only where it is typed. The editors have always
+   refused anything else, but a chart also arrives from a file, from browser
+   storage and from a hand-edited data.js, and a colour goes into inline
+   styles (`style="background:…"`) where escaping the quotes is not enough —
+   `red;background:url(//elsewhere)` is still one well-formed attribute, and
+   it fetches. So a value that is not a hex colour is treated as absent. */
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+function isHexColor(c){ return typeof c === 'string' && HEX_RE.test(c); }
+// The hex colours of a list, or null when none are left.
+function hexColors(list){
+  if(!Array.isArray(list)) return null;
+  const out = list.filter(isHexColor);
+  return out.length ? out : null;
+}
+
 const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, arrowIn: false,
                              sinusoid: false, note: '', notePos: 'above', noteAt: 0.5,
                              noteBg: null, bends: null,
@@ -235,7 +251,7 @@ function edgeStyleFor(from, to){
        reader's to set — a remark on a line belongs to the line — but what
        it is written on is, and on a crowded chart a note usually wants
        something to sit on. */
-    noteBg: (typeof o.noteBg === 'string' && o.noteBg) ? o.noteBg : null,
+    noteBg: isHexColor(o.noteBg) ? o.noteBg : null,
     /* Which kind of place the note was put on with Shift, if any — the
        middle of the connector, or the middle of one of its legs. A note
        on such a place keeps to it as the connector changes; see
@@ -246,7 +262,7 @@ function edgeStyleFor(from, to){
     bends: (Array.isArray(o.bends) && o.bends.length) ? o.bends : null,
     noteDir: (typeof o.noteDir === 'number' && isFinite(o.noteDir)) ? o.noteDir : null,
     noteLen: (typeof o.noteLen === 'number' && o.noteLen > 0) ? o.noteLen : null,
-    color: o.color || null,
+    color: isHexColor(o.color) ? o.color : null,
     // Whether that colour was CHOSEN here rather than inherited from the
     // border the connector was drawn out of. See currentPaint.
     colorFixed: !!o.colorFixed,
@@ -261,7 +277,7 @@ function edgeStyleFor(from, to){
     square: !!o.square,
     // Two hex colours to sweep between along the connector, or null.
     gradient: (Array.isArray(o.gradient) && o.gradient.length===2 &&
-               o.gradient.every(c=>typeof c==='string')) ? o.gradient.slice() : null
+               o.gradient.every(isHexColor)) ? o.gradient.slice() : null
   };
 }
 

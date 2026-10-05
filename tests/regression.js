@@ -11496,10 +11496,12 @@ async function main(){
         workingNodes.length = 0; refill(EDGE_STYLES, []);
         workingNodes.push(['mx', 'Outsider', null, null, null, null, {pos:[X, Y - 160]}]);
         for(let i = 0; i < 4; i++)
-          workingNodes.push(['mw' + i, 'Parent ' + i, i === 0 ? 'mx' : null, null, null, null,
-                             {pos:[X + i * 150, Y]}]);
+          workingNodes.push(['mw' + i, 'Parent ' + i, i === 0 ? 'mx' : i === 2 ? 'mw1' : null,
+                             null, null, null, {pos:[X + i * 150, Y]}]);
         workingNodes.push(['mm', 'Merge of every one', ['mw0','mw1','mw2','mw3'], null, null,
                            'amalgam', {pos:[X + 200, Y + 160]}]);
+        // A bend set by hand on a connector the merge carries whole.
+        refill(EDGE_STYLES, [{from:'mw1', to:'mw2', bends:[[X + 285, Y + 110]]}]);
       });
       await wait(400);
       const at = ()=> Object.fromEntries(['mx','mw0','mw1','mw2','mw3','mm']
@@ -11524,6 +11526,10 @@ async function main(){
       const dys = ['mw0','mw1','mw2','mw3','mm'].map(id=> now[id][1] - was[id][1]);
       out.wholeMerge = JSON.stringify(dys);
       out.wholeMoved = dys[0] > 0 && dys.every(d=> Math.abs(d - dys[0]) < 1e-6);
+      const bend = (EDGE_STYLES.find(o=> o.from === 'mw1' && o.to === 'mw2') || {}).bends;
+      out.bendAt = JSON.stringify(bend);
+      out.bendCarried = !!bend && bend.length === 1 &&
+        Math.abs(bend[0][0] - (X + 285)) < 1e-6 && Math.abs(bend[0][1] - (Y + 110 + dys[1])) < 1e-6;
       // Carried from the inside, the row gives way as a row.
       const was2 = at();
       await carry('mm', -200 * vs);
@@ -11553,6 +11559,102 @@ async function main(){
   check('a lineage pushed by an outsider takes its whole merge with it',
         rW.wholeMoved, rW.wholeMerge);
   check('a merge carried into its lineages moves them as a row', rW.rowMoved, rW.rowUp);
+  check('a pushed merge carries the bends set by hand between its members',
+        rW.bendCarried, rW.bendAt + ' after ' + rW.wholeMerge);
+  });
+
+  await scenario("colours that are colours, and a form that offers corners", async () => {
+  const rC = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const beforeRef = SETTINGS.refColor;
+    const w0 = clientToWorld(420, 280);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+    /* A colour is a hex value wherever it is READ. A chart arrives from a
+       file, from storage and from a hand-edited data.js, and escaping kept
+       a colour inside its attribute but not inside its declaration. */
+    const bad = 'red;background:url(https://example.org/x.png)';
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      workingNodes.push(['hx', 'Hex', null, null, null, null,
+                         {pos:[X, Y], colors:[bad, '#123456'], bg:[bad]}]);
+      workingNodes.push(['hy', 'Other', 'hx', null, null, null, {pos:[X, Y + 160]}]);
+      refill(EDGE_STYLES, [{from:'hx', to:'hy', color:bad, noteBg:bad, gradient:[bad, '#fff']}]);
+      SETTINGS.refColor = bad;
+    });
+    await wait(150);
+    const n = nodes.get('hx'), st = edgeStyleFor('hx', 'hy');
+    out.nodeColors = JSON.stringify([n.colors, n.color, n.bg]);
+    out.nodeClean = JSON.stringify(n.colors) === '["#123456"]' && n.color === '#123456' && n.bg === null;
+    out.edgeClean = st.color === null && st.noteBg === null && st.gradient === null;
+    out.refClean = refColor() === DEFAULT_REF_COLOR;
+    out.noUrl = !/example\.org/.test(document.body.innerHTML);
+
+    /* The new-entry form offers corners, greyed as the entry panel greys them. */
+    document.getElementById('addNodeToggle').onclick();
+    const pick = (group, v)=> document.querySelector('#' + group + ' button[data-value="' + v + '"]').click();
+    const greyed = ()=> document.getElementById('addNodeCorners').classList.contains('disabled');
+    out.formRound = addNodeCorners.value === 'round' && !greyed();
+    pick('addNodeBorderStyle', 'wavy');
+    out.formGreysWavy = greyed();
+    pick('addNodeBorderStyle', 'solid');
+    out.formUngreys = !greyed();
+    // And its background reset empties the field it sits in.
+    addNodeBg.value = '#abcdef';
+    addNodeBg.dispatchEvent(new Event('input', {bubbles:true}));
+    const reset = document.getElementById('addNodeBgReset');
+    const wasLive = !reset.disabled;
+    reset.click();
+    out.bgReset = wasLive && addNodeBg.value === '' && reset.disabled;
+    pick('addNodeCorners', 'square');
+    setRichValue(addNodeLabel, 'Squared at birth');
+    const ids = new Set(workingNodes.map(it=> it[0]));
+    document.getElementById('addNodeSubmit').onclick();
+    await wait(150);
+    const made = workingNodes.find(it=> !ids.has(it[0]));
+    out.formWrites = !!made && !!(made[6] && made[6].square) && hasSquareCorners(nodes.get(made[0]));
+
+    /* A callout pinned to a connector takes its corners from the connector,
+       so the entry panel greys the choice there instead of offering a
+       button that changes nothing. */
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      workingNodes.push(['ca', 'A', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['cb', 'B', 'ca', null, null, null, {pos:[X, Y + 200]}]);
+      workingNodes.push(['ck', 'Pinned', null, null, null, 'callout',
+                         {pos:[X + 220, Y + 100], leader:{from:'ca', to:'cb', at:0.5}}]);
+      workingNodes.push(['cl', 'Loose', null, null, null, 'callout', {pos:[X + 220, Y + 300]}]);
+      refill(EDGE_STYLES, []);
+    });
+    await wait(150);
+    const cornersGreyFor = (id)=>{
+      deselect();
+      openEntrySettings(id);
+      return document.getElementById('editCorners').classList.contains('disabled');
+    };
+    out.pinnedLeader = !!nodes.get('ck').leader;
+    out.pinnedGrey = cornersGreyFor('ck');
+    out.looseLive = !cornersGreyFor('cl');
+    deselect();
+
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    refill(EDGE_STYLES, beforeStyles); SETTINGS.refColor = beforeRef; });
+    await wait(300);
+    return out;
+  });
+  check('a colour that is not hex is dropped from an entry', rC.nodeClean, rC.nodeColors);
+  check('and from a connector, its note ground and its gradient', rC.edgeClean);
+  check('and from the citation colour', rC.refClean);
+  check('and never reaches the drawing', rC.noUrl);
+  check('the new-entry form offers rounded corners first', rC.formRound);
+  check('and greys them for a wavy border, and gives them back', rC.formGreysWavy && rC.formUngreys);
+  check('its background reset empties the field', rC.bgReset);
+  check('and a square entry is made square', rC.formWrites);
+  check('a callout pinned to a connector has its corners greyed', rC.pinnedLeader && rC.pinnedGrey);
+  check('a loose callout keeps the choice', rC.looseLive);
   });
 
   await scenario("the management panel says why", async () => {

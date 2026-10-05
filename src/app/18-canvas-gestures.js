@@ -188,11 +188,11 @@ function computeBounds(){
 
 function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
-  if(typeof syncAlignGrid === 'function') syncAlignGrid();
+  syncAlignGrid();
   // The bio card is an HTML overlay in screen space, so it has to be
   // re-anchored whenever the drawing moves under it.
-  if(typeof positionBioCard === 'function') positionBioCard();
-  if(typeof positionSwapButton === 'function') positionSwapButton();
+  positionBioCard();
+  positionSwapButton();
   /* The in-node field stands on its entry, so it moves with the drawing.
      Its type is scaled by the zoom as well, which is what keeps what is
      being typed the same size as what it will be. */
@@ -673,7 +673,7 @@ function pushCandidates(group){
        one: carry the merge up into the row of parents it is made of and
        they give way. So the only merged lineage that is skipped is the one
        whose PARENT is being carried. */
-    if(typeof isAmalgamMember === 'function' && isAmalgamMember(e.from, e.to)
+    if(isAmalgamMember(e.from, e.to)
        && fromHeld) return;
     let rec = byId.get(otherId);
     if(!rec){ rec = dragPiece(otherId); rec.links = new Set(); byId.set(otherId, rec); }
@@ -715,6 +715,14 @@ function pushCandidates(group){
       team.pieces.push(piece);
       teams.set(id, team);
     });
+    /* And the hand-set bends between them, for the reason the drag's own
+       group carries its bends (see bendCarry): a bend is a point on the
+       chart, and a merge pushed as a row would otherwise be re-drawn back
+       through the place it was pushed away from. */
+    const ids = new Set(team.pieces.map(q=> q.id));
+    team.bends = EDGE_STYLES
+      .filter(o=> Array.isArray(o.bends) && o.bends.length && ids.has(o.from) && ids.has(o.to))
+      .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])}));
   });
   return [...byId.values()];
 }
@@ -793,6 +801,7 @@ function pushBlockers(st){
     const most = (k)=> p.team.pieces.reduce((a, q)=> Math.abs(q[k]) > Math.abs(a) ? q[k] : a, 0);
     const px = most('pushX'), py = most('pushY');
     p.team.pieces.forEach(q=>{ q.pushX = px; q.pushY = py; });
+    carryBends({bendCarry: p.team.bends}, px, py);
   });
   st.pushable.forEach(p=>{
     if(!p.pushX && !p.pushY) return;
@@ -1236,7 +1245,7 @@ window.addEventListener('mousemove', e=>{
   let iw = Math.max(CARD_IMG_MINH, Math.min(CARD_MAXW, Math.abs(p.x - cx) * 2));
   let ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, p.y - n.y));
   if(e.shiftKey){
-    const r = (typeof imageAspect === 'function') ? imageAspect(n.image) : 0;
+    const r = imageAspect(n.image);
     if(r) ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, iw * r));
   }
   if(!st.moved && Math.abs(iw - st.startW) < 1 && Math.abs(ih - st.startH) < 1) return;

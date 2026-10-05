@@ -11,7 +11,34 @@ const addNodeFontSel = document.getElementById('addNodeFont');
 const addNodeFontSizeInput = document.getElementById('addNodeFontSize');
 const addNodeColors = document.getElementById('addNodeColors');
 const addNodeBg = document.getElementById('addNodeBg');
-const addNodeBorderStyle = makeChoiceGroup('addNodeBorderStyle');
+const addNodeBorderStyle = makeChoiceGroup('addNodeBorderStyle', ()=> syncAddCorners());
+/* Rounded or square corners, as in the entry's own panel and greyed for
+   the same reasons — see syncEditCorners. A new entry that should be
+   square used to have to be made round first and then changed. */
+const addNodeCorners = makeChoiceGroup('addNodeCorners');
+function syncAddCorners(){
+  const shape = addNodeShapeSel.value || 'rect';
+  const noBox = SQUARE_CORNER_SHAPES.includes(shape);
+  const wavy = addNodeBorderStyle.value === 'wavy' && !WAVY_BORDER_SHAPES.includes(shape);
+  greyChoice(addNodeCorners, noBox || wavy,
+             noBox ? 'This element has no box corners to square'
+                   : 'A wavy border keeps its rounded corners');
+}
+addNodeShapeSel.addEventListener('change', ()=> syncAddCorners());
+/* The background's ⟲ empties it, as the entry panel's does — see the
+   matching block in 25-figures.js. It was drawn here and never wired, so
+   it was a button that did nothing at all. */
+const addNodeBgReset = document.getElementById('addNodeBgReset');
+function syncAddBgReset(){
+  addNodeBgReset.disabled = !addNodeBg.value.trim();
+}
+addNodeBgReset.addEventListener('click', ev=>{
+  ev.stopPropagation();
+  addNodeBg.value = '';
+  syncAddBgReset();
+  syncAddBgReset();
+});
+addNodeBg.addEventListener('input', syncAddBgReset);
 /* ---------------------------------------------------------------------
    Choosing an archetype by its picture.
  *
@@ -118,6 +145,8 @@ document.getElementById('addNodeToggle').onclick = ()=>{
   addNodeBg.value = '';
   addNodeBorderStyle.value = 'solid';
   addNodeShapeSel.value = 'rect';
+  addNodeCorners.value = 'round';
+  syncAddCorners();
   if(typeof paintAddShapePick === 'function') paintAddShapePick();
   addNodeImageInput.value = '';
   syncImageFieldVisibility(addNodeShapeSel, addNodeImageField);
@@ -219,7 +248,7 @@ function cutSelectedNode(){
     : (selectedId && nodes.has(selectedId) ? [selectedId] : []);
   if(!ids.length) return;
   if(!copySelectedNode()) return;
-  if(ids.length > 1 && typeof deleteNodes === 'function') deleteNodes(ids);
+  if(ids.length > 1) deleteNodes(ids);
   else deleteNode(ids[0]);
 }
 
@@ -286,7 +315,7 @@ function pasteClipboardNode(){
 function parseColorsField(raw){
   const colors = raw.trim() ? raw.trim().split(',').map(s=>s.trim()).filter(Boolean) : [];
   for(const c of colors){
-    if(!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c)){
+    if(!HEX_RE.test(c)){
       throw new Error(`"${c}" isn't a valid hex color (e.g. #c23b22).`);
     }
   }
@@ -339,6 +368,8 @@ document.getElementById('addNodeSubmit').onclick = ()=>{
     if(colors.length) opts.colors = capColors(colors, shapeVal);
     if(bg.length) opts.bg = bg;
     if(border && border !== 'solid') opts.border = border;
+    if(addNodeCorners.value === 'square' && !addNodeCorners.root.classList.contains('disabled'))
+      opts.square = true;
     if(tags.length) opts.tags = tags;
     if(font) opts.font = font;
     if(fontSize) opts.fontSize = fontSize;

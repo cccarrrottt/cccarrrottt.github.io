@@ -1334,7 +1334,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const drawer = document.getElementById('detail');
       if(drawer && drawer.classList.contains('open')){
         drawer.classList.remove('open');
-        if(typeof updateZoomCtlPosition === 'function') updateZoomCtlPosition();
+        updateZoomCtlPosition();
       }
     }
     /* A card's picture is its own thing to edit. A double click on the

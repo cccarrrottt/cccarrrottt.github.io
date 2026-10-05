@@ -11,9 +11,17 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.9.31';
+const APP_VERSION = '0.10.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.10.0', date:'2026-10-05', title:'A site of its own', notes:[
+'The chart has a home that is not claude.ai. The published site serves it to every reader, and its owner signs in with GitHub and saves straight into the repository — through a small write service that checks who is asking, refuses everyone else, and refuses a save made from a page that is behind the chart already there. There is one page now, and it decides when it opens who may edit it, instead of four builds that decided in advance.',
+'Corners are a choice: an entry, a connector and its notes and callouts can each be square instead of rounded. A wavy border and a wavy line keep their rounded turns, and the panels say so by greying the choice — including on a callout pinned to a connector, which wears that connector’s corners.',
+'A wavy border no longer makes its entry wider, and a line without an arrowhead into an outer rippled border stops inside that border across its whole width rather than poking out between the rings.',
+'A merge moves as one. A lineage pushed aside takes the whole merge with it — the other lineages, the amalgam and the bends set by hand between them — and an amalgam carried up under its lineages pushes them as a row. Its bar stays where it is while the merged arrow has room, and then moves in whole grid steps rather than a nudge of two or three pixels first.',
+'Colours are checked wherever they are read, not only where they are typed: a chart from a file, from browser storage or from a hand-edited data file can no longer carry anything but a hex colour into the page.',
+'The Management panel says why it refused something, and a refused link no longer wipes the good one it was typed over. The new-entry form offers corners too, and its background reset button does what it shows.',
+  ]},
   {v:'0.9.31', date:'2026-09-18', title:'A card with four bands', notes:[
 'An arrowhead goes UNDER the entry it arrives at, a rippled border included: the border is drawn over its tip, so the arrow arrives at the shape rather than lying across the thing it is arriving at. Only a head on an inner border ring is still drawn above, where it would otherwise be buried by every ring outside it.',
 'An entry gives way at half the distance it used to. What a pair of facing sides needs to hold a connector was two full stubs and a corner apiece; it is half that, measured — at twenty-six a plain step is drawn, at twenty-four the route starts looking for a way round — so entries may be brought properly close before either is pushed. And a merge pushes the parents it is carried into, while a parent carried into the merge does not push it back: the bar hangs from where the lineages are, so the merge is the thing that follows.',
@@ -351,7 +359,7 @@ if(noteOverlay){
     ev.stopPropagation();
     /* Whatever is still sitting in the typing pause is what the reader
        wrote, so it is settled before it is shown back to them. */
-    if(typeof flushDetailNoteCommit === 'function') flushDetailNoteCommit();
+    flushDetailNoteCommit();
     if(selectedId) openNoteOverlay(selectedId);
   };
 }

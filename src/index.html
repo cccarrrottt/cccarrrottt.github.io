@@ -52,7 +52,7 @@
       <span class="save-dot"></span><span class="save-text" id="saveStateText"></span>
     </div>
     <button class="save-btn" id="saveBtn" disabled title="Publish your changes to this page (Ctrl+S)">Save</button>
-    <div class="view-badge" id="viewBadge" title="You are viewing this chart; only its owner can change it">View only</div>
+    <div class="view-badge" title="You are viewing this chart; only its owner can change it">View only</div>
     <button class="owner-btn" id="ownerBtn" hidden title="Sign in with GitHub to edit this chart. Only its owner can.">Owner sign-in</button>
     <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
   </div>
@@ -194,7 +194,7 @@
               <div class="tag-menu" id="editTagsMenu" hidden></div>
             </div>
           </div>
-          <div class="editor-field" id="editBgField">
+          <div class="editor-field">
             <label for="editBgInput">Background</label>
             <div class="field-with-reset">
               <input id="editBgInput" type="text" placeholder="white — or #f4e9c9, #d8e6f5">
@@ -203,7 +203,7 @@
             <div class="swatch-strip" id="editBgSwatches"></div>
             <p class="editor-help">One colour fills the box; two or more make a gradient across it.</p>
           </div>
-          <div class="editor-field" id="editBorderField">
+          <div class="editor-field">
             <label>Border style</label>
             <div class="style-choice" id="editBorderStyle">
               <button type="button" data-value="solid" title="Solid">──</button>
@@ -445,7 +445,7 @@
         <div class="about-body">
           <p>A sticker is a small square picture you can drop into any text on the chart the way you would an emoji — an entry's label, a note, a language tab, a loose block of text. Use the ☺ button beside any text field to insert one.</p>
           <div class="sticker-status editor-status" id="stickerStatus"></div>
-          <div class="sticker-add" id="stickerAdd">
+          <div class="sticker-add">
             <button type="button" class="editor-btn primary" id="stickerUpload">Add stickers…</button>
             <span class="sticker-hint">Square images or GIFs. A still picture is shrunk to fit; an animated GIF is kept as it is, so keep those small.</span>
           </div>
@@ -578,14 +578,14 @@
           <option value="textbox">Text field</option>
         </select>
       </div>
-      <div class="editor-field" id="addNodeBgField">
+      <div class="editor-field">
         <label for="addNodeBg">Background</label>
         <div class="field-with-reset">
           <input id="addNodeBg" type="text" placeholder="white — or #f4e9c9, #d8e6f5">
           <button type="button" class="hex-reset" id="addNodeBgReset" title="Back to the paper">⟲</button>
         </div>
       </div>
-      <div class="editor-field" id="addNodeBorderField">
+      <div class="editor-field">
         <label>Border style</label>
         <div class="style-choice" id="addNodeBorderStyle">
           <button type="button" data-value="solid" title="Solid">──</button>
@@ -594,6 +594,13 @@
           <button type="button" data-value="dashdot" title="Dash-dotted">─·</button>
           <button type="button" data-value="double" title="Double">═</button>
           <button type="button" data-value="wavy" title="Wavy — the old pocket-reality edge">∿</button>
+        </div>
+      </div>
+      <div class="editor-field" id="addNodeCornersField">
+        <label>Corners</label>
+        <div class="style-choice" id="addNodeCorners">
+          <button type="button" data-value="round" title="Rounded corners">╭</button>
+          <button type="button" data-value="square" title="Square corners">┌</button>
         </div>
       </div>
       <div class="editor-field" id="addNodeImageField" style="display:none;">
@@ -714,7 +721,7 @@
            plate on the drawing. What stays here is everything about it
            that is not the words: where it rides, what it is written on,
            and whether it becomes a callout instead. -->
-      <p class="style-row-note" id="styleNoteHint">Double-click the note to write it; drag it to slide it along the line. <b>Shift</b> offers the ends, the quarters and the middle.</p>
+      <p class="style-row-note">Double-click the note to write it; drag it to slide it along the line. <b>Shift</b> offers the ends, the quarters and the middle.</p>
 
       <div class="edge-popover-actions">
         <button class="editor-btn danger" id="styleDelete">Delete</button>

@@ -256,8 +256,7 @@ function redoLastEdit(){
    sticker back in the chart while the library it was deleted from went on
    showing an empty grid until it was closed and opened again. */
 function repaintOpenPanels(){
-  if(typeof renderStickerLibrary === 'function' &&
-     stickerOverlay && stickerOverlay.classList.contains('open')){
+  if(stickerOverlay && stickerOverlay.classList.contains('open')){
     renderStickerLibrary();
   }
 }

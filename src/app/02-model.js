@@ -476,7 +476,7 @@ workingNodes.forEach(item=>{
     parents = [parent];
   }
   const tags = (opts && Array.isArray(opts.tags) && opts.tags.length) ? opts.tags : null;
-  const colors = (opts && Array.isArray(opts.colors) && opts.colors.length) ? opts.colors : null;
+  const colors = opts ? hexColors(opts.colors) : null;
   nodes.set(id,{
     id, label, note:note||null,
     // A character bio is a small circle rather than a box: it carries a
@@ -496,7 +496,7 @@ workingNodes.forEach(item=>{
     /* What the entry is filled with. One colour is a flat ground; more
        than one is a gradient across the box, the same way an amalgam's
        border runs through its lineages' colours. Absent is the paper. */
-    bg: (opts && Array.isArray(opts.bg) && opts.bg.length) ? opts.bg : null,
+    bg: opts ? hexColors(opts.bg) : null,
     /* And how its outline is drawn: solid, dashed, dotted, dash-dotted,
        double, or the wavy edge a pocket reality used to be. */
     border: (opts && typeof opts.border === 'string' && BORDER_STYLES[opts.border])

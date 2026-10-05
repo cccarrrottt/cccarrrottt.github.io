@@ -40,8 +40,8 @@ function edgeHit(d, from, to){
        let go of the selection. The connectors that stay lit belong to
        what is selected, and those still open. */
     if(edgeIsStepBack(from, to)){
-      if(typeof closeFreeMenu === 'function') closeFreeMenu();
-      if(typeof closeBioCard === 'function') closeBioCard();
+      closeFreeMenu();
+      closeBioCard();
       deselect();
       return;
     }
