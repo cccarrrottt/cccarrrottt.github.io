@@ -33,8 +33,8 @@
 // Inside label: **bold**, *italic*, [[base|ruby]] (a small annotation above a word/phrase).
 /* @@EDIT:NODES:START@@ */
 const NODES = [
-  ['uprising', '{{#cc22cc|{{u:solid|Beast Wars: }}}}{{u:solid|[[Upris|{{z:20|readin}}g]]ing}}{{s:images}}{{u:solid|фыву}}', 'uprising-copy', null, null, undefined, {pos:[88.5, 1], colors:['#20242b']}],
-  ['uprising-copy', 'Beast Wars: Uprising', ['asdasd-copy', 'uprising'], null, null, null, {pos:[300, 10]}],
+  ['uprising', '{{#cc22cc|{{u:solid|Beast Wars: }}}}{{u:solid|[[Upris|{{z:20|readin}}g]]ing}}{{s:images}}{{u:solid|фыву}}', 'uprising-copy', null, null, undefined, {pos:[97, 5.5], colors:['#20242b']}],
+  ['uprising-copy', 'Beast Wars: Uprising', ['asdasd-copy', 'uprising'], null, null, null, {pos:[490, -30]}],
   ['asdasd', 'asda{{u:double|sdи}}', null, null, '{{m:nagahurt}}', null, {pos:[-120, 180], colors:['#20242b', '#c2c'], tags:['local multiverse', 'fan-fiction', 'multiversal hub'], border:'wavy'}],
   ['asdasd-copy', 'asdasd[1]', 'asdasd', null, null, null, {pos:[38, 180], colors:['#20242b'], border:'wavy'}],
   ['beast-wars-uprising-copy', 'Beast Wars: Uprising', null, null, null, undefined, {pos:[-90, 350], tags:['fan-fiction'], colors:['#20242b']}],
@@ -44,7 +44,7 @@ const NODES = [
   ['beast-wars-uprising-copy-5', 'Beast Wars: Uprising', ['beast-wars-uprising-copy', 'beast-wars-uprising-copy-2', 'beast-wars-uprising-copy-3', 'beast-wars-uprising-copy-4', 'beast-wars-uprising-copy-6'], null, null, 'amalgam', {pos:[199.5, 520], colors:['#20242b']}],
   ['beast-wars-uprising-copy-6', 'Beast Wars: Uprising', null, null, null, null, {pos:[470, 350]}],
   ['beast-wars-uprising-copy-7', 'Beast Wars: Uprising', 'beast-wars-uprising-copy', undefined, undefined, undefined, {pos:[-270, 414.5]}],
-  ['callout', 'year 1914', null, null, null, 'callout', {pos:[426, 131], leader:{from:'asdasd-copy', to:'uprising-copy', at:0.7811}}],
+  ['callout', 'year 1914', null, null, null, 'callout', {pos:[616, 114.22], leader:{from:'asdasd-copy', to:'uprising-copy', at:0.8183}}],
   ['callout-2', '', null, null, null, 'callout', {pos:[20, 476.01], leader:{from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', at:0.6515}}],
   ['asdasd-1-copy', 'asdasd[1]', undefined, undefined, undefined, null, {colors:['#20242b'], pos:[210, 60], border:'wavy'}],
   ['asdasd-1-copy-2', 'asdasd[1]', undefined, undefined, undefined, null, {colors:['#20242b'], pos:[120, 150], tags:['local multiverse'], size:[70, 24], border:'wavy'}],
