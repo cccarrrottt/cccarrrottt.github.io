@@ -193,8 +193,21 @@ const editBioSide = makeChoiceGroup('editBioSide', ()=>{ queueNodeEditCommit(0);
    colour fields it belongs with; makeChoiceGroup is a function declaration
    further down the file and is hoisted. */
 const editBorderStyle = makeChoiceGroup('editBorderStyle', ()=>{
+  syncEditCorners();
   queueNodeEditCommit(0);
 });
+/* Rounded or square corners. Greyed while the border ripples or the entry
+   has no box corners at all — see hasSquareCorners, which is what the
+   drawing asks; this only says the same thing in the panel. */
+const editCorners = makeChoiceGroup('editCorners', ()=>{ queueNodeEditCommit(0); });
+function syncEditCorners(){
+  const shape = (editShapeInput && editShapeInput.value) || 'rect';
+  const noBox = SQUARE_CORNER_SHAPES.includes(shape);
+  const wavy = editBorderStyle.value === 'wavy' && !WAVY_BORDER_SHAPES.includes(shape);
+  greyChoice(editCorners, noBox || wavy,
+             noBox ? 'This element has no box corners to square'
+                   : 'A wavy border keeps its rounded corners');
+}
 const editTagsInput = document.getElementById('editTagsInput');
 /* An entry's own face and size were four hidden controls: a pair in the
    Label box's toolbar and a pair mirroring them in the language rows'. None
@@ -470,6 +483,7 @@ detailEditToggle.onclick = (ev)=>{
     if(paintEditBgSwatches) paintEditBgSwatches();
     if(typeof window.syncBgResetState === 'function') window.syncBgResetState();
     editBorderStyle.value = borderStyleOf(n);
+    editCorners.value = n.square ? 'square' : 'round';
     editShapeInput.value = n.shape || 'rect';
     editImageInput.value = n.image || '';
     if(editBioCardCheck) editBioCardCheck.checked = !!n.bioCard;
@@ -490,6 +504,7 @@ detailEditToggle.onclick = (ev)=>{
     syncImageFieldVisibility(editShapeInput, editImageField);
     if(typeof window.syncColorsResetState === 'function') window.syncColorsResetState();
     syncCardFieldVisibility();
+    syncEditCorners();
     syncTextColorVisibility();
     syncColorFieldVisibility();
     editMultiLangCheck.checked = !!n.multiLang;

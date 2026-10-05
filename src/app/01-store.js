@@ -200,7 +200,7 @@ const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, 
                              noteBg: null, bends: null,
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
-                             fromRing: 0, toRing: 0, gradient: null };
+                             fromRing: 0, toRing: 0, gradient: null, square: false };
 function edgeStyleFor(from, to){
   const o = EDGE_STYLES.find(s=>s.from===from && s.to===to);
   if(!o) return DEFAULT_EDGE_STYLE;
@@ -257,6 +257,8 @@ function edgeStyleFor(from, to){
     // Which border ring each end attaches to on a multi-coloured node.
     fromRing: typeof o.fromRing === 'number' ? o.fromRing : 0,
     toRing: typeof o.toRing === 'number' ? o.toRing : 0,
+    // Square elbows (and a square note plate) instead of rounded ones.
+    square: !!o.square,
     // Two hex colours to sweep between along the connector, or null.
     gradient: (Array.isArray(o.gradient) && o.gradient.length===2 &&
                o.gradient.every(c=>typeof c==='string')) ? o.gradient.slice() : null

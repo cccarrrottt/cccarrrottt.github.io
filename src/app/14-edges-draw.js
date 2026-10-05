@@ -191,7 +191,7 @@ function redrawEdges(){
       : drawPts === pts ? d
       : style.routing === 'straight'
         ? `M${drawPts[0].x},${drawPts[0].y} L${drawPts[drawPts.length-1].x},${drawPts[drawPts.length-1].y}`
-        : roundedPath(drawPts, EDGE_CORNER_R);
+        : roundedPath(drawPts, edgeCornerR(style));
     const attrs = {class:'edge struct', d: drawD, stroke: paint, 'data-from':e.from,'data-to':e.to};
     if(dash){
       attrs['stroke-dasharray'] = dash;

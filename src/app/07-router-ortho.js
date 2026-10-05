@@ -157,6 +157,27 @@ const POCKET_DEEP = POCKET_AMP;
  * still guaranteeing contact wherever on the ripple the line lands, and
  * at whatever angle the wave happens to be crossing at that point. */
 const POCKET_UNDERLAP = 0.7;
+/* How wide a connector is, either side of its centre line — the stroke in
+   style.css, `.edge.struct` and `.edge.struct.dbl-outer`. */
+const EDGE_HALF = 0.8, EDGE_DBL_HALF = 1.9;
+/* Half the stroke of an entry's border (`.node > rect, path` in style.css). */
+const BORDER_HALF = 0.8;
+/* Where a headless line stops on an open (outer) rippled ring: see sinkEnds. */
+function openRingEnd(port){
+  const n = nodes.get(port.owner);
+  const prof = n && borderProfileOf(n, port.ring || 0);
+  if(!prof || prof.structural) return (port.drop || 0) - POCKET_UNDERLAP;
+  const half = port.lineHalf || EDGE_HALF;
+  const vert = sideIsVertical(port.side);
+  let hi = -Infinity;
+  for(let k = -4; k <= 4; k++){
+    const u = half * k / 4;
+    const o = vert ? prof.offsetAt(port.side, port.x + u, port.y)
+                   : prof.offsetAt(port.side, port.x, port.y + u);
+    if(o > hi) hi = o;
+  }
+  return hi - BORDER_HALF;
+}
 function sinkEnds(pts, p1, p2){
   if(!pts || pts.length < 2) return pts;
   const out = pts.map(q=> ({...q}));
@@ -216,8 +237,28 @@ function sinkEnds(pts, p1, p2){
        so the wave takes back whatever the head puts across it, exactly as
        a plain entry's fill does. The arrow meets the border at its own
        point and the border is drawn over its tip. */
-    const bite = port.band > 0 ? ((port.ring || 0) > 0 ? POCKET_UNDERLAP : POCKET_BITE) : 0;
-    const off = port.head ? (port.drop || 0) : (port.drop || 0) - bite;
+    /* …and on an OPEN ring, "where the border is" has to be asked across
+       the whole width of the line, not at its centre.
+     *
+       A line ends square. Where the ripple slopes under it, one corner of
+       that square end is deeper than the middle by the line's half-width
+       times the slope — and the slope of this ripple reaches nearly one
+       in one. Stopped by its middle a fixed underlap below the wave, the
+       low corner came out from under the border's stroke into the gap
+       between that ring and the next one in, which is the stub seen
+       poking through the outer border of an entry with several. There is
+       no fill behind an outer ring to bury it, so the end is placed from
+       the HIGHEST point of the wave anywhere under the line, less the
+       border's own half-stroke: every column of the line stops inside the
+       stroke, and since the ripple never climbs more than a stroke's
+       width across a line's width, every column also still reaches it. */
+    let off;
+    if(port.head) off = port.drop || 0;
+    else if(port.band > 0 && (port.ring || 0) > 0){
+      off = openRingEnd(port);
+    } else {
+      off = (port.drop || 0) - (port.band > 0 ? POCKET_BITE : 0);
+    }
     if(!off) return;
     out[idx] = Object.assign({}, out[idx],
       {x: out[idx].x + nrm[0]*off, y: out[idx].y + nrm[1]*off});

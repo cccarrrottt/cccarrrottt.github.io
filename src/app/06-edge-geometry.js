@@ -375,6 +375,10 @@ function roundedPath(pts, r){
        which is how a lineage squeezed into a short run-out came to be
        reported as carrying a kink it did not have. */
     if(l1 < 0.01 || l2 < 0.01) continue;
+    /* A square corner is just the corner — see edgeCornerR. Written as an
+       arc of no radius it was square to look at and still a curve to
+       anything reading the path. */
+    if(rr <= 0){ d += ` L${cur.x},${cur.y}`; continue; }
     d += ` L${cur.x+ax*rr},${cur.y+ay*rr} Q${cur.x},${cur.y} ${cur.x+bx*rr},${cur.y+by*rr}`;
   }
   const last = pts[pts.length-1];
@@ -386,6 +390,11 @@ function roundedPath(pts, r){
 // Small enough that the shortest run-out a connector is ever given still
 // has room for the full arc, so every elbow on the chart is the same shape.
 const EDGE_CORNER_R = 6;
+/* …unless the connector is asked for square corners, which turns every
+   elbow into a plain right angle. A sinusoid ignores it: its wave is laid
+   along a rounded line for the same reason a rippled border's is (see
+   hasSquareCorners), and a wave cannot turn a right angle. */
+function edgeCornerR(style){ return (style && style.square) ? 0 : EDGE_CORNER_R; }
 
 /* ---------------------------------------------------------------------
    A rectangle whose four sides ripple — the 'pocket reality' archetype,

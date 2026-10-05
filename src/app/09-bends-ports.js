@@ -166,8 +166,12 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
   /* The router is told which ends carry an arrowhead, because a head needs
      a straight run to sit in — see stubLength. The port records themselves
      are left alone; only the copies the routing sees learn about it. */
-  const r1 = Object.assign({}, p1, {head: !!style.arrowIn});
-  const r2 = Object.assign({}, p2, {head: style.arrow !== false});
+  /* …and how wide the line is, which an open ring needs to know: see
+     sinkEnds, where a headless end is stopped so that neither edge of
+     the line comes out under a rippled ring into the gap within it. */
+  const lineHalf = isDoubleDash(style) ? EDGE_DBL_HALF : EDGE_HALF;
+  const r1 = Object.assign({}, p1, {head: !!style.arrowIn, lineHalf});
+  const r2 = Object.assign({}, p2, {head: style.arrow !== false, lineHalf});
   /* …but where a pocket reality is at either end, the ROUTE is worked out
      as though both ends carried one.
    *
@@ -214,7 +218,7 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
       : squareUp(levelSlivers(orthPointsAvoiding(q1,q2,excludeIds,lane)), q1, q2),
     r1, r2);
   if(style.routing !== 'straight' || hand.length) registerRoutedSegments(pts);
-  const d = style.sinusoid ? wavyPath(pts) : roundedPath(pts, EDGE_CORNER_R);
+  const d = style.sinusoid ? wavyPath(pts) : roundedPath(pts, edgeCornerR(style));
   return { d, angleDeg: endAngleDeg(pts), pts };
 }
 // ports is {p1, p2, lane} from resolvePorts(); when absent, fall back to

@@ -85,6 +85,26 @@ function isWavyBorder(n){
   return !!n && borderStyleOf(n) === 'wavy' &&
          !WAVY_BORDER_SHAPES.includes(n.shape || '');
 }
+/* Whether this entry's corners are square rather than rounded.
+ *
+ * A look, like the border style, and asked of the drawing in the same way:
+ * only an outline that HAS corners can square them. A ripple's corners are
+ * part of the wave — squaring them would mean a wave turning a right angle,
+ * which is the thing the ripple is laid along a rounded outline to avoid —
+ * so a wavy border ignores the setting rather than half-obeying it; and a
+ * portrait, a picture and a caption have no box corners to square.
+ *
+ * A callout asks its CONNECTOR, the way it takes the connector's ink: a
+ * remark about a line belongs to the line, so the one switch on the
+ * connector squares the line, its note plate and every card hanging off
+ * it together. A callout cut loose from its connector keeps its own. */
+const SQUARE_CORNER_SHAPES = ['ellipse', 'image', 'textbox'];
+function hasSquareCorners(n){
+  if(!n || isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(n.shape || '')) return false;
+  if(isCalloutNode(n) && n.leader)
+    return !!edgeStyleFor(n.leader.from, n.leader.to).square;
+  return !!n.square;
+}
 function ringStepFor(n){ return isWavyBorder(n) ? POCKET_RING_STEP : RING_STEP; }
 /* How many borders an entry is drawn with. Rings step OUTWARD — ring 0 is
    the box itself and every further ring stands a step beyond the last — so
@@ -481,6 +501,8 @@ workingNodes.forEach(item=>{
        double, or the wavy edge a pocket reality used to be. */
     border: (opts && typeof opts.border === 'string' && BORDER_STYLES[opts.border])
             ? opts.border : null,
+    /* Square corners instead of rounded ones — see hasSquareCorners. */
+    square: !!(opts && opts.square),
     tags,
     font: (opts && opts.font) || null,
     fontSize: (opts && typeof opts.fontSize==='number') ? opts.fontSize : null,

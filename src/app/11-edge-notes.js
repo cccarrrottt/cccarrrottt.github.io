@@ -657,7 +657,9 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
     openEdgeNoteEditor(from, to);
   });
   wireNoteEditing(g, from, to, pts);
-  const plate = el('rect', {class:'edge-note-plate', rx:3}, g);
+  /* The plate is the connector's, so it takes the connector's corners. */
+  const plate = el('rect', {class:'edge-note-plate',
+                            rx: edgeStyleFor(from, to).square ? 0 : 3}, g);
   const t = el('text', {class:'edge-note-text', x, y}, g);
   /* Written in the CONNECTOR'S ink, whatever that is at this moment — a
      remark on a line belongs to the line, and a plate in the chart's

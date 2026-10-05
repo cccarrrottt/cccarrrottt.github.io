@@ -32,6 +32,38 @@ Releases before 0.9.0 were not numbered.
   site" (25 checks, driven at the real address); `build_guard` pins the one
   file, the `DATA_SHA` it carries, and the removal of the old ones.
 
+## Unreleased — corners, ripples and merges
+
+- **A headless connector on an outer rippled ring stops inside that ring's
+  stroke across its whole width** (`openRingEnd` in `07-router-ortho.js`).
+  It was stopped by its middle, and where the ripple slopes under it the
+  low corner of its square end came out into the gap between the rings.
+- **A ring cap is cut to outside the ring's stroke, not its centre line**
+  (`ringCapClipId` in `12-ports-draw.js` is a mask now). On a ripple the
+  clip let the cap paint over half of the inner border wherever the wave
+  sloped, which read as the connector coming through it.
+- **A wavy border no longer makes the entry wider.** The extra 2.5px of
+  padding it took per side (`inkPad` in `13-render-nodes.js`) belonged to
+  an older, deeper ripple; the current one leaves the ordinary padding
+  nearly five pixels clear.
+- **Square corners**, as a choice beside the border style for an entry
+  (`opts.square`) and as a *Corners* row for a connector (`square` in its
+  style). A connector's choice squares its elbows, its note plate and every
+  callout hanging off it, the way a callout already takes its ink. A wavy
+  border and a sinusoid keep their rounded corners whatever the setting
+  says, and the panels grey the choice for them.
+- **A lineage that is pushed takes its whole merge with it**
+  (`mergeStructureOf` in `18-canvas-gestures.js`): every lineage and the
+  amalgam move by the same push, and an amalgam carried up into its own
+  lineages pushes them as a row. Carrying a lineage into a sibling still
+  pushes only that sibling.
+- **A merge's bar gives way in whole grid steps from where it rests, and
+  only when the merged arrow is out of room** (`amalgamGeometry`). It used
+  to be put exactly `AMALGAM_GAP` in front of the entry, so the first step
+  that crossed that floor nudged it by the remainder — two or three pixels
+  — before it began travelling with the entry. `AMALGAM_GAP` 24 → 18, what
+  the head, the bead and a sliver of shaft need.
+
 ## 0.9.31 — "A card with four bands" — 2026-09-18
 
 - **Heads under the entry** (`arrowLayerFor` in `12-ports-draw.js`): only
