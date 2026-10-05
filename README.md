@@ -194,12 +194,13 @@ read-only for everybody, the owner included.
 
 1. **Cloudflare.** Make a free account and open *Workers & Pages* once, which
    gives the account its `*.workers.dev` subdomain. The service will live at
-   `https://rhizome-edit.<subdomain>.workers.dev` — this account's subdomain
-   is `wowwodptr2`, and `SITE_API` in `src/app/01-store.js` names it; a
-   different account means changing it there.
+   `https://<worker name>.<subdomain>.workers.dev` — here
+   `https://cccarrrottt-github-io.wowwodptr2.workers.dev`, which is what
+   `SITE_API` in `src/app/01-store.js` names. Another account or Worker name
+   means changing it there and `name` in `worker/wrangler.toml`.
 2. **A GitHub App** (GitHub → Settings → Developer settings → GitHub Apps →
    New). Homepage: the site. Callback URL:
-   `https://rhizome-edit.<subdomain>.workers.dev/callback`. Keep *Expire user
+   `https://cccarrrottt-github-io.wowwodptr2.workers.dev/callback`. Keep *Expire user
    authorization tokens* on. Webhook: off. Repository permissions:
    **Contents — Read and write**, nothing else. Installable only on this
    account. Generate a client secret, then **Install** it on this repository
@@ -210,8 +211,11 @@ read-only for everybody, the owner included.
      `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Every push to `main`
      then deploys `worker/`; without them that job says so and does nothing.
    - *From Cloudflare*, by importing the repository as a Worker. Its **root
-     directory must be `worker`**, the build command empty, the deploy
-     command `npx wrangler deploy`. Left at the repository's root, Cloudflare
+     directory must be `worker`**; the default build (`npm run build`) and
+     deploy (`npx wrangler deploy`) commands then work as they are. The
+     Worker's name in the dashboard has to be `name` in
+     `worker/wrangler.toml`, or the build refuses. Left at the repository's
+     root, Cloudflare
      finds no Worker there, decides `src/` is a static site and publishes the
      sources as a second copy of the chart — which deploys successfully and
      is not the write service at all.
