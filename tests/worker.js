@@ -207,6 +207,19 @@ function partsOf(text){
     .filter(k => new RegExp('^\\s*' + k + '\\s*=', 'm').test(toml));
   check('wrangler.toml sets none of the service\'s secrets', leaked.length === 0, leaked.join(', '));
 
+  /* A secret missing in Cloudflare is named, not reported as a failure of
+     the service — the first sign-in on the real site came back as "the save
+     service failed." and said nothing about where to look. */
+  const bare = {...ENV}; delete bare.SESSION_SECRET;
+  r = await svc.fetch(new Request(SVC + '/login?origin=' + encodeURIComponent(SITE)), bare);
+  body = await r.json();
+  check('a missing secret is named by the service', r.status === 503 && /SESSION_SECRET/.test(body.error), JSON.stringify(body));
+  check('and no configured value is in the answer, only names',
+        [bare.GITHUB_CLIENT_ID, bare.GITHUB_CLIENT_SECRET, bare.OWNERS].every(v => !body.error.includes(v)));
+  r = await svc.fetch(new Request(SVC + '/me'), {...ENV, SESSION_SECRET: 'short'});
+  body = await r.json();
+  check('a SESSION_SECRET too short to count is named too', r.status === 503 && /SESSION_SECRET/.test(body.error));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
