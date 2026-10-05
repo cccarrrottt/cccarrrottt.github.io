@@ -64,6 +64,18 @@ Releases before 0.9.0 were not numbered.
   — before it began travelling with the entry. `AMALGAM_GAP` 24 → 18, what
   the head, the bead and a sliver of shaft need.
 
+- **Refusals in the Management panel are said again.** `setLegendStatus`
+  and `setRefsStatus` wrote into status lines the page no longer has, so a
+  taken tag or category name, an unsafe reference link and a citation
+  with nothing to cite were refused in silence. They go to the top-bar
+  status now; confirmations stay silent, as the panel was meant to be.
+- **A bad link typed over a good one keeps the good one.** Editing a
+  reference wrote `url:''` over it whenever the new address was refused.
+- **Removed what nothing reaches**: the callout popover (nothing had opened
+  it since a click stopped doing so) with its Escape and Delete branches,
+  the hidden `refsToggle` button and its handler, and fifteen stylesheet
+  rules for classes and ids no markup carries any more.
+
 ## 0.9.31 — "A card with four bands" — 2026-09-18
 
 - **Heads under the entry** (`arrowLayerFor` in `12-ports-draw.js`): only

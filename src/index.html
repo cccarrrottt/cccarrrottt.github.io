@@ -22,9 +22,6 @@
     <button class="icon-btn" id="legendToggle" title="Management — tags and references">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
     </button>
-    <button class="icon-btn" id="refsToggle" title="References" hidden>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v5h5"/><line x1="8" y1="13" x2="15" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-    </button>
     <button class="icon-btn" id="addNodeToggle" title="Add a node">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
     </button>
@@ -724,9 +721,6 @@
       </div>
     </div>
 
-    <!-- A callout has one thing in it — words — so its panel is that and
-         nothing else. It borrows the connector popover's shell so the two
-         read as the same kind of object opened on a different thing. -->
     <!-- The in-node editor.
          An entry's words are written where they are drawn: the field
          stands on the entry itself and the toolbar floats just above it,
@@ -744,22 +738,6 @@
       <textarea id="nodeEditorText" class="node-editor-text" rows="1" spellcheck="false"></textarea>
     </div>
 
-    <div class="edge-popover callout-popover" id="calloutPopover">
-      <div class="edge-popover-head">
-        <button class="detail-close" id="calloutClose">✕</button>
-      </div>
-      <!-- A callout's words are written on the card itself, by double-clicking
-           it, and this panel used to say so in a line of prose. A caption that
-           explains a gesture is a caption that has to be read every time the
-           panel opens, forever, by somebody who learned the gesture the first
-           time; and it was the only thing here besides the Delete, so the
-           panel read as a paragraph with a button under it. All this panel has
-           is the one thing the drawing cannot offer, which is a way to remove
-           the callout. -->
-      <div class="edge-popover-actions">
-        <button class="editor-btn danger" id="calloutDelete">Delete</button>
-      </div>
-    </div>
   </div>
 </div>
 <!-- @@BODY:END@@ -->

@@ -1374,10 +1374,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     }
     /* A callout is an entry, and its words are on the card it is drawn as
        — so they are written there, not in a panel beside it. */
-    if(isCallout){
-      closeCalloutPopover();
-      if(openNodeEditor(n.id)) return;
-    }
+    if(isCallout && openNodeEditor(n.id)) return;
     /* A portrait holds a PICTURE, not words. Its words are on the card
        beside it, and that is where a double click on the card opens them;
        a double click on the circle is a double click on an image, and what

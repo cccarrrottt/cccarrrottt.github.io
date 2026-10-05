@@ -5619,7 +5619,7 @@ async function main(){
     await wait(350);
     // …and puts nothing over the drawing: Delete is the key's job.
     out.oneClickSelects = selectedId === 'coC' &&
-                          !document.getElementById('calloutPopover').classList.contains('open');
+                          !document.querySelector('.edge-popover.open');
     document.querySelector('.node[data-id="coC"]').dispatchEvent(
       new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:420, clientY:420}));
     await wait(400);
@@ -5633,7 +5633,6 @@ async function main(){
     await wait(400);
     out.panelWrites = (nodes.get('coC') || {}).label === 'Rewritten';
     closeNodeEditor(true);
-    closeCalloutPopover();
     await wait(250);
 
     /* The side its leader arrives at offers no port. */
@@ -8578,7 +8577,7 @@ async function main(){
         const hex = document.querySelector('#nodeEditorBar .tb-hex');
         out.calloutNoColour = !hex || getComputedStyle(hex).display === 'none';
       }
-      closeNodeEditor(true); closeCalloutPopover(); await wait(200);
+      closeNodeEditor(true); await wait(200);
       // an ordinary entry keeps its colour box, because the colour is its own
       dbl(document.querySelector('.node[data-id="w1"]'));
       await wait(420);
@@ -11554,6 +11553,43 @@ async function main(){
   check('a lineage pushed by an outsider takes its whole merge with it',
         rW.wholeMoved, rW.wholeMerge);
   check('a merge carried into its lineages moves them as a row', rW.rowMoved, rW.rowUp);
+  });
+
+  await scenario("the management panel says why", async () => {
+  const rM = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeRefs = REFS.map(r=> Object.assign({}, r));
+    const beforeCats = JSON.stringify(TAG_CATS);
+    /* A refusal is said in the top bar. Both of the panel's messages went
+       into a status line the page no longer has, so it was dropped. */
+    const st = document.getElementById('saveState');
+    out.statusExists = !!st;
+    createTag('A tag nobody has');
+    createTag('A tag nobody has');
+    out.dupShown = !!st && st.classList.contains('err') && /already exists/.test(st.textContent);
+    /* A bad link typed over a good one keeps the good one. */
+    const realAsk = askFields;
+    try{
+      applyEdit(()=> REFS.push({key:'rqTest', title:'', detail:'A source', url:'https://example.org/'}));
+      window.askFields = async ()=> ({detail:'A source', url:'javascript:alert(1)'});
+      await editRef('rqTest');
+      const r = REFS.find(x=> x.key === 'rqTest');
+      out.keptLink = !!r && r.url === 'https://example.org/' && !('refused' in r);
+      out.refusalShown = /not saved/.test(st ? st.textContent : '');
+    } finally { window.askFields = realAsk; }
+    applyEdit(()=>{
+      REFS.length = 0; beforeRefs.forEach(r=> REFS.push(r));
+      const cats = JSON.parse(beforeCats);
+      TAG_CATS.length = 0; cats.forEach(c=> TAG_CATS.push(c));
+    });
+    refreshSaveUI();
+    await wait(100);
+    return out;
+  });
+  check('a name that is taken is refused out loud', rM.statusExists && rM.dupShown);
+  check('a bad link typed over a good one keeps the good one', rM.keptLink);
+  check('and says the link was not saved', rM.refusalShown);
   });
 
   /* ---- 29. nothing threw along the way ---- */

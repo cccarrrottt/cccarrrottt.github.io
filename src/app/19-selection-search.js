@@ -469,7 +469,6 @@ document.addEventListener('keydown', e=>{
     if(bioCardNodeId){ closeBioCard(); return; }
     if(noteOverlay && noteOverlay.classList.contains('open')){ noteOverlay.classList.remove('open'); return; }
     if(aboutOverlay.classList.contains('open')){ aboutOverlay.classList.remove('open'); return; }
-    if(calloutPopover.classList.contains('open')){ closeCalloutPopover(); return; }
     if(edgePopover.classList.contains('open')){ closeEdgePopover(); return; }
     // A picture's or a caption's own menu is a panel like any other, and
     // was the one Escape never reached — so it stayed open, still holding
@@ -489,15 +488,6 @@ document.addEventListener('keydown', e=>{
     // hijacked while the user is actually typing (Backspace has to keep
     // erasing text in every field, including these two keys' own textareas).
     if(typingInField()) return;
-    /* A callout's own card is open on it, so Delete means that card —
-       exactly as it means the connector's when the connector's card is
-       open. It reads its own Delete button rather than reaching for
-       deleteNodes, so the panel closes with it. */
-    if(calloutPopover.classList.contains('open') && calloutTarget){
-      e.preventDefault();
-      document.getElementById('calloutDelete').click();
-      return;
-    }
     if(edgePopover.classList.contains('open') && currentEdgeStyleTarget){
       e.preventDefault();
       styleDeleteBtn.click();

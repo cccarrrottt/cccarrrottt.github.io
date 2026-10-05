@@ -568,21 +568,4 @@ function positionEdgePopover(evt){
   edgePopover.style.top = y + 'px';
 }
 
-/* ---------------------------------------------------------------------
-   The callout's own panel.
-
-   A callout is an entry, and for a while that meant clicking one opened
-   the entry editor: an archetype dropdown, a link field, border colours,
-   tags, language tabs — a form about a thing that has none of those. What
-   a callout has is words, and one decision beyond them: whether to keep
-   it. So it gets a panel that is exactly that, wearing the connector
-   popover's shell, because the two are the same kind of object — a small
-   card that opens on the drawing beside what it belongs to.
-
-   The words ARE the entry's label, so nothing new is stored and everything
-   that already reads a label — search, export, the chart itself — goes on
-   working without knowing this panel exists.
-   ------------------------------------------------------------------ */
-const calloutPopover = document.getElementById('calloutPopover');
-let calloutTarget = null;          // the callout the panel is open on
 
