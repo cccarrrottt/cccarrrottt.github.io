@@ -46,6 +46,20 @@ const enc = new TextEncoder(), dec = new TextDecoder();
 
 function list(v){ return String(v || '').split(',').map(s => s.trim()).filter(Boolean); }
 
+/* What the service cannot run without, by NAME. A missing secret used to
+   surface as "the save service failed." on the first sign-in, which says
+   nothing about where to look; the names say exactly which line in the
+   Cloudflare dashboard is wrong, and give nothing away — every one of them
+   is already written in this file. */
+export function missingConfig(env){
+  const out = [];
+  for(const k of ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'REPO', 'BRANCH', 'OWNERS', 'ALLOWED_ORIGINS']){
+    if(!String(env[k] || '').trim()) out.push(k);
+  }
+  if(String(env.SESSION_SECRET || '').length < 32) out.push('SESSION_SECRET (missing, or shorter than 32 characters)');
+  return out;
+}
+
 /* ---- sealing: the session and the login state ------------------------ */
 
 function b64url(bytes){
@@ -297,6 +311,8 @@ export default {
     const h = cors(env, request);
     try{
       if(request.method === 'OPTIONS') return new Response(null, {status: 204, headers: h});
+      const missing = missingConfig(env);
+      if(missing.length) return json({error: 'the save service is not set up: ' + missing.join(', ') + '. Set it in Cloudflare, Worker → Settings → Variables and Secrets, as a Secret.'}, 503, h);
       if(request.method === 'GET' && url.pathname === '/login') return await login(env, url);
       if(request.method === 'GET' && url.pathname === '/callback') return await callback(env, url);
       if(request.method === 'GET' && url.pathname === '/me') return json(await me(env, request), 200, h);
