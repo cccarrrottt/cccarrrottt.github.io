@@ -17,11 +17,14 @@ main = "index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
 
+# Plain settings only. GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and
+# SESSION_SECRET must NOT be written here: this file is public, and a value
+# under [vars] collides with the secret of the same name — the deploy either
+# fails or the service runs with what stands here instead of the real thing.
+# They are set once in the Cloudflare dashboard, as Secrets.
+# tests/worker.js refuses this file if any of them appears in it.
 [vars]
 REPO = "cccarrrottt/cccarrrottt.github.io"
 BRANCH = "main"
-GITHUB_CLIENT_ID = "GITHUB_CLIENT_ID"
-GITHUB_CLIENT_SECRET = "GITHUB_CLIENT_SECRET"
 OWNERS = "cccarrrottt"
 ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
-SESSION_SECRET = "SESSION_SECRET"
