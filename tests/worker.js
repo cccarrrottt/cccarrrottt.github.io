@@ -199,6 +199,14 @@ function partsOf(text){
   r = await post(s, {base: gitSha(DATA), parts});
   check('the page\'s old base is now refused, so it cannot undo that save', r.status === 409);
 
+  /* The configuration. The three secrets live in Cloudflare; written into
+     wrangler.toml they would be public, and would collide with the real
+     ones. It happened once, with placeholder values. */
+  const toml = fs.readFileSync(path.join(ROOT, 'worker', 'wrangler.toml'), 'utf8');
+  const leaked = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET']
+    .filter(k => new RegExp('^\\s*' + k + '\\s*=', 'm').test(toml));
+  check('wrangler.toml sets none of the service\'s secrets', leaked.length === 0, leaked.join(', '));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
