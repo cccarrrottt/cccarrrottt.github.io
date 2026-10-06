@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 37 files, one per subsystem — see "One scope, many
+  app/         the program, 38 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
 build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
@@ -55,7 +55,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 37 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 38 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -412,7 +412,7 @@ hitting.
 ## On a phone
 
 The chart's gestures were all written for a mouse, and they were left that way.
-`src/app/37-touch.js` turns a finger on the canvas into the mouse events those
+`src/app/38-touch.js` turns a finger on the canvas into the mouse events those
 gestures already listen for, so there is one mechanism for both and nothing
 behaves differently under a finger. What a finger cannot say is which key is
 held, so a **hold** says it: still for a moment and then moved, a finger off

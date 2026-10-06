@@ -315,7 +315,7 @@ svg.addEventListener('wheel', e=>{
 },{passive:false});
 
 /* Touch — one finger as the mouse, two as pan and zoom — is in
-   37-touch.js. It used to be here as a pan on one finger and a pinch on
+   38-touch.js. It used to be here as a pan on one finger and a pinch on
    two, and the one finger panned wherever it landed, an entry included,
    so nothing on a phone could be carried. */
 

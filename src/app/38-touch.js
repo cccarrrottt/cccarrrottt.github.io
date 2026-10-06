@@ -79,10 +79,16 @@ function touchMouse(type, target, x, y, mods, detail){
 
 /* Hover, as a finger has it: what was last touched is what the pointer is
    on. Entering and leaving are sent the way a mouse sends them — to every
-   element whose box the pointer crossed into or out of — because the
-   entries listen for mouseenter on themselves, not for anything that
-   bubbles. */
+   element whose box the pointer crossed into or out of, because the
+   entries listen for mouseenter on themselves — and over and out are sent
+   too, to the innermost element, because the style bar listens on the
+   layer for those, which bubble. */
 function touchHoverAt(el){
+  const prev = touchHoverChain[0] || null;
+  if(prev !== el){
+    if(prev && prev.isConnected) prev.dispatchEvent(new MouseEvent('mouseout', {bubbles:true, view:window, relatedTarget: el}));
+    if(el) el.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, view:window, relatedTarget: prev}));
+  }
   const chain = [];
   for(let n = el; n && n.nodeType === 1; n = n.parentNode) chain.push(n);
   const keep = new Set(chain);
@@ -305,7 +311,16 @@ function touchFinish(ev, cancelled){
   if(isDouble){
     touchMouse('dblclick', at, st.x0, st.y0, mods, 2);
     touchLastTap = null;
-  } else touchLastTap = mods ? null : {t: ev.timeStamp, x: st.x0, y: st.y0};
+    return;
+  }
+  touchLastTap = mods ? null : {t: ev.timeStamp, x: st.x0, y: st.y0};
+  /* The finger is still "on" what it tapped, and a mouse resting there
+     would be offered whatever hovering offers — the style bar above all,
+     which a press puts away and nothing but arriving again brings back.
+     Under a mouse arriving again is free; a finger can only tap again,
+     which would put it away again. So a tap ends by arriving once more. */
+  const rest = touchHoverChain[0];
+  if(rest && rest.isConnected) rest.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, view:window, relatedTarget: null}));
 }
 const touchEnded = ev=> touchFinish(ev, false);
 const touchCancelled = ev=> touchFinish(ev, true);

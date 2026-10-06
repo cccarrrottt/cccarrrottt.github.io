@@ -94,17 +94,20 @@ function isWavyBorder(n){
  * so a wavy border ignores the setting rather than half-obeying it; and a
  * portrait, a picture and a caption have no box corners to square.
  *
- * A callout asks its CONNECTOR, the way it takes the connector's ink: a
- * remark about a line belongs to the line, so the one switch on the
- * connector squares the line, its note plate and every card hanging off
- * it together. A callout cut loose from its connector keeps its own. */
+ * A callout has corners of its own, pinned or not. It used to take its
+ * connector's, the way it takes the connector's ink — which meant squaring
+ * a line squared every remark hanging off it, and a callout could not be
+ * given corners different from the line it is about. Ink says whose remark
+ * it is; corners are only a look, and a look is the card's to choose.
+ *
+ * A portrait's circle has no corners, but the card that opens beside it
+ * does; see bioCardSquare. */
 const SQUARE_CORNER_SHAPES = ['ellipse', 'image', 'textbox'];
 function hasSquareCorners(n){
   if(!n || isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(n.shape || '')) return false;
-  if(isCalloutNode(n) && n.leader)
-    return !!edgeStyleFor(n.leader.from, n.leader.to).square;
   return !!n.square;
 }
+function bioCardSquare(n){ return !!n && (n.shape || '') === 'ellipse' && !!n.square; }
 function ringStepFor(n){ return isWavyBorder(n) ? POCKET_RING_STEP : RING_STEP; }
 /* How many borders an entry is drawn with. Rings step OUTWARD — ring 0 is
    the box itself and every further ring stands a step beyond the last — so

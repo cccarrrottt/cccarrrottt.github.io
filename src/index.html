@@ -205,27 +205,6 @@
             <p class="editor-help">One colour fills the box; two or more make a gradient across it.</p>
           </div>
           <div class="editor-field">
-            <label>Border style</label>
-            <div class="style-choice" id="editBorderStyle">
-              <button type="button" data-value="solid" title="Solid">──</button>
-              <button type="button" data-value="dashed" title="Dashed">╌╌</button>
-              <button type="button" data-value="dotted" title="Dotted">┈┈</button>
-              <button type="button" data-value="dashdot" title="Dash-dotted">─·</button>
-              <button type="button" data-value="double" title="Double">═</button>
-              <button type="button" data-value="wavy" title="Wavy — the old pocket-reality edge">∿</button>
-            </div>
-          </div>
-          <div class="editor-field" id="editCornersField">
-            <label>Corners</label>
-            <!-- A look, like the border style beside it. A ripple keeps
-                 its own corners whatever this says, so the choice is
-                 greyed while the border is wavy rather than hidden. -->
-            <div class="style-choice" id="editCorners">
-              <button type="button" data-value="round" title="Rounded corners">╭</button>
-              <button type="button" data-value="square" title="Square corners">┌</button>
-            </div>
-          </div>
-          <div class="editor-field">
             <label for="editShapeInput">Node style</label>
             <select id="editShapeInput">
               <option value="rect">Default (rectangle)</option>
@@ -806,7 +785,8 @@
     '34-add-node.js',
     '35-draw-out.js',
     '36-site-owner.js',
-    '37-touch.js',
+    '37-style-bar.js',
+    '38-touch.js',
   ];
   var NL = String.fromCharCode(10);
   Promise.all(PARTS.map(function(p){

@@ -216,7 +216,8 @@ const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, 
                              noteBg: null, bends: null,
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
-                             fromRing: 0, toRing: 0, gradient: null, square: false };
+                             fromRing: 0, toRing: 0, gradient: null, square: false,
+                             noteFrame: true, noteSquare: false };
 function edgeStyleFor(from, to){
   const o = EDGE_STYLES.find(s=>s.from===from && s.to===to);
   if(!o) return DEFAULT_EDGE_STYLE;
@@ -275,6 +276,11 @@ function edgeStyleFor(from, to){
     toRing: typeof o.toRing === 'number' ? o.toRing : 0,
     // Square elbows (and a square note plate) instead of rounded ones.
     square: !!o.square,
+    /* The note's plate: framed or bare, rounded or square. Its own, not the
+       connector's — the line's corners are the line's, and a remark on it
+       chooses how it is written down. */
+    noteFrame: o.noteFrame !== false,
+    noteSquare: !!o.noteSquare,
     // Two hex colours to sweep between along the connector, or null.
     gradient: (Array.isArray(o.gradient) && o.gradient.length===2 &&
                o.gradient.every(isHexColor)) ? o.gradient.slice() : null

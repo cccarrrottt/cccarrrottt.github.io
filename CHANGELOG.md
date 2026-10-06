@@ -10,7 +10,7 @@ Releases before 0.9.0 were not numbered.
 
 ### A phone
 
-- **A finger is read as a mouse** (`37-touch.js`). The chart's forty-odd
+- **A finger is read as a mouse** (`38-touch.js`). The chart's forty-odd
   mouse gestures are left exactly as they were; touches on the canvas are
   turned into the mousedown / mousemove / mouseup / click / dblclick those
   gestures already listen for, so every drag behaves on glass as it does on a
@@ -35,6 +35,11 @@ Releases before 0.9.0 were not numbered.
 - **Hover-only handles are shown on the tapped or selected entry** once the
   page has been touched (`body.touch-input`): connector bands, corner grips,
   the rotate arrow, and the grip that sizes a picture in a note.
+- **The style bar reaches a finger.** It opens on `mouseover` and a press
+  closes it, so the touch bridge sends over/out as well as enter/leave, and a
+  tap ends by arriving on what it tapped once more, which leaves the bar
+  standing. The bar is kept inside the right edge of the screen as well as
+  the left.
 - **Narrow screens** (`max-width: 720px`): the top bar is two rows — wordmark
   and search, then the buttons and Save — instead of one row that ran off the
   phone; the entry counts and the coordinate readout are hidden; Management
@@ -43,6 +48,30 @@ Releases before 0.9.0 were not numbered.
 - **Tests**: a new scenario, "a phone", drives a 390×844 touch context with
   raw touch points — tap, carry, pan, pinch, hold-to-select, hold-tap,
   connector from a band, double tap — and checks that the bar fits.
+
+### Looks where they are picked
+
+- **The rings of a rippled entry run parallel on every side**
+  (`pocketOutline(x, y, w, h, grow)` in `06-edge-geometry.js`). Each ring
+  was a ripple of its own, stretched to its own perimeter and started at
+  its own top-left corner, so the rings agreed there and drifted apart
+  from it. An outer ring is now the innermost ring's ripple moved `grow`
+  straight out, turning its corners on a radius `grow` larger; the
+  connector-end query and the grab strips read the same points.
+- **The border style and the corners are on a bar over the thing**
+  (`37-style-bar.js`, a new part): hovering an entry or a callout shows
+  the six border styles and the two corners; hovering a connector's note
+  shows a frame on or off and its corners. They are gone from the entry
+  drawer, which carries `opts.border` and `opts.square` through untouched.
+- **A callout's corners and a note's corners are their own.** A
+  connector's `square` squares its elbows only; `hasSquareCorners` no
+  longer asks a pinned callout's connector, and a note has `noteSquare`.
+- **A note's frame is optional** (`noteFrame:false`, `.edge-note-plate.bare`).
+- **A portrait's corners square its card** (`bioCardSquare`).
+- **A callout slid round a bend keeps to the same hand of its line**
+  (`cardBesideLine` in `11-edge-notes.js`): the card's place is held in
+  the frame of the leg the dot is on — along, which side, and the
+  clearance from its own edge — instead of as a fixed offset on the page.
 
 ## 0.10.0 — "A site of its own" — 2026-10-05
 

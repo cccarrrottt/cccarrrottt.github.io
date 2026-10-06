@@ -188,32 +188,8 @@ const editShapeInput = document.getElementById('editShapeInput');
 const editBgInput = document.getElementById('editBgInput');
 // Which side a portrait's card hangs on — see bioSideOf.
 const editBioSide = makeChoiceGroup('editBioSide', ()=>{ queueNodeEditCommit(0); });
-/* An entry's border style, picked rather than typed — the same six the
-   connectors offer, drawn as the lines they are. Declared here beside the
-   colour fields it belongs with; makeChoiceGroup is a function declaration
-   further down the file and is hoisted. */
-const editBorderStyle = makeChoiceGroup('editBorderStyle', ()=>{
-  syncEditCorners();
-  queueNodeEditCommit(0);
-});
-/* Rounded or square corners. Greyed while the border ripples or the entry
-   has no box corners at all — see hasSquareCorners, which is what the
-   drawing asks; this only says the same thing in the panel. */
-const editCorners = makeChoiceGroup('editCorners', ()=>{ queueNodeEditCommit(0); });
-function syncEditCorners(){
-  const shape = (editShapeInput && editShapeInput.value) || 'rect';
-  const noBox = SQUARE_CORNER_SHAPES.includes(shape);
-  const wavy = editBorderStyle.value === 'wavy' && !WAVY_BORDER_SHAPES.includes(shape);
-  /* A callout pinned to a connector wears that connector's corners, so the
-     choice is made in the connector's popover; here it would be a button
-     that changes nothing. Cut loose, the callout is its own card again. */
-  const n = nodes.get(selectedId);
-  const pinned = isCalloutNode(n) && !!n.leader;
-  greyChoice(editCorners, noBox || wavy || pinned,
-             noBox ? 'This element has no box corners to square'
-             : pinned ? 'A callout takes its corners from its connector'
-                      : 'A wavy border keeps its rounded corners');
-}
+/* The border style and the corners are not here: they are on the bar that
+   appears over an entry as the pointer reaches it — see 37-style-bar.js. */
 const editTagsInput = document.getElementById('editTagsInput');
 /* An entry's own face and size were four hidden controls: a pair in the
    Label box's toolbar and a pair mirroring them in the language rows'. None
@@ -488,8 +464,6 @@ detailEditToggle.onclick = (ev)=>{
     editBgInput.value = (n.bg && n.bg.length) ? n.bg.join(', ') : '';
     if(paintEditBgSwatches) paintEditBgSwatches();
     if(typeof window.syncBgResetState === 'function') window.syncBgResetState();
-    editBorderStyle.value = borderStyleOf(n);
-    editCorners.value = n.square ? 'square' : 'round';
     editShapeInput.value = n.shape || 'rect';
     editImageInput.value = n.image || '';
     if(editBioCardCheck) editBioCardCheck.checked = !!n.bioCard;
@@ -510,7 +484,6 @@ detailEditToggle.onclick = (ev)=>{
     syncImageFieldVisibility(editShapeInput, editImageField);
     if(typeof window.syncColorsResetState === 'function') window.syncColorsResetState();
     syncCardFieldVisibility();
-    syncEditCorners();
     syncTextColorVisibility();
     syncColorFieldVisibility();
     editMultiLangCheck.checked = !!n.multiLang;
