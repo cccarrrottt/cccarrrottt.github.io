@@ -6,6 +6,44 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.11.0 — "In the hand" — 2026-10-06
+
+### A phone
+
+- **A finger is read as a mouse** (`37-touch.js`). The chart's forty-odd
+  mouse gestures are left exactly as they were; touches on the canvas are
+  turned into the mousedown / mousemove / mouseup / click / dblclick those
+  gestures already listen for, so every drag behaves on glass as it does on a
+  desk. The press is sent late — only once the finger moves or lifts — so a
+  pinch never starts by picking up what its first finger landed on.
+- **A reader's drag is always a pan.** Under a mouse a reader's drag that
+  starts on an entry does nothing; under a finger that is most of a zoomed-in
+  screen, so in read-only every one-finger drag on the chart pans.
+- **A touch that outlives its element still ends.** Touch events go to the
+  element the finger came down on even after a redraw has replaced it, where
+  they no longer reach `document`; the element is listened to directly for the
+  touch's lifetime, and a gesture whose end never arrived is closed by the next
+  touch rather than read as a second finger forever.
+- **A hold is the modifier key.** Still for `TOUCH_HOLD` (420 ms) and then
+  moved: Shift off the entries (the selection box, a bend kept to its steps),
+  Ctrl on an entry (carried free of the grid). A held tap on an entry is a
+  Ctrl-click. Tag and reference rows in Management, and pictures in a note,
+  are picked up only after a hold, so a moving finger still scrolls.
+- **Two fingers pan and zoom about their midpoint.** The old pinch scaled
+  about the chart's corner and the old one-finger pan took over wherever the
+  finger landed, an entry included; both are gone from `18-canvas-gestures.js`.
+- **Hover-only handles are shown on the tapped or selected entry** once the
+  page has been touched (`body.touch-input`): connector bands, corner grips,
+  the rotate arrow, and the grip that sizes a picture in a note.
+- **Narrow screens** (`max-width: 720px`): the top bar is two rows — wordmark
+  and search, then the buttons and Save — instead of one row that ran off the
+  phone; the entry counts and the coordinate readout are hidden; Management
+  takes the whole screen; the entry drawer is a bottom sheet; the zoom buttons
+  are larger. `src/index.html` gets the viewport tag the built page already had.
+- **Tests**: a new scenario, "a phone", drives a 390×844 touch context with
+  raw touch points — tap, carry, pan, pinch, hold-to-select, hold-tap,
+  connector from a band, double tap — and checks that the bar fits.
+
 ## 0.10.0 — "A site of its own" — 2026-10-05
 
 ### One page for everybody

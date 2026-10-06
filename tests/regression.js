@@ -11694,6 +11694,223 @@ async function main(){
   check('and says the link was not saved', rM.refusalShown);
   });
 
+  /* ---- a phone ---- */
+  /* Its own browser context, because a phone is a different device and not
+     a different size of this one: touch events exist, the page is laid out
+     for 390 pixels, and the first touch is what puts the page into its
+     finger mode. Every gesture is sent as raw touch points through the
+     protocol rather than through Playwright's tap(), which can only tap —
+     and a phone that could only tap is what this scenario is about. */
+  await scenario("a phone: a bar that fits, and a finger that carries", async () => {
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    const cdp = await phone.newCDPSession(pp);
+    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent',
+      {type, touchPoints: pts.map(([x, y], i)=> ({x, y, id: i, radiusX: 2, radiusY: 2}))});
+    /* A finger put down, walked in steps, and lifted — optionally held
+       still for a while first, which is what a hold is. */
+    async function swipe(from, to, opts){
+      opts = opts || {};
+      await touch('touchStart', from);
+      if(opts.hold) await wait(opts.hold);
+      const steps = opts.steps || 8;
+      for(let s = 1; s <= steps; s++){
+        await touch('touchMove', from.map(([x, y], i)=> [x + (to[i][0] - x) * s / steps,
+                                                         y + (to[i][1] - y) * s / steps]));
+        await wait(16);
+      }
+      await touch('touchEnd', []);
+      await wait(120);
+    }
+    async function tap(x, y, hold){
+      await touch('touchStart', [[x, y]]);
+      await wait(hold || 40);
+      await touch('touchEnd', []);
+      await wait(60);
+    }
+
+    const bar = await pp.evaluate(()=>{
+      const kids = [...document.querySelectorAll('.topbar > *')]
+        .filter(e=> getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0);
+      const off = kids.filter(e=>{ const r = e.getBoundingClientRect(); return r.left < 0 || r.right > innerWidth + 0.5; })
+        .map(e=> e.id || e.className);
+      const btns = [...document.querySelectorAll('.topbar > .icon-btn')].filter(e=> getComputedStyle(e).display !== 'none');
+      return {off, scroll: document.documentElement.scrollWidth, width: innerWidth,
+              rows: new Set(btns.map(b=> Math.round(b.getBoundingClientRect().top))).size,
+              search: document.getElementById('searchInput').getBoundingClientRect().width};
+    });
+    check('every control in the bar is on the screen', bar.off.length === 0, bar.off.join(', '));
+    check('the page is no wider than the phone', bar.scroll <= bar.width, `${bar.scroll} > ${bar.width}`);
+    eq('the buttons share one row', bar.rows, 1);
+    check('the search has room to be typed in', bar.search >= 120, `${bar.search}px`);
+
+    await tap(...await pp.evaluate(()=>{ const r = document.getElementById('legendToggle').getBoundingClientRect(); return [r.x + r.width/2, r.y + r.height/2]; }));
+    await wait(300);
+    const panel = await pp.evaluate(()=>{
+      const r = document.getElementById('legend').getBoundingClientRect();
+      return {open: document.getElementById('legend').classList.contains('open'), left: r.left, right: r.right};
+    });
+    check('Management opens across the phone', panel.open && panel.left >= 0 && panel.right <= 390 && panel.right - panel.left > 340,
+          JSON.stringify(panel));
+    await pp.evaluate(()=> document.getElementById('legendClose').click());
+    await wait(250);
+
+    /* Two entries at a known place, the view at a known zoom. */
+    const at = await pp.evaluate(async ()=>{
+      applyEdit(()=>{
+        /* Both above the entry drawer, which opens over the lower half. */
+        workingNodes.push(['tpA', 'Touch A', null, null, null, 'rect', {pos:[100, 60]}]);
+        workingNodes.push(['tpB', 'Touch B', null, null, null, 'rect', {pos:[100, 220]}]);
+      });
+      await new Promise(r=> setTimeout(r, 120));
+      deselect();
+      vs = 1; vx = 20; vy = 20; applyTransform();
+      const box = id=>{ const r = document.querySelector(`#nodeLayer [data-id="${id}"]`).getBoundingClientRect();
+                        return [r.x + r.width/2, r.y + r.height/2, r.width, r.height]; };
+      return {a: box('tpA'), b: box('tpB'), touchClass: document.body.classList.contains('touch-input')};
+    });
+    check('a touch puts the page in its finger mode', at.touchClass);
+
+    await tap(at.a[0], at.a[1]);
+    await wait(300);
+    eq('a tap selects the entry under it', await pp.evaluate(()=> selectedId), 'tpA');
+
+    const ax0 = await pp.evaluate(()=> nodes.get('tpA').x);
+    await swipe([[at.a[0], at.a[1]]], [[at.a[0] + 80, at.a[1]]]);
+    const carried = await pp.evaluate(()=> ({x: nodes.get('tpA').x, vx}));
+    check('one finger on an entry carries the entry', carried.x - ax0 > 50, `moved ${carried.x - ax0}`);
+    eq('…and leaves the view where it was', carried.vx, 20);
+
+    /* With nothing selected, so the entry's drawer is not over the canvas,
+       and the chart moved well out of the way, so the finger lands on paper. */
+    await pp.evaluate(()=>{ deselect(); vx = 20000; vy = 20000; applyTransform(); });
+    await wait(300);
+    await swipe([[300, 640]], [[240, 600]]);
+    const panned = await pp.evaluate(()=> ({vx, vy}));
+    check('one finger on open canvas pans', Math.abs(panned.vx - (20000 - 60)) < 2 && Math.abs(panned.vy - (20000 - 40)) < 2,
+          JSON.stringify(panned));
+
+    /* Spread about a point; the world under it must stay under it. */
+    const mid = [200, 500];
+    const before = await pp.evaluate(([x, y])=> clientToWorld(x, y), mid);
+    await swipe([[mid[0] - 30, mid[1]], [mid[0] + 30, mid[1]]], [[mid[0] - 60, mid[1]], [mid[0] + 60, mid[1]]]);
+    const pinched = await pp.evaluate(([x, y])=> ({vs, w: clientToWorld(x, y)}), mid);
+    check('two fingers spread zoom in', Math.abs(pinched.vs - 2) < 0.05, `z${pinched.vs}`);
+    check('…about the point between them', Math.abs(pinched.w.x - before.x) < 1 && Math.abs(pinched.w.y - before.y) < 1,
+          JSON.stringify({before, after: pinched.w}));
+
+    /* Back to the known view for the rest. */
+    const pos = await pp.evaluate(async ()=>{
+      vs = 1; vx = 20; vy = 20; applyTransform();
+      selectNode('tpA'); paintMultiSelection();
+      await new Promise(r=> setTimeout(r, 60));
+      const box = id=>{ const r = document.querySelector(`#nodeLayer [data-id="${id}"]`).getBoundingClientRect();
+                        return [r.x + r.width/2, r.y + r.height/2]; };
+      return {a: box('tpA'), b: box('tpB')};
+    });
+    await tap(pos.b[0], pos.b[1], 650);
+    await wait(300);
+    const multi = await pp.evaluate(()=> [...multiSelection].sort());
+    eq('a held tap adds to the selection, as Ctrl-click does', JSON.stringify(multi), JSON.stringify(['tpA', 'tpB']));
+
+    /* A connector, drawn from the bottom band of a selected entry. */
+    await pp.evaluate(()=>{ deselect(); selectNode('tpA'); paintMultiSelection(); });
+    const band = await pp.evaluate(()=>{
+      const h = document.querySelector('#nodeLayer [data-id="tpA"] .node-handle[data-side="bottom"] .node-handle-hit');
+      if(!h) return null;
+      const r = h.getBoundingClientRect();
+      return {at: [r.x + r.width/2, r.y + r.height/2], live: getComputedStyle(h.closest('.node-handles') || h).pointerEvents};
+    });
+    check('a selected entry offers its connector bands to a finger', !!band && band.live !== 'none', JSON.stringify(band));
+    if(band){
+      await swipe([band.at], [[pos.b[0], pos.b[1]]], {steps: 12});
+      const linked = await pp.evaluate(()=> {
+        const b = workingNodes.find(n=> n[0] === 'tpB');
+        return JSON.stringify(b).includes('tpA');
+      });
+      check('dragging from the band to another entry connects them', linked);
+    }
+
+    /* A hold on open paper is Shift: the drag that follows draws the
+       selection box instead of panning. */
+    await pp.evaluate(()=>{ deselect(); });
+    await wait(300);
+    const vxHeld = await pp.evaluate(()=> vx);
+    await swipe([[pos.a[0] - 90, pos.a[1] - 30]], [[pos.b[0] + 90, pos.b[1] + 30]], {hold: 650, steps: 10});
+    const boxed = await pp.evaluate(()=> ({sel: [...multiSelection].sort(), vx}));
+    check('a hold on open paper, then a drag, selects what the box covers',
+          boxed.sel.includes('tpA') && boxed.sel.includes('tpB'), JSON.stringify(boxed.sel));
+    eq('…without panning', boxed.vx, vxHeld);
+
+    /* A pinch whose first finger lands on an entry is still a pinch: the
+       entry is not picked up by the finger that arrived first. */
+    const onEntry = await pp.evaluate(()=> ({x: nodes.get('tpB').x, vs}));
+    await swipe([[pos.b[0], pos.b[1]], [pos.b[0] + 60, pos.b[1] + 60]],
+                [[pos.b[0] - 30, pos.b[1] - 30], [pos.b[0] + 90, pos.b[1] + 90]]);
+    const afterPinch = await pp.evaluate(()=> ({x: nodes.get('tpB').x, vs}));
+    check('a pinch that starts on an entry zooms', afterPinch.vs > onEntry.vs * 1.5, JSON.stringify(afterPinch));
+    eq('…and leaves the entry where it was', afterPinch.x, onEntry.x);
+    await pp.evaluate(()=>{ vs = 1; vx = 20; vy = 20; applyTransform(); deselect(); });
+    await wait(300);
+
+    /* One tap is one click: the browser's own late mouse events for the
+       same touch would make it two, and two clicks are a double. */
+    await tap(pos.a[0], pos.a[1]);
+    await wait(450);
+    eq('a single tap does not open the entry for writing', await pp.evaluate(()=> (nodeEditorTarget && nodeEditorTarget.id) || null), null);
+    await pp.evaluate(()=> deselect());
+    await wait(400);
+
+    /* Two taps in quick succession write on the entry. */
+    /* Sent back to back: the window for a double is a third of a second,
+       and a loaded machine spends a good part of that on the round trips. */
+    for(let k = 0; k < 2; k++){
+      await touch('touchStart', [[pos.a[0], pos.a[1]]]);
+      await touch('touchEnd', []);
+    }
+    await wait(350);
+    const editing = await pp.evaluate(()=> nodeEditorTarget && nodeEditorTarget.id);
+    eq('a double tap opens the entry for writing', editing, 'tpA');
+
+    /* A reader cannot carry an entry, so under a finger a drag that starts
+       on one pans instead of doing nothing. */
+    const reader = await pp.evaluate(async ()=>{
+      if(typeof closeNodeEditor === 'function') closeNodeEditor(true);
+      deselect(); markReadOnly(false);
+      vs = 1; vx = 20; vy = 20; applyTransform();
+      await new Promise(r=> setTimeout(r, 300));
+      const r = document.querySelector('#nodeLayer [data-id="tpA"]').getBoundingClientRect();
+      return {at: [r.x + r.width/2, r.y + r.height/2], x: nodes.get('tpA').x};
+    });
+    await swipe([reader.at], [[reader.at[0] + 50, reader.at[1] + 30]]);
+    const read = await pp.evaluate(()=>{ const out = {vx, vy, x: nodes.get('tpA').x}; markEditable(); return out; });
+    check('a reader dragging on an entry pans the chart', Math.abs(read.vx - 70) < 2 && Math.abs(read.vy - 50) < 2, JSON.stringify(read));
+    eq('…and the entry stays put', read.x, reader.x);
+    await wait(300);
+
+    await pp.evaluate(async ()=>{
+      if(typeof closeNodeEditor === 'function') closeNodeEditor(true);
+      applyEdit(()=>{
+        for(const id of ['tpA', 'tpB']){
+          const i = workingNodes.findIndex(n=> n[0] === id);
+          if(i >= 0) workingNodes.splice(i, 1);
+        }
+        for(let i = EDGE_STYLES.length - 1; i >= 0; i--)
+          if(EDGE_STYLES[i].from === 'tpA' || EDGE_STYLES[i].to === 'tpB') EDGE_STYLES.splice(i, 1);
+      });
+    });
+  } finally {
+    await phone.close();
+  }
+  });
+
   /* ---- 29. nothing threw along the way ---- */
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

@@ -314,31 +314,10 @@ svg.addEventListener('wheel', e=>{
   applyTransform();
 },{passive:false});
 
-// touch support (basic pinch + pan)
-let touchState=null;
-svg.addEventListener('touchstart', e=>{
-  if(e.touches.length===1){
-    touchState={mode:'pan',x:e.touches[0].clientX,y:e.touches[0].clientY,vx,vy};
-  } else if(e.touches.length===2){
-    const [a,b]=e.touches;
-    touchState={mode:'pinch',d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),vs,
-      cx:(a.clientX+b.clientX)/2, cy:(a.clientY+b.clientY)/2, vx,vy};
-  }
-},{passive:true});
-svg.addEventListener('touchmove', e=>{
-  if(!touchState) return;
-  if(touchState.mode==='pan' && e.touches.length===1){
-    vx = touchState.vx + (e.touches[0].clientX-touchState.x);
-    vy = touchState.vy + (e.touches[0].clientY-touchState.y);
-    applyTransform();
-  } else if(touchState.mode==='pinch' && e.touches.length===2){
-    const [a,b]=e.touches;
-    const d = Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
-    const factor = d/touchState.d;
-    vs = Math.min(3,Math.max(0.08, touchState.vs*factor));
-    applyTransform();
-  }
-},{passive:true});
+/* Touch — one finger as the mouse, two as pan and zoom — is in
+   37-touch.js. It used to be here as a pan on one finger and a pinch on
+   two, and the one finger panned wherever it landed, an entry included,
+   so nothing on a phone could be carried. */
 
 // The alignment grid is a way of looking at the chart, not a change to it:
 // it belongs to this reader, is remembered for them alone, and is offered

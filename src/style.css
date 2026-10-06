@@ -2487,3 +2487,80 @@
   .version-log ul{margin:6px 0 0;padding-left:18px;}
   .version-log li{margin:2px 0;font-size:12.5px;line-height:1.5;}
   .version-foot{font-size:11.5px;color:var(--ink-faint);margin:10px 0 0;}
+
+  /* ---------- A phone ----------------------------------------------
+     Below this width the bar's single row cannot hold the wordmark, nine
+     buttons, the search and the Save — it simply ran off the right edge,
+     taking the search and every button past the second with it. So the
+     bar becomes two rows: the wordmark beside the search, and the buttons
+     with Save at the end. The entry counts are dropped rather than
+     squeezed in; they are a curiosity, and the space is the chart's.
+
+     Management takes the whole width. Beside a chart this narrow there is
+     no "beside", and a panel two thirds of the screen wide leaves a strip
+     of drawing too thin to be any use while being exactly wide enough to
+     tempt a finger into it. */
+  @media (max-width: 720px){
+    body, .app{height:100dvh;}
+    .topbar{flex-wrap:wrap;gap:6px 6px;padding:7px 10px;}
+    .brand{order:0;margin-right:2px;}
+    .brand .mark{font-size:19px;}
+    .search-wrap{order:1;flex:1 1 120px;min-width:0;}
+    /* The break between the two rows. Without it the first button or two
+       climbed up beside the search whenever there was room, and which ones
+       did depended on the width of the phone. */
+    .topbar::after{content:'';order:2;flex:0 0 100%;height:0;}
+    .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
+    .search-wrap svg{top:9px;}
+    .topbar > .icon-btn{order:3;width:34px;height:34px;}
+    .save-btn, .view-badge, .owner-btn{order:4;margin-left:auto;}
+    /* On the site a reader has both the badge and the owner's way in, and
+       beside the buttons there is room for one. The badge goes: no Save
+       button already says the same thing. */
+    body.read-only .view-badge:has(~ .owner-btn:not([hidden])){display:none;}
+    /* The status pill says why a save or an edit was refused, so it is
+       given a row of its own while it has something to say rather than
+       being cut to fit beside the buttons. */
+    .save-state{order:5;flex:1 1 100%;margin-left:0;white-space:normal;}
+    .topbar-stats{display:none;}
+    .search-results{max-height:min(320px, 55dvh);}
+
+    .legend{left:8px;right:8px;top:8px;bottom:8px;width:auto;transform:translateX(calc(-100% - 20px));}
+    /* The entry drawer is a sheet from the bottom instead. It opens on
+       every tap of an entry, so a panel over the whole screen would have
+       hidden the chart each time anything on it was picked — and the
+       entry that was picked is the one thing the reader wants to keep
+       seeing while its details are read. */
+    .detail{left:0;right:0;top:auto;bottom:0;width:auto;height:auto;max-height:52dvh;
+            border-radius:12px 12px 0 0;border-bottom:none;
+            transform:translateY(calc(100% + 20px));}
+    .legend.open, .detail.open{transform:none;}
+    .zoomctl{right:12px;bottom:12px;}
+    /* Under the open sheet there is nowhere for them to stand, and two
+       fingers do what they do. */
+    .zoomctl.shifted{display:none;}
+    .zoomctl button{width:40px;height:40px;font-size:18px;}
+    .coord{display:none;}
+    .about-card{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);}
+  }
+
+  /* ---------- A finger --------------------------------------------
+     Several handles on the chart appear only under a hovering pointer —
+     the bands an entry's connectors are drawn from, its corner grips, the
+     arrow that turns a caption, the grip that sizes a picture in a note —
+     and the bands are not even there to be pressed until then. A finger
+     does not hover. So once the page has been touched, the entry that was
+     last tapped or is selected shows them, which is the same entry a
+     hovering mouse would have been on. (37-touch.js sets the class.) */
+  body.touch-input .node.hover .node-handles,
+  body.touch-input .node.selected .node-handles{pointer-events:auto;}
+  body.touch-input .node.hover .node-handle-band,
+  body.touch-input .node.selected .node-handle-band{opacity:0.16;}
+  body.touch-input .node.hover .node-resize,
+  body.touch-input .node.selected .node-resize{opacity:1;pointer-events:auto;}
+  body.touch-input .node.hover .node-rotate,
+  body.touch-input .node.selected .node-rotate{opacity:1;}
+  body.touch-input .rich-surface:not(.locked) .rich-figure > .fig-grip{display:block;}
+  /* A row is picked up by holding it; the browser's own answer to a hold —
+     selecting the row's words and offering to copy them — would come first. */
+  body.touch-input .draggable-row{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
