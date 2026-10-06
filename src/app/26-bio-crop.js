@@ -214,7 +214,8 @@ function drawOneBioCard(n, already){
     : null;
   cardRings.forEach((c, i)=>{
     const grow = i*RING_STEP;
-    el('rect', {x:x-grow, y:y-grow, width:w+grow*2, height:h+grow*2, rx:5+grow,
+    el('rect', {x:x-grow, y:y-grow, width:w+grow*2, height:h+grow*2,
+                rx: bioCardSquare(n) ? 0 : 5+grow,
                 stroke:c, style: i>0 ? 'fill:none;'
                                      : `fill:${cardBg || 'var(--panel)'};`}, g);
   });

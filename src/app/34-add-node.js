@@ -13,7 +13,7 @@ const addNodeColors = document.getElementById('addNodeColors');
 const addNodeBg = document.getElementById('addNodeBg');
 const addNodeBorderStyle = makeChoiceGroup('addNodeBorderStyle', ()=> syncAddCorners());
 /* Rounded or square corners, as in the entry's own panel and greyed for
-   the same reasons — see syncEditCorners. A new entry that should be
+   the same reasons — see syncStyleBar. A new entry that should be
    square used to have to be made round first and then changed. */
 const addNodeCorners = makeChoiceGroup('addNodeCorners');
 function syncAddCorners(){

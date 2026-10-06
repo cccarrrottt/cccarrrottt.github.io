@@ -6,6 +6,30 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## Unreleased — looks where they are picked
+
+- **The rings of a rippled entry run parallel on every side**
+  (`pocketOutline(x, y, w, h, grow)` in `06-edge-geometry.js`). Each ring
+  was a ripple of its own, stretched to its own perimeter and started at
+  its own top-left corner, so the rings agreed there and drifted apart
+  from it. An outer ring is now the innermost ring's ripple moved `grow`
+  straight out, turning its corners on a radius `grow` larger; the
+  connector-end query and the grab strips read the same points.
+- **The border style and the corners are on a bar over the thing**
+  (`37-style-bar.js`, a new part): hovering an entry or a callout shows
+  the six border styles and the two corners; hovering a connector's note
+  shows a frame on or off and its corners. They are gone from the entry
+  drawer, which carries `opts.border` and `opts.square` through untouched.
+- **A callout's corners and a note's corners are their own.** A
+  connector's `square` squares its elbows only; `hasSquareCorners` no
+  longer asks a pinned callout's connector, and a note has `noteSquare`.
+- **A note's frame is optional** (`noteFrame:false`, `.edge-note-plate.bare`).
+- **A portrait's corners square its card** (`bioCardSquare`).
+- **A callout slid round a bend keeps to the same hand of its line**
+  (`cardBesideLine` in `11-edge-notes.js`): the card's place is held in
+  the frame of the leg the dot is on — along, which side, and the
+  clearance from its own edge — instead of as a fixed offset on the page.
+
 ## 0.10.0 — "A site of its own" — 2026-10-05
 
 ### One page for everybody

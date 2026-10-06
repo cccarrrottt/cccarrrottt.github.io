@@ -362,8 +362,18 @@ function drawCalloutLeaders(from, to, pts, paint){
    you.
 
    The card travels with the dot. The reader aimed the leader once; sliding
-   where it attaches is not an invitation to re-aim it, so the offset from
-   the anchor to the card is what is held constant.
+   where it attaches is not an invitation to re-aim it, so where the card
+   stands relative to the LINE is what is held constant — which side of it,
+   how far clear of it, and how far ahead or behind the dot.
+
+   Relative to the line, not to the page. A fixed offset on the page was
+   right only while the dot stayed on the leg it started on: carried round
+   a bend, a card that stood to the right of a line going down ended up
+   standing on the line going left, or across it. The card keeps to the
+   same hand of the line instead — on its left going down is below it once
+   the line has turned to go left — and as far clear of it as it was,
+   measured from the card's own edge, so a wide card turning a corner is
+   not thrown further out than a narrow one.
    ------------------------------------------------------------------ */
 // `var`, not `let`: the leaders are drawn by a function above that reads
 // this to know which dot is in the hand, and a `let` would be unreachable
@@ -375,10 +385,30 @@ function beginAnchorDrag(ev, id, pts){
   const n = nodes.get(id);
   if(!n || !n.leader || !pts || pts.length < 2) return;
   const at = pointAtFraction(pts, n.leader.at);
+  /* The card's place in the frame of the leg the dot is on: `along` the
+     way the line runs, and `side` × (half the card across the line + `gap`)
+     out to its left. See cardBesideLine. */
+  const cx = n.x + n.w/2 - at.x, cy = n.y + n.h/2 - at.y;
+  const lx = at.dy, ly = -at.dx;                 // the line's left hand
+  const across = cx*lx + cy*ly;
   anchorDrag = {id, pts, moved:false,
                 startX: ev.clientX, startY: ev.clientY,
-                offX: n.x - at.x, offY: n.y - at.y,
+                along: cx*at.dx + cy*at.dy,
+                side: across < 0 ? -1 : 1,
+                gap: Math.abs(across) - halfAcross(n, lx, ly),
                 at: n.leader.at};
+}
+/* Half of an upright card's extent across a line whose left hand is (lx, ly). */
+function halfAcross(n, lx, ly){
+  return Math.abs(lx) * n.w/2 + Math.abs(ly) * n.h/2;
+}
+/* Where the card's top-left goes for a dot at `at`, keeping to the hand of
+   the line, the clearance and the lead it was picked up with. */
+function cardBesideLine(st, n, at){
+  const lx = at.dy, ly = -at.dx;
+  const out = st.side * (halfAcross(n, lx, ly) + st.gap);
+  return {x: at.x + at.dx*st.along + lx*out - n.w/2,
+          y: at.y + at.dy*st.along + ly*out - n.h/2};
 }
 function anchorFractionAt(ev, st){
   const p = clientToWorld(ev.clientX, ev.clientY);
@@ -424,8 +454,9 @@ window.addEventListener('mousemove', ev=>{
      centred on where it was put — so setting only x and y moved the card
      sideways and left it at its old height: the leader stretched instead
      of the card following. */
-  n.x = at.x + st.offX;
-  n.y = at.y + st.offY;
+  const place = cardBesideLine(st, n, at);
+  n.x = place.x;
+  n.y = place.y;
   n.pos = {x: n.x, y: n.y + (n.growShift || 0)};
   document.body.classList.toggle('leader-snapping', !!ev.shiftKey);
   while(leaderPickLayer.firstChild) leaderPickLayer.removeChild(leaderPickLayer.firstChild);
@@ -657,9 +688,11 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
     openEdgeNoteEditor(from, to);
   });
   wireNoteEditing(g, from, to, pts);
-  /* The plate is the connector's, so it takes the connector's corners. */
-  const plate = el('rect', {class:'edge-note-plate',
-                            rx: edgeStyleFor(from, to).square ? 0 : 3}, g);
+  /* The plate's frame and corners are the note's own, set from its hover
+     bar; a bare note is its words on whatever ground it names. */
+  const noteStyle = edgeStyleFor(from, to);
+  const plate = el('rect', {class:'edge-note-plate' + (noteStyle.noteFrame ? '' : ' bare'),
+                            rx: noteStyle.noteSquare ? 0 : 3}, g);
   const t = el('text', {class:'edge-note-text', x, y}, g);
   /* Written in the CONNECTOR'S ink, whatever that is at this moment — a
      remark on a line belongs to the line, and a plate in the chart's
@@ -680,7 +713,7 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
        line colour, so a remark on a red connector was red type inside a
        grey box — two objects where there is one. Same paint, so a gradient
        runs round the plate exactly as it runs through the text. */
-    plate.style.stroke = paint;
+    if(noteStyle.noteFrame) plate.style.stroke = paint;
   }
   /* Laid out through the same renderer every other piece of text on the
      chart uses, so a connector's note takes bold, italic, ruby, colour and
