@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.10.0** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.11.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 36 files, one per subsystem — see "One scope, many
+  app/         the program, 38 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
 build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
@@ -55,7 +55,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 36 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 38 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -408,6 +408,24 @@ The point is chosen by pointing at the connector, not by typing a number — 0.6
 you are looking at an elbowed line. Shift restricts the offer to the ends, quarters and middle:
 the places such a note usually wants to be, and exactly the places freehand pointing is worst at
 hitting.
+
+## On a phone
+
+The chart's gestures were all written for a mouse, and they were left that way.
+`src/app/38-touch.js` turns a finger on the canvas into the mouse events those
+gestures already listen for, so there is one mechanism for both and nothing
+behaves differently under a finger. What a finger cannot say is which key is
+held, so a **hold** says it: still for a moment and then moved, a finger off
+the entries is Shift (the selection box) and on an entry is Ctrl (carried free
+of the grid); a held tap on an entry is a Ctrl-click. Two fingers pan and zoom
+about the point between them. Rows in Management are picked up by holding
+them, so a finger that just moves scrolls the list.
+
+Handles a hovering pointer would wake are shown on the tapped or selected entry
+once the page has been touched (`body.touch-input`). Below 720 pixels the top
+bar becomes two rows, Management takes the screen and the entry drawer is a
+sheet from the bottom. The suite's "a phone" scenario drives all of it with
+raw touch points.
 
 ## Why there are no browser dialogs
 

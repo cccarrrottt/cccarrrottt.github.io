@@ -167,7 +167,11 @@ function positionStyleBar(){
   }
   const h = styleBar.offsetHeight || 30;
   const above = top - h - 6;
-  styleBar.style.left = Math.max(4, left) + 'px';
+  /* Kept inside the right edge as well as the left: on a phone the bar is
+     most of the screen wide, and an entry near the right edge would have
+     pushed half its buttons out of reach. */
+  const room = host.width - styleBar.offsetWidth - 4;
+  styleBar.style.left = Math.max(4, Math.min(left, room)) + 'px';
   styleBar.style.top = (above >= 4 ? above : bottom + 6) + 'px';
 }
 function applyStyleBar(group, value){

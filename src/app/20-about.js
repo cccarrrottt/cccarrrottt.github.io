@@ -11,9 +11,16 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.10.0';
+const APP_VERSION = '0.11.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.11.0', date:'2026-10-06', title:'In the hand', notes:[
+'The chart works on a phone. One finger does what the mouse does — carries an entry, pans the paper, draws a connector out of an entry’s edge, pulls a corner, moves a bend — and two fingers pan and zoom about the point between them. A tap is a click and two quick taps a double click, so an entry is opened for writing the way it is on a desk. For a reader, who cannot carry anything, every drag on the chart pans.',
+'A hold stands in for the keys a finger has not got. Held still for a moment and then moved, a finger on open paper draws the selection box (Shift), and on an entry carries it free of the grid (Ctrl); a held tap on an entry adds it to the selection or takes it out. In the Management panel a tag or a reference is picked up by holding it, so a finger that simply moves still scrolls the list.',
+'The handles that only a hovering pointer used to wake — an entry’s connector bands, its corner grips, the arrow that turns a caption — are shown on the entry that was last tapped, since a finger does not hover.',
+'On a narrow screen the top bar is two rows instead of one that ran off the edge of the phone and took the search and most of the buttons with it. Management opens across the whole screen, and an entry’s details come up as a sheet from the bottom, leaving the entry in view above it.',
+'The border style and the corners are offered on a bar over the entry or the connector’s note the pointer is on — or, on a phone, the one just tapped — instead of in the entry’s settings. A note can go without its frame, and a callout and a note have corners of their own. The rings of a rippled entry run parallel all the way round, and a callout slid round a bend keeps to the same side of its line.',
+  ]},
   {v:'0.10.0', date:'2026-10-05', title:'A site of its own', notes:[
 'The chart has a home that is not claude.ai. The published site serves it to every reader, and its owner signs in with GitHub and saves straight into the repository — through a small write service that checks who is asking, refuses everyone else, and refuses a save made from a page that is behind the chart already there. There is one page now, and it decides when it opens who may edit it, instead of four builds that decided in advance.',
 'Corners are a choice: an entry, a connector and its notes and callouts can each be square instead of rounded. A wavy border and a wavy line keep their rounded turns, and the panels say so by greying the choice — including on a callout pinned to a connector, which wears that connector’s corners.',
