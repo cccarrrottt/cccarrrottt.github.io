@@ -196,7 +196,6 @@ function commitNodeEdit(){
       }
     }
   }
-  const newBorder = editBorderStyle.value;
   const newShape = editShapeInput.value==='rect' ? undefined : editShapeInput.value;
   /* A CARD keeps a picture too — that is the whole of its first band.
      It was left off this list, so the field offered a picture, embedded
@@ -251,10 +250,8 @@ function commitNodeEdit(){
     if(newLink) opts.link = newLink; else delete opts.link;
     if(newColors.length) opts.colors = capColors(newColors, newShape); else delete opts.colors;
     if(newBg.length) opts.bg = newBg; else delete opts.bg;
-    if(newBorder && newBorder !== 'solid') opts.border = newBorder; else delete opts.border;
-    /* Kept whatever the border is, so going to wavy and back does not lose
-       it: the ripple simply ignores it while it is there. */
-    if(editCorners.value === 'square') opts.square = true; else delete opts.square;
+    /* opts.border and opts.square are carried through untouched: they are
+       set from the entry's hover bar, not from this form. */
     if(newTags.length) opts.tags = newTags; else delete opts.tags;
     if(newFont) opts.font = newFont; else delete opts.font;
     if(newFontSize) opts.fontSize = newFontSize; else delete opts.fontSize;
@@ -328,7 +325,7 @@ function commitEntry(mutate){
 function serializeEdgeStyles(list){
   if(!list.length) return 'const EDGE_STYLES = [];';
   return 'const EDGE_STYLES = [\n' + list.map(s=>
-    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square ? `, square:true` : ''}},`
+    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
   ).join('\n') + '\n];';
 }
 

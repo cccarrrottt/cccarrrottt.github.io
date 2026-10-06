@@ -325,6 +325,9 @@ function applyLiveEdgeStyle(){
     noteAt: (typeof kept.noteAt === 'number' && kept.noteAt !== 0.5) ? kept.noteAt : undefined,
     noteSnap: kept.noteSnap || undefined,
     noteBg: (styleNoteBgInput && readHex(styleNoteBgInput)) || undefined,
+    // Set on the note itself, from its hover bar — carried through here.
+    noteFrame: kept.noteFrame === false ? false : undefined,
+    noteSquare: kept.noteSquare || undefined,
     color: paint.color,
     /* And the fact that it was CHOSEN, which is what makes it win over the
        colour of the border the connector was drawn from. It was computed
