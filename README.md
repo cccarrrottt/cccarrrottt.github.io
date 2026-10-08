@@ -418,12 +418,12 @@ behaves differently under a finger. What a finger cannot say is which key is
 held, so a **hold** says it: still for a moment and then moved, a finger off
 the entries is Shift (the selection box) and on an entry is Ctrl (carried free
 of the grid); a held tap on an entry is a Ctrl-click. Two fingers pan and zoom
-about the point between them. Rows in Management are picked up by holding
-them, so a finger that just moves scrolls the list.
+about the point between them. Rows on the Tags and References tabs are picked
+up by holding them, so a finger that just moves scrolls the list.
 
 Handles a hovering pointer would wake are shown on the tapped or selected entry
 once the page has been touched (`body.touch-input`). Below 720 pixels the top
-bar becomes two rows, Management takes the screen and the entry drawer is a
+bar becomes two rows, an open tab takes the screen and the entry drawer is a
 sheet from the bottom. The suite's "a phone" scenario drives all of it with
 raw touch points.
 

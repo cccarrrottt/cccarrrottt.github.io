@@ -953,29 +953,59 @@
   .edge-arrow.lit, .amalgam-bead.lit{opacity:1;}
 
 
-  /* ---------- Legend drawer ---------- */
-  .legend{
-    position:absolute;top:14px;left:14px;bottom:14px;
-    width:252px;
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:6px;
-    box-shadow:var(--shadow);
+  /* ---------- The side tabs: tags and references ----------
+     Two drawers down the left edge, each with its own tab. A drawer that
+     is open takes its share of the edge's height and one that is shut is
+     only its tab, so however the two are set neither lies over the other
+     — and each tab stands beside its own drawer, where it can always be
+     pressed to shut it again. */
+  .side-tabs{
+    position:absolute;top:14px;left:0;bottom:14px;
     z-index:30;
+    display:flex;flex-direction:column;gap:8px;
+    /* The column is as tall as the canvas; only the tabs and the open
+       drawers in it should take a click. */
+    pointer-events:none;
+  }
+  .side-tab{
+    display:flex;flex-direction:row;align-items:stretch;
+    flex:0 0 auto;min-height:0;
+    /* As wide as itself, not as the widest drawer: the strip beside a shut
+       tab is chart, and has to take the chart's clicks. */
+    align-self:flex-start;
+    pointer-events:auto;
+  }
+  .side-tab.open{flex:1 1 0;}
+  .side-tab-body{
+    width:0;margin-left:0;
+    background:var(--panel);
+    border:0 solid var(--line);
+    border-radius:0 6px 6px 0;
+    box-shadow:var(--shadow);
     display:flex;flex-direction:column;
-    overflow:hidden;
-    transform:translateX(-280px);
-    transition:transform 180ms ease;
+    /* Shut, it gives up its height as well as its width: the list in it
+       is still there, and would otherwise hold the tab as tall as itself. */
+    max-height:0;
+    overflow:hidden;visibility:hidden;
   }
-  .legend.open{transform:translateX(0);}
-  .legend-head{
-    padding:12px 14px 10px;border-bottom:1px solid var(--line);
-    display:flex;align-items:center;justify-content:space-between;
+  .side-tab.open .side-tab-body{
+    width:252px;max-height:none;border-width:1px 1px 1px 0;visibility:visible;
   }
-  .legend-head h2{
-    margin:0;font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';font-size:15px;
+  .side-tab-handle{
+    align-self:flex-start;flex:0 0 auto;
+    width:26px;padding:12px 0;
+    background:var(--panel);color:var(--ink-dim);
+    border:1px solid var(--line);border-left:none;
+    border-radius:0 6px 6px 0;
+    box-shadow:var(--shadow);
+    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';font-size:13px;
     text-transform:uppercase;letter-spacing:0.6px;font-weight:700;
+    cursor:pointer;
   }
+  /* Read from the bottom up, the way a spine is labelled. */
+  .side-tab-handle span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;}
+  .side-tab-handle:hover{color:var(--accent);}
+  .side-tab.open .side-tab-handle{color:var(--ink);}
   .legend-list{overflow-y:auto;flex:1;padding:6px 8px;}
   /* The left padding matches a category heading's, so every eye on the
      panel — the section's, each category's and each tag's — stands in one
@@ -1135,7 +1165,7 @@
      page is now drawn as a TAG — a luggage label with a pointed end and
      an eyelet — and nothing else on the page wears that shape. It is one
      class, used by the chips in the entry's settings, by the rows in the
-     Management panel and by the line in the drawer, so the three can
+     Tags tab and by the line in the drawer, so the three can
      never drift apart.
 
      Built from a real border plus a rotated square rather than a
@@ -1527,13 +1557,14 @@
   .zoomctl button:hover{color:var(--accent);border-color:var(--accent);}
 
   .coord{
-    position:absolute;bottom:16px;left:16px;z-index:25;
+    /* Clear of the tabs at the left edge, and of a drawer when one is open. */
+    position:absolute;bottom:16px;left:36px;z-index:25;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;color:var(--ink-faint);
     background:var(--panel);border:1px solid var(--line);border-radius:4px;
     padding:5px 9px;box-shadow:var(--shadow);
     transition:left 180ms ease;
   }
-  .coord.shifted{left:280px;}
+  body.side-tab-open .coord{left:300px;}
 
   .about-overlay{
     position:absolute;inset:0;z-index:80;
@@ -2363,7 +2394,7 @@
     filter:none !important;opacity:1 !important;
   }
 
-  /* A chart-wide setting sitting in the Management panel. */
+  /* A chart-wide setting sitting on the References tab. */
   .legend-setting{
     display:flex;align-items:center;gap:8px;
     padding:6px 8px;border-bottom:1px solid var(--line);
@@ -2525,7 +2556,8 @@
      with Save at the end. The entry counts are dropped rather than
      squeezed in; they are a curiosity, and the space is the chart's.
 
-     Management takes the whole width. Beside a chart this narrow there is
+     An open tab takes the whole width but its own tab's. Beside a chart
+     this narrow there is
      no "beside", and a panel two thirds of the screen wide leaves a strip
      of drawing too thin to be any use while being exactly wide enough to
      tempt a finger into it. */
@@ -2554,7 +2586,8 @@
     .topbar-stats{display:none;}
     .search-results{max-height:min(320px, 55dvh);}
 
-    .legend{left:8px;right:8px;top:8px;bottom:8px;width:auto;transform:translateX(calc(-100% - 20px));}
+    .side-tabs{top:8px;bottom:8px;}
+    .side-tab.open .side-tab-body{width:calc(100vw - 34px);}
     /* The entry drawer is a sheet from the bottom instead. It opens on
        every tap of an entry, so a panel over the whole screen would have
        hidden the chart each time anything on it was picked — and the
@@ -2563,7 +2596,7 @@
     .detail{left:0;right:0;top:auto;bottom:0;width:auto;height:auto;max-height:52dvh;
             border-radius:12px 12px 0 0;border-bottom:none;
             transform:translateY(calc(100% + 20px));}
-    .legend.open, .detail.open{transform:none;}
+    .detail.open{transform:none;}
     .zoomctl{right:12px;bottom:12px;}
     /* Under the open sheet there is nowhere for them to stand, and two
        fingers do what they do. */

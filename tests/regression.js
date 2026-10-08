@@ -387,14 +387,16 @@ async function main(){
   });
   /* ---- 6. panels open ---- */
   await scenario("panels open", async () => {
-  for(const [btn, panel] of [['#legendToggle','#legend'], ['#fileToggle','#filePopover'],
+  for(const [btn, panel] of [['#tagsTab','#tagsPanel .side-tab-body'], ['#refsTab','#refsPanel .side-tab-body'],
+                             ['#fileToggle','#filePopover'],
                              ['#aboutToggle','#aboutOverlay'], ['#stickersToggle','#stickerOverlay'],
                              ['#addNodeToggle','#addNodeOverlay']]){
     const ok = await page.evaluate(async ([b, p]) => {
       const el = document.querySelector(b); if(!el) return 'no button';
       el.click(); await new Promise(r => setTimeout(r, 220));
       const t = document.querySelector(p); if(!t) return 'no panel';
-      const shown = !t.hidden && getComputedStyle(t).display !== 'none';
+      const shown = !t.hidden && getComputedStyle(t).display !== 'none' &&
+                    getComputedStyle(t).visibility !== 'hidden';
       document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
       await new Promise(r => setTimeout(r, 220));
       return shown;
@@ -421,7 +423,7 @@ async function main(){
         {pos:[700, 700], tags:['fan-fiction']}]);
     });
     await new Promise(r => setTimeout(r, 400));
-    const row = document.querySelector('#legendList .legend-item[data-tag="fan-fiction"]');
+    const row = document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"]');
     // Hiding is the row's eye button now, not the row itself — the row had
     // to give the gesture up so it could also carry a delete cross.
     const box = row && row.querySelector('.eye-mini');
@@ -438,7 +440,7 @@ async function main(){
       r.stillVisible = touching.filter(live).length;
       r.othersVisible = [...document.querySelectorAll('#edgeLayer path.edge-hit')]
         .filter(e => e.dataset.from !== id && e.dataset.to !== id).filter(live).length;
-      document.querySelector('#legendList .legend-item[data-tag="fan-fiction"] .eye-mini').click();
+      document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"] .eye-mini').click();
       await new Promise(res => setTimeout(res, 400));
     }
     applyEdit(() => { const i = workingNodes.findIndex(n => n[0] === id); if(i >= 0) workingNodes.splice(i, 1); });
@@ -1503,12 +1505,12 @@ async function main(){
     refill(EDGE_STYLES, []);
 
     // Tag rows carry their own eye and their own cross, outside Organize.
-    buildManagement();
+    buildSideTabs();
     await new Promise(r=> setTimeout(r, 200));
-    const row = document.querySelector('#legendList .legend-item[data-tag="probe-tag"]');
+    const row = document.querySelector('#tagsList .legend-item[data-tag="probe-tag"]');
     out.rowEye = !!(row && row.querySelector('.eye-mini'));
     out.rowDel = !!(row && row.querySelector('.legend-tag-del'));
-    out.groupEye = !!document.querySelector('#legendList .legend-group-head .eye-mini');
+    out.groupEye = !!document.querySelector('#tagsList .legend-group-head .eye-mini');
     // Organize is gone: what it used to reveal is simply always there.
     out.organizeGone = !document.getElementById('legendManage');
     // Filing a tag is carrying the row onto a category, not choosing a
@@ -1542,17 +1544,17 @@ async function main(){
     out.noStickerName = !document.querySelector('.sticker-cell input');
 
     // Two toolbar surfaces never stand open at once.
-    document.getElementById('legendToggle').click();
+    document.getElementById('aboutToggle').click();
     await new Promise(r=> setTimeout(r, 200));
     document.getElementById('fileToggle').click();
     await new Promise(r=> setTimeout(r, 200));
-    out.legendClosed = !document.getElementById('legend').classList.contains('open');
+    out.legendClosed = !document.getElementById('aboutOverlay').classList.contains('open');
     out.fileOpen = document.getElementById('filePopover').classList.contains('open');
     document.getElementById('fileToggle').click();
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
     hiddenTags.delete('probe-tag');
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -1760,13 +1762,13 @@ async function main(){
       hit.dispatchEvent(new MouseEvent('click', {bubbles:true}));
       await new Promise(r=> setTimeout(r, 250));
       out.popoverOpen = document.getElementById('edgePopover').classList.contains('open');
-      document.getElementById('legendToggle').click();
+      document.getElementById('tagsTab').click();
       await new Promise(r=> setTimeout(r, 250));
       out.popoverAfterMenu = document.getElementById('edgePopover').classList.contains('open');
       document.getElementById('canvas').dispatchEvent(new MouseEvent('click', {bubbles:true}));
       await new Promise(r=> setTimeout(r, 250));
       out.popoverAfterCanvas = document.getElementById('edgePopover').classList.contains('open');
-      document.getElementById('legend').classList.remove('open');
+      setSideTab(document.getElementById('tagsPanel'), false);
     }
 
     // A callout is sized from its own text, like the entry it is.
@@ -1796,20 +1798,19 @@ async function main(){
     out.plateStroke = getComputedStyle(document.querySelector('.edge-note-plate')).stroke;
     refill(EDGE_STYLES, []);
 
-    // The panel: each list carries its own controls.
-    buildManagement();
+    // The tabs: each list carries its own controls.
+    buildSideTabs();
     await new Promise(r=> setTimeout(r, 250));
-    const heads = [...document.querySelectorAll('#legendList .legend-section-head')];
-    const tagsHead = heads.find(h=> /Tags/i.test(h.textContent));
-    const refsHead = heads.find(h=> /References/i.test(h.textContent));
-    out.tagsHeadEye = !!(tagsHead && tagsHead.querySelector('#legendEye'));
+    const tagsHead = document.querySelector('#tagsList .legend-section-head');
+    const refsHead = document.querySelector('#refsList .legend-section-head');
+    out.tagsHeadEye = !!(tagsHead && /Tags/i.test(tagsHead.textContent) && tagsHead.querySelector('#legendEye'));
     out.tagsHeadPlus = !!(tagsHead && tagsHead.querySelector('.plus-mini'));
-    out.refsHeadPlus = !!(refsHead && refsHead.querySelector('.plus-mini'));
+    out.refsHeadPlus = !!(refsHead && /References/i.test(refsHead.textContent) && refsHead.querySelector('.plus-mini'));
     out.noTopEye = !document.querySelector('.legend-actions #legendEye');
-    out.colourInList = !!document.querySelector('#legendList > #refColorRow');
+    out.colourInList = !!document.querySelector('#refsList > #refColorRow');
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -1902,12 +1903,12 @@ async function main(){
   /* A new entry lands in the middle of what is on SCREEN, not under an
      open panel. */
   const placed = await page.evaluate(async ()=>{
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
     const wide = viewCentreSpot('rect');
-    document.getElementById('legend').classList.add('open');
+    setSideTab(document.getElementById('tagsPanel'), true);
     await new Promise(r=> setTimeout(r, 200));
     const narrowed = viewCentreSpot('rect');
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
     return {wide, narrowed};
   });
   check('a new entry avoids the ground an open panel covers',
@@ -2058,7 +2059,7 @@ async function main(){
     out.armGrew = !!document.querySelector('#edgeLayer .amalgam-out[data-to="jm"]');
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -2095,25 +2096,26 @@ async function main(){
         r11.landedWhereAsked && r11.armGrew,
         JSON.stringify({at:r11.farAt, arrow:r11.armGrew}));
 
-  /* The management panel: no mode switch, no running commentary, and the
-     citation colour above the list it belongs to. */
+  /* The tabs: no mode switch, no running commentary, and the citation
+     colour above the list it belongs to. */
   const panelShape = await page.evaluate(async ()=>{
-    buildManagement();
+    buildSideTabs();
     await new Promise(r=> setTimeout(r, 250));
-    const list = document.getElementById('legendList');
+    /* Under the heading and the search, which every tab opens with. */
+    const list = document.getElementById('refsList');
     const kids = [...list.children];
     const refsHead = kids.findIndex(k=> /References/i.test(k.textContent));
     const colour = kids.findIndex(k=> k.id === 'refColorRow');
     return {
       organizeGone: !document.getElementById('legendManage'),
       statusGone: !document.getElementById('legendStatus') && !document.getElementById('refsStatus'),
-      colourAfterHead: refsHead >= 0 && colour === refsHead + 1,
+      colourAfterHead: refsHead === 0 && kids[1] && kids[1].classList.contains('legend-filter') && colour === 2,
       hexStyled: getComputedStyle(document.getElementById('refColorInput')).backgroundImage !== 'none'
     };
   });
   check('the panel has no Organize switch and no running commentary',
         panelShape.organizeGone && panelShape.statusGone, JSON.stringify(panelShape));
-  check('the citation colour sits directly under the References heading',
+  check('the citation colour sits under the References heading and its search',
         panelShape.colourAfterHead, JSON.stringify(panelShape));
   check('and its hex box wears the same swatch as every other one',
         panelShape.hexStyled);
@@ -2138,7 +2140,7 @@ async function main(){
       const t0 = workingNodes.find(t=> t[0]==='ms0'); t0[6].tags = ['probe-a','probe-b'];
       const t1 = workingNodes.find(t=> t[0]==='ms1'); t1[6].tags = ['probe-b'];
     });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 520));
 
     /* A dozen entries picked at once are all HIGHLIGHTED. Dimming belongs
@@ -2202,7 +2204,7 @@ async function main(){
     out.pocketPad = !!document.querySelector('[data-id="pkh"] .node-hover-pad');
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 420));
     return out;
   });
@@ -2318,8 +2320,8 @@ async function main(){
     const out = {};
     applyEdit(()=>{
       workingNodes.push(['gt','A rather long label\nthat is written on\nthree whole lines',
-                         null,null,null,null,{pos:[16000,-600]}]);
-      workingNodes.push(['gs','Short',null,null,null,null,{pos:[16300,-600]}]);
+                         null,null,null,null,{pos:[snapToGrid(16000), snapToGrid(-600)]}]);
+      workingNodes.push(['gs','Short',null,null,null,null,{pos:[snapToGrid(16300), snapToGrid(-600)]}]);
       workingNodes.push(['gp0','P0',null,null,null,null,{pos:[16000,200],colors:['#c23b22']}]);
       workingNodes.push(['gp1','P1',null,null,null,null,{pos:[16300,200],colors:['#2f6fb5']}]);
       workingNodes.push(['gp2','P2',null,null,null,null,{pos:[16900,200],colors:['#1d7a5f']}]);
@@ -2337,9 +2339,12 @@ async function main(){
        them — at as many different heights. So the middle is what is held:
        every entry placed on a row has its middle at the same height. */
     const tall = nodes.get('gt'), short = nodes.get('gs');
-    const mid = (n)=> +((n.y + n.h/2 - (-600 + NODE_GROW_REF/2)) % GRID).toFixed(3);
-    out.tallOffGrid = [ +(tall.x % GRID).toFixed(3), mid(tall) ];
-    out.shortOffGrid = [ +(short.x % GRID).toFixed(3), mid(short) ];
+    /* How far off a whole step, either way; a box is sized to hundredths,
+       so half of one is the most its middle can be off by. */
+    const off = (v)=>{ const r = ((v % GRID) + GRID) % GRID; return Math.min(r, GRID - r) < 0.006 ? 0 : +r.toFixed(3); };
+    const mid = (n)=> off(n.y + n.h/2 - (snapToGrid(-600) + NODE_GROW_REF/2));
+    out.tallOffGrid = [ off(tall.x), mid(tall) ];
+    out.shortOffGrid = [ off(short.x), mid(short) ];
     out.tallIsTall = tall.h > short.h * 2.5;
 
     // The resize grip's hit strip is the mark you can see, not a wider
@@ -2417,7 +2422,7 @@ async function main(){
     closeEdgePopover();
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 420));
     return out;
   });
@@ -2640,7 +2645,7 @@ async function main(){
     out.pastedLinks = copies.filter(c=> c[2]).length;
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 420));
     return out;
   });
@@ -2796,7 +2801,7 @@ async function main(){
     applyEdit(()=>{ workingNodes = beforeNodes; });
     refill(REFS, beforeRefs); refill(TAG_CATS, beforeCats);
     SETTINGS.refColor = beforeColour;
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 380));
     return out;
   });
@@ -2973,7 +2978,7 @@ async function main(){
     await new Promise(r=> setTimeout(r, 250));
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -3243,10 +3248,10 @@ async function main(){
       workingNodes.push(['tgp','Tagged',null,null,null,null,
                          {pos:[38000,-900], tags:['alpha-probe','beta-probe']}]);
     });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     // The panel has to be on screen: a drop is decided by what is under
     // the pointer, and nothing is under a pointer over a hidden panel.
-    document.getElementById('legend').classList.add('open');
+    setSideTab(document.getElementById('tagsPanel'), true);
     await new Promise(r=> setTimeout(r, 350));
     out.rowIsDraggable = !!document.querySelector('.legend-item[data-tag="alpha-probe"].draggable-row');
     listDrag = {kind:'tag', key:'alpha-probe', label:'alpha-probe', moved:true};
@@ -3273,7 +3278,7 @@ async function main(){
     out.categoryAccepts = !!(hit && hit.el === eraBlock && hit.where === 'into');
     listDrag = null;
     applyEdit(()=> assignTagCategory('alpha-probe', 'Era'));
-    buildManagement();
+    buildSideTabs();
     await new Promise(r=> setTimeout(r, 200));
     out.filed = (TAG_CATS.find(c=> c.name==='Era') || {tags:[]}).tags.indexOf('alpha-probe') >= 0;
     // An empty category's eye still hides what it declares.
@@ -3283,7 +3288,7 @@ async function main(){
     hiddenTags.delete('unused-probe');
 
     /* A reference has no heading, and its number is its place in the list. */
-    buildManagement();
+    buildSideTabs();
     await new Promise(r=> setTimeout(r, 200));
     out.noRefTitle = !document.querySelector('.ref-item .ref-title');
     out.refDraggable = !!document.querySelector('.ref-item[data-key="q1"].draggable-row');
@@ -3294,11 +3299,11 @@ async function main(){
     out.refOrder = REFS.map(r=> r.key).join(',');
     out.refMarkNumber = refMarkText('q1');
 
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
     applyEdit(()=>{ workingNodes = beforeNodes; });
     refill(REFS, beforeRefs);
     refill(TAG_CATS, beforeCats);
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 350));
     return out;
   });
@@ -3470,17 +3475,17 @@ async function main(){
                          {pos:[42000,-900], tags:['az_probe'], multiLang:true,
                           langTabs:[{tag:'JP',text:'ja'},{tag:'RU',text:'ru'},{tag:'DE',text:'de'}]}]);
     });
-    rebuildChart(); buildManagement();
-    document.getElementById('legend').classList.add('open');
+    rebuildChart(); buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
     await new Promise(r=> setTimeout(r, 350));
     const emptyEye = document.querySelector('.legend-group[data-cat="EmptyCat"] .eye-mini');
     const fullEye  = document.querySelector('.legend-group[data-cat="FullCat"] .eye-mini');
     out.emptyEyeInert = !!emptyEye && emptyEye.disabled && +getComputedStyle(emptyEye).opacity < 0.6;
     out.fullEyeLive = !!fullEye && !fullEye.disabled;
     out.noUnfileButton = !document.querySelector('.legend-tag-unfile');
-    out.eyeColumns = [...new Set([...document.querySelectorAll('#legendList .eye-mini')]
+    out.eyeColumns = [...new Set([...document.querySelectorAll('#tagsList .eye-mini')]
       .map(e=> Math.round(e.getBoundingClientRect().left)))].length;
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
 
     /* Language chips no longer take the top edge away from the entry. */
     const az = nodes.get('az');
@@ -3532,7 +3537,7 @@ async function main(){
     refill(REFS, beforeRefs);
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -3730,8 +3735,8 @@ async function main(){
       workingNodes.push(['sp0','S',null,null,null,null,
                          {pos:[48000,-900], tags:[FANFIC_TAG, 'plain-probe']}]);
     });
-    rebuildChart(); buildManagement();
-    document.getElementById('legend').classList.add('open');
+    rebuildChart(); buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
     await new Promise(r=> setTimeout(r, 350));
     const specialRow = document.querySelector(`.legend-item[data-tag="${FANFIC_TAG}"] .tag-special`);
     const plainRow = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-special');
@@ -3743,17 +3748,17 @@ async function main(){
     const dead = document.createElement('button');
     dead.className = 'icon-action eye-mini';
     dead.disabled = true;
-    document.getElementById('legendList').appendChild(dead);
+    document.getElementById('tagsList').appendChild(dead);
     dead.classList.add('probe-hover');
     out.disabledOpacity = +getComputedStyle(dead).opacity;
     out.disabledCursor = getComputedStyle(dead).cursor;
     dead.remove();
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
 
     refill(TAG_CATS, beforeCats);
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -3863,7 +3868,7 @@ async function main(){
                          {pos:[52000,-700], colors:['#111111','#2f6fb5','#c23b22']}]);
       EDGE_STYLES.push({from:'rb_a', to:'rb_b', toRing:2});
     });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 350));
     selectedId = 'rb_b';
     document.getElementById('detailEditToggle').click();
@@ -3888,7 +3893,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -4016,7 +4021,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await new Promise(r=> setTimeout(r, 400));
     return out;
   });
@@ -4280,7 +4285,7 @@ async function main(){
     rebuildStickerMap();
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(400);
     return out;
   });
@@ -4476,7 +4481,7 @@ async function main(){
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
     deselect();
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(450);
     return out;
   });
@@ -4678,7 +4683,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -4875,7 +4880,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -5010,7 +5015,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -5204,7 +5209,7 @@ async function main(){
     deselect();
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -5331,7 +5336,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -5420,7 +5425,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(480);
     return out;
   });
@@ -5596,7 +5601,7 @@ async function main(){
     refill(MEDIA, beforeMedia); rebuildMediaMap();
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -5758,8 +5763,8 @@ async function main(){
       workingNodes.push(['tgB','Old',null,null,null,null,
         {pos:[900,-100], tags:['local-multiverse']}]);
     });
-    rebuildChart(); buildManagement();
-    document.getElementById('legend').classList.add('open');
+    rebuildChart(); buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
     await wait(450);
     out.groupNames = [...document.querySelectorAll('.legend-group-name')].map(e=> e.textContent);
     out.specialItalic = !!document.querySelector('.legend-group-head.legend-group-special');
@@ -5769,9 +5774,9 @@ async function main(){
     out.bucketPlain = [...document.querySelectorAll('.legend-item')]
       .filter(r=> r.dataset.tag === '__untagged__')
       .every(r=> !r.querySelector('.tag-shape') && !!r.querySelector('.tag-bucket'));
-    out.italicOnes = [...document.querySelectorAll('#legend [style*="italic"], #legend .tag-italic')]
+    out.italicOnes = [...document.querySelectorAll('#sideTabs [style*="italic"], #sideTabs .tag-italic')]
       .map(e=> e.textContent).concat(
-      [...document.querySelectorAll('#legend .legend-group-name, #legend .legend-item .name')]
+      [...document.querySelectorAll('#sideTabs .legend-group-name, #sideTabs .legend-item .name')]
         .filter(e=> getComputedStyle(e).fontStyle === 'italic').map(e=> e.textContent));
     out.eyeletDrawn = document.querySelectorAll('.legend-item .name .tag-shape .tag-eye').length;
     // The acting tags are under SPECIAL even though a category claims one.
@@ -5781,7 +5786,7 @@ async function main(){
       ? [...specialBlock.querySelectorAll('.legend-item')].map(r=> r.dataset.tag).sort()
       : null;
     out.renamed = (workingNodes.find(x=> x[0]==='tgB')[6].tags || [])[0];
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
 
     /* A figure carries the width it was dragged to, both ways. */
     const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -5817,7 +5822,7 @@ async function main(){
     refill(TAG_CATS, beforeCats);
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -5928,8 +5933,11 @@ async function main(){
         if(!p) return null;
         const n = (p.getAttribute('d').match(/-?[\d.]+/g)||[]).map(Number);
         let hi = Infinity; for(let i=1;i<n.length;i+=2) hi = Math.min(hi, n[i]);
-        return +hi.toFixed(1);
+        return hi;
       };
+      /* Held means to a hundredth: rounded to tenths, a bar standing at
+         .85 reads as .8 on one frame and .9 on the next. */
+      const same = (list)=> list[1] !== null && list.slice(1).every(v=> Math.abs(v - list[1]) < 0.01);
       const build = ()=> applyEdit(()=>{
         workingNodes.length = 0; EDGE_STYLES.length = 0;
         workingNodes.push(['ebL','L',null,null,null,null,{pos:[-200,0]}]);
@@ -5945,15 +5953,16 @@ async function main(){
       /* From the first move on. At rest these two are nearly level and the
          route is a plain elbow with no crossbar at all — there is nothing
          to hold until the geometry asks for one. */
-      out.barHeldSource = held.slice(1).every(v=> v === held[1]) && held[1] !== null;
+      out.barHeldSource = same(held);
       build(); await wait(560);
       const held2 = [barY()];
       for(const dy of [40, 110, 220]){
         applyEdit(()=>{ workingNodes.find(x=> x[0]==='ebR')[6].pos = [60, dy]; });
         await wait(300); held2.push(barY());
       }
-      out.barHeldTarget = held2.slice(1).every(v=> v === held2[1]) && held2[1] !== null;
-      out.bars = [held.join(','), held2.join(',')];
+      out.barHeldTarget = same(held2);
+      out.bars = [held.map(v=> v === null ? v : v.toFixed(2)).join(','),
+                  held2.map(v=> v === null ? v : v.toFixed(2)).join(',')];
     }
 
     /* Shrinking an entry with nothing written in it shrinks it. */
@@ -5980,8 +5989,8 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['tp','T',null,null,null,null,{pos:[1300,-200], tags:['era-a','era-b','fan-fiction']}]);
     });
-    rebuildChart(); buildManagement();
-    document.getElementById('legend').classList.add('open');
+    rebuildChart(); buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
     await wait(420);
     out.hasSearch = !!document.getElementById('legendFilter');
     const erasHead = [...document.querySelectorAll('.legend-group-head.foldable')]
@@ -6005,7 +6014,7 @@ async function main(){
       inp2.value = ''; inp2.dispatchEvent(new Event('input', {bubbles:true}));
       await wait(300);
     }
-    document.getElementById('legend').classList.remove('open');
+    setSideTab(document.getElementById('tagsPanel'), false);
 
     /* A comment opens at full size, and an entry with no tags says nothing
        about tags. */
@@ -6078,7 +6087,7 @@ async function main(){
     refill(TAG_CATS, beforeCats);
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -6195,8 +6204,10 @@ async function main(){
     applyEdit(()=>{
       workingNodes.length = 0;
       EDGE_STYLES.length = 0;
-      workingNodes.push(['dgA','Alpha',null,null,null,null,{pos:[-320,-120]}]);
-      workingNodes.push(['dgB','Beta','dgA',null,null,null,{pos:[240,-120]}]);
+      /* On the grid, so a drag of six steps of twenty is a whole number
+         of grid steps from where it started. */
+      workingNodes.push(['dgA','Alpha',null,null,null,null,{pos:[snapToGrid(-320),snapToGrid(-120)]}]);
+      workingNodes.push(['dgB','Beta','dgA',null,null,null,{pos:[snapToGrid(240),snapToGrid(-120)]}]);
       workingNodes.push(['dgC','Note',null,null,null,'callout',
                          {pos:[-40,120], leader:{from:'dgA', to:'dgB', at:0.5}}]);
     });
@@ -6218,6 +6229,7 @@ async function main(){
       await wait(500);
       const to = nodes.get('dgA');
       out.carriedDown = Math.round(to.y - from.y);
+      out.wantDown = Math.round(snapToGrid(120));
       out.carriedSideways = Math.round(to.x - from.x);
       /* And no group is left wearing a follow translation it cannot lose. */
       out.noStuckTransform = ![...document.querySelectorAll('#nodeLayer > g.node')]
@@ -6274,12 +6286,12 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
   check('an entry with a callout on its connector can still be carried',
-        r32.carriedDown === 120 && r32.carriedSideways === 0,
+        r32.carriedDown === r32.wantDown && r32.carriedSideways === 0,
         JSON.stringify({down:r32.carriedDown, across:r32.carriedSideways}));
   check('and the drag leaves no entry stuck under a transform', r32.noStuckTransform);
   check('the light on a weave is out where its cycle joins',
@@ -6442,8 +6454,9 @@ async function main(){
     out.drops = wasDrops + '  ->  ' + drops();
     out.barKnown = !!amalgamBars.get('qm');
 
-    /* The panel: the chevron after the name, References set apart. */
-    buildManagement();
+    /* The tags: the chevron after the name; the references on a tab of
+       their own rather than in the tags' list. */
+    buildSideTabs();
     await wait(250);
     {
       const head = document.querySelector('.legend-group-head.foldable');
@@ -6453,8 +6466,7 @@ async function main(){
       out.foldOnTheRight = iName >= 0 && iFold > iName;
       const refs = [...document.querySelectorAll('.legend-section-head')]
         .find(h=> /References/.test(h.textContent));
-      out.refsApart = !!refs && refs.classList.contains('legend-section-split') &&
-        parseFloat(getComputedStyle(refs).borderTopWidth) > 0;
+      out.refsApart = !!refs && !!refs.closest('#refsPanel') && !refs.closest('#tagsPanel');
     }
     out.weaveVisible = (()=>{
       const el = document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -6464,7 +6476,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -6701,7 +6713,7 @@ async function main(){
 
     /* Renaming a category is a double click; there is no pencil for it. */
     applyEdit(()=>{ TAG_CATS.length = 0; TAG_CATS.push({name:'Era', tags:['era-a']}); });
-    buildManagement();
+    buildSideTabs();
     await wait(320);
     {
       const head = [...document.querySelectorAll('.legend-group-head.foldable')]
@@ -6726,7 +6738,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -6991,7 +7003,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -7205,7 +7217,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -7501,7 +7513,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -7615,8 +7627,13 @@ async function main(){
       window.dispatchEvent(new MouseEvent('mouseup', {clientX:cx+6, clientY:cy+46}));
       await wait(500);
       out.swungKept = +angle().toFixed(4);
-      out.swungExact = Math.abs(out.swungAngle - 90) < 0.001 &&
-                       Math.abs(out.swungKept - 90) < 0.001;
+      /* To a hundredth of a degree. The card's corner is kept to a
+         hundredth of a pixel and its width is not a whole number of them
+         twice over, so its middle can stand a two-hundredth of a pixel off
+         the ray — a thousandth of a degree at this distance. The fault
+         this guards against was a tenth. */
+      out.swungExact = Math.abs(out.swungAngle - 90) < 0.01 &&
+                       Math.abs(out.swungKept - 90) < 0.01;
     }
 
     /* The portrait's card: no entrance replayed on a redraw, the same wash
@@ -7669,7 +7686,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -7813,7 +7830,7 @@ async function main(){
     /* Renaming a category happens on the heading. */
     {
       applyEdit(()=>{ refill(TAG_CATS, [{name:'Before', tags:[]}]); });
-      buildManagement();
+      buildSideTabs();
       await wait(200);
       const head = [...document.querySelectorAll('.legend-group-head')]
         .find(h=> (h.querySelector('.legend-group-name')||{}).textContent === 'Before');
@@ -7830,7 +7847,7 @@ async function main(){
                      !TAG_CATS.some(c=> c.name === 'Before');
       }
       applyEdit(()=>{ refill(TAG_CATS, []); });
-      buildManagement();
+      buildSideTabs();
     }
 
     /* A note plate's ground is the connector's to set; its ink is not. */
@@ -7848,7 +7865,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -8183,7 +8200,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -8379,7 +8396,7 @@ async function main(){
       workingNodes.push(['tgB','B',null,null,null,null,{pos:[200,0]}]);
     });
     await wait(800);
-    buildManagement();
+    buildSideTabs();
     await wait(300);
     {
       out.looseBlock = !!document.getElementById('legendLoose');
@@ -8432,10 +8449,10 @@ async function main(){
                             !!looseBin(false);
       // a tag filed into a category leaves the bin, and comes back out again
       applyEdit(()=> assignTagCategory('brand new', 'Medium'));
-      buildManagement(); await wait(250);
+      buildSideTabs(); await wait(250);
       out.filed = categoryOf('brand new') === 'Medium';
       applyEdit(()=> assignTagCategory('brand new', ''));
-      buildManagement(); await wait(250);
+      buildSideTabs(); await wait(250);
       out.unfiled = categoryOf('brand new') === UNGROUPED && tagExists('brand new');
     }
 
@@ -8514,7 +8531,7 @@ async function main(){
     refill(EDGE_STYLES, beforeStyles);
     refill(TAG_CATS, beforeCats);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -8778,7 +8795,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(520);
     return out;
   });
@@ -8916,7 +8933,7 @@ async function main(){
     undoLastEdit();
     await wait(240);
     out.undoRemovedIt = !STICKERS.some(x=> x.key === 'hv_probe');
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(240);
     return out;
   });
@@ -9107,7 +9124,7 @@ async function main(){
       workingNodes.push(['s64x','Other', null,null,null,null,
                          {pos:[54300,-9000], tags:['probe-hidden']}]);
     });
-    rebuildChart(); buildManagement(); await wait(400);
+    rebuildChart(); buildSideTabs(); await wait(400);
     {
       // Hide the tag, then type in the tab row and see whether they return.
       hiddenTags.add('probe-hidden');
@@ -9158,7 +9175,7 @@ async function main(){
     }
 
     applyEdit(()=>{ workingNodes = before; });
-    rebuildChart(); buildManagement(); await wait(400);
+    rebuildChart(); buildSideTabs(); await wait(400);
     return out;
   });
   check('the unreleased ground is a grid on the weave\'s step, not a comb of bars',
@@ -9306,7 +9323,7 @@ async function main(){
     }
 
     applyEdit(()=>{ workingNodes = before; });
-    rebuildChart(); buildManagement(); await wait(400);
+    rebuildChart(); buildSideTabs(); await wait(400);
     return out;
   });
   check('the drawer’s Label box and its hidden font controls are gone',
@@ -10670,7 +10687,7 @@ async function main(){
       workingNodes.push(['kcZ','three',null,null,null,null,
                          {pos:[X + 640, Y - 60], tags:[FANFIC_TAG]}]);
     });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(700);
     {
       const weave = ()=> fanLayer.querySelector('.fanfic-weave[data-id="kcZ"]');
@@ -10684,7 +10701,7 @@ async function main(){
       fire('click', c.x, c.y, {}, mark);
       await wait(250);
       out.refOpensNothing = !selectedId && refsPanel.classList.contains('open');
-      refsPanel.classList.remove('open');
+      setSideTab(refsPanel, false);
 
       /* With one entry open, another's citation, link and chips are inert. */
       selectNode('kcA'); await wait(250);
@@ -10974,7 +10991,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -11219,7 +11236,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -11400,7 +11417,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(500);
     return out;
   });
@@ -11763,7 +11780,7 @@ async function main(){
         rC.keptHand, rC.turned);
   });
 
-  await scenario("the management panel says why", async () => {
+  await scenario("the tags and the references say why", async () => {
   const rM = await page.evaluate(async () => {
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
     const out = {};
@@ -11857,15 +11874,21 @@ async function main(){
     eq('the buttons share one row', bar.rows, 1);
     check('the search has room to be typed in', bar.search >= 120, `${bar.search}px`);
 
-    await tap(...await pp.evaluate(()=>{ const r = document.getElementById('legendToggle').getBoundingClientRect(); return [r.x + r.width/2, r.y + r.height/2]; }));
+    const tabAt = (id)=> pp.evaluate((id)=>{ const r = document.getElementById(id).getBoundingClientRect(); return [r.x + r.width/2, r.y + r.height/2]; }, id);
+    await tap(...await tabAt('tagsTab'));
     await wait(300);
     const panel = await pp.evaluate(()=>{
-      const r = document.getElementById('legend').getBoundingClientRect();
-      return {open: document.getElementById('legend').classList.contains('open'), left: r.left, right: r.right};
+      const body = document.querySelector('#tagsPanel .side-tab-body').getBoundingClientRect();
+      const other = document.getElementById('refsTab').getBoundingClientRect();
+      const at = document.elementFromPoint(other.x + other.width/2, other.y + other.height/2);
+      return {open: document.getElementById('tagsPanel').classList.contains('open'),
+              left: body.left, right: body.right,
+              otherTabFree: !!(at && at.closest('#refsTab'))};
     });
-    check('Management opens across the phone', panel.open && panel.left >= 0 && panel.right <= 390 && panel.right - panel.left > 340,
+    check('a tab opens across the phone, and the other tab is still there to press',
+          panel.open && panel.left >= 0 && panel.right <= 390 && panel.right - panel.left > 340 && panel.otherTabFree,
           JSON.stringify(panel));
-    await pp.evaluate(()=> document.getElementById('legendClose').click());
+    await tap(...await tabAt('tagsTab'));
     await wait(250);
 
     /* Two entries at a known place, the view at a known zoom. */
@@ -12181,7 +12204,7 @@ async function main(){
 
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
-    rebuildChart(); buildManagement();
+    rebuildChart(); buildSideTabs();
     await wait(400);
     return out;
   });
@@ -12193,6 +12216,170 @@ async function main(){
         rP.cornersClear && rP.cornerSameSize, JSON.stringify(rP.corners));
   check('so does a connector note’s plate, from its frame', rP.noteEven, JSON.stringify(rP.note));
   check('and a portrait’s card', rP.bioEven, JSON.stringify(rP.bio));
+  });
+
+  /* ---- two tabs, a grid of one letter, growth from the middle ---- */
+  await scenario("two tabs, a grid of one letter, and growth from the middle", async () => {
+  const rT = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const beforeRefs = REFS.map(r=> Object.assign({}, r));
+    const gapsOf = (n, ink)=> ({
+      left: +(ink.x - n.x).toFixed(2), right: +(n.x + n.w - ink.x - ink.width).toFixed(2),
+      top: +(ink.y - n.y).toFixed(2), bottom: +(n.y + n.h - ink.y - ink.height).toFixed(2)});
+    const inkOf = (id)=>{
+      const t = document.querySelector(`.node[data-id="${id}"] text`);
+      const sib = [...t.parentNode.children].filter(c=> c.classList.contains('text-underline') ||
+                                                         c.classList.contains('sticker-glyph'));
+      return inkBoxOf(t, sib);
+    };
+
+    /* ---- a caption closes on its words like an entry does ---- */
+    applyEdit(()=>{
+      workingNodes = [
+        ['tbA', 'Caption gy', null, null, null, 'textbox', {pos:[0, 0]}],
+        ['tbB', 'Two lines\nof caption', null, null, null, 'textbox', {pos:[0, 200]}],
+      ];
+      refill(EDGE_STYLES, []);
+    });
+    await wait(250);
+    out.caption = ['tbA', 'tbB'].map(id=> gapsOf(nodes.get(id), inkOf(id)));
+    out.captionInset = textInsetFor(nodes.get('tbA'));
+    out.captionEven = out.caption.every(g=> Object.values(g).every(v=> Math.abs(v - out.captionInset) < 0.06));
+    out.captionCorner = +document.querySelector('.node[data-id="tbA"] .textbox-frame').getAttribute('rx');
+
+    /* ---- a border that takes more room grows the box about its middle ---- */
+    const centres = {};
+    for(const border of [undefined, 'wavy', 'double']){
+      applyEdit(()=>{
+        workingNodes = [
+          ['gmA', 'Word', null, null, null, null, {pos:[0, 0], border}],
+          ['gmB', 'Two\nlines here', null, null, null, null, {pos:[0, 200], border}],
+          ['gmC', 'Remark', null, null, null, 'callout', {pos:[0, 400], border}],
+        ];
+      });
+      await wait(150);
+      ['gmA', 'gmB', 'gmC'].forEach(id=>{
+        const n = nodes.get(id);
+        (centres[id] = centres[id] || []).push([+(n.x + n.w/2).toFixed(3), +(n.y + n.h/2).toFixed(3), n.w]);
+      });
+    }
+    out.centres = centres;
+    out.grewAboutMiddle = Object.values(centres).every(c=>
+      c[1][2] > c[0][2] && c.every(p=> Math.abs(p[0] - c[0][0]) < 0.011 && Math.abs(p[1] - c[0][1]) < 0.011));
+    /* …and a wavy entry dropped where it is drawn stays there: the shift
+       that centres it is added back when the drop is written down. */
+    {
+      const n = nodes.get('gmA');
+      const x0 = n.x, y0 = n.y;
+      saveNodePositions([{id:'gmA', x: n.x, y: n.y}]);
+      await wait(150);
+      const m = nodes.get('gmA');
+      out.dropHeld = Math.abs(m.x - x0) < 0.01 && Math.abs(m.y - y0) < 0.01;
+    }
+
+    /* ---- the grid is the smallest box that holds a letter ---- */
+    applyEdit(()=>{
+      workingNodes = [
+        ['grA', 'a', null, null, null, null, {pos:[0, 0], square:true}],
+        ['grD', 'dr', null, null, null, null, {pos:[0, 300]}],
+        ['grT', 'dt', 'grD', null, null, null, {pos:[400, 300]}],
+        ['grE', '', null, null, null, 'callout', {pos:[0, 600]}],
+        ['grL', '', null, null, null, 'callout', {pos:[200, 600], leader:{from:'grD', to:'grT', at:0.5}}],
+      ];
+    });
+    await wait(250);
+    const a = nodes.get('grA');
+    out.letter = [a.w, a.h, GRID];
+    out.gridIsLetter = Math.abs(Math.max(a.w, a.h) - GRID) < 0.01 && a.w <= GRID + 0.01;
+    out.empty = ['grE', 'grL'].map(id=> [nodes.get(id).w, nodes.get(id).h]);
+    out.emptyIsStep = out.empty.every(([w, h])=> Math.abs(w - GRID) < 0.01 && Math.abs(h - GRID) < 0.01);
+    out.snapClean = [3, 17, 35, 46.5, 1000, -23].every(v=> snapToGrid(v) === +snapToGrid(v).toFixed(2));
+
+    /* ---- tags and references are two tabs, each on its own ---- */
+    applyEdit(()=>{
+      REFS.length = 0;
+      REFS.push({key:'tA', title:'', detail:'A first book', url:'https://example.org/'},
+                {key:'tB', title:'', detail:'A second comic', url:''});
+    });
+    rebuildChart(); buildSideTabs();
+    const tags = document.getElementById('tagsPanel'), refs = document.getElementById('refsPanel');
+    const rect = (e)=> e.getBoundingClientRect();
+    const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const tabFree = (id)=>{
+      const r = rect(document.getElementById(id));
+      const at = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
+      return !!(at && at.closest('#' + id));
+    };
+    out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
+    const states = [];
+    for(const [t, r] of [[true, false], [true, true], [false, true], [false, false]]){
+      setSideTab(tags, t); setSideTab(refs, r);
+      await wait(60);
+      states.push({t, r,
+        apart: !overlap(rect(tags), rect(refs)),
+        tabsFree: tabFree('tagsTab') && tabFree('refsTab'),
+        bodies: [tags, refs].map(p=> getComputedStyle(p.querySelector('.side-tab-body')).visibility)});
+    }
+    out.tabStates = states;
+    out.tabsApart = states.every(s=> s.apart && s.tabsFree &&
+      s.bodies[0] === (s.t ? 'visible' : 'hidden') && s.bodies[1] === (s.r ? 'visible' : 'hidden'));
+    /* A press on one tab leaves the other as it was. */
+    setSideTab(refs, true);
+    document.getElementById('tagsTab').click();
+    out.pressOneKeepsOther = tags.classList.contains('open') && refs.classList.contains('open');
+    document.getElementById('tagsTab').click();
+    out.pressShuts = !tags.classList.contains('open') && refs.classList.contains('open');
+    setSideTab(refs, false);
+    /* Each tab has its own search and its own +. */
+    out.ownTools = ['tagsList', 'refsList'].every(id=>{
+      const list = document.getElementById(id);
+      return !!list.querySelector('.legend-filter input') && !!list.querySelector('.legend-section-head .plus-mini');
+    });
+    {
+      const box = document.getElementById('refsFilter');
+      box.value = 'comic'; box.dispatchEvent(new Event('input'));
+      out.refFound = [...document.querySelectorAll('#refsList .ref-item')].map(r=> r.dataset.key).join();
+      const box2 = document.getElementById('refsFilter');
+      box2.value = '[1]'; box2.dispatchEvent(new Event('input'));
+      out.refByNumber = [...document.querySelectorAll('#refsList .ref-item')].map(r=> r.dataset.key).join();
+      const box3 = document.getElementById('refsFilter');
+      box3.value = ''; box3.dispatchEvent(new Event('input'));
+      out.refAll = document.querySelectorAll('#refsList .ref-item').length;
+    }
+    /* The one menu they used to share is not named anywhere a reader looks. */
+    const helpText = [...document.querySelectorAll('#aboutOverlay p')]
+      .filter(p=> !p.closest('#versionLog')).map(p=> p.textContent).join(' ');
+    out.noManagement = !/management/i.test(document.querySelector('.topbar').textContent + ' ' +
+      [...document.querySelectorAll('.topbar [title], #sideTabs [title]')].map(e=> e.title).join(' ') + ' ' +
+      document.getElementById('sideTabs').textContent + ' ' + helpText);
+
+    applyEdit(()=>{ REFS.length = 0; beforeRefs.forEach(r=> REFS.push(r)); });
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart(); buildSideTabs();
+    await wait(400);
+    return out;
+  });
+  check('a caption closes on its words a pixel off, as an entry does',
+        rT.captionEven && rT.captionCorner <= rT.captionInset + 0.01, JSON.stringify({g:rT.caption, rx:rT.captionCorner}));
+  check('a border that takes more room grows the box about its middle',
+        rT.grewAboutMiddle, JSON.stringify(rT.centres));
+  check('and a box grown that way stays where it is dropped', rT.dropHeld);
+  check('a grid step is the smallest box that holds an "a"', rT.gridIsLetter, JSON.stringify(rT.letter));
+  check('an empty remark, pinned or not, is one grid step square', rT.emptyIsStep, JSON.stringify(rT.empty));
+  check('and a step snapped to comes out clean', rT.snapClean);
+  check('the top bar has no menu for tags and references', rT.noToolbarButton);
+  check('tags and references are two tabs that never cover each other, open or shut',
+        rT.tabsApart, JSON.stringify(rT.tabStates));
+  check('pressing one tab leaves the other as it was', rT.pressOneKeepsOther && rT.pressShuts);
+  check('each tab has its own search and its own +', rT.ownTools);
+  check('the references can be searched, by words or by number',
+        rT.refFound === 'tB' && rT.refByNumber === 'tA' && rT.refAll === 2,
+        JSON.stringify({w:rT.refFound, n:rT.refByNumber, all:rT.refAll}));
+  check('the shared menu is not named anywhere a reader looks', rT.noManagement);
   });
 
   /* ---- 29. nothing threw along the way ---- */

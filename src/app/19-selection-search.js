@@ -277,7 +277,7 @@ function selectNode(id, opts){
      lineages. The panel's copy could only ever be a worse version of that,
      and it took the bottom third of a narrow panel to be worse in.
      Jumping to a neighbour is what the chart, the search box and the
-     Management panel are for. */
+     side tabs are for. */
 
   /* The entry panel describes ONE entry. With several selected there is no
      single subject for it to describe, and it would only be in the way of
@@ -329,38 +329,44 @@ function updateZoomCtlPosition(){
 }
 
 /* ---------------------------------------------------------------------
-   Legend toggle
+   The side tabs
    ------------------------------------------------------------------ */
-const legendPanel = document.getElementById('legend');
-
 /* One surface at a time from the top bar. Each of these opens from a
    button standing next to the others, so two of them open at once is two
    panels covering each other rather than two things you asked for: opening
    any one of them closes whichever was already up. Looked up by id at call
-   time because they are created all over this file. */
-const TOOLBAR_SURFACES = ['legend', 'filePopover', 'stickerOverlay', 'addNodeOverlay', 'aboutOverlay'];
+   time because they are created all over this file. The tabs at the left
+   edge are not among them: they cover none of these, and each keeps its
+   own state until it is pressed again. */
+const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'addNodeOverlay', 'aboutOverlay'];
 function closeToolbarMenus(keep){
   TOOLBAR_SURFACES.forEach(id=>{
     if(id === keep) return;
     const elm = document.getElementById(id);
     if(elm) elm.classList.remove('open');
   });
-  if(keep !== 'legend'){
-    const c = document.getElementById('coord');
-    if(c) c.classList.remove('shifted');
-  }
 }
-
-document.getElementById('legendToggle').onclick = ()=>{
-  const willOpen = !legendPanel.classList.contains('open');
-  closeToolbarMenus('legend');
-  legendPanel.classList.toggle('open', willOpen);
-  document.getElementById('coord').classList.toggle('shifted', willOpen);
-};
-document.getElementById('legendClose').onclick = ()=> {
-  legendPanel.classList.remove('open');
-  document.getElementById('coord').classList.remove('shifted');
-};
+const SIDE_TABS = ['tagsPanel', 'refsPanel'];
+function sideTabsOpen(){
+  return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
+}
+/* Opening or shutting one tab. The other is left exactly as it was — the
+   two share the edge by splitting its height, so neither has to make way
+   by closing. The coordinates readout stands clear of whatever is open. */
+function setSideTab(panel, open){
+  if(!panel) return;
+  panel.classList.toggle('open', !!open);
+  const handle = panel.querySelector('.side-tab-handle');
+  if(handle) handle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  document.body.classList.toggle('side-tab-open', sideTabsOpen().length > 0);
+}
+SIDE_TABS.forEach(id=>{
+  const panel = document.getElementById(id);
+  panel.querySelector('.side-tab-handle').addEventListener('click', ev=>{
+    ev.stopPropagation();
+    setSideTab(panel, !panel.classList.contains('open'));
+  });
+});
 
 /* ---------------------------------------------------------------------
    Search
@@ -474,11 +480,10 @@ document.addEventListener('keydown', e=>{
     // a Delete button, over an element that was no longer selected.
     if(freeMenu.classList.contains('open')){ closeFreeMenu(); return; }
     if(detailEditForm.style.display==='block'){ closeEditForm(); return; }
-    if(legendPanel.classList.contains('open')){
-      legendPanel.classList.remove('open');
-      document.getElementById('coord').classList.remove('shifted');
-      return;
-    }
+    /* Last of all, since they are what stays open while the chart is
+       worked on: both at once, as both are pressed open one at a time. */
+    const tabs = sideTabsOpen();
+    if(tabs.length){ tabs.forEach(p=> setSideTab(p, false)); return; }
     deselect(); searchResults.classList.remove('show'); searchInput.blur();
   }
   if(readOnlyView && (e.key==='Delete' || e.key==='Backspace')) return;
@@ -583,7 +588,7 @@ function rebuildChart(){
   buildModel();
   renderNodes();
   redrawEdges();
-  buildManagement();
+  buildSideTabs();
   updateStats();
   applyVisibility();
   // The selection survives a rebuild, minus anything that no longer exists.
@@ -599,7 +604,7 @@ function rebuildChart(){
    panels have left showing, so a window that changes size has to have them
    placed again. This listener was here with an empty body — registered, so
    it read as handled, and doing nothing: resize a window with the
-   Management panel open and the controls sat where the old edge used to
+   tags open and the controls sat where the old edge used to
    be, under the panel. */
 window.addEventListener('resize', ()=> updateZoomCtlPosition());
 fitToView();

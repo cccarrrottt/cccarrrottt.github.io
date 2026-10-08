@@ -15,7 +15,8 @@ const tagCounts = new Map(); // tag -> count
 // un-hide everything.
 const hiddenTags = new Set();
 let allTags = [];
-const legendList = document.getElementById('legendList');
+const legendList = document.getElementById('tagsList');
+const refsList = document.getElementById('refsList');
 
 /* ---- tags and their categories -------------------------------------
  *
@@ -193,26 +194,33 @@ function openTagAddMenu(afterEl){
   afterEl.parentNode.insertBefore(menu, afterEl.nextSibling);
   menu.hidden = false;
 }
-function buildManagement(){
+/* The two tabs, rebuilt together because a rebuild of the chart can change
+   both — but each into its own list, under its own heading, with its own
+   search and its own +. They used to be two halves of one panel, and two
+   lists in one panel read as one list with a subtitle in the middle of it
+   however they were ruled apart. */
+function buildSideTabs(){
   buildLegend();
+  const scroll = refsList.scrollTop;
+  /* Rescued before the list is emptied, as the tags rescue theirs. */
+  const colorRow = document.getElementById('refColorRow');
+  if(colorRow) document.getElementById('sideTabs').appendChild(colorRow);
+  refsList.innerHTML = '';
   const head = sectionHead('References', REFS.length);
-  /* Set apart from the tags above it. Two lists in one panel, with only
-     the usual heading rule between them, read as one list with a subtitle
-     in the middle of it. */
-  head.classList.add('legend-section-split');
   if(!readOnlyView){
     const add = makePlusButton('Add a reference');
     add.addEventListener('click', ev=>{ ev.stopPropagation(); addRef(); });
     head.appendChild(add);
   }
-  legendList.appendChild(head);
+  refsList.appendChild(head);
+  refsList.appendChild(buildRefFilterRow());
   /* The citation colour is a setting OF the references, so it sits with
      them — and above the list rather than below it, where a long list of
      references would otherwise push it out of sight. */
-  const colorRow = document.getElementById('refColorRow');
-  if(colorRow && !readOnlyView){ colorRow.hidden = false; legendList.appendChild(colorRow); }
+  if(colorRow && !readOnlyView){ colorRow.hidden = false; refsList.appendChild(colorRow); }
   else if(colorRow) colorRow.hidden = true;
-  buildRefsInto(legendList);
+  buildRefsInto(refsList);
+  refsList.scrollTop = scroll;
   syncLegendEye();
 }
 function buildLegend(){
@@ -262,8 +270,8 @@ function buildLegend(){
   /* The add menu and the citation-colour row are moved INTO this list on
      every build, so they have to be rescued before it is emptied or they
      would be destroyed along with it. */
-  const parked = document.getElementById('legend');
-  ['legendAddMenu', 'refColorRow'].forEach(id=>{
+  const parked = document.getElementById('sideTabs');
+  ['legendAddMenu'].forEach(id=>{
     const elm = document.getElementById(id);
     if(elm && parked) parked.appendChild(elm);
   });
@@ -278,7 +286,7 @@ function buildLegend(){
     ev.stopPropagation();
     if(everythingHidden()) hiddenTags.clear();
     else allTags.forEach(t=> hiddenTags.add(t));
-    applyVisibility(); buildManagement();
+    applyVisibility(); buildSideTabs();
   });
   tagHead.insertBefore(globalEye, tagHead.firstChild);
   if(!readOnlyView){
@@ -356,14 +364,20 @@ function startNewTagEntry(){
   if(readOnlyView) return;
   pendingNewCat = false;
   pendingNewTag = true;
-  buildManagement();
+  /* Named on the Tags tab, so the tab is open: a box in a shut drawer
+     cannot take the caret. */
+  setSideTab(document.getElementById('tagsPanel'), true);
+  buildSideTabs();
   focusNaming(document.querySelector('#legendLoose .tag-naming-text'));
 }
 function startNewCategoryEntry(){
   if(readOnlyView) return;
   pendingNewTag = false;
   pendingNewCat = true;
-  buildManagement();
+  /* Named on the Tags tab, so the tab is open: a box in a shut drawer
+     cannot take the caret. */
+  setSideTab(document.getElementById('tagsPanel'), true);
+  buildSideTabs();
   focusNaming(document.querySelector('.legend-group-new .legend-group-name'));
 }
 function buildNewTagRow(){
@@ -383,7 +397,7 @@ function buildNewTagRow(){
     const typed = (box.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
     pendingNewTag = false;
     if(keep && typed) createTag(typed);
-    else buildManagement();
+    else buildSideTabs();
   };
   box.addEventListener('keydown', ev=>{
     ev.stopPropagation();
@@ -413,7 +427,7 @@ function buildNewCategoryBlock(){
     const typed = (box.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
     pendingNewCat = false;
     if(keep && typed) createCategory(typed);
-    else buildManagement();
+    else buildSideTabs();
   };
   box.addEventListener('keydown', ev=>{
     ev.stopPropagation();
@@ -425,6 +439,39 @@ function buildNewCategoryBlock(){
   box.addEventListener('mousedown', ev=> ev.stopPropagation());
   wrap.appendChild(head);
   return wrap;
+}
+/* The references' search, the same box over the other list. A reference
+   is found by what it says, by its link, or by its number — "[3]" or a
+   bare 3 — since the number is what the mark in the text shows. */
+let refFilterText = '';
+function refMatchesFilter(r, i){
+  if(!refFilterText) return true;
+  const q = refFilterText.replace(/^\[|\]$/g, '');
+  if(/^\d+$/.test(q)) return String(i + 1) === q;
+  return (refBodyText(r) + ' ' + (r.url || '')).toLowerCase().indexOf(refFilterText) >= 0;
+}
+function buildRefFilterRow(){
+  const row = document.createElement('div');
+  row.className = 'legend-filter';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'refsFilter';
+  input.placeholder = 'Find a reference\u2026';
+  input.spellcheck = false;
+  input.value = refFilterText;
+  input.addEventListener('input', ()=>{
+    refFilterText = input.value.trim().toLowerCase();
+    buildSideTabs();
+    const again = document.getElementById('refsFilter');
+    if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+  });
+  input.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Escape'){ input.value = ''; refFilterText = ''; buildSideTabs(); }
+  });
+  input.addEventListener('click', ev=> ev.stopPropagation());
+  row.appendChild(input);
+  return row;
 }
 /* The search. A chart of any age has more tags than fit on the panel, and
    scrolling a list to find a name you already know is the one thing a list
@@ -443,13 +490,13 @@ function buildTagFilterRow(){
   input.value = tagFilterText;
   input.addEventListener('input', ()=>{
     tagFilterText = input.value.trim().toLowerCase();
-    buildManagement();
+    buildSideTabs();
     const again = document.getElementById('legendFilter');
     if(again){ again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
   });
   input.addEventListener('keydown', ev=>{
     ev.stopPropagation();
-    if(ev.key === 'Escape'){ input.value = ''; tagFilterText = ''; buildManagement(); }
+    if(ev.key === 'Escape'){ input.value = ''; tagFilterText = ''; buildSideTabs(); }
   });
   input.addEventListener('click', ev=> ev.stopPropagation());
   row.appendChild(input);
@@ -529,7 +576,7 @@ function buildCategoryBlock(group){
       headDblTimer = 0;
       if(collapsedCats.has(group.name)) collapsedCats.delete(group.name);
       else collapsedCats.add(group.name);
-      buildManagement();
+      buildSideTabs();
     }, DOUBLE_CLICK_GRACE);
   });
   /* Renaming is a double click on the name, like every other name on this
@@ -556,7 +603,7 @@ function buildCategoryBlock(group){
     // otherwise bring it all back.
     if(allOff) owned.forEach(t=> hiddenTags.delete(t));
     else owned.forEach(t=> hiddenTags.add(t));
-    applyVisibility(); buildManagement();
+    applyVisibility(); buildSideTabs();
   });
   head.insertBefore(groupEye, head.firstChild);
   if(!isLoose && !readOnlyView){
@@ -600,7 +647,7 @@ function buildTagRow(tag, catName){
     else hiddenTags.add(tag);
     applyVisibility();
     // The category's own eye reflects its tags, so it has to be repainted.
-    buildManagement();
+    buildSideTabs();
   });
   row.insertBefore(eye, row.firstChild);
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
@@ -628,7 +675,7 @@ function buildTagRow(tag, catName){
 
 /* ---- dragging a row out of one list and into another ----------------
  *
- * Two lists in the Management panel are arrangements rather than
+ * Two lists on the side tabs are arrangements rather than
  * collections: which category a tag belongs to, and what order the
  * references are in. Both were operated by proxy — a dropdown beside the
  * tag, a pair of arrows beside the reference — and in both cases the thing
@@ -716,12 +763,12 @@ window.addEventListener('mouseup', ()=>{
     if(cat === UNGROUPED){
       if(!st.target.classList.contains('legend-loose')) return;
       applyEdit(()=> assignTagCategory(st.key, ''));
-      buildManagement();
+      buildSideTabs();
       setLegendStatus('ok', `“${st.key}” is out of its category.`);
       return;
     }
     applyEdit(()=> assignTagCategory(st.key, cat));
-    buildManagement();
+    buildSideTabs();
     setLegendStatus('ok', `“${st.key}” is now under ${cat}.`);
   } else if(st.kind === 'ref'){
     reorderRef(st.key, st.target.dataset.key, st.where);

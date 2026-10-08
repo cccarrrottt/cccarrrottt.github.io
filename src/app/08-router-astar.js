@@ -386,7 +386,13 @@ function orthPointsAvoiding(p1, p2, excludeIds, lane){
       if(bestClear && !clear) continue;
       const sc = scorePath(pts, endObstacles);
       if(clear && !bestClear){ bestClear = true; bestScore = sc; best = pts; bestMid = mid; continue; }
-      if(sc < bestScore){ bestScore = sc; best = pts; bestMid = mid; }
+      /* Better by more than arithmetic. Two shapes of the same length and
+         turns add their legs up in different orders, and the sums can
+         differ in the last bit — which was enough for the midpoint bar to
+         beat the remembered one on an entry dropped at one height in a
+         hundred, and the connector re-shaped itself under its callout. A
+         tie goes to whichever was offered first, as the order intends. */
+      if(sc < bestScore - 1e-6){ bestScore = sc; best = pts; bestMid = mid; }
     }
   };
   const barKey = routeBarKey(p1, p2);

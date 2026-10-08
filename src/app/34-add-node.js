@@ -406,11 +406,12 @@ function visibleCanvasRect(){
     const p = panel.getBoundingClientRect();
     if(p.width && p.right > right - edgeBand) right = Math.min(right, p.left);
   }
-  const legend = document.getElementById('legend');
-  if(legend && legend.classList.contains('open')){
-    const p = legend.getBoundingClientRect();
+  /* The tabs at the left edge, open or shut: a shut one is a strip, and
+     an open one is a panel — either way the chart under it is not on show. */
+  document.querySelectorAll('.side-tab').forEach(tab=>{
+    const p = tab.getBoundingClientRect();
     if(p.width && p.left < left + edgeBand) left = Math.max(left, p.right);
-  }
+  });
   if(right - left < 120){ left = rect.left; right = rect.right; }
   return {left, right, top: rect.top, bottom: rect.bottom,
           width: right - left, height: rect.height};

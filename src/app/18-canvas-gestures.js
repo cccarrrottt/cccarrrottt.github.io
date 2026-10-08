@@ -1053,7 +1053,7 @@ function saveNodePositions(list, before){
          them back unchanged; a callout swung about its anchor does not,
          and rounding its corner here would put back exactly the half-pixel
          tilt the drag was careful not to introduce. */
-      opts.pos = [+(+x).toFixed(2), +(y + ((n && n.growShift) || 0)).toFixed(2)];
+      opts.pos = [+(+x + ((n && n.growShiftX) || 0)).toFixed(2), +(y + ((n && n.growShift) || 0)).toFixed(2)];
       putEntry(found.index, found.entry, opts);
     });
   }, before);
@@ -1111,6 +1111,7 @@ function beginNodeResize(ev, n, g, corner){
     // takes that shift away, so the stored position has to lose it too or
     // the box drops by exactly that much the moment you resize it.
     growShift: n.growShift || 0,
+    growShiftX: n.growShiftX || 0,
     originX: n.x, originY: n.y,
     originW: n.w, originH: n.h, moved: false
   };
@@ -1189,8 +1190,8 @@ window.addEventListener('mouseup', ()=>{
       // A fixed size takes no growth offset, so the drawn top-left IS the
       // position to write down.
       opts.pos = [st.node.x, st.node.y];
-    } else if(st.growShift && Array.isArray(opts.pos)){
-      opts.pos = [opts.pos[0], opts.pos[1] - st.growShift];
+    } else if((st.growShift || st.growShiftX) && Array.isArray(opts.pos)){
+      opts.pos = [opts.pos[0] - st.growShiftX, opts.pos[1] - st.growShift];
     }
     putEntry(found.index, found.entry, opts);
   });
