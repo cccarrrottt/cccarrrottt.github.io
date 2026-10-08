@@ -270,6 +270,31 @@ const NODE_LINE_MAXW = 300;
    varies is the ink, which is measured (see measureTextBlock), so a bigger
    glyph or a descender moves the border rather than eating into the gap. */
 const NODE_PAD_X = 7, NODE_PAD_Y = 5;
+/* …and that small fixed distance is now one pixel, from the INSIDE of
+   the border to the outermost ink, on every side — the gap is what was
+   asked for, so it is the gap that is fixed and the box that gives.
+ *
+   The border's own reach inward is therefore part of the padding, and
+   differs by style: a plain stroke comes half its width inside the box,
+   a ripple swings in by its amplitude before its stroke starts, and a
+   double border's second rail stands a gap further in again. Which means
+   a border style can now change an entry's size by a pixel or two — the
+   one thing a look was not supposed to do — because the alternative is
+   words touching the inner rail of a double border, which is worse.
+ *
+   NODE_PAD_X and NODE_PAD_Y stay for what is NOT a box closed on its
+   words: a loose caption, which has no border to stand off, and the wrap
+   width a label is folded at before the box closes on it. */
+const TEXT_GAP = 1;
+const NODE_BORDER_W = 1.6;          // .node > rect in the stylesheet
+const NODE_INNER_RAIL_W = 0.9;      // .border-inner, a double border's second line
+function borderReachIn(n){
+  if(isWavyBorder(n)) return POCKET_AMP + NODE_BORDER_W / 2;
+  if(borderStyleOf(n) === 'double') return BORDER_DOUBLE_GAP + NODE_INNER_RAIL_W / 2;
+  return NODE_BORDER_W / 2;
+}
+function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
+function round2(v){ return Math.round(v * 100) / 100; }
 /* The smallest an auto-sized box is allowed to get, whatever its text.
    Not a padding — a floor, so that a one-letter entry is still a box with
    room for its ports and its resize grip rather than a chip. NODE_MINH

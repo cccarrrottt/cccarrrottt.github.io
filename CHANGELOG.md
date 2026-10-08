@@ -6,6 +6,42 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## Unreleased — "A pixel round the words"
+
+### Words a pixel from their border
+
+- **Every box that holds words stands one pixel off their ink, on every
+  side**: entries, callouts, a connector note's plate and a portrait's card.
+  The ink is measured, not the font's line box (`inkBoxOf` in
+  `05-render-text.js`): each run's glyphs in its own face and size, plus the
+  underlines and stickers drawn beside them, so a rule under a word with no
+  descenders, a reading over a word and a glyph set larger all move the
+  border. Words are centred on their ink across as well as down.
+- **The pixel is from the inside of the border that is drawn**
+  (`textInsetFor`): half a plain stroke, a ripple's swing inward, a double
+  border's inner rail. A border style therefore changes an entry's size by
+  that much and no more. Cards and loose captions keep their old padding.
+- **A box closed onto its words keeps its middle where it was placed**, not
+  its top, so entries of a row stay level whatever letters are in them.
+- **A connector note sits on the ordinary baseline.** It was set on its
+  middle, which drew an underline in a note through the words.
+
+### Bends by hand
+
+- **A bend placed between an entry and its run-out no longer hooks.** The
+  last leg came at the stub from the box side and turned straight back down
+  into the port; it now reaches the stub from the side at the stub's own
+  level, and a bend lying on the run-out itself is taken as its end. The
+  same holds at the source.
+
+### Found on the way
+
+- **Where a rippled border stands is read along its side's own normal**, not
+  from the middle of the box, which under-read it by up to half on short
+  boxes and set connectors short of the wave.
+- **A finger on a small entry carries it** rather than being handed by the
+  browser to the nearest border strip.
+
 ## 0.11.0 — "In the hand" — 2026-10-06
 
 ### A phone

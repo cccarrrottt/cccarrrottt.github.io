@@ -183,7 +183,19 @@ function pinchMove(st, touches){
 document.addEventListener('touchstart', ev=>{
   noteTouchInput();
   const t0 = ev.changedTouches[0];
-  const target = ev.target && ev.target.nodeType === 1 ? ev.target : null;
+  let target = ev.target && ev.target.nodeType === 1 ? ev.target : null;
+  /* A finger is a blob, and the browser hands its touch to whatever near
+     it listens — on an entry that is often a border's connector strip
+     rather than the box the finger is plainly on. With a box closed to a
+     pixel off one line of words the strips are a few pixels from its
+     middle, so a finger meant to carry the entry drew a connector out of
+     it instead. Where the exact point under the finger is the same entry
+     and not a strip, the entry is what was touched. */
+  if(target && target.closest('.node-handle')){
+    const exact = document.elementFromPoint(t0.clientX, t0.clientY);
+    if(exact && !exact.closest('.node-handle') &&
+       exact.closest('.node') === target.closest('.node')) target = exact;
+  }
 
   /* A gesture still on the books while this is the only finger down is one
      whose end never reached us. It is closed rather than joined — joined,

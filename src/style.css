@@ -933,9 +933,15 @@
      canvas, so it stays readable where it crosses the grid or another line. */
   .edge-note-plate{fill:var(--paper);stroke:var(--ink);stroke-width:0.8;}
   .edge-note-plate.bare{stroke:none;}
+  /* On the ordinary baseline, like every other text on the chart. It was
+     set on its middle, which moved the glyphs down by half their height
+     while everything laid out beside them — an underline, the measured
+     ink the plate is built round — was placed from where the layout said
+     the baseline was, so a rule under a word in a note was drawn through
+     it. renderNodeText already centres the block on the point it is given. */
   .edge-note-text{
     font-family:Arial, Helvetica, sans-serif,'Noto Color Emoji';font-weight:500;font-size:8.5px;
-    fill:var(--ink);text-anchor:middle;dominant-baseline:middle;
+    fill:var(--ink);text-anchor:middle;
     pointer-events:none;
   }
   .edge-note.dim{opacity:0.08;}

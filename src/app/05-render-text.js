@@ -107,13 +107,68 @@ const measureEl = el('text',{x:-9999,y:-9999,visibility:'hidden',
    tallest character reaches above the line or the lowest tail below it,
    and those are exactly what the border has to clear. */
 const measureBlockG = el('g', {visibility:'hidden'}, svg);
-/* The measuring text draws no underlines.
+/* The measuring text draws its underlines, because they are ink.
  *
- * They are separate elements laid out beside the text, and this group is
- * measured with getBBox — so a rule under a word would have been counted
- * as part of the block and every underlined entry would have come out a
- * pixel or two taller than the words in it actually are. */
-const measureBlockText = el('text', {x:0, y:0, 'data-no-rules':'1'}, measureBlockG);
+ * It used to leave them out: the block was measured with getBBox, which
+ * answers with the whole height of the face whether or not a glyph reaches
+ * it, and a rule tucked under the baseline was already inside that. Now
+ * the border stands a pixel off what is actually drawn (see inkBoxOf), and
+ * a rule under a word with no descenders is the lowest thing there is. */
+const measureBlockText = el('text', {x:0, y:0}, measureBlockG);
+/* Where a laid-out text's ink actually reaches.
+ *
+ * getBBox on a <text> answers with each run's whole em box — the face's
+ * full ascent and descent, whatever the letters do — so "Plain" and
+ * "Ягода" came back the same height, and a border set a pixel off that
+ * box stood three or four pixels off the words. A canvas will say how far
+ * the GLYPHS of a string reach either side of the point they are set
+ * from, so each run is asked that, in its own computed face and size, at
+ * the position the SVG layout put it; and the things drawn beside the
+ * text (underlines, stickers) are taken by their own boxes, a rule with
+ * its stroke. A reading is a run like any other, so it is counted where
+ * it was drawn, over its word.
+ *
+ * Null when there is no layout to ask, so a caller can fall back to the
+ * box it used before rather than to nothing. */
+const inkCtx = (()=>{
+  try{ return document.createElement('canvas').getContext('2d'); }
+  catch(e){ return null; }
+})();
+function inkBoxOf(txtEl, beside){
+  if(!inkCtx || !txtEl) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const take = (a, b, c, d)=>{
+    if(a < x0) x0 = a; if(b < y0) y0 = b;
+    if(c > x1) x1 = c; if(d > y1) y1 = d;
+  };
+  for(const ts of txtEl.querySelectorAll('tspan')){
+    const s = ts.textContent || '';
+    if(!s.trim()) continue;
+    let p;
+    try{ p = ts.getStartPositionOfChar(0); }
+    catch(e){ return null; }
+    const cs = getComputedStyle(ts);
+    inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const m = inkCtx.measureText(s);
+    if(!Number.isFinite(m.actualBoundingBoxAscent)) return null;
+    take(p.x - m.actualBoundingBoxLeft, p.y - m.actualBoundingBoxAscent,
+         p.x + m.actualBoundingBoxRight, p.y + m.actualBoundingBoxDescent);
+  }
+  (beside || []).forEach(e=>{
+    let b;
+    try{ b = e.getBBox(); }catch(err){ return; }
+    if(!b || !(b.width > 0 || b.height > 0)) return;
+    /* A rule's box is its centre line; the stroke reaches half its
+       width either side, and a dotted rule's round caps as far again at
+       each end. */
+    const half = e.classList.contains('text-underline')
+      ? (parseFloat(e.style.strokeWidth) || 0) / 2 : 0;
+    const cap = e.getAttribute('stroke-linecap') === 'round' ? half : 0;
+    take(b.x - cap, b.y - half, b.x + b.width + cap, b.y + b.height + half);
+  });
+  if(!(x1 >= x0) || !(y1 >= y0)) return null;
+  return {x: x0, y: y0, width: x1 - x0, height: y1 - y0};
+}
 /* Measured text widths, remembered.
 
    Every width on this chart comes from putting the string into a hidden
@@ -446,7 +501,7 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
   // A fresh object every time. Nothing currently writes to what this hands
   // back, and a shared one would make the first thing that did so rewrite
   // the remembered answer for every entry that shares it.
-  if(hit) return {width: hit.width, height: hit.height, mid: hit.mid};
+  if(hit) return {width: hit.width, height: hit.height, mid: hit.mid, midX: hit.midX};
   while(measureBlockG.firstChild !== measureBlockText && measureBlockG.firstChild){
     measureBlockG.removeChild(measureBlockG.firstChild);
   }
@@ -464,9 +519,12 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
   measureBlockText.style.fontFamily = fam;
   measureBlockText.style.textAnchor = 'start';
   renderNodeText(measureBlockText, text, 0, 0, maxChars, lineH, fontScale, fontOpts, fit);
-  let bb;
-  try{ bb = measureBlockG.getBBox(); }
-  catch(e){ bb = null; }
+  let bb = inkBoxOf(measureBlockText,
+                    Array.from(measureBlockG.childNodes).filter(c=> c !== measureBlockText));
+  if(!bb){
+    try{ bb = measureBlockG.getBBox(); }
+    catch(e){ bb = null; }
+  }
   if(!bb || !Number.isFinite(bb.width) || !Number.isFinite(bb.height)){
     // No layout available (a detached document, a test harness): fall back
     // to the arithmetic this replaced, so nothing collapses to nothing.
@@ -474,7 +532,7 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
     // cannot measure, not what the text measures, and caching it would
     // keep answering with it after layout became available again.
     const m = wrapAndMeasure(text, maxChars, lineH, fontScale, fit);
-    return {width: 0, height: m.totalH, mid: 0};
+    return {width: 0, height: m.totalH, mid: 0, midX: 0};
   }
   /* Where the middle of the ink ended up, measured from the point the
      block was laid out on. It is not zero: a line of type has more above
@@ -482,13 +540,18 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
      further off. Handing this back lets the drawing centre the INK on the
      box rather than the line grid, which is what stops a word with a
      descender sitting high in its border. */
-  const out = {width: bb.width, height: bb.height, mid: bb.y + bb.height/2};
+  /* …and the same across. The words are centred on their ADVANCES, and
+     a glyph's ink starts and stops a little inside or outside of those —
+     an italic leans out on the right, a "j" hooks back on the left. With
+     a pixel of room either side, that difference is the whole margin. */
+  const out = {width: bb.width, height: bb.height, mid: bb.y + bb.height/2,
+               midX: bb.x + bb.width/2};
   // Dropped wholesale past a sane size rather than evicted one at a time,
   // for the reason measureCache is: the only way an entry here goes stale
   // is the webfonts landing, which invalidates every one of them at once.
   if(blockCache.size >= BLOCK_CACHE_MAX) blockCache.clear();
   blockCache.set(key, out);
-  return {width: out.width, height: out.height, mid: out.mid};
+  return {width: out.width, height: out.height, mid: out.mid, midX: out.midX};
 }
 function textForActive(n, activeIdx){
   if(activeIdx===null || activeIdx===undefined || !n.langTabs) return n.label;
@@ -529,7 +592,7 @@ function renderNodeText(txtEl, text, textAreaCenterY, centerX, maxChars, lineH, 
  * may hold only text — so they are appended to whatever the text itself
  * hangs in, immediately after it. */
 function paintUnderlines(txtEl){
-  if(!txtEl || txtEl.getAttribute('data-no-rules')) return;
+  if(!txtEl) return;
   const host = txtEl.parentNode;
   if(!host) return;
   /* Almost no text on a chart is underlined, and this runs for every piece

@@ -216,7 +216,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      WIDER the moment its border was set to wavy, so changing how an edge
      is drawn moved the entry and everything routed round it. A border
      style is a look; it does not get to change the size. */
-  const inkPad = NODE_PAD_X;
+  /* …and it no longer is the same for every style: see textInsetFor. A
+     card keeps the old padding, because its heading shares the box with
+     a picture and the bands under it, and a pixel off a rule that divides
+     a card is not a margin anyone would want. */
+  const closesOnInk = !isBio && !isImage && !isCard && !isFree;
+  const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
   const maxChars = noWrap ? Infinity : Math.max(8, Math.round((w - inkPad*2) / (fontSize*0.55)));
   // Hard pixel ceiling for a line of this node's text, so no script's
   // glyph widths can push a label past the border (see wrapLabel's `fit`).
@@ -241,14 +246,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      actually produced is usually narrower than that, and the difference
      was left as padding nobody chose. Shrinking to the ink cannot change
      the wrap, since every line already fits inside the widest of them. */
-  if(!manual && !isBio && !isImage && !isCard && !isFree){
+  if(!manual && closesOnInk){
     /* An entry with nothing written in it makes no ink at all, so there is
        nothing to close on — and a one-line entry starts out at the widest
        a box may become, which is how an empty box came out three hundred
        pixels across. With no ink it takes the ordinary minimum instead,
        which is the size an empty box should be. */
-    const want = maxInkW > 0 ? Math.ceil(maxInkW) + inkPad*2 : NODE_MINW;
-    n.w = w = Math.max(NODE_FIT_MINW, Math.min(w, want));
+    /* With ink it is exactly the ink and the inset, not rounded up to a
+       whole pixel and not held up by a floor: rounding put up to a pixel
+       of slack on one side, and the floor turned a short word's pixel of
+       margin back into twenty. */
+    const want = maxInkW > 0 ? round2(maxInkW + inkPad*2) : NODE_MINW;
+    n.w = w = Math.min(w, maxInkW > 0 ? want : Math.max(NODE_FIT_MINW, want));
     if(!n.pos && typeof n.slotX === 'number') n.x = n.slotX + (n.slotW - w)/2;
   }
   /* A card closes on its ink too, but by GROWING to it rather than only
@@ -312,7 +321,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
           : isTextbox ? (manual ? manual.h : Math.max(16, Math.ceil(maxTotalH) + NODE_PAD_Y*2))
           : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
-          : (manual ? manual.h : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2));
+          : manual ? manual.h
+          : maxInkW > 0 ? round2(maxTotalH + inkPad*2)
+          : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
   n.h = h;
   /* A hand-placed entry grows about its MIDDLE, not downward from its top.
    *
@@ -354,7 +365,15 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        put — a negative offset would have slid every entry on every
        existing chart downward the day the boxes learned to hug their
        text. */
-    n.growShift = snapToGrid(Math.max(0, h - NODE_GROW_REF) / 2);
+    /* A box closed on its words is centred on the reference box, shorter
+       or taller. Once the border stands a pixel off the ink, a one-line
+       entry is well under the reference height, and keeping its top where
+       it was put would have lifted the middle of every entry on the chart
+       by a few pixels and a two-line one by none — so two entries placed
+       level, one with a second line, would no longer be. Centring keeps
+       every middle where it was, which is where connectors meet a box. */
+    n.growShift = closesOnInk ? round2((h - NODE_GROW_REF) / 2)
+                              : snapToGrid(Math.max(0, h - NODE_GROW_REF) / 2);
     n.y = n.pos.y - n.growShift;
   }
   /* Where the rules across the card fall, once its height is settled.
@@ -921,7 +940,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   if(clipText && !isBio && !isImage){
     const clipId = defId('textclip-', n.id);
     const clip = el('clipPath', {id: clipId}, nodeDefs);
-    el('rect', {x: n.x + NODE_PAD_X/2, y: n.y, width: Math.max(1, n.w - NODE_PAD_X),
+    const reach = closesOnInk ? borderReachIn(n) : NODE_PAD_X/2;
+    el('rect', {x: n.x + reach, y: n.y, width: Math.max(1, n.w - reach*2),
                 height: h}, clip);
     txt.setAttribute('clip-path', `url(#${clipId})`);
   }
@@ -941,7 +961,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const active = textForActive(n, activeLangTab.get(n.id));
     const mb = measureTextBlock(active, maxChars, lineH, fontScale, fontOpts, fit);
     renderNodeText(txt, active, textAreaCenterY - (mb.mid || 0),
-                   centerX, maxChars, lineH, fontScale, fontOpts, fit);
+                   centerX - (mb.midX || 0), maxChars, lineH, fontScale, fontOpts, fit);
   }
 
   // The card's middle band, between the heading and the note.

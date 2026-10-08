@@ -178,7 +178,7 @@ function pocketOutline(x, y, w, h, grow){
      border aimed at the trough when the crest was there and stopped in
      the open air beside it. Nothing here reasons about direction any
      more: the drawn point is compared with the baseline point it came
-     from, and outward is simply "away from the middle of the box". A
+     from, and outward is simply the outward of the side it is on. A
      change to how the wave is drawn cannot put this out again, because
      this is not a description of the drawing, it is the drawing. */
   const drawn = ringPoints(0, total, true);
@@ -190,19 +190,22 @@ function pocketOutline(x, y, w, h, grow){
      error that grows with every corner and lands a connector on the wrong
      part of the wave. Matching on the coordinate ALONG the side instead
      asks the drawing where it is and cannot drift. */
-  const cx = x + w/2, cy = y + h/2;
   const bySide = {top:[], right:[], bottom:[], left:[]};
+  /* Outward is the SIDE'S outward, not the direction from the middle of
+     the box. It used to be the latter, which is the same thing only on
+     the middle of a side: towards the ends of a long side, and anywhere on
+     a short box, the line from the centre leans over, and projecting the
+     ripple onto it gave back as little as half of how far the border
+     really stood out. That was a fraction of a pixel on a box with room
+     round its words, and the whole aim of a connector once the box closed
+     to a pixel off them. */
   drawn.forEach(q=>{
-    let ox = q.bx - cx, oy = q.by - cy;
-    const len = Math.hypot(ox, oy) || 1;
-    ox /= len; oy /= len;
-    const off = (q.x - q.bx) * ox + (q.y - q.by) * oy;
     const onTop = Math.abs(q.by - y) < 0.01, onBottom = Math.abs(q.by - (y + h)) < 0.01;
     const onLeft = Math.abs(q.bx - x) < 0.01, onRight = Math.abs(q.bx - (x + w)) < 0.01;
-    if(onTop) bySide.top.push({u: q.bx, off});
-    if(onBottom) bySide.bottom.push({u: q.bx, off});
-    if(onLeft) bySide.left.push({u: q.by, off});
-    if(onRight) bySide.right.push({u: q.by, off});
+    if(onTop) bySide.top.push({u: q.bx, off: q.by - q.y});
+    if(onBottom) bySide.bottom.push({u: q.bx, off: q.y - q.by});
+    if(onLeft) bySide.left.push({u: q.by, off: q.bx - q.x});
+    if(onRight) bySide.right.push({u: q.by, off: q.x - q.bx});
   });
   SIDES.forEach(side=> bySide[side].sort((a, b)=> a.u - b.u));
   const offAt = (side, u)=>{

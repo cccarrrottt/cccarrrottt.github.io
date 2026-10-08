@@ -1609,7 +1609,7 @@ async function main(){
     saveNodePositions([{id:'dr', x:n.x, y:n.y + 40}]);
     await new Promise(r=> setTimeout(r, 300));
     out.creep = +(nodes.get('dr').y - (y0 + 80)).toFixed(2);
-    out.grewTall = nodes.get('dr').h > 40;
+    out.grewTall = nodes.get('dr').h > NODE_GROW_REF * 1.5;
 
     // The wave is laid out on the full geometry, so a head hides an arc
     // rather than moving the pattern.
@@ -1711,7 +1711,7 @@ async function main(){
     /* Where each ring's first arc on the top side begins, measured on the
        shared grid. Two rings in phase agree on both the offset and which
        way that first arc bulges. */
-    applyEdit(()=>{ workingNodes.push(['pkph','P',null,null,null,'pocket',
+    applyEdit(()=>{ workingNodes.push(['pkph','A pocket reality',null,null,null,'pocket',
       {pos:[13600,-600], colors:['#111111','#c23b22']}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 420));
     const ringPaths = [...document.querySelectorAll('[data-id="pkph"] > path[stroke]')];
@@ -2329,13 +2329,18 @@ async function main(){
     rebuildChart();
     await new Promise(r=> setTimeout(r, 520));
 
-    /* Every entry sits on the grid its position was snapped to. Half the
-       extra height is never a round number, so an unrounded offset put
-       every box at its own fraction of a step away from the ruled lines. */
+    /* Every entry sits where its position was snapped to. That used to
+       mean its TOP on the ruled grid, with growth spread in whole steps;
+       once a box closes to a pixel off its words, boxes in one row come
+       out a few pixels apart in height by which letters are in them, and
+       tops on the grid would put their middles — where a connector meets
+       them — at as many different heights. So the middle is what is held:
+       every entry placed on a row has its middle at the same height. */
     const tall = nodes.get('gt'), short = nodes.get('gs');
-    out.tallOffGrid = [ +(tall.x % GRID).toFixed(3), +(tall.y % GRID).toFixed(3) ];
-    out.shortOffGrid = [ +(short.x % GRID).toFixed(3), +(short.y % GRID).toFixed(3) ];
-    out.tallIsTall = tall.h > NODE_MINH;
+    const mid = (n)=> +((n.y + n.h/2 - (-600 + NODE_GROW_REF/2)) % GRID).toFixed(3);
+    out.tallOffGrid = [ +(tall.x % GRID).toFixed(3), mid(tall) ];
+    out.shortOffGrid = [ +(short.x % GRID).toFixed(3), mid(short) ];
+    out.tallIsTall = tall.h > short.h * 2.5;
 
     // The resize grip's hit strip is the mark you can see, not a wider
     // square hanging off the corner.
@@ -2416,7 +2421,7 @@ async function main(){
     await new Promise(r=> setTimeout(r, 420));
     return out;
   });
-  check('a grown entry still lands on the grid it was snapped to',
+  check('a grown entry still has its middle where it was snapped to',
         r13.tallIsTall && r13.tallOffGrid[0] === 0 && r13.tallOffGrid[1] === 0 &&
         r13.shortOffGrid[0] === 0 && r13.shortOffGrid[1] === 0,
         JSON.stringify({tall:r13.tallOffGrid, short:r13.shortOffGrid}));
@@ -2592,10 +2597,11 @@ async function main(){
     /* Only the two lineages at the ends of the bar round their turn onto
        it; the ones between join it as a T. */
     const memberOf = (id)=> document.querySelector(`.amalgam-member[data-from="${id}"]`);
-    const tail = (id)=>{
-      const d = memberOf(id).getAttribute('d');
-      return d.slice(d.length - 40);       // whatever the last command is
-    };
+    /* The last two commands, whatever their length: a box closed onto
+       its words has fractional sides, and forty characters of a path with
+       long numbers in it no longer reached back to the turn. */
+    const tail = (id)=>
+      (memberOf(id).getAttribute('d').match(/[A-Za-z][^A-Za-z]*/g) || []).slice(-2).join('');
     out.endRounded = /[QC]/.test(tail('tp0')) && /[QC]/.test(tail('tp3'));
     out.midSquare = !/[QC]/.test(tail('tp1')) && !/[QC]/.test(tail('tp2'));
 
@@ -4055,19 +4061,25 @@ async function main(){
     });
     rebuildChart();
     await wait(450);
+    /* Measured on the INK — the glyphs as drawn, and the rules beside
+       them — not on the text's box, which is the face's full height
+       whatever the letters do. */
     const pad = (id)=>{
       const n = nodes.get(id);
       const t = document.querySelector(`[data-id="${id}"] text`);
-      const bb = t.getBBox();
-      return {h:n.h, top:+(bb.y - n.y).toFixed(1),
-              bot:+(n.y + n.h - (bb.y + bb.height)).toFixed(1)};
+      const bb = inkBoxOf(t, [...t.parentNode.querySelectorAll(':scope > .text-underline')]);
+      return {h:n.h, inset: textInsetFor(n),
+              left:+(bb.x - n.x).toFixed(2), right:+(n.x + n.w - bb.x - bb.width).toFixed(2),
+              top:+(bb.y - n.y).toFixed(2), bot:+(n.y + n.h - (bb.y + bb.height)).toFixed(2)};
     };
     const p1 = pad('pd1'), p2 = pad('pd2'), p3 = pad('pd3');
-    out.padTight = p1.top < 8 && p1.bot < 8;
-    out.padEven = Math.abs(p1.top - p1.bot) < 2 && Math.abs(p2.top - p2.bot) < 2;
+    const exact = (p)=> ['left','right','top','bot'].every(k=> Math.abs(p[k] - p.inset) < 0.05);
+    out.padTight = exact(p1);
+    out.padEven = exact(p2) && exact(p3);
+    out.pads = JSON.stringify([p1, p2, p3]);
     out.growsWithGlyph = p2.h > p1.h;
     out.growsWithReading = p3.h > p1.h;
-    out.stillEvenWhenBig = p2.top > 2 && p2.bot > 2;
+    out.stillEvenWhenBig = exact(p2);
 
     /* Smart guides: an entry carried near another's edge with Shift held
        settles onto it and says what it lined up with — and stays exactly
@@ -4075,7 +4087,10 @@ async function main(){
        off the ruled grid on purpose, so a snap onto its edge cannot be the
        grid's doing. */
     applyEdit(()=>{
-      workingNodes.push(['gd1','Anchor',null,null,null,null,{pos:[61003,-900]}]);
+      /* Of clearly different widths: a box closes on its words, and two
+         words of about the same width line up at both edges and in the
+         middle at once, so which of them the guide chose said nothing. */
+      workingNodes.push(['gd1','The anchor of it all',null,null,null,null,{pos:[61003,-900]}]);
       workingNodes.push(['gd2','Mover',null,null,null,null,{pos:[61400,-700]}]);
       workingNodes.push(['gd3','Mover2',null,null,null,null,{pos:[61400,-560]}]);
     });
@@ -4269,9 +4284,8 @@ async function main(){
     await wait(400);
     return out;
   });
-  check('a border closes on the text it holds',
-        r21.padTight && r21.padEven,
-        JSON.stringify({tight:r21.padTight, even:r21.padEven}));
+  check('a border stands one pixel off the ink of the text it holds, on every side',
+        r21.padTight && r21.padEven, r21.pads);
   check('and follows a bigger glyph or a reading rather than clipping it',
         r21.growsWithGlyph && r21.growsWithReading && r21.stillEvenWhenBig,
         JSON.stringify({glyph:r21.growsWithGlyph, reading:r21.growsWithReading,
@@ -5152,8 +5166,19 @@ async function main(){
         const along = (e.toSide === 'top' || e.toSide === 'bottom')
           ? (end.y - edgePt) * -nrm[1] : (end.x - edgePt) * -nrm[0];
         if(e.arrow === false){
-          // inside by at least the ripple's true amplitude
-          if(along < 2.3) faults.push(`${e.from}:short(${along.toFixed(2)})`);
+          /* Under the border where it is DRAWN at that point, by the bite
+             a headless line is given (sinkEnds) — not under the deepest
+             the ripple reaches anywhere: that was only ever true of a
+             port that happened to sit at a trough, and a box closed onto
+             its words a pixel off puts the port wherever its size says. */
+          const rec = drawnRoutes.get(calloutEdgeKey(e.from, e.to));
+          const ring = (rec && rec.pts[rec.pts.length-1].ring) || 0;
+          const prof = borderProfileOf(to, ring);
+          const out2 = ring * ringStepFor(to) + prof.offsetAt(e.toSide, end.x, end.y);
+          const under = along + out2;
+          if(under < (ring ? -EDGE_HALF : POCKET_BITE - 0.05)){
+            faults.push(`${e.from}:short(${under.toFixed(2)})`);
+          }
         } else {
           const head = document.querySelector(
             `.edge-arrow[data-from="${e.from}"][data-to="${e.to}"]`);
@@ -11411,7 +11436,10 @@ async function main(){
     const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
     deselect();
 
-    /* ---- a border style is a look: wavy is the same size as solid ---- */
+    /* ---- a border style changes the size only by how far it reaches in.
+       The words stand a pixel off the INSIDE of whatever border is drawn,
+       and a ripple swings in by its amplitude, so a rippled box is exactly
+       that much bigger on every side and not a hair more. ---- */
     {
       const sizes = {};
       for(const B of ['solid', 'wavy']){
@@ -11424,7 +11452,9 @@ async function main(){
         sizes[B] = [n.w, n.h];
       }
       out.wavySize = JSON.stringify(sizes);
-      out.wavySame = sizes.solid[0] === sizes.wavy[0] && sizes.solid[1] === sizes.wavy[1];
+      const more = 2 * POCKET_AMP;
+      out.wavySame = Math.abs(sizes.wavy[0] - sizes.solid[0] - more) < 0.03 &&
+                     Math.abs(sizes.wavy[1] - sizes.solid[1] - more) < 0.03;
     }
 
     /* ---- a cap stops where the inner ring's STROKE begins ---- */
@@ -11601,7 +11631,7 @@ async function main(){
     await wait(300);
     return out;
   });
-  check('a wavy border does not make the entry any bigger', rW.wavySame, rW.wavySize);
+  check('a wavy border makes the entry bigger only by the depth of its ripple', rW.wavySame, rW.wavySize);
   check('a cap over an inner ring stops where that ring’s stroke begins', rW.capMasked);
   check('square corners square the box and every ring of it', rW.squareBox, rW.squareRx);
   check('a wavy border keeps its rounded corners whatever the setting says', rW.wavyIgnores);
@@ -11841,6 +11871,10 @@ async function main(){
     /* Two entries at a known place, the view at a known zoom. */
     const at = await pp.evaluate(async ()=>{
       applyEdit(()=>{
+        /* On a chart of their own: the shipped chart has entries round this
+           place, and a gesture meant for open paper landed on one of
+           them as soon as the boxes closed onto their words and moved. */
+        workingNodes.length = 0; refill(EDGE_STYLES, []);
         /* Both above the entry drawer, which opens over the lower half. */
         workingNodes.push(['tpA', 'Touch A', null, null, null, 'rect', {pos:[100, 60]}]);
         workingNodes.push(['tpB', 'Touch B', null, null, null, 'rect', {pos:[100, 220]}]);
@@ -11848,8 +11882,13 @@ async function main(){
       await new Promise(r=> setTimeout(r, 120));
       deselect();
       vs = 1; vx = 20; vy = 20; applyTransform();
-      const box = id=>{ const r = document.querySelector(`#nodeLayer [data-id="${id}"]`).getBoundingClientRect();
-                        return [r.x + r.width/2, r.y + r.height/2, r.width, r.height]; };
+      /* The entry's own box, not its group's: the group also holds the
+         hit strips along its borders, which reach out past the box on
+         some sides and not others, so the group's middle is not the box's
+         — and on a box closed a pixel off one line of words, the
+         difference was enough to land the finger on a border strip. */
+      const box = id=>{ const n = nodes.get(id), m = viewport.getScreenCTM();
+                        return [m.a*(n.x + n.w/2) + m.e, m.d*(n.y + n.h/2) + m.f, n.w*m.a, n.h*m.d]; };
       return {a: box('tpA'), b: box('tpB'), touchClass: document.body.classList.contains('touch-input')};
     });
     check('a touch puts the page in its finger mode', at.touchClass);
@@ -12001,6 +12040,119 @@ async function main(){
   } finally {
     await phone.close();
   }
+  });
+
+  await scenario("a bend that does not hook, and a pixel round the words", async () => {
+  const rP = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+
+    /* ---- a hand bend beside the box it leads into ----
+       A bend a few pixels above the target's top, off to one side of it,
+       used to be reached level and then climbed up to the stub, so the
+       line arrived travelling AWAY from the box and turned straight back
+       down the run-out into the port: a hook at the corner. Same at the
+       source, and for a bend level with the box's middle, which went
+       round on a lane a pixel short of the stub. No route may double back
+       on itself, at a stub or anywhere. */
+    const doubles = (pts)=>{
+      for(let i = 1; i < pts.length - 1; i++){
+        const a = pts[i-1], b = pts[i], c = pts[i+1];
+        const ux = b.x - a.x, uy = b.y - a.y, vx2 = c.x - b.x, vy2 = c.y - b.y;
+        const cross = Math.abs(ux * vy2 - uy * vx2), dot = ux * vx2 + uy * vy2;
+        if(cross < 0.5 && dot < -0.25) return true;
+      }
+      return false;
+    };
+    /* The boxes' tops come out near y 203 and their stubs near 188, so
+       199 is between a stub and its border — and more than a grid step
+       off the stub, which would otherwise square it away. */
+    const cases = {
+      beside: [[30, 199]],
+      lowAndLeft: [[-40, 150], [150, 199]],
+      levelWithIt: [[-40, 150], [150, 210]],
+      pastIt: [[-40, 150], [320, 199]]
+    };
+    out.hooks = {};
+    for(const [name, bends] of Object.entries(cases)){
+      applyEdit(()=>{
+        workingNodes.length = 0; refill(EDGE_STYLES, []);
+        workingNodes.push(['hkA', 'dasdи', null, null, null, null, {pos:[0, 200], border:'wavy'}]);
+        workingNodes.push(['hkB', 'asdasd[1]', 'hkA', null, null, null, {pos:[200, 200], border:'wavy'}]);
+        EDGE_STYLES.push({from:'hkA', to:'hkB', routing:'orthogonal',
+                          fromSide:'top', toSide:'top', bends});
+      });
+      await wait(120);
+      const rec = drawnRoutes.get(calloutEdgeKey('hkA', 'hkB'));
+      const pts = rec ? rec.pts : [];
+      const b = nodes.get('hkB');
+      const last = pts[pts.length - 2];
+      out.hooks[name] = {doubles: doubles(pts),
+                         // the last run comes DOWN into the top port
+                         intoTop: !!last && Math.abs(last.x - pts[pts.length-1].x) < 0.5 && last.y < b.y};
+    }
+    out.noHooks = Object.values(out.hooks).every(h=> !h.doubles && h.intoTop);
+
+    /* ---- a pixel round the words, on everything that holds words ---- */
+    const gaps = (box, ink)=> ({
+      left: +(ink.x - box.x).toFixed(2), right: +(box.x + box.w - ink.x - ink.width).toFixed(2),
+      top: +(ink.y - box.y).toFixed(2), bottom: +(box.y + box.h - ink.y - ink.height).toFixed(2)});
+    const even = (g, want)=> ['left','right','top','bottom'].every(k=> Math.abs(g[k] - want) < 0.05);
+    const rules = (t)=> [...t.parentNode.querySelectorAll(':scope > .text-underline')];
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      // A rule under letters with no descenders is the lowest ink there is.
+      workingNodes.push(['pxU', '{{u:double|ace}} mum', null, null, null, null, {pos:[0, 0]}]);
+      workingNodes.push(['pxD', 'double [[rim|reading]]', null, null, null, null, {pos:[0, 80], border:'double'}]);
+      workingNodes.push(['pxA', 'from', null, null, null, null, {pos:[300, 0]}]);
+      workingNodes.push(['pxB', 'to', 'pxA', null, null, null, {pos:[700, 0]}]);
+      workingNodes.push(['pxC', 'a remark {{u:wavy|on}} it', null, null, null, 'callout',
+                         {pos:[450, 120], leader:{from:'pxA', to:'pxB', at:0.5}}]);
+      workingNodes.push(['pxP', 'A face', null, null, null, 'ellipse', {pos:[0, 300], bioCard:true}]);
+      EDGE_STYLES.push({from:'pxA', to:'pxB', note:'a note {{u:solid|gy}} [[x|rb]]'});
+    });
+    await wait(200);
+    const entry = (id)=>{
+      const n = nodes.get(id), t = document.querySelector(`.node[data-id="${id}"] text`);
+      return {g: gaps(n, inkBoxOf(t, rules(t))), want: textInsetFor(n)};
+    };
+    out.entries = {underlined: entry('pxU'), double: entry('pxD'), callout: entry('pxC')};
+    out.entriesEven = Object.values(out.entries).every(e=> even(e.g, e.want));
+    out.ruleCounted = (()=>{
+      const t = document.querySelector('.node[data-id="pxU"] text');
+      return inkBoxOf(t, rules(t)).height > inkBoxOf(t, []).height;
+    })();
+    {
+      const g = document.querySelector('.edge-note[data-from="pxA"][data-to="pxB"]');
+      const t = g.querySelector('text'), plate = g.querySelector('.edge-note-plate');
+      const box = {x: +plate.getAttribute('x'), y: +plate.getAttribute('y'),
+                   w: +plate.getAttribute('width'), h: +plate.getAttribute('height')};
+      out.note = gaps(box, inkBoxOf(t, rules(t)));
+      out.noteEven = even(out.note, TEXT_GAP + EDGE_NOTE_FRAME_W / 2);
+    }
+    {
+      openBioCard('pxP', true);
+      await wait(200);
+      const g = document.querySelector('.bio-card-g[data-id="pxP"]');
+      const [x, y, w, h] = g.dataset.box.split(' ').map(Number);
+      out.bio = gaps({x, y, w, h}, inkBoxOf(g.querySelector('text'), []));
+      out.bioEven = even(out.bio, BIO_CARD_INSET);
+    }
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart(); buildManagement();
+    await wait(400);
+    return out;
+  });
+  check('a hand bend beside the box a connector enters makes no hook at its port',
+        rP.noHooks, JSON.stringify(rP.hooks));
+  check('an entry’s border stands a pixel off its ink — rules, readings and a double rail included',
+        rP.entriesEven && rP.ruleCounted, JSON.stringify(rP.entries));
+  check('so does a connector note’s plate, from its frame', rP.noteEven, JSON.stringify(rP.note));
+  check('and a portrait’s card', rP.bioEven, JSON.stringify(rP.bio));
   });
 
   /* ---- 29. nothing threw along the way ---- */
