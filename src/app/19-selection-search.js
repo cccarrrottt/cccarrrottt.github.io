@@ -226,7 +226,7 @@ function selectNode(id, opts){
      so it is selected, highlighted and carryable, with no drawer. */
   if(opts && opts.quiet){
     document.getElementById('detail').classList.remove('open');
-    updateZoomCtlPosition();
+    updateAddFabPosition();
     return;
   }
 
@@ -286,7 +286,7 @@ function selectNode(id, opts){
   const many = multiSelection.size > 1;
   document.getElementById('detail').classList.toggle('open', !many);
   if(many) closeEditForm();
-  updateZoomCtlPosition();
+  updateAddFabPosition();
 }
 
 svg.addEventListener('click', ()=>{
@@ -319,13 +319,13 @@ function deselect(){
      committed — pointing at something the reader had just let go of. */
   closeFreeMenu();
   positionSwapButton();
-  updateZoomCtlPosition();
+  updateAddFabPosition();
 }
 document.getElementById('detailClose').onclick = (e)=>{ e.stopPropagation(); deselect(); };
 
-function updateZoomCtlPosition(){
+function updateAddFabPosition(){
   const open = document.getElementById('detail').classList.contains('open');
-  document.getElementById('zoomctl').classList.toggle('shifted', open);
+  document.getElementById('addFab').classList.toggle('shifted', open);
 }
 
 /* ---------------------------------------------------------------------
@@ -338,7 +338,7 @@ function updateZoomCtlPosition(){
    time because they are created all over this file. The tabs at the left
    edge are not among them: they cover none of these, and each keeps its
    own state until it is pressed again. */
-const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'addNodeOverlay', 'aboutOverlay'];
+const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'aboutOverlay'];
 function closeToolbarMenus(keep){
   TOOLBAR_SURFACES.forEach(id=>{
     if(id === keep) return;
@@ -469,11 +469,18 @@ document.addEventListener('keydown', e=>{
     // is topmost/open gets closed first, most-specific first, so Escape
     // never skips past an open popover straight to deselecting the chart.
     if(nodeEditorTarget){ closeNodeEditor(true); return; }
-    if(addNodeOverlay.classList.contains('open')){ addNodeOverlay.classList.remove('open'); return; }
+    if(closeAddFab()) return;
     if(commentsOverlay.classList.contains('open')){ commentsOverlay.classList.remove('open'); return; }
     if(bioCardNodeId){ closeBioCard(); return; }
     if(noteOverlay && noteOverlay.classList.contains('open')){ noteOverlay.classList.remove('open'); return; }
-    if(aboutOverlay.classList.contains('open')){ aboutOverlay.classList.remove('open'); return; }
+    /* About, the sticker library and the File menu: the three the top bar
+       opens. Only About was listed, so Escape walked straight past an
+       open sticker library or File menu to deselecting the chart, and
+       they stayed up — which went unseen while opening the Add form
+       happened to shut them. */
+    if(TOOLBAR_SURFACES.some(id=> document.getElementById(id).classList.contains('open'))){
+      closeToolbarMenus(); return;
+    }
     if(edgePopover.classList.contains('open')){ closeEdgePopover(); return; }
     // A picture's or a caption's own menu is a panel like any other, and
     // was the one Escape never reached — so it stayed open, still holding
@@ -600,13 +607,12 @@ function rebuildChart(){
   else drawBioCard();
 }
 
-/* The zoom controls are positioned against whatever part of the canvas the
-   panels have left showing, so a window that changes size has to have them
+/* The add button is positioned against whatever part of the canvas the
+   panels have left showing, so a window that changes size has to have it
    placed again. This listener was here with an empty body — registered, so
-   it read as handled, and doing nothing: resize a window with the
-   tags open and the controls sat where the old edge used to
-   be, under the panel. */
-window.addEventListener('resize', ()=> updateZoomCtlPosition());
+   it read as handled, and doing nothing: resize a window with the drawer
+   open and the control sat where the old edge used to be, under it. */
+window.addEventListener('resize', ()=> updateAddFabPosition());
 fitToView();
 applyVisibility();
 

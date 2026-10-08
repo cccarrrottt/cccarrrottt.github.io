@@ -27,7 +27,7 @@ const STYLE_BAR_BORDERS = [
   ['dotted', '┈┈', 'Dotted border'], ['dashdot', '─·', 'Dash-dotted border'],
   ['double', '═', 'Double border'], ['wavy', '∿', 'Wavy border — the old pocket-reality edge']
 ];
-const STYLE_BAR_CORNERS = [['round', '╭', 'Rounded corners'], ['square', '┌', 'Square corners']];
+const STYLE_BAR_CORNERS = [['square', '┌', 'Square corners'], ['round', '╭', 'Rounded corners']];
 const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
@@ -185,7 +185,8 @@ function applyStyleBar(group, value){
       if(group === 'border'){
         if(value === 'solid') delete opts.border; else opts.border = value;
       } else if(group === 'corners'){
-        if(value === 'square') opts.square = true; else delete opts.square;
+        // Square is the default, so it is the absence of the flag.
+        if(value === 'square') delete opts.square; else opts.square = false;
       }
       putEntry(found.index, found.entry, opts);
     });

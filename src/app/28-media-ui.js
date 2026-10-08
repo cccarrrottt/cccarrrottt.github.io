@@ -476,8 +476,7 @@ function tagsBarredFor(shape){
   return shape === 'ellipse' ? [HUB_TAG, LOCAL_TAG] : [];
 }
 function shapeOfTagForm(input){
-  const sel = document.getElementById(
-    input && input.id === 'editTagsInput' ? 'editShapeInput' : 'addNodeShape');
+  const sel = document.getElementById('editShapeInput');
   return sel ? sel.value : '';
 }
 function keepAllowedTags(list, shape){
@@ -560,9 +559,6 @@ function wireTagField(prefix, inputId){
   return ()=> paintTagChips(chipsEl, input);
 }
 const repaintEditTags = wireTagField('editTags', 'editTagsInput');
-// Same again: wiring the field is the point; the repaint it hands back is
-// only wanted for the entry drawer's copy, which does keep it.
-wireTagField('addNodeTags', 'addNodeTags');
 
 // The portrait field only means anything for a character bio, so it
 // appears and disappears with that archetype.
@@ -570,33 +566,12 @@ const editBioCardField = document.getElementById('editBioCardField');
 const editBioCardCheck = document.getElementById('editBioCardCheck');
 const editImageField = document.getElementById('editImageField');
 const editImageInput = document.getElementById('editImageInput');
-const addNodeImageField = document.getElementById('addNodeImageField');
-const addNodeImageInput = document.getElementById('addNodeImage');
 /* A picture has no words, so the field that would write them is shut.
  *
  * The drawer offers one form for every archetype, and on an Image element
  * the Label row and its B / I / Ruby / colour toolbar were live but
  * pointless: whatever was typed there was thrown away on save, and the
  * toolbar acted on a field nothing would read. */
-/* The same for the ADD form. A new Image element has no words either, and
-   the row that would write them was live in both forms. */
-function syncAddLabelFieldForShape(select){
-  const rec = richFields.get('addNodeLabel');
-  const off = !!select && select.value === 'image';
-  if(rec){
-    rec.surface.contentEditable = off ? 'false' : 'true';
-    rec.surface.classList.toggle('locked', off);
-  }
-  const field = document.getElementById('addNodeLabel');
-  const wrap = field ? field.closest('.editor-field') : null;
-  if(wrap){
-    wrap.classList.toggle('field-off', off);
-    wrap.querySelectorAll('button, input, select').forEach(c=>{
-      if(c.id === 'addNodeFont' || c.id === 'addNodeFontSize') return;
-      c.disabled = off;
-    });
-  }
-}
 function syncLabelFieldForShape(select){
   const rec = richFields.get('nodeEditorText');
   /* Asked of the ENTRY when no field is named, because the form is only
@@ -638,12 +613,10 @@ function syncImageFieldVisibility(select, field){
   const opts = document.getElementById('editCardImageOpts');
   if(opts) opts.style.display = isCardHere ? '' : 'none';
 }
-// Reached through the DOM rather than the module-level consts for these
-// two selects: the Add Node form's own bindings are declared further down
-// the file than this block runs.
+// Reached through the DOM rather than the module-level const, which is
+// declared further down the file than this block runs.
 {
   const editShape = document.getElementById('editShapeInput');
-  const addShape = document.getElementById('addNodeShape');
   editShape.addEventListener('change', ()=>{
     syncCardFieldVisibility();
     syncBioCardField(editShape);
@@ -652,11 +625,5 @@ function syncImageFieldVisibility(select, field){
     syncTextColorVisibility();
     syncColorFieldVisibility();
   });
-  addShape.addEventListener('change', ()=>{
-    syncImageFieldVisibility(addShape, addNodeImageField);
-    syncAddLabelFieldForShape(addShape);
-    setTextColorControls('addNodeLabel', addShape.value !== 'amalgam');
-  });
-  syncAddLabelFieldForShape(addShape);
 }
 

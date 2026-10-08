@@ -1,62 +1,20 @@
 /* ---------------------------------------------------------------------
-   Add node — a small form that appends a new node to the live NODES
-   data (optionally connected from an existing node) and publishes the
-   result.
-   ------------------------------------------------------------------ */
-const addNodeOverlay = document.getElementById('addNodeOverlay');
-const addNodeLabel = document.getElementById('addNodeLabel');
-const addNodeTags = document.getElementById('addNodeTags');
-const addNodeShapeSel = document.getElementById('addNodeShape');
-const addNodeFontSel = document.getElementById('addNodeFont');
-const addNodeFontSizeInput = document.getElementById('addNodeFontSize');
-const addNodeColors = document.getElementById('addNodeColors');
-const addNodeBg = document.getElementById('addNodeBg');
-const addNodeBorderStyle = makeChoiceGroup('addNodeBorderStyle', ()=> syncAddCorners());
-/* Rounded or square corners, as in the entry's own panel and greyed for
-   the same reasons — see syncStyleBar. A new entry that should be
-   square used to have to be made round first and then changed. */
-const addNodeCorners = makeChoiceGroup('addNodeCorners');
-function syncAddCorners(){
-  const shape = addNodeShapeSel.value || 'rect';
-  const noBox = SQUARE_CORNER_SHAPES.includes(shape);
-  const wavy = addNodeBorderStyle.value === 'wavy' && !WAVY_BORDER_SHAPES.includes(shape);
-  greyChoice(addNodeCorners, noBox || wavy,
-             noBox ? 'This element has no box corners to square'
-                   : 'A wavy border keeps its rounded corners');
-}
-addNodeShapeSel.addEventListener('change', ()=> syncAddCorners());
-/* The background's ⟲ empties it, as the entry panel's does — see the
-   matching block in 25-figures.js. It was drawn here and never wired, so
-   it was a button that did nothing at all. */
-const addNodeBgReset = document.getElementById('addNodeBgReset');
-function syncAddBgReset(){
-  addNodeBgReset.disabled = !addNodeBg.value.trim();
-}
-addNodeBgReset.addEventListener('click', ev=>{
-  ev.stopPropagation();
-  addNodeBg.value = '';
-  syncAddBgReset();
-  syncAddBgReset();
-});
-addNodeBg.addEventListener('input', syncAddBgReset);
-/* ---------------------------------------------------------------------
-   Choosing an archetype by its picture.
+   Making an entry — the round + in the corner of the chart.
  *
- * Five archetypes is a short enough set to show whole, and every one of
- * them is a SHAPE — which is the one thing a drop-down of words cannot
- * say. "Amalgam reality (gradient border & text)" is a sentence about a
- * thing you would recognise instantly if you were shown it. So the add
- * form shows them: a plain box, a portrait circle, a box with two lineages
- * merging into its top edge, a box with a T in it, a box with a picture in
- * it. Each button draws the archetype itself, at a size where its
- * silhouette is what you read.
+ * It used to be a form: a toolbar button opened a popover with a label,
+ * a style, a background, a border, corners, a portrait, tags and border
+ * colours, and an Add at the bottom. Every one of those is set on the
+ * entry itself once it exists, on the style bar and in its settings, so
+ * the form asked for each thing twice and the chart waited behind it.
  *
- * The <select> stays, hidden, because it is the value the rest of the form
- * — the image field, the label lock, the commit — already reads, and there
- * is no reason for any of that to learn a second way of being asked.
+ * Now pointing at the + stands the styles up above it, and picking one
+ * puts that entry on the chart at once, on the clear ground nearest the
+ * middle of the view, selected, and — if it holds words — with the caret
+ * already in it. On a touch screen, where nothing is pointed at, a tap
+ * on the + does what pointing would.
    ------------------------------------------------------------------ */
 const NODE_STYLE_PICKS = [
-  {value:'rect',    label:'Default',       hint:'An ordinary entry: a rounded box with its name in it.'},
+  {value:'rect',    label:'Default',       hint:'An ordinary entry: a box with its name in it.'},
   {value:'ellipse', label:'Character bio', hint:'A portrait circle, with its words on a card beside it.'},
   {value:'amalgam', label:'Amalgam',       hint:'A reality made of others: its lineages merge into one bar and one arrow.'},
   {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
@@ -73,7 +31,7 @@ function nodeStyleIcon(kind){
     svg.appendChild(e);
     return e;
   };
-  const box = (y, h)=> add('rect', {x:6, y, width:28, height:h, rx:3, class:'nsi-box'});
+  const box = (y, h)=> add('rect', {x:6, y, width:28, height:h, class:'nsi-box'});
   if(kind === 'rect'){
     box(8, 14);
   } else if(kind === 'ellipse'){
@@ -96,71 +54,71 @@ function nodeStyleIcon(kind){
   }
   return svg;
 }
-let paintAddShapePick = null;
-{
-  const host = document.getElementById('addNodeShapePick');
-  if(host && addNodeShapeSel){
-    NODE_STYLE_PICKS.forEach(p=>{
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'node-style-btn';
-      b.dataset.value = p.value;
-      b.title = p.label + ' — ' + p.hint;
-      b.appendChild(nodeStyleIcon(p.value));
-      const cap = document.createElement('span');
-      cap.className = 'node-style-cap';
-      cap.textContent = p.label;
-      b.appendChild(cap);
-      b.addEventListener('click', ev=>{
-        ev.stopPropagation();
-        addNodeShapeSel.value = p.value;
-        addNodeShapeSel.dispatchEvent(new Event('change', {bubbles:true}));
-        paintAddShapePick();
-      });
-      host.appendChild(b);
-    });
-    paintAddShapePick = ()=>{
-      const v = addNodeShapeSel.value || 'rect';
-      host.querySelectorAll('.node-style-btn').forEach(b=>
-        b.classList.toggle('on', b.dataset.value === v));
-    };
-    paintAddShapePick();
-  }
+const addFab = document.getElementById('addFab');
+const addFabBtn = document.getElementById('addFabBtn');
+const addFabStyles = document.getElementById('addFabStyles');
+NODE_STYLE_PICKS.forEach(p=>{
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'node-style-btn';
+  b.dataset.value = p.value;
+  b.setAttribute('role', 'menuitem');
+  b.title = p.label + ' — ' + p.hint;
+  b.appendChild(nodeStyleIcon(p.value));
+  const cap = document.createElement('span');
+  cap.className = 'node-style-cap';
+  cap.textContent = p.label;
+  b.appendChild(cap);
+  b.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    closeAddFab();
+    addEntryOfStyle(p.value);
+  });
+  addFabStyles.appendChild(b);
+});
+function openAddFab(){
+  if(readOnlyView) return;
+  addFab.classList.add('open');
+  addFabBtn.setAttribute('aria-expanded', 'true');
 }
-const addNodeStatusEl = document.getElementById('addNodeStatus');
-function setAddNodeStatus(kind, msg){ addNodeStatusEl.className = 'editor-status show ' + kind; addNodeStatusEl.textContent = msg; }
-function clearAddNodeStatus(){ addNodeStatusEl.className = 'editor-status'; addNodeStatusEl.textContent = ''; }
-
-/* The new-entry form is a popover, not a modal: it sits over one corner of
-   the chart with no backdrop, so the map stays visible and navigable while
-   it is open. It also carries only what you need to make an entry —
-   connections, notes, links and language tabs are all things you set on an
-   entry that already exists, and having them here made the form long
-   enough to hide the chart it was adding to. */
-document.getElementById('addNodeToggle').onclick = ()=>{
-  closeToolbarMenus('addNodeOverlay');
-  setRichValue(addNodeLabel, '');
-  addNodeColors.value=''; addNodeTags.value='';
-  if(paintAddSwatches) paintAddSwatches();
-  addNodeBg.value = '';
-  addNodeBorderStyle.value = 'solid';
-  addNodeShapeSel.value = 'rect';
-  addNodeCorners.value = 'round';
-  syncAddCorners();
-  if(typeof paintAddShapePick === 'function') paintAddShapePick();
-  addNodeImageInput.value = '';
-  syncImageFieldVisibility(addNodeShapeSel, addNodeImageField);
-  populateFontOptions(addNodeFontSel);
-  addNodeFontSel.value = FONT_OPTIONS[0].key;
-  addNodeFontSizeInput.value = '';
-  clearAddNodeStatus();
-  addNodeOverlay.classList.add('open');
-  const surface = richFields.get('addNodeLabel');
-  if(surface) surface.surface.focus({preventScroll:true});
-};
-document.getElementById('addNodeCancel').onclick = ()=> addNodeOverlay.classList.remove('open');
-document.getElementById('addNodeClose').onclick = ()=> addNodeOverlay.classList.remove('open');
-addNodeOverlay.addEventListener('click', e=> e.stopPropagation());
+/* Whether it was open, so Escape knows it had something to put away. */
+function closeAddFab(){
+  const was = addFab.classList.contains('open');
+  addFab.classList.remove('open');
+  addFabBtn.setAttribute('aria-expanded', 'false');
+  return was;
+}
+/* Pointing opens it and leaving the button AND the styles above it shuts
+   it, so the pointer can travel up from one to the other. A click toggles,
+   which is the whole of it on a touch screen and harmless with a mouse. */
+addFab.addEventListener('mouseenter', ()=>{ if(!document.body.classList.contains('touch-input')) openAddFab(); });
+addFab.addEventListener('mouseleave', ()=> closeAddFab());
+addFabBtn.addEventListener('click', ev=>{
+  ev.stopPropagation();
+  if(addFab.classList.contains('open') && document.body.classList.contains('touch-input')) closeAddFab();
+  else openAddFab();
+});
+addFab.addEventListener('mousedown', ev=> ev.stopPropagation());
+document.addEventListener('mousedown', ev=>{
+  if(!addFab.contains(ev.target)) closeAddFab();
+});
+/* One new entry of the given style, empty, on the clear ground nearest the
+   middle of what is on show. An entry with nothing in it is a perfectly
+   good entry — a placeholder, a spacer, a box that will hold a picture —
+   and it is one grid step square until something is written in it. */
+function addEntryOfStyle(style){
+  if(readOnlyView) return null;
+  const shapeVal = style === 'rect' ? undefined : style;
+  const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
+  const spot = emptySpotNearCentre(shapeVal);
+  applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, shapeVal,
+                                    {pos: [spot.x, spot.y]}]));
+  selectNode(id);
+  /* Words go in where they will stand. A portrait and a picture have a
+     picture to choose before anything else, which their settings ask for. */
+  if(style !== 'ellipse' && style !== 'image') openNodeEditor(id);
+  return id;
+}
 
 function slugify(label){
   let base = stripMarkup(label).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
@@ -195,6 +153,8 @@ function clipOfNode(n){
      behind the chart came back in front of it. A copy is supposed to be
      the same thing again. */
   if(n.card) opts.card = true;
+  // Rounded is the one that is recorded; square is the default.
+  if(n.square === false) opts.square = false;
   /* A copied callout keeps pointing at the same place: it is a comment
      ABOUT that connector, and a copy of it is a second remark on the same
      thing rather than a card pointing at nothing. */
@@ -312,75 +272,6 @@ function pasteClipboardNode(){
   if(made.length > 1) setSelection(made, made[0]);
   else if(made.length) selectNode(made[0]);
 }
-function parseColorsField(raw){
-  const colors = raw.trim() ? raw.trim().split(',').map(s=>s.trim()).filter(Boolean) : [];
-  for(const c of colors){
-    if(!HEX_RE.test(c)){
-      throw new Error(`"${c}" isn't a valid hex color (e.g. #c23b22).`);
-    }
-  }
-  return colors;
-}
-
-document.getElementById('addNodeSubmit').onclick = ()=>{
-  clearAddNodeStatus();
-  const label = addNodeLabel.value.trim();
-  /* An entry with nothing written in it is a perfectly good entry.
-   *
-     It used to be refused, on the reasoning that a box with no words says
-     nothing — but plenty of things on a chart say something without words:
-     a placeholder for a title nobody has settled on, a box whose whole
-     content is a picture or a sticker, a spacer in a row, a shape carrying
-     only its archetype and its colour. Refusing them meant typing a
-     character and deleting it afterwards, which is not a rule, it is an
-     obstacle. The only thing a label was still needed for is the entry's
-     id, and that has a fallback. */
-  // A new entry lands in the middle of what you are looking at, rather
-  // than at the chart's origin, which may be nowhere near the screen.
-  const parentId = null;
-  const shapeVal = addNodeShapeSel.value==='rect' ? undefined : addNodeShapeSel.value;
-  const image = (shapeVal==='ellipse' || shapeVal==='image') ? addNodeImageInput.value.trim() : '';
-  const tags = keepAllowedTags(parseTagsField(addNodeTags.value), shapeVal);
-  const font = addNodeFontSel.value===FONT_OPTIONS[0].key ? undefined : addNodeFontSel.value;
-  const fontSizeRaw = addNodeFontSizeInput.value.trim();
-  let fontSize;
-  if(fontSizeRaw){
-    fontSize = Number(fontSizeRaw);
-    if(!Number.isFinite(fontSize) || fontSize<6 || fontSize>28){
-      setAddNodeStatus('err', 'Font size must be a number between 6 and 28.');
-      return;
-    }
-  }
-  let colors, bg;
-  try{ colors = parseColorsField(addNodeColors.value); }
-  catch(e){ setAddNodeStatus('err', e.message); return; }
-  try{ bg = parseColorsField(addNodeBg.value); }
-  catch(e){ setAddNodeStatus('err', e.message); return; }
-  const border = addNodeBorderStyle.value;
-  const existingIds = new Set(workingNodes.map(it=>it[0]));
-  /* Named after its words when it has some, and after its kind when it has
-     none — an id is a handle for the chart's own bookkeeping, never
-     something the reader reads. */
-  const newNodeId = uniqueId(slugify(label), existingIds);
-  const spot = viewCentreSpot(shapeVal);
-  applyEdit(()=>{
-    const opts = { pos: [spot.x, spot.y] };
-    if(colors.length) opts.colors = capColors(colors, shapeVal);
-    if(bg.length) opts.bg = bg;
-    if(border && border !== 'solid') opts.border = border;
-    if(addNodeCorners.value === 'square' && !addNodeCorners.root.classList.contains('disabled'))
-      opts.square = true;
-    if(tags.length) opts.tags = tags;
-    if(font) opts.font = font;
-    if(fontSize) opts.fontSize = fontSize;
-    if(image) opts.image = image;
-    workingNodes.push([newNodeId, label || '', parentId||undefined, undefined,
-                       undefined, shapeVal, opts]);
-  });
-  addNodeOverlay.classList.remove('open');
-  selectNode(newNodeId);
-};
-
 /* Where a brand-new entry should land: the middle of whatever the reader is
    currently looking at. The chart's origin is often far off screen after any
    amount of panning, so dropping a new box there means it appears to have
@@ -415,6 +306,48 @@ function visibleCanvasRect(){
   if(right - left < 120){ left = rect.left; right = rect.right; }
   return {left, right, top: rect.top, bottom: rect.bottom,
           width: right - left, height: rect.height};
+}
+/* Where a new, empty entry of this style goes: of the grid points round
+   the middle of what is on show, the nearest one where its box touches
+   nothing already drawn. Nearest by straight distance, so it is the free
+   ground closest to the middle in every direction rather than the first
+   gap down one diagonal.
+ *
+   Answered for the box as it will be DRAWN and handed back as the
+   position that draws it there: a box that closes on its words stores
+   the middle of a one-line entry, and an empty one is shorter than that,
+   so the two differ by half the difference. */
+function emptySpotNearCentre(shapeVal){
+  const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : GRID;
+  const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : GRID;
+  const dy = (shapeVal==='ellipse' || shapeVal==='image') ? 0 : round2((h - NODE_GROW_REF) / 2);
+  const rect = visibleCanvasRect();
+  const c = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
+  const ox = snapToGrid(c.x - w/2), oy = snapToGrid(c.y - h/2);
+  const pad = GRID / 2;
+  const taken = [...nodes.values()]
+    .map(n=>({x:n.x - pad, y:n.y - pad, r:n.x + n.w + pad, b:n.y + n.h + pad}));
+  const free = (x, y)=> !taken.some(t=> x < t.r && x + w > t.x && y < t.b && y + h > t.y);
+  /* Ring by ring outwards, and on past the first ring with room only as
+     far as a point could still be nearer — a square ring's corners lie
+     further out than the middle of the next ring's sides. Ties go to the
+     point higher up, then further left: a fixed order, so the same chart
+     always answers the same. */
+  let best = null;
+  for(let ring = 0; ring <= 80; ring++){
+    if(best && ring * ring > best.d) break;
+    for(let j = -ring; j <= ring; j++){
+      for(let i = -ring; i <= ring; i++){
+        if(Math.max(Math.abs(i), Math.abs(j)) !== ring) continue;
+        const d = i*i + j*j;
+        if(best && (d > best.d || (d === best.d && (j > best.j || (j === best.j && i > best.i))))) continue;
+        const x = snapToGrid(ox + i*GRID), y = snapToGrid(oy + j*GRID);
+        if(free(x, y)) best = {x, y, d, i, j};
+      }
+    }
+  }
+  if(best) return {x: best.x, y: round2(best.y + dy)};
+  return {x: ox, y: round2(oy + dy)};
 }
 // Is this chart position inside the part of the canvas on show?
 function viewCentreSpot(shapeVal){

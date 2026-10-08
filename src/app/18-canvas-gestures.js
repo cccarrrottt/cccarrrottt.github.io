@@ -349,9 +349,6 @@ function themeIsDark(){ return document.documentElement.getAttribute('data-theme
   if(btn) btn.onclick = ()=> setTheme(!themeIsDark());
 }
 
-document.getElementById('zoomIn').onclick = ()=>{ vs=Math.min(3,vs*1.25); applyTransform(); };
-document.getElementById('zoomOut').onclick = ()=>{ vs=Math.max(0.08,vs*0.8); applyTransform(); };
-document.getElementById('zoomReset').onclick = ()=> fitToView();
 
 /* ---------------------------------------------------------------------
    Dragging nodes.
@@ -1123,18 +1120,14 @@ window.addEventListener('mousemove', e=>{
   if(!st.moved && Math.hypot(dx*vs, dy*vs) < DRAG_THRESHOLD) return;
   st.moved = true;
   const c = st.corner;
-  /* The floor is the one an auto-sized box settles to, not the one a NEW
-     box is created at.
+  /* The floor is the smallest box an entry ever settles to by itself:
+     one grid step, which is what an entry with nothing written in it is.
    *
-     An entry with nothing written in it closes onto its own (absent) ink
-     and comes out 52 by 24. Clamped to the creation size instead, the very
-     first pixel of a corner drag jumped it to 84 by 40 — pulling the
-     corner INWARD made the box suddenly bigger, which is the opposite of
-     what the hand just did. The two floors are different on purpose (see
-     NODE_FIT_MINW): one is how big a box arrives, the other is how small a
-     box may be, and it is the second that a resize is bounded by. */
-  let w = Math.max(NODE_FIT_MINW, snapToGrid(st.originW + dx*c.sx));
-  let h = Math.max(NODE_FIT_MINH, snapToGrid(st.originH + dy*c.sy));
+     Any larger floor makes the first pixel of a corner drag on such an
+     entry jump it up to that floor — pulling the corner INWARD made the
+     box suddenly bigger, which is the opposite of what the hand just did. */
+  let w = Math.max(GRID, snapToGrid(st.originW + dx*c.sx));
+  let h = Math.max(GRID, snapToGrid(st.originH + dy*c.sy));
   /* A portrait is a circle, and a circle has one measurement.
    *
      Left to the ordinary two, dragging a corner sideways widened a box

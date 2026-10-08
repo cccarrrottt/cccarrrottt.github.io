@@ -246,7 +246,7 @@ document.getElementById('styleClose').onclick = ()=> closeEdgePopover();
    on the connector, not a decision to stop. Only the canvas itself — the
    entries, another connector, empty ground — puts it away. */
 const MENU_SURFACES = ['#stickerPicker', '#refPicker', '.ask-overlay', '.crop-overlay',
-  '.detail', '.side-tabs', '.file-popover', '.add-popover', '.about-overlay',
+  '.detail', '.side-tabs', '.file-popover', '.about-overlay',
   '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar'].join(',');
 function inPopoverSatellite(target){
   return !!(target && target.closest && target.closest(MENU_SURFACES));

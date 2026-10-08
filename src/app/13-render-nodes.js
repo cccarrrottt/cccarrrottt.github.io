@@ -251,24 +251,21 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      actually produced is usually narrower than that, and the difference
      was left as padding nobody chose. Shrinking to the ink cannot change
      the wrap, since every line already fits inside the widest of them. */
-  /* A remark with nothing in it yet — pinned to a line or standing on its
-     own — is one grid step square: the smallest box the chart holds words
-     in (see GRID), rather than an entry's empty width. It is a place a
-     remark is about to go, and it sits on the grid exactly. */
-  const emptyCallout = isCalloutShape && !manual && !(maxInkW > 0);
+  /* A box with nothing written in it — an entry, a remark pinned to a line
+     or standing on its own, a caption — is one grid step square: the
+     smallest box the chart holds words in (see GRID). It makes no ink, so
+     there is nothing to close on; a one-line entry starts out at the widest
+     a box may become, which is how an empty box once came out three
+     hundred pixels across, and the floor that cured that made an empty
+     entry eight times the size of an empty remark. Every empty box is the
+     same size now, and sits on the grid exactly. */
+  const emptyBox = closesOnInk && !manual && !(maxInkW > 0);
   if(!manual && closesOnInk){
-    /* An entry with nothing written in it makes no ink at all, so there is
-       nothing to close on — and a one-line entry starts out at the widest
-       a box may become, which is how an empty box came out three hundred
-       pixels across. With no ink it takes the ordinary minimum instead,
-       which is the size an empty box should be. */
     /* With ink it is exactly the ink and the inset, not rounded up to a
        whole pixel and not held up by a floor: rounding put up to a pixel
        of slack on one side, and the floor turned a short word's pixel of
        margin back into twenty. */
-    const want = maxInkW > 0 ? round2(maxInkW + inkPad*2) : NODE_MINW;
-    n.w = w = emptyCallout ? GRID
-            : Math.min(w, maxInkW > 0 ? want : Math.max(NODE_FIT_MINW, want));
+    n.w = w = emptyBox ? GRID : Math.min(w, round2(maxInkW + inkPad*2));
     if(!n.pos && typeof n.slotX === 'number') n.x = n.slotX + (n.slotW - w)/2;
   }
   /* A card closes on its ink too, but by GROWING to it rather than only
@@ -330,11 +327,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
 
   const h = isBio ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
-          : isTextbox && !manual && !(maxInkW > 0) ? Math.max(16, Math.ceil(maxTotalH) + NODE_PAD_Y*2)
+          : emptyBox ? GRID
           : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
           : manual ? manual.h
-          : emptyCallout ? GRID
-          : maxInkW > 0 ? round2(maxTotalH + inkPad*2)
+          : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
   n.h = h;
   /* A hand-placed entry grows about its MIDDLE, not downward from its top.
@@ -557,16 +553,20 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const bgFillStyle = bgPaint ? `fill:${bgPaint};` : '';
   /* One ring of the border, drawn in whatever style the entry wears.
      `make(inset)` gives the geometry for an outline that far inside the
-     ring's own line, which is what a DOUBLE border needs a second of. */
+     ring's own line. A DOUBLE border is that line split: two thin ones,
+     a third of its weight each, one a little outside it and one a little
+     inside, filling exactly the band the plain stroke covers. */
   const borderRing = (tag, make, colour, fillStyle)=>{
-    const a = Object.assign({}, make(0), {stroke: colour});
-    if(fillStyle) a.style = fillStyle;
+    const split = borderKey === 'double';
+    const a = Object.assign({}, make(split ? -DOUBLE_LINE_OFF : 0), {stroke: colour});
+    const weight = split ? `stroke-width:${DOUBLE_LINE_W.toFixed(3)};` : '';
+    if(fillStyle || weight) a.style = (fillStyle || '') + weight;
     if(borderDash) a['stroke-dasharray'] = borderDash;
     const first = el(tag, a, g);
-    if(borderKey === 'double'){
-      const b = Object.assign({}, make(BORDER_DOUBLE_GAP),
+    if(split){
+      const b = Object.assign({}, make(DOUBLE_LINE_OFF),
                               {stroke: colour, class: 'border-inner'});
-      b.style = 'fill:none;';
+      b.style = 'fill:none;' + weight;
       el(tag, b, g);
     }
     return first;
@@ -646,16 +646,19 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         const off = i * LOCAL_SHEET_STEP;
         const shp = sheetShape(n.x + own + off, n.y - own - off);
         if(sheetDouble){
+          /* A sheet's stroke is thicker than the entry's, so its second
+             line stands a sheet's own stroke in from the first rather than
+             within the entry's band. */
+          const gap = 2.4;
           const inner = isWavy
-            ? {tag:'path', attrs:{d: wavyRectPath(n.x + own + off + BORDER_DOUBLE_GAP,
-                                                  n.y - own - off + BORDER_DOUBLE_GAP,
-                                                  n.w - BORDER_DOUBLE_GAP*2,
-                                                  h - BORDER_DOUBLE_GAP*2, 0)}}
-            : {tag:'rect', attrs:{x: n.x + own + off + BORDER_DOUBLE_GAP,
-                                  y: n.y - own - off + BORDER_DOUBLE_GAP,
-                                  width: Math.max(0, n.w - BORDER_DOUBLE_GAP*2),
-                                  height: Math.max(0, h - BORDER_DOUBLE_GAP*2),
-                                  rx: rad(sheetR - BORDER_DOUBLE_GAP)}};
+            ? {tag:'path', attrs:{d: wavyRectPath(n.x + own + off + gap,
+                                                  n.y - own - off + gap,
+                                                  n.w - gap*2, h - gap*2, 0)}}
+            : {tag:'rect', attrs:{x: n.x + own + off + gap,
+                                  y: n.y - own - off + gap,
+                                  width: Math.max(0, n.w - gap*2),
+                                  height: Math.max(0, h - gap*2),
+                                  rx: rad(sheetR - gap)}};
           el(inner.tag, {
             ...inner.attrs,
             stroke: c, class: 'local-sheet', 'data-sheet': LOCAL_SHEETS - i,
@@ -1387,7 +1390,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const drawer = document.getElementById('detail');
       if(drawer && drawer.classList.contains('open')){
         drawer.classList.remove('open');
-        updateZoomCtlPosition();
+        updateAddFabPosition();
       }
     }
     /* A card's picture is its own thing to edit. A double click on the
