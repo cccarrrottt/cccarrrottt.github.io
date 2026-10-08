@@ -19,6 +19,9 @@ const bioCardLayer = el('g', {id:'bioCardLayer'}, viewport);
 let bioCardBox = null;   // world-space rect of the drawn card
 
 const BIO_CARD_GAP = 16;
+/* A pixel clear of the card's one-pixel border, on every side, like the
+   boxes on the chart (see textInsetFor). */
+const BIO_CARD_INSET = TEXT_GAP + 0.5;
 function bioSideOf(n){
   const v = n && n.bioSide;
   return (v === 'left' || v === 'right') ? v : 'auto';
@@ -90,16 +93,15 @@ function drawOneBioCard(n, already){
      rather than in the flow of it, so every pixel it does not need is a
      pixel of chart it is covering. */
   let w = autoNodeWidth([n.label || ''], fontSize, fontFamily, NODE_MAX_LINES, BOXW);
-  {
-    const probe = { maxWidth: w - 16, fontSize, family: fontFamily };
-    const chars = Math.max(8, Math.round((w - 16) / (fontSize*0.55)));
-    const ink = measureTextBlock(n.label, chars, lineH, fontScale,
-                                 {fontSize, family: fontFamily}, probe).width;
-    if(ink > 0) w = Math.max(NODE_FIT_MINW, Math.min(w, Math.ceil(ink) + NODE_PAD_X*2));
-  }
-  const maxChars = Math.max(8, Math.round((w - NODE_PAD_X*2) / (fontSize*0.55)));
-  const fit = { maxWidth: w - NODE_PAD_X*2, fontSize, family: fontFamily };
-  const totalH = wrapAndMeasure(n.label, maxChars, lineH, fontScale, fit).totalH;
+  /* Wrapped once, at the width the label was found to fit, and the box
+     then closed onto what that wrap made. Folding it a second time at the
+     closed box's own measure could only break a line the first wrap did
+     not, and leave the box too narrow for the line it had broken. */
+  const fit = { maxWidth: w - 16, fontSize, family: fontFamily };
+  const maxChars = Math.max(8, Math.round((w - 16) / (fontSize*0.55)));
+  const block = measureTextBlock(n.label, maxChars, lineH, fontScale,
+                                 {fontSize, family: fontFamily}, fit);
+  if(block.width > 0) w = Math.min(w, round2(block.width + BIO_CARD_INSET*2));
   /* The same arithmetic the width already uses, and the same an ordinary
      entry uses for both: the ink, plus the entry padding, never below the
      minimum. It used to carry eight extra pixels of floor and twelve of
@@ -107,7 +109,10 @@ function drawOneBioCard(n, already){
      onto its words across and sat in a band of empty space down — the two
      dimensions of one box behaving as though they belonged to different
      objects. */
-  const h = Math.max(NODE_FIT_MINH, Math.ceil(totalH) + NODE_PAD_Y*2);
+  /* …and now the same pixel off the ink every box keeps (see
+     textInsetFor), the card's border being a plain one-pixel line. */
+  const h = block.width > 0 ? round2(block.height + BIO_CARD_INSET*2)
+                            : Math.max(NODE_FIT_MINH, NODE_PAD_Y*2);
 
   /* Which side the card stands on.
    *
@@ -233,8 +238,8 @@ function drawOneBioCard(n, already){
                              (n.bg && n.bg.length) ? n.bg[0] : null);
   const txt = el('text', {x:x+w/2, y:0, 'font-size':fontSize, fill:cardInk,
     style:`font-family:${fontFamily};`}, g);
-  renderNodeText(txt, n.label, y + h/2, x + w/2, maxChars, lineH, fontScale,
-                 {fontSize, family:fontFamily}, fit);
+  renderNodeText(txt, n.label, y + h/2 - (block.mid || 0), x + w/2 - (block.midX || 0),
+                 maxChars, lineH, fontScale, {fontSize, family:fontFamily}, fit);
 
   // No editing controls on the card itself: a bio's text is edited in the
   // node's own settings form like every other entry's label, so there is

@@ -88,11 +88,44 @@ function bentRoute(p1, p2, handBendsList){
   const s1 = stubPoint(p1, handBendsList[0]);
   const s2 = stubPoint(p2, handBendsList[handBendsList.length - 1]);
   const bends = absorbBendOffsets(s1, handBendsList, s2);
+  const n1 = SIDE_NORMAL[p1.side] || {x:0, y:-1};
+  const n2 = SIDE_NORMAL[p2.side] || {x:0, y:-1};
+  /* A bend standing ON a run-out, between the border and the stub, is
+     the stub. The run-out is the straight piece every connector leaves
+     and arrives by; a point in the middle of it can only be reached by
+     going out to the stub and coming back along the same line, which is
+     drawn as a spike. Nobody asked for that by dropping a bend a few
+     pixels off a box, so the point is taken to be the end of the run-out
+     it is lying on. */
+  const onRunOut = (b, p, s, n)=>{
+    if(!b) return;
+    const across = n.x ? Math.abs(b.y - s.y) : Math.abs(b.x - s.x);
+    const out = (b.x - p.x) * n.x + (b.y - p.y) * n.y;
+    const len = (s.x - p.x) * n.x + (s.y - p.y) * n.y;
+    if(across < 0.5 && out > -0.5 && out < len){ b.x = s.x; b.y = s.y; }
+  };
+  onRunOut(bends[0], p1, s1, n1);
+  onRunOut(bends[bends.length - 1], p2, s2, n2);
   const chain = [s1, ...bends, s2];
   const out = [p1, s1];
   const boxes = ownEndBoxes(p1, p2);
   const cuts = (u, v)=> boxes.some(r=> segIntersectsRect(u.x, u.y, v.x, v.y, r));
   const clearRun = (pts)=> pts.every((q, k)=> !k || !cuts(pts[k-1], q));
+  /* Whether a run from u to v lies along n, heading the way `sign` says.
+     Used at the two stubs: a line that reaches the stub travelling AWAY
+     from its entry and then turns straight back down the run-out into the
+     port has doubled back on itself — the tight hook a bend placed level
+     with an entry's top, a little off to one side, used to draw. The same
+     is true of a line that leaves the source's stub straight back towards
+     the box it has just come out of. */
+  const along = (u, v, n, sign)=>{
+    const dx = v.x - u.x, dy = v.y - u.y;
+    const across = Math.abs(dx * n.y - dy * n.x);
+    return across < 0.5 && sign * (dx * n.x + dy * n.y) > 0.5;
+  };
+  const turnsBack = (pts, first, last)=>
+    (first && pts.length > 1 && along(pts[0], pts[1], n1, -1)) ||
+    (last && pts.length > 1 && along(pts[pts.length - 2], pts[pts.length - 1], n2, 1));
   /* How far outside a box a detour stands. A corner's radius and a little,
      so the turn has room to round without touching the border. */
   const BEND_DODGE = EDGE_CORNER_R + 4;
@@ -107,9 +140,20 @@ function bentRoute(p1, p2, handBendsList){
    * drew a line straight across the box: the route reversed at the bend,
    * and a reversal is drawn as one straight run through everything
    * between its two ends. */
-  const legVia = (a, b, firstAxis)=>{
+  const legVia = (a, b, firstAxis, first, last)=>{
+    const fine = (pts)=> clearRun(pts) && !turnsBack(pts, first, last);
     const corner = firstAxis === 'x' ? {x:b.x, y:a.y} : {x:a.x, y:b.y};
-    if(clearRun([a, corner, b])) return [corner];
+    if(fine([a, corner, b])) return [corner];
+    /* The last leg is asked to finish across its port's normal, so that it
+       meets the run-out at a right angle. Where that L would come at the
+       stub from the wrong side — the bend lies between the stub and the
+       border — the other L reaches the same stub from the side, at the
+       stub's own level: up past the box, across, and down into the port,
+       which is the shape anyone drawing it by hand would give it. */
+    if(last){
+      const other = firstAxis === 'x' ? {x:a.x, y:b.y} : {x:b.x, y:a.y};
+      if(fine([a, other, b])) return [other];
+    }
     const lanes = [];
     boxes.forEach(r=>{
       if(firstAxis === 'x'){ lanes.push(r.y0 - BEND_DODGE, r.y1 + BEND_DODGE); }
@@ -121,12 +165,11 @@ function bentRoute(p1, p2, handBendsList){
       const via = firstAxis === 'x'
         ? [{x:a.x, y:lane}, {x:b.x, y:lane}]
         : [{x:lane, y:a.y}, {x:lane, y:b.y}];
-      if(clearRun([a, via[0], via[1], b])) return via;
+      if(fine([a, via[0], via[1], b])) return via;
     }
     return [corner];
   };
   // Which axis the previous leg arrived on: 'x' means it was horizontal.
-  const n1 = SIDE_NORMAL[p1.side] || {x:0, y:-1};
   let arrived = n1.x ? 'x' : 'y';
   for(let i = 1; i < chain.length; i++){
     const a = chain[i-1], b = chain[i];
@@ -135,7 +178,6 @@ function bentRoute(p1, p2, handBendsList){
     if(last){
       // The final leg must ARRIVE along the target port's normal, so it
       // leaves this corner on the other axis.
-      const n2 = SIDE_NORMAL[p2.side] || {x:0, y:-1};
       firstAxis = n2.x ? 'y' : 'x';
     } else {
       // Carry on across the axis the last leg ended on…
@@ -151,11 +193,11 @@ function bentRoute(p1, p2, handBendsList){
       const alt = firstAxis === 'x' ? 'y' : 'x';
       const bad = (axis)=>{
         const c = axis === 'x' ? {x:b.x, y:a.y} : {x:a.x, y:b.y};
-        return cuts(a, c) || cuts(c, b);
+        return cuts(a, c) || cuts(c, b) || turnsBack([a, c, b], i === 1, false);
       };
       if(bad(firstAxis) && !bad(alt)) firstAxis = alt;
     }
-    out.push(...legVia(a, b, firstAxis), b);
+    out.push(...legVia(a, b, firstAxis, i === 1, last), b);
     arrived = firstAxis === 'x' ? 'y' : 'x';
   }
   out.push(p2);

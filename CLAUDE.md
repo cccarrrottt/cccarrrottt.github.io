@@ -93,7 +93,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 77 named scenarios, and they do not depend on one another —
+The suite is 82 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.

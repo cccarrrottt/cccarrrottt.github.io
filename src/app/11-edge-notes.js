@@ -72,6 +72,7 @@ const EDGE_NOTE_OFFSET = 11;
    same connector came out in two different faces. */
 const EDGE_NOTE_FS = 8.5, EDGE_NOTE_FAMILY = FONT_OPTIONS[0].family;
 const EDGE_NOTE_MAXW = 150, EDGE_NOTE_LINE_H = 11;
+const EDGE_NOTE_FRAME_W = 0.8;      // .edge-note-plate in the stylesheet
 /* The leader line of a callout.
  *
  * A callout is an entry (see calloutAnchorOf) and is drawn with the rest of
@@ -737,7 +738,15 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
                  {fontSize: EDGE_NOTE_FS, family: EDGE_NOTE_FAMILY}, fit);
   // Sized from what the text actually measures, so the plate fits the
   // words rather than a guess at their width.
-  const bb = t.getBBox();
+  /* …and from its INK, rules and stickers included, a pixel clear of the
+     plate's frame on every side — the same margin a box keeps round its
+     label (see textInsetFor). The text's own box is the face's whole
+     height whatever the letters do, so a plate built on it stood four
+     pixels off a word above and three below, and a rule under the word
+     was not in it at all. */
+  const ink = inkBoxOf(t, Array.from(g.childNodes).filter(c=> c !== t && c !== plate));
+  const bb = ink || t.getBBox();
+  const inset = TEXT_GAP + (noteStyle.noteFrame ? EDGE_NOTE_FRAME_W / 2 : 0);
   /* A plate with nothing on it yet is still a plate. Measured from the
      text, an empty note is zero by zero — nothing to see, nothing to put a
      field on and nothing to take hold of — so it gets the size of a short
@@ -745,7 +754,7 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
   const emptyW = EDGE_NOTE_FS * 4, emptyH = EDGE_NOTE_LINE_H;
   const tw = bb.width || emptyW, th = bb.height || emptyH;
   const tx = bb.width ? bb.x : (x - emptyW/2), ty = bb.height ? bb.y : (y - emptyH*0.75);
-  const px2 = tx - 4, py2 = ty - 2, pw = tw + 8, ph = th + 4;
+  const px2 = tx - inset, py2 = ty - inset, pw = tw + inset*2, ph = th + inset*2;
   plate.setAttribute('x', px2.toFixed(2));
   plate.setAttribute('y', py2.toFixed(2));
   plate.setAttribute('width', pw.toFixed(2));
