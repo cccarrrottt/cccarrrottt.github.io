@@ -12486,13 +12486,13 @@ async function main(){
       const shown = ()=> getComputedStyle(styles).visibility === 'visible';
       const turned = ()=> getComputedStyle(btn.querySelector('svg')).transform;
       out.fabShutAtRest = !shown() && turned() === 'none';
-      document.getElementById('addFab').dispatchEvent(new MouseEvent('mouseenter'));
+      document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
       out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
-      document.getElementById('addFab').dispatchEvent(new MouseEvent('mouseleave'));
+      document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerleave', {pointerType:'mouse'}));
       await wait(600);
       out.fabUnturns = !shown() && turned() === 'none';
     }

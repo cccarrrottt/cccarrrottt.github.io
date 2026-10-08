@@ -89,13 +89,19 @@ function closeAddFab(){
   return was;
 }
 /* Pointing opens it and leaving the button AND the styles above it shuts
-   it, so the pointer can travel up from one to the other. A click toggles,
-   which is the whole of it on a touch screen and harmless with a mouse. */
-addFab.addEventListener('mouseenter', ()=>{ if(!document.body.classList.contains('touch-input')) openAddFab(); });
-addFab.addEventListener('mouseleave', ()=> closeAddFab());
+   it, so the pointer can travel up from one to the other. Asked of the
+   POINTER, not of the page's finger mode: a tap also sends the mouse
+   events a mouse would, entering included, and read as a mouse that
+   opened the menu just before the tap's own click shut it again. A tap
+   toggles; a click with a mouse only ever opens, the pointing having
+   already done so. */
+let addFabTouched = false;
+addFab.addEventListener('pointerenter', ev=>{ if(ev.pointerType === 'mouse') openAddFab(); });
+addFab.addEventListener('pointerleave', ev=>{ if(ev.pointerType === 'mouse') closeAddFab(); });
+addFabBtn.addEventListener('pointerdown', ev=>{ addFabTouched = ev.pointerType !== 'mouse'; });
 addFabBtn.addEventListener('click', ev=>{
   ev.stopPropagation();
-  if(addFab.classList.contains('open') && document.body.classList.contains('touch-input')) closeAddFab();
+  if(addFabTouched && addFab.classList.contains('open')) closeAddFab();
   else openAddFab();
 });
 addFab.addEventListener('mousedown', ev=> ev.stopPropagation());
