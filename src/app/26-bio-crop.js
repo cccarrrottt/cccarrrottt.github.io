@@ -220,7 +220,7 @@ function drawOneBioCard(n, already){
   cardRings.forEach((c, i)=>{
     const grow = i*RING_STEP;
     el('rect', {x:x-grow, y:y-grow, width:w+grow*2, height:h+grow*2,
-                rx: bioCardSquare(n) ? 0 : 5+grow,
+                rx: bioCardSquare(n) ? 0 : BIO_CARD_INSET + grow,   // see inkCornerR
                 stroke:c, style: i>0 ? 'fill:none;'
                                      : `fill:${cardBg || 'var(--panel)'};`}, g);
   });

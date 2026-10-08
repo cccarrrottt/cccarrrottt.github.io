@@ -222,6 +222,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      a card is not a margin anyone would want. */
   const closesOnInk = !isBio && !isImage && !isCard && !isFree;
   const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
+  /* The corner every radius on the entry is measured from: see
+     inkCornerR. A card, a caption and a picture keep the old one. */
+  const cornerR = closesOnInk ? inkCornerR(n) : 5;
   const maxChars = noWrap ? Infinity : Math.max(8, Math.round((w - inkPad*2) / (fontSize*0.55)));
   // Hard pixel ceiling for a line of this node's text, so no script's
   // glyph widths can push a label past the border (see wrapLabel's `fit`).
@@ -580,7 +583,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         el('rect', {
           x: n.x - grow, y: n.y - grow,
           width: rw, height: rh,
-          rx: rad(5 + grow), stroke: c, class: 'hub-echo',
+          rx: rad(cornerR + grow), stroke: c, class: 'hub-echo',
           style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
                  `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +
                  `--echo-sx0:${sx0.toFixed(4)};--echo-sy0:${sy0.toFixed(4)};` +
@@ -597,9 +600,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
          corner radius, shifted; only the path differs. */
       /* Card layout replaces the outline with a card, rippled archetype or
          not, so the sheets go back to plain rectangles with it. */
+      /* The sheets were drawn a little less round than the box, and are
+         never rounder than it. */
+      const sheetR = Math.min(3, cornerR);
       const sheetShape = (x, y)=> isWavy
         ? {tag:'path', attrs:{d: wavyRectPath(x, y, n.w, h, 0)}}
-        : {tag:'rect', attrs:{x, y, width:n.w, height:h, rx:rad(3)}};
+        : {tag:'rect', attrs:{x, y, width:n.w, height:h, rx:rad(sheetR)}};
       /* A sheet is a COPY OF THE ENTRY'S OUTLINE, and an outline has a
          style. The ripple was carried across and nothing else was, so a
          dashed entry stood in front of a stack of solid rectangles and a
@@ -622,7 +628,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
                                   y: n.y - own - off + BORDER_DOUBLE_GAP,
                                   width: Math.max(0, n.w - BORDER_DOUBLE_GAP*2),
                                   height: Math.max(0, h - BORDER_DOUBLE_GAP*2),
-                                  rx: rad(3 - BORDER_DOUBLE_GAP)}};
+                                  rx: rad(sheetR - BORDER_DOUBLE_GAP)}};
           el(inner.tag, {
             ...inner.attrs,
             stroke: c, class: 'local-sheet', 'data-sheet': LOCAL_SHEETS - i,
@@ -834,7 +840,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const paint = paintColors.length>1 ? makeGradient(paintColors, false, nodeDefs) : paintColors[0];
     // fill is set via inline style, not the plain attribute, because the
     // .node rect{fill:var(--panel)} stylesheet rule otherwise wins over it
-    borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:rad(5-i)}),
+    borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:rad(cornerR-i)}),
                paint, bgFillStyle);
     textFill = paint;
   } else if(isBio){
@@ -900,7 +906,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       borderRing('rect',
         (ins)=>({x:n.x-grow+ins, y:n.y-grow+ins,
                  width:n.w+grow*2-ins*2, height:h+grow*2-ins*2,
-                 rx:rad(5+grow-ins)}),
+                 rx:rad(cornerR+grow-ins)}),
         c, i>0 ? 'fill:none;' : bgFillStyle);
     });
   }

@@ -755,6 +755,10 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
   const tw = bb.width || emptyW, th = bb.height || emptyH;
   const tx = bb.width ? bb.x : (x - emptyW/2), ty = bb.height ? bb.y : (y - emptyH*0.75);
   const px2 = tx - inset, py2 = ty - inset, pw = tw + inset*2, ph = th + inset*2;
+  /* And no rounder than keeps that pixel across the corner too: a corner
+     of radius r keeps it only while r is no more than the inset itself
+     (see inkCornerR). */
+  if(!noteStyle.noteSquare) plate.setAttribute('rx', inset.toFixed(2));
   plate.setAttribute('x', px2.toFixed(2));
   plate.setAttribute('y', py2.toFixed(2));
   plate.setAttribute('width', pw.toFixed(2));
