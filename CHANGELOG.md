@@ -21,6 +21,11 @@ Releases before 0.9.0 were not numbered.
   (`textInsetFor`): half a plain stroke, a ripple's swing inward, a double
   border's inner rail. A border style therefore changes an entry's size by
   that much and no more. Cards and loose captions keep their old padding.
+- **And across the corners.** A rounded corner is now no rounder than keeps
+  that pixel diagonally too (`inkCornerR`): the radius of the innermost line
+  is at most its half-stroke plus the pixel, so the corner gives way rather
+  than the box growing. A double border's outer rail follows its inner one;
+  a connector note's plate and a portrait's card the same rule.
 - **A box closed onto its words keeps its middle where it was placed**, not
   its top, so entries of a row stay level whatever letters are in them.
 - **A connector note sits on the ordinary baseline.** It was set on its

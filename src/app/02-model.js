@@ -294,6 +294,33 @@ function borderReachIn(n){
   return NODE_BORDER_W / 2;
 }
 function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
+/* How round a box closed onto its words may be at the corners.
+ *
+ * The pixel was kept along the sides and not across the corners: a corner
+ * of five sweeps a quarter circle through the box, and the corner of the
+ * words' own box — where a "P" or a "[" or a capital at the start of a
+ * line actually puts ink — was nearer the arc than to either side, and on
+ * a one-line entry nearly touching it.
+ *
+ * The geometry decides how round it may be. Take the innermost line the
+ * border draws, of half-width `half`, and the ink's corner standing
+ * `half + TEXT_GAP` in from it on both sides. The arc's centre sits `r`
+ * in from that line on both sides too, so the ink's corner is (r - half -
+ * gap)·√2 from the centre, and the inside of the stroke is r - half from
+ * it. Keeping the pixel there means (r - half - gap)·√2 ≤ r - half - gap,
+ * which holds only while r is at most half + gap. Rounder than that and
+ * the corner has to cost size — which is the other way to do it, and the
+ * one not wanted: the corner gives, not the box.
+ *
+ * For a double border the inner rail is that line, and the outer one is
+ * the same arc a rail's gap further out. A ripple's corner is already
+ * clear: its arc's centre stands inside the ink's corner. Returned is the
+ * radius of the OUTERMOST line of ring 0, which is what every other radius
+ * on the entry is measured from. */
+function inkCornerR(n){
+  if(borderStyleOf(n) === 'double') return TEXT_GAP + NODE_INNER_RAIL_W / 2 + BORDER_DOUBLE_GAP;
+  return TEXT_GAP + NODE_BORDER_W / 2;
+}
 function round2(v){ return Math.round(v * 100) / 100; }
 /* The smallest an auto-sized box is allowed to get, whatever its text.
    Not a padding — a floor, so that a one-letter entry is still a box with

@@ -12106,6 +12106,8 @@ async function main(){
       // A rule under letters with no descenders is the lowest ink there is.
       workingNodes.push(['pxU', '{{u:double|ace}} mum', null, null, null, null, {pos:[0, 0]}]);
       workingNodes.push(['pxD', 'double [[rim|reading]]', null, null, null, null, {pos:[0, 80], border:'double'}]);
+      // Ink right out in every corner of its box: the case a round corner meets first.
+      workingNodes.push(['pxR', '[PH]', null, null, null, null, {pos:[0, 160]}]);
       workingNodes.push(['pxA', 'from', null, null, null, null, {pos:[300, 0]}]);
       workingNodes.push(['pxB', 'to', 'pxA', null, null, null, {pos:[700, 0]}]);
       workingNodes.push(['pxC', 'a remark {{u:wavy|on}} it', null, null, null, 'callout',
@@ -12119,6 +12121,42 @@ async function main(){
       return {g: gaps(n, inkBoxOf(t, rules(t))), want: textInsetFor(n)};
     };
     out.entries = {underlined: entry('pxU'), double: entry('pxD'), callout: entry('pxC')};
+    /* …and across the corners. Measured against the innermost line the
+       entry actually DRAWS — its rect, its radius, its stroke as the page
+       computed them — so a radius changed anywhere, or a rail added, is
+       caught by what it does rather than by what it was meant to be. */
+    const cornerGap = (rect, ink)=>{
+      const x = +rect.getAttribute('x'), y = +rect.getAttribute('y');
+      const w = +rect.getAttribute('width'), h = +rect.getAttribute('height');
+      const r = +(rect.getAttribute('rx') || 0);
+      const half = parseFloat(getComputedStyle(rect).strokeWidth) / 2;
+      let worst = Infinity;
+      [[ink.x, ink.y, x + r, y + r, -1, -1], [ink.x + ink.width, ink.y, x + w - r, y + r, 1, -1],
+       [ink.x, ink.y + ink.height, x + r, y + h - r, -1, 1],
+       [ink.x + ink.width, ink.y + ink.height, x + w - r, y + h - r, 1, 1]]
+        .forEach(([px, py, cx, cy, ox, oy])=>{
+          // Only a corner of the ink out in the arc's own quarter is the
+          // arc's business; anywhere else the straight side is nearer.
+          if(r <= 0 || (px - cx) * ox < -0.01 || (py - cy) * oy < -0.01) return;
+          worst = Math.min(worst, (r - half) - Math.hypot(px - cx, py - cy));
+        });
+      return +worst.toFixed(3);
+    };
+    out.corners = {};
+    for(const id of ['pxU', 'pxD', 'pxC', 'pxR']){
+      const g = document.querySelector(`.node[data-id="${id}"]`);
+      const t = g.querySelector('text');
+      const rail = g.querySelector(':scope > rect.border-inner') ||
+                   [...g.querySelectorAll(':scope > rect')].find(r=> !r.classList.contains('node-hover-pad'));
+      out.corners[id] = cornerGap(rail, inkBoxOf(t, rules(t)));
+    }
+    {
+      const n = nodes.get('pxR');
+      const ink = inkBoxOf(document.querySelector('.node[data-id="pxR"] text'), []);
+      out.cornerSameSize = Math.abs(n.h - (ink.height + 2*textInsetFor(n))) < 0.05 &&
+                           Math.abs(n.w - (ink.width + 2*textInsetFor(n))) < 0.05;
+    }
+    out.cornersClear = Object.values(out.corners).every(v=> Number.isFinite(v) && v >= TEXT_GAP - 0.05);
     out.entriesEven = Object.values(out.entries).every(e=> even(e.g, e.want));
     out.ruleCounted = (()=>{
       const t = document.querySelector('.node[data-id="pxU"] text');
@@ -12151,6 +12189,8 @@ async function main(){
         rP.noHooks, JSON.stringify(rP.hooks));
   check('an entry’s border stands a pixel off its ink — rules, readings and a double rail included',
         rP.entriesEven && rP.ruleCounted, JSON.stringify(rP.entries));
+  check('and across its rounded corners, which give way rather than the box growing',
+        rP.cornersClear && rP.cornerSameSize, JSON.stringify(rP.corners));
   check('so does a connector note’s plate, from its frame', rP.noteEven, JSON.stringify(rP.note));
   check('and a portrait’s card', rP.bioEven, JSON.stringify(rP.bio));
   });
