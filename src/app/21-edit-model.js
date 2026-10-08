@@ -251,7 +251,7 @@ function redoLastEdit(){
   refreshSaveUI();
 }
 /* An undo restores the DATA; anything showing that data has to be told.
-   rebuildChart redraws the chart and the Management panel, but the sticker
+   rebuildChart redraws the chart and the side tabs, but the sticker
    library is its own overlay — so undoing a sticker's deletion put the
    sticker back in the chart while the library it was deleted from went on
    showing an empty grid until it was closed and opened again. */

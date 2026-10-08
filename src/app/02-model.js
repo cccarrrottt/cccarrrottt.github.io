@@ -289,10 +289,18 @@ const TEXT_GAP = 1;
 const NODE_BORDER_W = 1.6;          // .node > rect in the stylesheet
 const NODE_INNER_RAIL_W = 0.9;      // .border-inner, a double border's second line
 function borderReachIn(n){
+  if(isTextboxShape(n)) return TEXTBOX_FRAME_W / 2;
   if(isWavyBorder(n)) return POCKET_AMP + NODE_BORDER_W / 2;
   if(borderStyleOf(n) === 'double') return BORDER_DOUBLE_GAP + NODE_INNER_RAIL_W / 2;
   return NODE_BORDER_W / 2;
 }
+/* A caption has no border, only the frame that shows while it is pointed
+   at or selected — but that frame is where the caption ends, and the words
+   keep the same pixel off it that an entry's keep off its border. Whatever
+   border style the entry carries is not drawn on a caption, so it does not
+   get to move the frame either. */
+const TEXTBOX_FRAME_W = 1;
+function isTextboxShape(n){ return !!n && (n.shape || '') === 'textbox'; }
 function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
 /* How round a box closed onto its words may be at the corners.
  *
@@ -318,6 +326,7 @@ function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
  * radius of the OUTERMOST line of ring 0, which is what every other radius
  * on the entry is measured from. */
 function inkCornerR(n){
+  if(isTextboxShape(n)) return TEXT_GAP + TEXTBOX_FRAME_W / 2;
   if(borderStyleOf(n) === 'double') return TEXT_GAP + NODE_INNER_RAIL_W / 2 + BORDER_DOUBLE_GAP;
   return TEXT_GAP + NODE_BORDER_W / 2;
 }
@@ -887,7 +896,30 @@ nodes.forEach(n=>{
 rebuildCalloutIndex();
 
 }  // end buildModel
-const GRID = 10;
-function snapToGrid(v){ return Math.round(v/GRID)*GRID; }
+/* The step of the grid a drag snaps to and the ruled grid draws: the
+   smallest box the chart can hold words in.
+ *
+   That is an entry with square corners and a lowercase "a" in it, in the
+   default face at the default size — the ink of the letter, a pixel of
+   paper either side, and the border's half-width beyond that (see
+   textInsetFor). It used to be a round ten, which matched nothing on the
+   chart: the smallest box was neither one step nor two, so lining things
+   up on the grid lined up their corners and nothing else.
+ *
+   The letter's ink is written down rather than measured when the page
+   opens. Measuring it would give each machine its own grid — a face
+   substituted, a rasteriser that rounds differently — and a position
+   snapped on one would sit off the grid on the next. These are Arial's
+   "a" at 11.5px as inkBoxOf measures it (see INK_SCALE); the suite checks
+   that an entry drawn that way comes out exactly a step tall, so a change
+   of face or size cannot quietly leave the grid behind. The box is taller
+   than it is wide; the step is the square that holds it — which comes to
+   a hair over the round ten the grid used to be. */
+const GRID_LETTER_INK_W = 6.11, GRID_LETTER_INK_H = 6.47;
+const GRID = round2(Math.max(GRID_LETTER_INK_W, GRID_LETTER_INK_H)
+                    + 2 * (TEXT_GAP + NODE_BORDER_W / 2));
+/* To two decimals: the step is not a whole number, and a multiple of it
+   comes back from the arithmetic as 34.800000000000004. */
+function snapToGrid(v){ return round2(Math.round(v/GRID)*GRID); }
 buildModel();
 

@@ -75,17 +75,20 @@ askOverlay.addEventListener('keydown', ev=>{
 });
 
 /* ---- the references panel ---- */
-/* References render into the Management panel's one list, below the tags.
-   `refsPanel` is that panel — the same element the tag list lives in. */
-const refsPanel = document.getElementById('legend');
-/* The references and the tags share one panel, so they share its one
-   status line — see setLegendStatus. */
+/* References render into their own tab, beside the tags' and independent
+   of it. `refsPanel` is that tab. */
+const refsPanel = document.getElementById('refsPanel');
+/* The references and the tags share one place to say they refused
+   something — see setLegendStatus. */
 function setRefsStatus(kind, msg){ setLegendStatus(kind, msg); }
 function openRefsPanel(focusKey){
-  refsPanel.classList.add('open');
-  buildManagement();
+  /* A search that would hide the reference being asked for is cleared,
+     or the panel opens on a list without the one row it was opened for. */
+  if(focusKey) refFilterText = '';
+  setSideTab(refsPanel, true);
+  buildSideTabs();
   if(focusKey){
-    const row = legendList.querySelector(`.ref-item[data-key="${cssEscape(focusKey)}"]`);
+    const row = refsList.querySelector(`.ref-item[data-key="${cssEscape(focusKey)}"]`);
     if(row){
       row.scrollIntoView({block:'nearest'});
       // A brief highlight rather than a permanent selection: the reader was
@@ -106,7 +109,15 @@ function buildRefsInto(host){
     host.appendChild(empty);
     return;
   }
+  if(refFilterText && !REFS.some(refMatchesFilter)){
+    const none = document.createElement('div');
+    none.className = 'legend-empty';
+    none.textContent = `No reference matches \u201c${refFilterText}\u201d.`;
+    host.appendChild(none);
+    return;
+  }
   REFS.forEach((r, i)=>{
+    if(!refMatchesFilter(r, i)) return;
     const row = document.createElement('div');
     row.className = 'ref-item';
     row.dataset.key = r.key;
@@ -180,7 +191,7 @@ async function addRef(){
   if(!got || (!got.detail && !got.url)) return;
   const key = uniqueRefKey(got.detail || 'ref');
   applyEdit(()=> REFS.push({key, title:got.title, detail:got.detail, url:got.url}));
-  buildManagement(); rebuildChart();
+  buildSideTabs(); rebuildChart();
   if(got.refused) setRefsStatus('err', REFUSED_LINK);
   else setRefsStatus('ok', `Added [${REFS.length}].`);
 }
@@ -192,7 +203,7 @@ async function editRef(key){
   const fields = Object.assign({}, got);
   delete fields.refused;
   applyEdit(()=> Object.assign(REFS[i], fields));
-  buildManagement(); rebuildChart();
+  buildSideTabs(); rebuildChart();
   // After the edit, which refreshes the status and would say over it.
   if(got.refused) setRefsStatus('err', REFUSED_LINK);
 }
@@ -211,7 +222,7 @@ function reorderRef(key, overKey, where){
     if(j < 0){ REFS.splice(i, 0, it); return; }
     REFS.splice(where === 'after' ? j + 1 : j, 0, it);
   });
-  buildManagement(); rebuildChart();
+  buildSideTabs(); rebuildChart();
 }
 async function deleteRef(key){
   const used = refUsageCount(key);
@@ -235,7 +246,7 @@ async function deleteRef(key){
     COMMENTS.forEach(c=>{ if(c && c.text) c.text = stripRefToken(c.text, key); });
     REFS.forEach(r=>{ r.detail = stripRefToken(r.detail, key); });
   });
-  buildManagement(); rebuildChart();
+  buildSideTabs(); rebuildChart();
   setRefsStatus('ok', 'Deleted.');
 }
 
@@ -313,7 +324,7 @@ function createTag(raw){
      was a filing decision the chart made on the reader's behalf and
      usually the wrong one. */
   applyEdit(()=>{ looseBin(true).tags.push(tag); });
-  buildManagement();
+  buildSideTabs();
   setLegendStatus('ok', `Added “${tag}” — drag it onto a category to file it.`);
 }
 
@@ -323,7 +334,7 @@ function createCategory(raw){
   if(name === UNGROUPED){ setLegendStatus('err', 'That name is reserved.'); return; }
   if(realCategories().some(c=> c.name === name)){ setLegendStatus('err', `“${name}” already exists.`); return; }
   applyEdit(()=> TAG_CATS.push({name, tags:[]}));
-  buildManagement();
+  buildSideTabs();
   setLegendStatus('ok', `Added category “${name}”.`);
 }
 
@@ -358,10 +369,10 @@ function startCategoryRename(head, oldName){
     el0.classList.remove('renaming');
     el0.removeEventListener('keydown', onKey);
     el0.removeEventListener('blur', onBlur);
-    if(!keep || !typed || typed === oldName){ buildManagement(); return; }
+    if(!keep || !typed || typed === oldName){ buildSideTabs(); return; }
     if(typed === UNGROUPED || realCategories().some(c=> c.name === typed)){
       setLegendStatus('err', `“${typed}” already exists.`);
-      buildManagement();
+      buildSideTabs();
       return;
     }
     applyEdit(()=>{ const c = TAG_CATS.find(c=> c.name === oldName); if(c) c.name = typed; });
@@ -369,7 +380,7 @@ function startCategoryRename(head, oldName){
        category that was open would have come back folded — and one that
        was folded would have sprung open. */
     if(collapsedCats.has(oldName)){ collapsedCats.delete(oldName); collapsedCats.add(typed); }
-    buildManagement();
+    buildSideTabs();
   };
   function onKey(ev){
     ev.stopPropagation();
@@ -396,7 +407,7 @@ function removeCategory(name){
     // Its tags keep existing, so they have to keep having somewhere to be.
     if(freed.length) looseBin(true).tags.push(...freed);
   });
-  buildManagement();
+  buildSideTabs();
   setLegendStatus('ok', `Removed category “${name}”. Its tags are now uncategorised.`);
 }
 
@@ -414,10 +425,10 @@ async function deleteTagEverywhere(tag, count){
     });
   });
   hiddenTags.delete(tag);
-  buildManagement();
+  buildSideTabs();
   setLegendStatus('ok', `Deleted “${tag}”.`);
 }
-buildManagement();
+buildSideTabs();
 /* One eye instead of Show all / Hide all.
  *
  * The two buttons were never both useful: whichever state the chart was
@@ -478,14 +489,14 @@ function syncLegendEye(){
       box.style.setProperty('--swatch', v);
       applyEdit(()=>{ SETTINGS.refColor = v; });
       rebuildChart();
-      buildManagement();
+      buildSideTabs();
     };
     box.addEventListener('input', commit);
     box.addEventListener('click', ev=> ev.stopPropagation());
     if(reset) reset.addEventListener('click', ev=>{
       ev.stopPropagation();
       applyEdit(()=>{ SETTINGS.refColor = DEFAULT_REF_COLOR; });
-      sync(); rebuildChart(); buildManagement();
+      sync(); rebuildChart(); buildSideTabs();
     });
     sync();
   }

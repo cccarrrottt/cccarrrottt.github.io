@@ -277,14 +277,14 @@ function drawCalloutLeaders(from, to, pts, paint){
       if(Math.abs(wx - n.x) > 0.25 || Math.abs(wy - n.y) > 0.25){
         nudgeCalloutCard(n.id, wx - n.x, wy - n.y);
         n.x = wx; n.y = wy;
-        n.pos = {x: wx, y: wy + (n.growShift || 0)};
+        n.pos = {x: wx + (n.growShiftX || 0), y: wy + (n.growShift || 0)};
         const found = workingEntry(n.id);
         if(found){
           const o = entryOpts(found.entry);
           /* Two decimals, not whole numbers: a followed card is placed by
              arithmetic rather than by hand, and rounding it to the grid on
              every frame is exactly how the drift got in. */
-          o.pos = [+wx.toFixed(2), +(wy + (n.growShift || 0)).toFixed(2)];
+          o.pos = [+(wx + (n.growShiftX || 0)).toFixed(2), +(wy + (n.growShift || 0)).toFixed(2)];
           putEntry(found.index, found.entry, o);
         }
         calloutOffsets.set(n.id, {dx: off.dx, dy: off.dy, setX: wx, setY: wy});
@@ -458,7 +458,7 @@ window.addEventListener('mousemove', ev=>{
   const place = cardBesideLine(st, n, at);
   n.x = place.x;
   n.y = place.y;
-  n.pos = {x: n.x, y: n.y + (n.growShift || 0)};
+  n.pos = {x: n.x + (n.growShiftX || 0), y: n.y + (n.growShift || 0)};
   document.body.classList.toggle('leader-snapping', !!ev.shiftKey);
   while(leaderPickLayer.firstChild) leaderPickLayer.removeChild(leaderPickLayer.firstChild);
   if(ev.shiftKey) paintConnectorSnaps(st.pts);
@@ -494,7 +494,7 @@ window.addEventListener('mouseup', ()=>{
        reader aimed once — so rounding it to the grid on release moved it
        up to half a pixel sideways and tilted the leader by a fraction of
        a degree, every time, cumulatively. */
-    opts.pos = [+n.x.toFixed(2), +(n.y + ((n && n.growShift) || 0)).toFixed(2)];
+    opts.pos = [+(n.x + (n.growShiftX || 0)).toFixed(2), +(n.y + ((n && n.growShift) || 0)).toFixed(2)];
     putEntry(found.index, found.entry, opts);
   });
 });

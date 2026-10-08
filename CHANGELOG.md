@@ -31,6 +31,37 @@ Releases before 0.9.0 were not numbered.
 - **A connector note sits on the ordinary baseline.** It was set on its
   middle, which drew an underline in a note through the words.
 
+- **A text field closes on its words the same way**: the frame it shows when
+  pointed at or selected stands a pixel off the ink, with a corner no
+  rounder than that pixel allows.
+- **The ink is measured to a sixty-fourth of a pixel, the same on every
+  screen.** Chromium rounds a string's ink box out to whole pixels at the
+  screen's density, so an "a" came out 7×6 on one screen and 7×8 on a
+  sharper one against a true 6.1×6.5. Runs are now measured sixty-four
+  times larger and scaled back (`INK_SCALE`).
+- **A border that takes more room grows the box about its middle.** Switching
+  to wavy or double added all the extra width on the right, from the box's
+  top-left corner; the stored position is now the left edge of the box a
+  plain border would draw, and the border's extra is taken off both sides.
+  Longer words still grow a box to the right of where it was put.
+
+### Tags and references: two tabs
+
+- **The Management button and panel are gone.** Tags and references each
+  have a tab at the left edge of the chart. A tab opens and shuts on its own;
+  an open one takes its share of the edge's height and never lies over the
+  other tab, open or shut. Each has its own search box and its own +; the
+  references can now be searched, by what they say, by link, or by number.
+
+### A grid the size of a letter
+
+- **The grid step is the smallest box that holds words**: an entry with
+  square corners and a lowercase "a" in the default face — 10.07 rather
+  than 10. Charts already drawn keep their positions; an entry lands on the
+  new step the next time it is moved.
+- **An empty callout, pinned to a line or not, is one grid step square**, and
+  a new one is centred where it was asked for.
+
 ### Bends by hand
 
 - **A bend placed between an entry and its run-out no longer hooks.** The
@@ -46,6 +77,11 @@ Releases before 0.9.0 were not numbered.
   boxes and set connectors short of the wave.
 - **A finger on a small entry carries it** rather than being handed by the
   browser to the nearest border strip.
+- **A connector no longer re-shapes itself on a tie decided by rounding.**
+  Two candidate routes of equal length and turns were compared to the last
+  bit, so an entry dropped at certain heights moved its connector's crossbar
+  under a callout and the callout's anchor with it. A tie now goes to the
+  shape offered first, as the order intends.
 
 ## 0.11.0 — "In the hand" — 2026-10-06
 

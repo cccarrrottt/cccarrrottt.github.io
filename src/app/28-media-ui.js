@@ -430,7 +430,7 @@ wireStickerButtons();
  * The text box is gone. Typing a tag by hand is how a tag list rots: one
  * misspelling becomes a second, nearly identical tag that filters
  * separately and looks the same in the panel, and nothing ever notices.
- * Tags are made once, in Management, and here they are only chosen.
+ * Tags are made once, on the Tags tab, and here they are only chosen.
  *
  * The input element stays, hidden. It is still the canonical value —
  * everything that reads or writes an entry's tags goes through it — so
@@ -531,7 +531,7 @@ function fillTagMenu(menu, input, chipsEl){
   if(!any){
     const none = document.createElement('button');
     none.type = 'button'; none.className = 'tag-menu-empty';
-    none.textContent = knownTags().length ? 'All tags already added' : 'No tags yet — make one in Management';
+    none.textContent = knownTags().length ? 'All tags already added' : 'No tags yet — make one on the Tags tab';
     none.addEventListener('click', ev=> ev.stopPropagation());
     menu.appendChild(none);
   }

@@ -134,6 +134,17 @@ const inkCtx = (()=>{
   try{ return document.createElement('canvas').getContext('2d'); }
   catch(e){ return null; }
 })();
+/* How much larger than drawn a run is set to be measured.
+ *
+   Chromium rounds a string's ink box out to whole pixels, and rounds it
+   at the screen's pixel density: the same "a" at 11.5px reached 7 by 6
+   on one screen and 7 by 8 on a sharper one, against a true 6.1 by 6.5.
+   A pixel of margin cannot be kept with a ruler marked in whole pixels,
+   and a box should not come out two pixels taller because the screen
+   it was opened on is sharper. Set sixty-four times larger, the rounding
+   is a sixty-fourth of a pixel once scaled back, and every density gives
+   the same answer. */
+const INK_SCALE = 64;
 function inkBoxOf(txtEl, beside){
   if(!inkCtx || !txtEl) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -148,11 +159,12 @@ function inkBoxOf(txtEl, beside){
     try{ p = ts.getStartPositionOfChar(0); }
     catch(e){ return null; }
     const cs = getComputedStyle(ts);
-    inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ` +
+                  `${parseFloat(cs.fontSize) * INK_SCALE}px ${cs.fontFamily}`;
     const m = inkCtx.measureText(s);
     if(!Number.isFinite(m.actualBoundingBoxAscent)) return null;
-    take(p.x - m.actualBoundingBoxLeft, p.y - m.actualBoundingBoxAscent,
-         p.x + m.actualBoundingBoxRight, p.y + m.actualBoundingBoxDescent);
+    take(p.x - m.actualBoundingBoxLeft / INK_SCALE, p.y - m.actualBoundingBoxAscent / INK_SCALE,
+         p.x + m.actualBoundingBoxRight / INK_SCALE, p.y + m.actualBoundingBoxDescent / INK_SCALE);
   }
   (beside || []).forEach(e=>{
     let b;

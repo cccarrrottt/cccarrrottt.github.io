@@ -137,7 +137,10 @@ svg.addEventListener('mousedown', ev=>{
    Created empty with its text editor open: an empty card with the caret in
    it says what happens next, which is what made picking a point feel like
    it had done something. */
-const CALLOUT_DEFAULT_W = 96, CALLOUT_DEFAULT_H = 26;
+/* The box it is centred by is the one it is drawn as: an empty remark is
+   a grid step square, and a hand-placed box is centred vertically on the
+   reference height (see growShift), so that is the height to halve. */
+const CALLOUT_DEFAULT_W = GRID, CALLOUT_DEFAULT_H = NODE_GROW_REF;
 function addCalloutAt(from, to, at, cx, cy, snap){
   if(readOnlyView) return null;
   const ids = new Set(workingNodes.map(it=> it[0]));
@@ -239,11 +242,11 @@ document.getElementById('styleClose').onclick = ()=> closeEdgePopover();
  * connector's note did nothing. */
 /* Everything on the page that is a MENU rather than the chart. A click in
    any of these leaves the connector's own popover open: reaching for the
-   sticker picker, the management panel or the toolbar is part of working
+   sticker picker, a side tab or the toolbar is part of working
    on the connector, not a decision to stop. Only the canvas itself — the
    entries, another connector, empty ground — puts it away. */
 const MENU_SURFACES = ['#stickerPicker', '#refPicker', '.ask-overlay', '.crop-overlay',
-  '.detail', '.legend', '.file-popover', '.add-popover', '.about-overlay',
+  '.detail', '.side-tabs', '.file-popover', '.add-popover', '.about-overlay',
   '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar'].join(',');
 function inPopoverSatellite(target){
   return !!(target && target.closest && target.closest(MENU_SURFACES));

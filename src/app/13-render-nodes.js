@@ -220,10 +220,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      card keeps the old padding, because its heading shares the box with
      a picture and the bands under it, and a pixel off a rule that divides
      a card is not a margin anyone would want. */
-  const closesOnInk = !isBio && !isImage && !isCard && !isFree;
+  /* …and a caption closes on its words exactly as an entry does: the
+     frame it shows when pointed at stands the same pixel off them. */
+  const closesOnInk = !isBio && !isImage && !isCard;
   const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
-     inkCornerR. A card, a caption and a picture keep the old one. */
+     inkCornerR. A card and a picture keep the old one. */
   const cornerR = closesOnInk ? inkCornerR(n) : 5;
   const maxChars = noWrap ? Infinity : Math.max(8, Math.round((w - inkPad*2) / (fontSize*0.55)));
   // Hard pixel ceiling for a line of this node's text, so no script's
@@ -249,6 +251,11 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      actually produced is usually narrower than that, and the difference
      was left as padding nobody chose. Shrinking to the ink cannot change
      the wrap, since every line already fits inside the widest of them. */
+  /* A remark with nothing in it yet — pinned to a line or standing on its
+     own — is one grid step square: the smallest box the chart holds words
+     in (see GRID), rather than an entry's empty width. It is a place a
+     remark is about to go, and it sits on the grid exactly. */
+  const emptyCallout = isCalloutShape && !manual && !(maxInkW > 0);
   if(!manual && closesOnInk){
     /* An entry with nothing written in it makes no ink at all, so there is
        nothing to close on — and a one-line entry starts out at the widest
@@ -260,7 +267,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        of slack on one side, and the floor turned a short word's pixel of
        margin back into twenty. */
     const want = maxInkW > 0 ? round2(maxInkW + inkPad*2) : NODE_MINW;
-    n.w = w = Math.min(w, maxInkW > 0 ? want : Math.max(NODE_FIT_MINW, want));
+    n.w = w = emptyCallout ? GRID
+            : Math.min(w, maxInkW > 0 ? want : Math.max(NODE_FIT_MINW, want));
     if(!n.pos && typeof n.slotX === 'number') n.x = n.slotX + (n.slotW - w)/2;
   }
   /* A card closes on its ink too, but by GROWING to it rather than only
@@ -322,9 +330,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
 
   const h = isBio ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
-          : isTextbox ? (manual ? manual.h : Math.max(16, Math.ceil(maxTotalH) + NODE_PAD_Y*2))
+          : isTextbox && !manual && !(maxInkW > 0) ? Math.max(16, Math.ceil(maxTotalH) + NODE_PAD_Y*2)
           : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
           : manual ? manual.h
+          : emptyCallout ? GRID
           : maxInkW > 0 ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
   n.h = h;
@@ -347,6 +356,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      entry, which takes no offset at all, was the one case that behaved.
      See saveNodePositions, which adds it back. */
   n.growShift = 0;
+  n.growShiftX = 0;
   if(n.pos && !manual && !isBio && !isImage){
     /* Quantised to whole grid steps.
      *
@@ -378,6 +388,23 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     n.growShift = closesOnInk ? round2((h - NODE_GROW_REF) / 2)
                               : snapToGrid(Math.max(0, h - NODE_GROW_REF) / 2);
     n.y = n.pos.y - n.growShift;
+    /* And sideways, by what the border takes beyond a plain one.
+     *
+       Height was already spread either side of the stored position, but
+       the stored x is the box's left edge, so a border that takes more
+       room — a ripple, a double rule — added all of its extra width on
+       the right: switching an entry to wavy grew it from its top-left
+       corner and moved its middle, and every connector meeting it, by a
+       pixel and a half. The position is now the left edge of the box as a
+       PLAIN border would draw it, and the border's own extra is taken off
+       both sides. Only the border's share: words that get longer still
+       grow the box to the right, from where it was put, as they always
+       have. Recorded for the same reason growShift is — every save turns
+       a drawn x back into a stored one by adding it. */
+    if(closesOnInk && !isTextbox){
+      n.growShiftX = round2(borderReachIn(n) - NODE_BORDER_W / 2);
+      n.x = n.pos.x - n.growShiftX;
+    }
   }
   /* Where the rules across the card fall, once its height is settled.
      The picture's rule is only there when there is a picture. */
@@ -834,7 +861,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     /* Words on the chart with no box around them — a caption, a heading, a
        margin note. The faint outline only shows on hover, so you can still
        grab it without it drawing a box you didn't ask for. */
-    el('rect', {x:n.x, y:n.y, width:n.w, height:h, rx:3, class:'textbox-frame'}, g);
+    el('rect', {x:n.x, y:n.y, width:n.w, height:h, rx:cornerR, class:'textbox-frame'}, g);
     if(n.colors && n.colors.length) textFill = n.colors[0];
   } else if(shape==='amalgam'){
     const paint = paintColors.length>1 ? makeGradient(paintColors, false, nodeDefs) : paintColors[0];

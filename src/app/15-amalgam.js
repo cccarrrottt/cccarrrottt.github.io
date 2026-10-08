@@ -932,7 +932,7 @@ function swapParents(ids){
       if(!found) return;
       const opts = entryOpts(found.entry);
       const x = c.x - n.w/2, y = c.y - n.h/2;
-      opts.pos = [+x.toFixed(2), +(y + (n.growShift || 0)).toFixed(2)];
+      opts.pos = [+(x + (n.growShiftX || 0)).toFixed(2), +(y + (n.growShift || 0)).toFixed(2)];
       putEntry(found.index, found.entry, opts);
     });
   });
