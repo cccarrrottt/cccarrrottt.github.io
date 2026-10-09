@@ -52,6 +52,8 @@ const NODES = [
   ['node-2', 'фыв', undefined, undefined, undefined, 'textbox', {pos:[0, 70]}],
   ['node-3', 'Прчоао', undefined, undefined, undefined, undefined, {pos:[-110.77, 123.95]}],
   ['node-4', 'Човьлы', 'node-3', undefined, undefined, undefined, {pos:[-171.24, 194.44]}],
+  ['node-5', 'Пролл', undefined, undefined, undefined, undefined, {pos:[-112.5, 244.79]}],
+  ['node-6', 'Гаягкягкч', 'node-5', undefined, undefined, undefined, {pos:[-40.28, 234.72]}],
 ];
 /* @@EDIT:NODES:END@@ */
 
@@ -142,5 +144,6 @@ const EDGE_STYLES = [
   {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-7', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'bottom', square:true},
   {from:'asdasd-1-copy', to:'uprising', routing:'orthogonal', dash:'double', arrow:true, fromSide:'right', toSide:'bottom'},
   {from:'node-3', to:'node-4', routing:'orthogonal', dash:'solid', arrow:true, bends:[[-140.98, 201.4]], fromSide:'bottom', toSide:'bottom'},
+  {from:'node-5', to:'node-6', routing:'orthogonal', dash:'solid', arrow:true, bends:[[-40.28, 211.47], [-20.14, 251.75]], fromSide:'top', toSide:'top'},
 ];
 /* @@EDIT:EDGESTYLES:END@@ */
