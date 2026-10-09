@@ -6547,7 +6547,30 @@ async function main(){
          where nobody asked it to. */
       const st = edgeStyleFor(p.dataset.from, p.dataset.to);
       const wrap = !!(st && st.fromSide && st.toSide && st.fromSide === st.toSide);
-      if(n > (wrap ? 4 : 2)) bad.push(`${p.dataset.from}->${p.dataset.to}:${n}:${st && st.fromSide}/${st && st.toSide}`);
+      /* And sides picked by hand can ask for more than two corners without
+         a wrap: leave by the right for an entry up and to the LEFT, arriving
+         at its bottom, and the line has to go out, up, back across and up
+         again — three, the fewest there are. So where both sides are set,
+         the bar is the fewest corners those sides and those two ports
+         allow, never less than the two any route may take. */
+      let need = 2;
+      if(st && st.fromSide && st.toSide && !wrap){
+        const nums = (p.getAttribute('d') || '').match(/-?[\d.]+/g).map(Number);
+        const p1 = {x: nums[0], y: nums[1]}, p2 = {x: nums[nums.length-2], y: nums[nums.length-1]};
+        const OUT = {right:[1,0], left:[-1,0], bottom:[0,1], top:[0,-1]};
+        const d1 = OUT[st.fromSide], d2 = OUT[st.toSide].map(v=> -v);   // travel into the target
+        const dot = (a, b)=> a[0]*b[0] + a[1]*b[1];
+        if(d1 && d2 && d1[0]*d2[1] - d1[1]*d2[0] !== 0){
+          // At right angles: one corner where the two lines meet, if both legs run forward.
+          const c = d1[0] ? {x: p2.x, y: p1.y} : {x: p1.x, y: p2.y};
+          const fwd = dot([c.x - p1.x, c.y - p1.y], d1) > 0 && dot([p2.x - c.x, p2.y - c.y], d2) > 0;
+          need = fwd ? 2 : 3;
+        } else if(d1 && d2 && dot(d1, d2) > 0){
+          // Facing the same way: a dog-leg if the target is ahead, a loop back if it is behind.
+          need = dot([p2.x - p1.x, p2.y - p1.y], d1) > 0 ? 2 : 4;
+        }
+      }
+      if(n > (wrap ? 4 : need)) bad.push(`${p.dataset.from}->${p.dataset.to}:${n}:${st && st.fromSide}/${st && st.toSide}`);
     });
     return bad;
   });
