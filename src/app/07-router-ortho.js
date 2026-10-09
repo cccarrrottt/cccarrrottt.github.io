@@ -159,7 +159,7 @@ const POCKET_DEEP = POCKET_AMP;
 const POCKET_UNDERLAP = 0.7;
 /* How wide a connector is, either side of its centre line — the stroke in
    style.css, `.edge.struct` and `.edge.struct.dbl-outer`. */
-const EDGE_HALF = 0.8, EDGE_DBL_HALF = 1.9;
+const EDGE_HALF = 0.8, EDGE_DBL_HALF = DOUBLE_BAND_W / 2;
 /* Half the stroke of an entry's border (`.node > rect, path` in style.css). */
 const BORDER_HALF = 0.8;
 /* Where a headless line stops on an open (outer) rippled ring: see sinkEnds. */

@@ -12431,6 +12431,7 @@ async function main(){
                          {pos:[380, 100], leader:{from:'feA', to:'feB', at:0.5}}]);
       workingNodes.push(['feS', 'Words', null, null, null, null, {pos:[0, 200]}]);
       workingNodes.push(['feD', 'Words', null, null, null, null, {pos:[0, 300], border:'double'}]);
+      EDGE_STYLES.push({from:'feA', to:'feB', dash:'double'});
     });
     await wait(300);
     {
@@ -12439,26 +12440,30 @@ async function main(){
       out.emptyLikeCallout = e.w === k.w && e.h === k.h && Math.abs(e.w - GRID) < 0.01;
     }
 
-    /* A double border is the single one split in two: the same box, the
-       same outer and inner edge, and two lines of one weight. */
+    /* A double border is a double connector's line laid round the box:
+       the same two rails and the same gutter, centred on the box's edge,
+       and the box grown by the difference about its middle. */
     {
       const s = nodes.get('feS'), d = nodes.get('feD');
-      const solid = document.querySelector('.node[data-id="feS"] > rect[stroke]');
-      const lines = [...document.querySelectorAll('.node[data-id="feD"] > rect[stroke]')];
       const sw = (r)=> parseFloat(getComputedStyle(r).strokeWidth);
+      const outer = document.querySelector('#edgeLayer path.edge.struct.dbl-outer[data-from="feA"][data-to="feB"]');
+      const inner = document.querySelector('#edgeLayer path.edge.struct.dbl-inner[data-from="feA"][data-to="feB"]');
+      const band = outer ? sw(outer) : NaN, gutter = inner ? sw(inner) : NaN;
+      const lines = [...document.querySelectorAll('.node[data-id="feD"] > rect[stroke]')];
       const edges = (r)=> {
-        const x = +r.getAttribute('x'), w = +r.getAttribute('width'), half = sw(r) / 2;
-        return [x - half, x + half, x + w - half, x + w + half];
+        const x = +r.getAttribute('x'), half = sw(r) / 2;
+        return [x - half, x + half];
       };
-      out.doubleWeights = lines.map(sw);
-      out.doubleEqual = lines.length === 2 && Math.abs(sw(lines[0]) - sw(lines[1])) < 1e-3 &&
-        Math.abs(sw(lines[0]) + sw(lines[1]) - sw(solid) / 3 * 2) < 1e-3;
-      const so = edges(solid), a = edges(lines[0]), b = edges(lines[1]);
-      // Outer edge of the outer line on the single border's outer edge; inner on inner.
-      out.doubleEdges = [a[0] - d.x, so[0] - s.x, b[1] - d.x, so[1] - s.x].map(v=> +v.toFixed(3));
-      out.doubleSplit = Math.abs((a[0] - d.x) - (so[0] - s.x)) < 0.01 &&
-                        Math.abs((b[1] - d.x) - (so[1] - s.x)) < 0.01 &&
-                        d.w === s.w && d.h === s.h;
+      const [a, b] = lines.map(edges);
+      out.doubleWeights = {node: lines.map(sw), line: [band, gutter]};
+      out.doubleEqual = lines.length === 2 &&
+        lines.every(r=> Math.abs(sw(r) - (band - gutter) / 2) < 1e-3) &&
+        Math.abs((b[0] - a[1]) - gutter) < 0.01 &&
+        Math.abs((b[1] - a[0]) - band) < 0.01;
+      out.doubleEdges = [a[0] - d.x, a[1] - d.x, b[0] - d.x, b[1] - d.x].map(v=> +v.toFixed(3));
+      out.doubleSplit = Math.abs((a[0] + b[1]) / 2 - d.x) < 0.01 &&
+        Math.abs((d.x + d.w / 2) - (s.x + s.w / 2)) < 0.011 &&
+        Math.abs((d.w - s.w) - (band - NODE_BORDER_W)) < 0.02;
     }
 
     /* Square is the default; rounding is what gets written down. */
@@ -12534,7 +12539,7 @@ async function main(){
         rF.refRowFocused && rF.refRowLast);
   check('Enter makes the reference, Escape makes none', rF.refMade && rF.refEscaped);
   check('an empty entry is the size of an empty callout', rF.emptyLikeCallout, JSON.stringify(rF.emptySizes));
-  check('a double border is the single one split into two equal lines',
+  check('a double border is drawn as a double connector is, and grows about its middle',
         rF.doubleEqual && rF.doubleSplit, JSON.stringify({w:rF.doubleWeights, e:rF.doubleEdges}));
   check('an entry is square unless rounded, and rounding is what is saved',
         rF.squareByDefault && rF.roundWritten);
