@@ -6547,7 +6547,30 @@ async function main(){
          where nobody asked it to. */
       const st = edgeStyleFor(p.dataset.from, p.dataset.to);
       const wrap = !!(st && st.fromSide && st.toSide && st.fromSide === st.toSide);
-      if(n > (wrap ? 4 : 2)) bad.push(`${p.dataset.from}->${p.dataset.to}:${n}:${st && st.fromSide}/${st && st.toSide}`);
+      /* And sides picked by hand can ask for more than two corners without
+         a wrap: leave by the right for an entry up and to the LEFT, arriving
+         at its bottom, and the line has to go out, up, back across and up
+         again — three, the fewest there are. So where both sides are set,
+         the bar is the fewest corners those sides and those two ports
+         allow, never less than the two any route may take. */
+      let need = 2;
+      if(st && st.fromSide && st.toSide && !wrap){
+        const nums = (p.getAttribute('d') || '').match(/-?[\d.]+/g).map(Number);
+        const p1 = {x: nums[0], y: nums[1]}, p2 = {x: nums[nums.length-2], y: nums[nums.length-1]};
+        const OUT = {right:[1,0], left:[-1,0], bottom:[0,1], top:[0,-1]};
+        const d1 = OUT[st.fromSide], d2 = OUT[st.toSide].map(v=> -v);   // travel into the target
+        const dot = (a, b)=> a[0]*b[0] + a[1]*b[1];
+        if(d1 && d2 && d1[0]*d2[1] - d1[1]*d2[0] !== 0){
+          // At right angles: one corner where the two lines meet, if both legs run forward.
+          const c = d1[0] ? {x: p2.x, y: p1.y} : {x: p1.x, y: p2.y};
+          const fwd = dot([c.x - p1.x, c.y - p1.y], d1) > 0 && dot([p2.x - c.x, p2.y - c.y], d2) > 0;
+          need = fwd ? 2 : 3;
+        } else if(d1 && d2 && dot(d1, d2) > 0){
+          // Facing the same way: a dog-leg if the target is ahead, a loop back if it is behind.
+          need = dot([p2.x - p1.x, p2.y - p1.y], d1) > 0 ? 2 : 4;
+        }
+      }
+      if(n > (wrap ? 4 : need)) bad.push(`${p.dataset.from}->${p.dataset.to}:${n}:${st && st.fromSide}/${st && st.toSide}`);
     });
     return bad;
   });
@@ -12431,6 +12454,7 @@ async function main(){
                          {pos:[380, 100], leader:{from:'feA', to:'feB', at:0.5}}]);
       workingNodes.push(['feS', 'Words', null, null, null, null, {pos:[0, 200]}]);
       workingNodes.push(['feD', 'Words', null, null, null, null, {pos:[0, 300], border:'double'}]);
+      EDGE_STYLES.push({from:'feA', to:'feB', dash:'double'});
     });
     await wait(300);
     {
@@ -12439,26 +12463,30 @@ async function main(){
       out.emptyLikeCallout = e.w === k.w && e.h === k.h && Math.abs(e.w - GRID) < 0.01;
     }
 
-    /* A double border is the single one split in two: the same box, the
-       same outer and inner edge, and two lines of one weight. */
+    /* A double border is a double connector's line laid round the box:
+       the same two rails and the same gutter, centred on the box's edge,
+       and the box grown by the difference about its middle. */
     {
       const s = nodes.get('feS'), d = nodes.get('feD');
-      const solid = document.querySelector('.node[data-id="feS"] > rect[stroke]');
-      const lines = [...document.querySelectorAll('.node[data-id="feD"] > rect[stroke]')];
       const sw = (r)=> parseFloat(getComputedStyle(r).strokeWidth);
+      const outer = document.querySelector('#edgeLayer path.edge.struct.dbl-outer[data-from="feA"][data-to="feB"]');
+      const inner = document.querySelector('#edgeLayer path.edge.struct.dbl-inner[data-from="feA"][data-to="feB"]');
+      const band = outer ? sw(outer) : NaN, gutter = inner ? sw(inner) : NaN;
+      const lines = [...document.querySelectorAll('.node[data-id="feD"] > rect[stroke]')];
       const edges = (r)=> {
-        const x = +r.getAttribute('x'), w = +r.getAttribute('width'), half = sw(r) / 2;
-        return [x - half, x + half, x + w - half, x + w + half];
+        const x = +r.getAttribute('x'), half = sw(r) / 2;
+        return [x - half, x + half];
       };
-      out.doubleWeights = lines.map(sw);
-      out.doubleEqual = lines.length === 2 && Math.abs(sw(lines[0]) - sw(lines[1])) < 1e-3 &&
-        Math.abs(sw(lines[0]) + sw(lines[1]) - sw(solid) / 3 * 2) < 1e-3;
-      const so = edges(solid), a = edges(lines[0]), b = edges(lines[1]);
-      // Outer edge of the outer line on the single border's outer edge; inner on inner.
-      out.doubleEdges = [a[0] - d.x, so[0] - s.x, b[1] - d.x, so[1] - s.x].map(v=> +v.toFixed(3));
-      out.doubleSplit = Math.abs((a[0] - d.x) - (so[0] - s.x)) < 0.01 &&
-                        Math.abs((b[1] - d.x) - (so[1] - s.x)) < 0.01 &&
-                        d.w === s.w && d.h === s.h;
+      const [a, b] = lines.map(edges);
+      out.doubleWeights = {node: lines.map(sw), line: [band, gutter]};
+      out.doubleEqual = lines.length === 2 &&
+        lines.every(r=> Math.abs(sw(r) - (band - gutter) / 2) < 1e-3) &&
+        Math.abs((b[0] - a[1]) - gutter) < 0.01 &&
+        Math.abs((b[1] - a[0]) - band) < 0.01;
+      out.doubleEdges = [a[0] - d.x, a[1] - d.x, b[0] - d.x, b[1] - d.x].map(v=> +v.toFixed(3));
+      out.doubleSplit = Math.abs((a[0] + b[1]) / 2 - d.x) < 0.01 &&
+        Math.abs((d.x + d.w / 2) - (s.x + s.w / 2)) < 0.011 &&
+        Math.abs((d.w - s.w) - (band - NODE_BORDER_W)) < 0.02;
     }
 
     /* Square is the default; rounding is what gets written down. */
@@ -12534,7 +12562,7 @@ async function main(){
         rF.refRowFocused && rF.refRowLast);
   check('Enter makes the reference, Escape makes none', rF.refMade && rF.refEscaped);
   check('an empty entry is the size of an empty callout', rF.emptyLikeCallout, JSON.stringify(rF.emptySizes));
-  check('a double border is the single one split into two equal lines',
+  check('a double border is drawn as a double connector is, and grows about its middle',
         rF.doubleEqual && rF.doubleSplit, JSON.stringify({w:rF.doubleWeights, e:rF.doubleEdges}));
   check('an entry is square unless rounded, and rounding is what is saved',
         rF.squareByDefault && rF.roundWritten);

@@ -553,9 +553,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const bgFillStyle = bgPaint ? `fill:${bgPaint};` : '';
   /* One ring of the border, drawn in whatever style the entry wears.
      `make(inset)` gives the geometry for an outline that far inside the
-     ring's own line. A DOUBLE border is that line split: two thin ones,
-     a third of its weight each, one a little outside it and one a little
-     inside, filling exactly the band the plain stroke covers. */
+     ring's own line. A DOUBLE border is two rails either side of that
+     line, the same two a double connector draws (see DOUBLE_BAND_W). */
   const borderRing = (tag, make, colour, fillStyle)=>{
     const split = borderKey === 'double';
     const a = Object.assign({}, make(split ? -DOUBLE_LINE_OFF : 0), {stroke: colour});

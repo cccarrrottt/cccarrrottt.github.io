@@ -276,28 +276,35 @@ const NODE_PAD_X = 7, NODE_PAD_Y = 5;
    The border's own reach inward is therefore part of the padding, and
    differs by style: a plain stroke comes half its width inside the box,
    a ripple swings in by its amplitude before its stroke starts, and a
-   double border, being the plain stroke split in three, reaches exactly
-   as far as the plain one. Only a ripple changes an entry's size, and it
-   grows about the middle (see growShiftX).
+   double border by half its band (see DOUBLE_BAND_W). Those two change an
+   entry's size, and it grows about the middle (see growShiftX).
  *
    NODE_PAD_X and NODE_PAD_Y stay for what is NOT a box closed on its
    words: a loose caption, which has no border to stand off, and the wrap
    width a label is folded at before the box closes on it. */
 const TEXT_GAP = 1;
 const NODE_BORDER_W = 1.6;          // .node > rect in the stylesheet; see DOUBLE_LINE_W
-/* A double border is the ordinary border SPLIT, not a second one added
-   inside it: the same band the plain stroke covers, drawn as two lines of
-   equal weight with a gap of the same weight between them — a third, a
-   third and a third. It used to be the plain stroke with a thinner rail
-   two and a half pixels further in, which made a double-bordered entry
-   bigger than a plain one and its two lines unequal. Now the box is the
-   same size whatever the style, and the lines match. */
-const DOUBLE_LINE_W = NODE_BORDER_W / 3;
-/* How far each line's centre stands from the box's edge, out and in. */
-const DOUBLE_LINE_OFF = (NODE_BORDER_W - DOUBLE_LINE_W) / 2;
+/* A double line is one shape wherever it is drawn: on a connector and as
+   an entry's border alike, a band DOUBLE_BAND_W across with a gutter of
+   DOUBLE_GAP_W down its middle, leaving two rails of equal weight. A
+   connector draws it as a wide stroke with a paper-coloured one over it
+   (.dbl-outer and .dbl-inner in the stylesheet carry these same numbers);
+   an entry draws the two rails themselves, centred on the box's edge the
+   way a plain stroke is.
+ *
+   An entry's double border was for a while the plain 1.6 band split in
+   three, which made it a hairline pair beside the connectors arriving at
+   it in the same style. Wider than a plain border, it grows the entry by
+   the difference, about the middle (see growShiftX). */
+const DOUBLE_BAND_W = 3.8;
+const DOUBLE_GAP_W = 1.3;
+const DOUBLE_LINE_W = (DOUBLE_BAND_W - DOUBLE_GAP_W) / 2;
+/* How far each rail's centre stands from the box's edge, out and in. */
+const DOUBLE_LINE_OFF = (DOUBLE_BAND_W - DOUBLE_LINE_W) / 2;
 function borderReachIn(n){
   if(isTextboxShape(n)) return TEXTBOX_FRAME_W / 2;
   if(isWavyBorder(n)) return POCKET_AMP + NODE_BORDER_W / 2;
+  if(borderStyleOf(n) === 'double') return DOUBLE_BAND_W / 2;
   return NODE_BORDER_W / 2;
 }
 /* A caption has no border, only the frame that shows while it is pointed
@@ -326,14 +333,15 @@ function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
  * the corner has to cost size — which is the other way to do it, and the
  * one not wanted: the corner gives, not the box.
  *
- * A double border's two lines lie inside the plain stroke's band, so the
- * innermost edge is where a plain stroke's is and the radius is the same;
- * each line is drawn at that radius moved by its own offset. A ripple's corner is already
+ * For a double border the inner rail is that line, standing DOUBLE_LINE_OFF
+ * in from the edge, so the edge's radius is that much larger; each rail is
+ * drawn at it moved by its own offset. A ripple's corner is already
  * clear: its arc's centre stands inside the ink's corner. Returned is the
  * radius of the OUTERMOST line of ring 0, which is what every other radius
  * on the entry is measured from. */
 function inkCornerR(n){
   if(isTextboxShape(n)) return TEXT_GAP + TEXTBOX_FRAME_W / 2;
+  if(borderStyleOf(n) === 'double') return TEXT_GAP + DOUBLE_LINE_W / 2 + DOUBLE_LINE_OFF;
   return TEXT_GAP + NODE_BORDER_W / 2;
 }
 function round2(v){ return Math.round(v * 100) / 100; }

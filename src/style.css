@@ -898,6 +898,8 @@
      lit, so the gutter stays the same fraction of the line at either
      weight; the inner one is opaque so the rail underneath it cannot show
      through the gutter as a wash of colour. */
+  /* The same band and gutter an entry's double border is drawn with —
+     DOUBLE_BAND_W and DOUBLE_GAP_W; the two have to move together. */
   .edge.struct.dbl-outer{stroke-width:3.8;}
   .edge.struct.dbl-inner{stroke-width:1.3;stroke:var(--paper);opacity:1;}
   .edge.struct.dbl-outer.lit{stroke-width:5;}

@@ -75,10 +75,11 @@ Releases before 0.9.0 were not numbered.
 - **Square corners are the default for every entry.** Rounding them is the
   choice that is recorded (`square:false`); entries saved without a setting
   now draw square.
-- **A double border is the single one split in two**: two lines a third of
-  its weight with a third between them, inside the same outer and inner
-  edge, rather than a second line drawn inside the first. A double border
-  no longer changes an entry's size.
+- **A double border is drawn as a double connector is**: the same two rails
+  of equal weight and the same gutter between them, centred on the box's
+  edge, rather than a thin second line drawn inside the first. The two
+  share one pair of numbers (`DOUBLE_BAND_W`, `DOUBLE_GAP_W`). Being wider
+  than a plain border, it grows the entry about its middle.
 - **A reference is made the way a tag is.** The + on the References tab
   puts an empty row at the foot of the list with the caret in it; Enter
   keeps it, Escape or a click elsewhere keeps nothing. The dialog is gone.
