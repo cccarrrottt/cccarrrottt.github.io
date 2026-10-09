@@ -390,7 +390,7 @@ async function main(){
   for(const [btn, panel] of [['#tagsTab','#tagsPanel .side-tab-body'], ['#refsTab','#refsPanel .side-tab-body'],
                              ['#fileToggle','#filePopover'],
                              ['#aboutToggle','#aboutOverlay'], ['#stickersToggle','#stickerOverlay'],
-                             ['#addNodeToggle','#addNodeOverlay']]){
+                             ['#addFabBtn','#addFabStyles']]){
     const ok = await page.evaluate(async ([b, p]) => {
       const el = document.querySelector(b); if(!el) return 'no button';
       el.click(); await new Promise(r => setTimeout(r, 220));
@@ -399,9 +399,13 @@ async function main(){
                     getComputedStyle(t).visibility !== 'hidden';
       document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
       await new Promise(r => setTimeout(r, 220));
+      // And Escape puts it away again, as its own ✕ would.
+      const gone = t.hidden || getComputedStyle(t).display === 'none' ||
+                   getComputedStyle(t).visibility === 'hidden';
+      if(shown && !gone) return 'Escape left it open';
       return shown;
     }, [btn, panel]);
-    check(`panel opens: ${panel}`, ok === true, ok === true ? '' : String(ok));
+    check(`panel opens, and Escape shuts it: ${panel}`, ok === true, ok === true ? '' : String(ok));
   }
 
   /* Suggestions were switched off by request, so the comments button is
@@ -4991,11 +4995,9 @@ async function main(){
     /* An entry may be created with nothing written in it, and comes out the
        size of an empty box rather than the width of a paragraph. */
     {
-      document.getElementById('addNodeToggle').click();
-      await wait(280);
-      setRichValue(document.getElementById('addNodeLabel'), '');
-      document.getElementById('addNodeSubmit').click();
+      document.querySelector('#addFabStyles .node-style-btn[data-value="rect"]').click();
       await wait(460);
+      if(typeof closeNodeEditor === 'function') closeNodeEditor();
       const made = workingNodes[workingNodes.length-1];
       out.emptyEntryMade = !!made && (made[1] === '' || made[1] == null);
       const n = made && nodes.get(made[0]);
@@ -5234,16 +5236,25 @@ async function main(){
     const out = {};
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
 
-    /* The About panel is taller than most windows now, so it scrolls. */
+    /* The About card stays inside the space it opens in, whatever it
+       holds: its body scrolls, and its close button is never under the
+       top bar. Opened history and all, which is the longest it gets. */
     document.getElementById('aboutToggle').click();
     await wait(320);
     {
-      const card = document.querySelector('#aboutOverlay .about-card');
+      const hist = document.querySelector('#versionLog details');
+      if(hist) hist.open = true;
+      await wait(60);
+      const ov = document.getElementById('aboutOverlay').getBoundingClientRect();
+      const card = document.querySelector('#aboutOverlay .about-card').getBoundingClientRect();
       const body = document.querySelector('#aboutOverlay .about-body');
-      const cs = getComputedStyle(body);
-      out.aboutScrolls = cs.overflowY === 'auto' &&
+      const x = document.getElementById('aboutClose').getBoundingClientRect();
+      const hit = document.elementFromPoint(x.left + x.width/2, x.top + x.height/2);
+      out.aboutScrolls = getComputedStyle(body).overflowY === 'auto' &&
         body.scrollHeight > body.clientHeight + 4 &&
-        card.getBoundingClientRect().height <= window.innerHeight + 1;
+        card.top >= ov.top - 0.5 && card.bottom <= ov.bottom + 0.5 &&
+        !!hit && hit.closest('#aboutClose') !== null;
+      if(hist) hist.open = false;
     }
     document.getElementById('aboutClose').click();
     await wait(220);
@@ -5340,7 +5351,7 @@ async function main(){
     await wait(520);
     return out;
   });
-  check('the About panel scrolls rather than running off the screen',
+  check('the About panel scrolls rather than running off the screen, and can always be shut',
         r27.aboutScrolls);
   check('a shared edge keeps its two connectors apart and both drop straight',
         r27.fanEven && r27.fanStraight,
@@ -5582,10 +5593,17 @@ async function main(){
       const surf = richFields.get('detailNoteInput').surface;
       out.noteItalic = getComputedStyle(surf).fontStyle;
       out.noteFamily = getComputedStyle(surf).fontFamily;
-      /* Against another of the drawer's own fields: the in-node one wears
-         whatever face its entry wears, so it cannot stand for "every other
-         formatted text" any more. The add form's label box can. */
-      out.editFamily = getComputedStyle(richFields.get('addNodeLabel').surface).fontFamily;
+      /* Against a plain formatted field: the in-node one wears whatever
+         face its entry wears, so it cannot stand for "every other
+         formatted text", and the add form's label box that used to is
+         gone with the form. A bare one, made for the asking, can. */
+      {
+        const bare = document.createElement('div');
+        bare.className = 'rich-surface';
+        surf.parentNode.appendChild(bare);
+        out.editFamily = getComputedStyle(bare).fontFamily;
+        bare.remove();
+      }
       out.figuresShown = surf.querySelectorAll('.rich-figure img').length;
       out.figureRoundTrip = richHtmlToMarkup(surf);
       // A figure is for the document, never for the drawing.
@@ -5652,7 +5670,7 @@ async function main(){
     /* A callout is not an archetype anybody can pick, and clicking one
        opens its own card rather than the entry drawer. */
     out.notAnArchetype = !document.querySelector('#editShapeInput option[value="callout"]') &&
-                         !document.querySelector('#addNodeShape option[value="callout"]');
+                         !document.querySelector('#addFabStyles [data-value="callout"]');
     applyEdit(()=>{
       workingNodes.length = 0;
       EDGE_STYLES.length = 0;
@@ -7163,19 +7181,20 @@ async function main(){
                           !document.querySelector('[data-hex-for="styleNote"]') &&
                           !!document.querySelector('[data-hex-for="nodeEditorText"]');
 
-    /* The Add form's Label row is shut for a picture too. */
+    /* A new picture opens no field for words; a new entry opens one. */
     {
-      const sel = document.getElementById('addNodeShape');
-      const wrap = document.getElementById('addNodeLabel').closest('.editor-field');
-      const rec = richFields.get('addNodeLabel');
-      sel.value = 'image'; sel.dispatchEvent(new Event('change', {bubbles:true}));
+      const pick = (v)=> document.querySelector(`#addFabStyles .node-style-btn[data-value="${v}"]`).click();
+      pick('image');
       await wait(280);
-      out.addShut = rec.surface.getAttribute('contenteditable') === 'false' &&
-                    [...wrap.querySelectorAll('button')].every(b=> b.disabled);
-      sel.value = 'rect'; sel.dispatchEvent(new Event('change', {bubbles:true}));
+      const pic = workingNodes[workingNodes.length-1][0];
+      out.addShut = nodeEditor.hidden && selectedId === pic;
+      pick('rect');
       await wait(280);
-      out.addOpen = rec.surface.getAttribute('contenteditable') === 'true' &&
-                    [...wrap.querySelectorAll('button')].every(b=> !b.disabled);
+      const box = workingNodes[workingNodes.length-1][0];
+      out.addOpen = !nodeEditor.hidden && selectedId === box;
+      closeNodeEditor(); deselect();
+      deleteNodes([pic, box]);
+      await wait(280);
     }
 
     /* Every sheet of a local multiverse covers the same ground in the same
@@ -7234,7 +7253,7 @@ async function main(){
   check('a remark on a connector is written in the connector’s ink',
         r36.inkFollows, r36.inkFirst + '  ->  ' + r36.inkNow);
   check('and there is nowhere to overrule it', r36.noColourControl);
-  check('the Add form offers no Label for a picture either',
+  check('a picture made with the + opens no field for words',
         r36.addShut && r36.addOpen,
         JSON.stringify({shut:r36.addShut, open:r36.addOpen}));
   check('every sheet of a stack covers the same ground in the same time',
@@ -7796,16 +7815,14 @@ async function main(){
       out.archetypesTrimmed = !/mirror|pocket/.test(out.shapeOptions);
     }
     {
-      document.getElementById('addNodeToggle').onclick();
-      await wait(240);
-      const picks = [...document.querySelectorAll('#addNodeShapePick .node-style-btn')];
+      const picks = [...document.querySelectorAll('#addFabStyles .node-style-btn')];
       out.pickCount = picks.length;
       out.picksDrawn = picks.every(b=> !!b.querySelector('svg.node-style-icon'));
       picks.find(b=> b.dataset.value === 'ellipse').click();
-      await wait(150);
-      out.pickWrites = addNodeShapeSel.value === 'ellipse' &&
-        document.querySelector('#addNodeShapePick .node-style-btn.on').dataset.value === 'ellipse';
-      document.getElementById('addNodeCancel').onclick();
+      await wait(250);
+      const made = workingNodes[workingNodes.length-1];
+      out.pickWrites = made[5] === 'ellipse';
+      deselect(); deleteNodes([made[0]]);
       await wait(150);
     }
 
@@ -7886,7 +7903,7 @@ async function main(){
         JSON.stringify({bg:r39.drawerBg, border:r39.drawerBorder, set:r39.setFromForm}));
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
-  check('the Add form picks an archetype by its picture',
+  check('the + picks an archetype by its picture',
         r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('a caption is turned by a handle on the caption, and only a caption',
@@ -11498,12 +11515,13 @@ async function main(){
       applyEdit(()=>{
         workingNodes.length = 0; refill(EDGE_STYLES, []);
         workingNodes.push(['sqA', 'Square', null, null, null, null,
-                           {pos:[X, Y], colors:['#222', '#c3c'], square:true}]);
-        workingNodes.push(['sqB', 'Round', 'sqA', null, null, null, {pos:[X + 260, Y + 160]}]);
+                           {pos:[X, Y], colors:['#222', '#c3c']}]);
+        workingNodes.push(['sqB', 'Round', 'sqA', null, null, null,
+                           {pos:[X + 260, Y + 160], square:false}]);
         workingNodes.push(['sqW', 'Wavy', 'sqA', null, null, null,
                            {pos:[X - 260, Y + 160], border:'wavy', square:true}]);
         workingNodes.push(['sqK', 'A remark', null, null, null, 'callout',
-                           {pos:[X + 160, Y + 40], leader:{from:'sqA', to:'sqB', at:0.5}}]);
+                           {pos:[X + 160, Y + 40], leader:{from:'sqA', to:'sqB', at:0.5}, square:false}]);
         refill(EDGE_STYLES, [{from:'sqA', to:'sqB', square:true, note:'hi'}]);
       });
       await wait(200);
@@ -11532,7 +11550,8 @@ async function main(){
         !bar.querySelector('[data-group="border"]').hidden && bar.querySelector('[data-group="frame"]').hidden;
       press('corners', 'square');
       await wait(150);
-      out.panelWrites = !!entryOpts(workingEntry('sqB').entry).square && rx('sqB').every(v=> v === 0);
+      // Square is the default, so choosing it takes the flag away.
+      out.panelWrites = !('square' in entryOpts(workingEntry('sqB').entry)) && rx('sqB').every(v=> v === 0);
       press('border', 'wavy');
       await wait(150);
       out.panelGreys = borderStyleOf(nodes.get('sqB')) === 'wavy' &&
@@ -11650,7 +11669,7 @@ async function main(){
   });
   check('a wavy border makes the entry bigger only by the depth of its ripple', rW.wavySame, rW.wavySize);
   check('a cap over an inner ring stops where that ring’s stroke begins', rW.capMasked);
-  check('square corners square the box and every ring of it', rW.squareBox, rW.squareRx);
+  check('square corners, the default, square the box and every ring of it', rW.squareBox, rW.squareRx);
   check('a wavy border keeps its rounded corners whatever the setting says', rW.wavyIgnores);
   check('a square connector has no rounded elbows', rW.edgeSquare);
   check('but its note and its callout keep their own', rW.plateOwn && rW.calloutOwn, rW.squareRx);
@@ -11702,29 +11721,14 @@ async function main(){
     out.refClean = refColor() === DEFAULT_REF_COLOR;
     out.noUrl = !/example\.org/.test(document.body.innerHTML);
 
-    /* The new-entry form offers corners, greyed as the entry panel greys them. */
-    document.getElementById('addNodeToggle').onclick();
-    const pick = (group, v)=> document.querySelector('#' + group + ' button[data-value="' + v + '"]').click();
-    const greyed = ()=> document.getElementById('addNodeCorners').classList.contains('disabled');
-    out.formRound = addNodeCorners.value === 'round' && !greyed();
-    pick('addNodeBorderStyle', 'wavy');
-    out.formGreysWavy = greyed();
-    pick('addNodeBorderStyle', 'solid');
-    out.formUngreys = !greyed();
-    // And its background reset empties the field it sits in.
-    addNodeBg.value = '#abcdef';
-    addNodeBg.dispatchEvent(new Event('input', {bubbles:true}));
-    const reset = document.getElementById('addNodeBgReset');
-    const wasLive = !reset.disabled;
-    reset.click();
-    out.bgReset = wasLive && addNodeBg.value === '' && reset.disabled;
-    pick('addNodeCorners', 'square');
-    setRichValue(addNodeLabel, 'Squared at birth');
+    /* Square is the default: an entry made with the + has square corners
+       and records nothing to say so. */
     const ids = new Set(workingNodes.map(it=> it[0]));
-    document.getElementById('addNodeSubmit').onclick();
+    document.querySelector('#addFabStyles .node-style-btn[data-value="rect"]').click();
     await wait(150);
+    closeNodeEditor();
     const made = workingNodes.find(it=> !ids.has(it[0]));
-    out.formWrites = !!made && !!(made[6] && made[6].square) && hasSquareCorners(nodes.get(made[0]));
+    out.formWrites = !!made && !(made[6] && 'square' in made[6]) && hasSquareCorners(nodes.get(made[0]));
 
     /* A callout carried along its connector round a bend keeps to the same
        hand of the line: on the left of a line going down is below it once
@@ -11772,10 +11776,7 @@ async function main(){
   check('and from a connector, its note ground and its gradient', rC.edgeClean);
   check('and from the citation colour', rC.refClean);
   check('and never reaches the drawing', rC.noUrl);
-  check('the new-entry form offers rounded corners first', rC.formRound);
-  check('and greys them for a wavy border, and gives them back', rC.formGreysWavy && rC.formUngreys);
-  check('its background reset empties the field', rC.bgReset);
-  check('and a square entry is made square', rC.formWrites);
+  check('an entry made with the + is square without saying so', rC.formWrites);
   check('a callout carried round a bend keeps to the same hand of its line, as far clear',
         rC.keptHand, rC.turned);
   });
@@ -12126,15 +12127,17 @@ async function main(){
     const rules = (t)=> [...t.parentNode.querySelectorAll(':scope > .text-underline')];
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
-      // A rule under letters with no descenders is the lowest ink there is.
-      workingNodes.push(['pxU', '{{u:double|ace}} mum', null, null, null, null, {pos:[0, 0]}]);
-      workingNodes.push(['pxD', 'double [[rim|reading]]', null, null, null, null, {pos:[0, 80], border:'double'}]);
+      /* A rule under letters with no descenders is the lowest ink there is.
+         Rounded on purpose, all of these: square is the default, and a
+         round corner is the case that can come near the words. */
+      workingNodes.push(['pxU', '{{u:double|ace}} mum', null, null, null, null, {pos:[0, 0], square:false}]);
+      workingNodes.push(['pxD', 'double [[rim|reading]]', null, null, null, null, {pos:[0, 80], border:'double', square:false}]);
       // Ink right out in every corner of its box: the case a round corner meets first.
-      workingNodes.push(['pxR', '[PH]', null, null, null, null, {pos:[0, 160]}]);
+      workingNodes.push(['pxR', '[PH]', null, null, null, null, {pos:[0, 160], square:false}]);
       workingNodes.push(['pxA', 'from', null, null, null, null, {pos:[300, 0]}]);
       workingNodes.push(['pxB', 'to', 'pxA', null, null, null, {pos:[700, 0]}]);
       workingNodes.push(['pxC', 'a remark {{u:wavy|on}} it', null, null, null, 'callout',
-                         {pos:[450, 120], leader:{from:'pxA', to:'pxB', at:0.5}}]);
+                         {pos:[450, 120], leader:{from:'pxA', to:'pxB', at:0.5}, square:false}]);
       workingNodes.push(['pxP', 'A face', null, null, null, 'ellipse', {pos:[0, 300], bioCard:true}]);
       EDGE_STYLES.push({from:'pxA', to:'pxB', note:'a note {{u:solid|gy}} [[x|rb]]'});
     });
@@ -12380,6 +12383,214 @@ async function main(){
         rT.refFound === 'tB' && rT.refByNumber === 'tA' && rT.refAll === 2,
         JSON.stringify({w:rT.refFound, n:rT.refByNumber, all:rT.refAll}));
   check('the shared menu is not named anywhere a reader looks', rT.noManagement);
+  });
+
+  /* ---- a reference made like a tag, a + in the corner, square by default ---- */
+  await scenario("a reference made like a tag, and a + in the corner", async () => {
+  const rF = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const beforeRefs = REFS.slice();
+
+    /* A reference is made where it will stand, as a tag is: the + puts an
+       empty row at the foot of the list with the caret in it, Enter keeps
+       what was typed, and Escape keeps nothing. No dialog either way. */
+    {
+      const plus = ()=> document.querySelector('#refsList button[title="Add a reference"]');
+      const n0 = REFS.length;
+      plus().click();
+      await wait(120);
+      const box = document.querySelector('#refsList .ref-item-new .ref-naming-text');
+      out.refRowFocused = !!box && document.activeElement === box &&
+        !document.getElementById('askOverlay').classList.contains('open');
+      out.refRowLast = !!box && box.closest('.ref-item') === [...document.querySelectorAll('#refsList .ref-item')].pop();
+      box.textContent = 'Marvel UK #1, 1984';
+      box.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+      await wait(150);
+      out.refMade = REFS.length === n0 + 1 && REFS[REFS.length-1].detail === 'Marvel UK #1, 1984' &&
+        !document.querySelector('#refsList .ref-item-new');
+      plus().click();
+      await wait(120);
+      const box2 = document.querySelector('#refsList .ref-item-new .ref-naming-text');
+      box2.textContent = 'never kept';
+      box2.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+      await wait(150);
+      out.refEscaped = REFS.length === n0 + 1 && !document.querySelector('#refsList .ref-item-new');
+      setSideTab(refsPanel, false);
+    }
+
+    /* An empty entry is the size of an empty callout: one grid step. */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['feE', '', null, null, null, null, {pos:[0, 0]}]);
+      workingNodes.push(['feA', 'a', null, null, null, null, {pos:[200, 0]}]);
+      workingNodes.push(['feB', 'b', 'feA', null, null, null, {pos:[600, 0]}]);
+      workingNodes.push(['feK', '', null, null, null, 'callout',
+                         {pos:[380, 100], leader:{from:'feA', to:'feB', at:0.5}}]);
+      workingNodes.push(['feS', 'Words', null, null, null, null, {pos:[0, 200]}]);
+      workingNodes.push(['feD', 'Words', null, null, null, null, {pos:[0, 300], border:'double'}]);
+    });
+    await wait(300);
+    {
+      const e = nodes.get('feE'), k = nodes.get('feK');
+      out.emptySizes = [e.w, e.h, k.w, k.h];
+      out.emptyLikeCallout = e.w === k.w && e.h === k.h && Math.abs(e.w - GRID) < 0.01;
+    }
+
+    /* A double border is the single one split in two: the same box, the
+       same outer and inner edge, and two lines of one weight. */
+    {
+      const s = nodes.get('feS'), d = nodes.get('feD');
+      const solid = document.querySelector('.node[data-id="feS"] > rect[stroke]');
+      const lines = [...document.querySelectorAll('.node[data-id="feD"] > rect[stroke]')];
+      const sw = (r)=> parseFloat(getComputedStyle(r).strokeWidth);
+      const edges = (r)=> {
+        const x = +r.getAttribute('x'), w = +r.getAttribute('width'), half = sw(r) / 2;
+        return [x - half, x + half, x + w - half, x + w + half];
+      };
+      out.doubleWeights = lines.map(sw);
+      out.doubleEqual = lines.length === 2 && Math.abs(sw(lines[0]) - sw(lines[1])) < 1e-3 &&
+        Math.abs(sw(lines[0]) + sw(lines[1]) - sw(solid) / 3 * 2) < 1e-3;
+      const so = edges(solid), a = edges(lines[0]), b = edges(lines[1]);
+      // Outer edge of the outer line on the single border's outer edge; inner on inner.
+      out.doubleEdges = [a[0] - d.x, so[0] - s.x, b[1] - d.x, so[1] - s.x].map(v=> +v.toFixed(3));
+      out.doubleSplit = Math.abs((a[0] - d.x) - (so[0] - s.x)) < 0.01 &&
+                        Math.abs((b[1] - d.x) - (so[1] - s.x)) < 0.01 &&
+                        d.w === s.w && d.h === s.h;
+    }
+
+    /* Square is the default; rounding is what gets written down. */
+    {
+      out.squareByDefault = hasSquareCorners(nodes.get('feS')) &&
+        [...document.querySelectorAll('.node[data-id="feS"] > rect[stroke]')].every(r=> +r.getAttribute('rx') === 0);
+      openStyleBar({kind:'node', id:'feS'});
+      document.querySelector('#styleBar [data-group="corners"] button[data-value="round"]').click();
+      await wait(150);
+      out.roundWritten = entryOpts(workingEntry('feS').entry).square === false &&
+        /square:false/.test(serializeItem(workingEntry('feS').entry)) &&
+        !hasSquareCorners(nodes.get('feS'));
+      closeStyleBar();
+    }
+
+    /* The zoom buttons are gone, and the + stands in their corner. */
+    {
+      out.noZoomButtons = !document.getElementById('zoomIn') && !document.getElementById('zoomOut') &&
+        !document.getElementById('zoomReset') && !document.getElementById('addNodeToggle');
+      const btn = document.getElementById('addFabBtn');
+      const r = btn.getBoundingClientRect(), c = svg.getBoundingClientRect();
+      out.fabRound = getComputedStyle(btn).borderRadius === '50%' && Math.abs(r.width - r.height) < 0.5;
+      out.fabCorner = c.right - r.right < 40 && c.bottom - r.bottom < 40;
+      const styles = document.getElementById('addFabStyles');
+      const shown = ()=> getComputedStyle(styles).visibility === 'visible';
+      const turned = ()=> getComputedStyle(btn.querySelector('svg')).transform;
+      out.fabShutAtRest = !shown() && turned() === 'none';
+      document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
+      await wait(600);
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
+        styles.getBoundingClientRect().bottom <= r.top + 0.5;
+      out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
+        turned() !== 'none';
+      document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerleave', {pointerType:'mouse'}));
+      await wait(600);
+      out.fabUnturns = !shown() && turned() === 'none';
+    }
+
+    /* A style picked puts that entry on the nearest clear ground to the
+       middle of the view — never on top of one already there. */
+    {
+      applyEdit(()=>{ workingNodes.length = 0; refill(EDGE_STYLES, []); });
+      await wait(150);
+      const view = visibleCanvasRect();
+      const mid = clientToWorld(view.left + view.width/2, view.top + view.height/2);
+      const pick = (v)=> document.querySelector(`#addFabStyles .node-style-btn[data-value="${v}"]`).click();
+      const made = [];
+      for(const v of ['rect', 'rect', 'textbox', 'rect']){
+        pick(v); await wait(200);
+        closeNodeEditor(); deselect(); await wait(60);
+        made.push(workingNodes[workingNodes.length-1][0]);
+      }
+      const boxes = made.map(id=> nodes.get(id));
+      const first = boxes[0];
+      out.firstAtMiddle = Math.abs(first.x + first.w/2 - mid.x) <= GRID &&
+                          Math.abs(first.y + first.h/2 - mid.y) <= GRID;
+      out.noOverlap = boxes.every((a, i)=> boxes.every((b, j)=> i === j ||
+        a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y));
+      // Nearest: every one of them within two steps of the first.
+      out.allNear = boxes.every(b=> Math.hypot(b.x - first.x, b.y - first.y) <= 3 * GRID);
+      out.madeShapes = made.map(id=> workingEntry(id).entry[5] || 'rect').join();
+      out.placed = boxes.map(b=> [b.x, b.y].map(v=> +v.toFixed(2)).join(',')).join(' ');
+    }
+
+    refill(REFS, beforeRefs);
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart(); buildSideTabs();
+    await wait(400);
+    return out;
+  });
+  check('the + on References opens an empty row with the caret in it, and no dialog',
+        rF.refRowFocused && rF.refRowLast);
+  check('Enter makes the reference, Escape makes none', rF.refMade && rF.refEscaped);
+  check('an empty entry is the size of an empty callout', rF.emptyLikeCallout, JSON.stringify(rF.emptySizes));
+  check('a double border is the single one split into two equal lines',
+        rF.doubleEqual && rF.doubleSplit, JSON.stringify({w:rF.doubleWeights, e:rF.doubleEdges}));
+  check('an entry is square unless rounded, and rounding is what is saved',
+        rF.squareByDefault && rF.roundWritten);
+  check('no zoom buttons; a round + in their corner', rF.noZoomButtons && rF.fabRound && rF.fabCorner);
+  check('pointing at the + stands the styles up above it, and turns the plus once',
+        rF.fabShutAtRest && rF.fabOpens && rF.fabTurns);
+  check('and leaving it puts them away and turns the plus back', rF.fabUnturns);
+  check('a picked style lands on the clear ground nearest the middle of the view',
+        rF.firstAtMiddle && rF.noOverlap && rF.allNear && rF.madeShapes === 'rect,rect,textbox,rect',
+        rF.placed + ' ' + rF.madeShapes);
+
+  /* On a phone the About card fits under the two-row bar, and the + is
+     reached by a tap. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    await pp.tap('#aboutToggle');
+    await wait(400);
+    const about = await pp.evaluate(()=>{
+      const ov = document.getElementById('aboutOverlay').getBoundingClientRect();
+      const card = document.querySelector('#aboutOverlay .about-card').getBoundingClientRect();
+      const x = document.getElementById('aboutClose').getBoundingClientRect();
+      const hit = document.elementFromPoint(x.left + x.width/2, x.top + x.height/2);
+      const help = [...document.querySelectorAll('#aboutOverlay .about-body > p')]
+        .filter(p=> !p.classList.contains('about-version')).map(p=> p.textContent).join(' ');
+      return {inside: card.top >= ov.top - 0.5 && card.bottom <= ov.bottom + 0.5 &&
+                      card.left >= 0 && card.right <= innerWidth,
+              closable: !!hit && !!hit.closest('#aboutClose') && x.width >= 36,
+              chars: help.length};
+    });
+    check('on a phone the About card fits on the screen and its ✕ can be tapped',
+          about.inside && about.closable, JSON.stringify(about));
+    check('and what it says is short', about.chars < 1400, `${about.chars} characters`);
+    await pp.tap('#aboutClose');
+    await wait(300);
+    await pp.tap('#addFabBtn');
+    await wait(400);
+    const fab = await pp.evaluate(()=> ({
+      open: document.getElementById('addFab').classList.contains('open'),
+      onScreen: [...document.querySelectorAll('#addFabStyles .node-style-btn')].every(b=>{
+        const r = b.getBoundingClientRect();
+        return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+      }),
+      aboutShut: !document.getElementById('aboutOverlay').classList.contains('open')
+    }));
+    check('on a phone a tap on the + offers the styles, all on the screen',
+          fab.open && fab.onScreen && fab.aboutShut, JSON.stringify(fab));
+  } finally {
+    await phone.close();
+  }
   });
 
   /* ---- 29. nothing threw along the way ---- */

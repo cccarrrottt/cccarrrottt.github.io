@@ -209,7 +209,7 @@ function buildSideTabs(){
   const head = sectionHead('References', REFS.length);
   if(!readOnlyView){
     const add = makePlusButton('Add a reference');
-    add.addEventListener('click', ev=>{ ev.stopPropagation(); addRef(); });
+    add.addEventListener('click', ev=>{ ev.stopPropagation(); startNewRefEntry(); });
     head.appendChild(add);
   }
   refsList.appendChild(head);

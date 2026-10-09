@@ -651,7 +651,6 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
   });
   field.addEventListener('blur', ()=>{ clearTimeout(restoreTimer); restoreIfEmpty(); });
 }
-const paintAddSwatches = wireSwatchStrip('addNodeColors', 'addNodeColorsSwatches');
 
 // The hex boxes keep a live swatch of what the A button will apply, and
 // must not steal focus from the text being coloured.
@@ -862,17 +861,11 @@ document.querySelectorAll('[data-hex-reset]').forEach(btn=>{
   });
 });
 
-['detailNoteInput','addNodeLabel','nodeEditorText']
+['detailNoteInput','nodeEditorText']
   .forEach(id=> makeRichField(document.getElementById(id)));
-/* The two fields whose Enter means more than "stop typing": the add form's
-   label, where Enter is the Add button every other form on the web has
-   trained the reader to expect, and the note editor, where Enter is Apply —
-   the same thing its own button does, so the note closes rather than being
-   left open over the entry it belongs to. */
-setRichEnter('addNodeLabel', ()=>{
-  const btn = document.getElementById('addNodeSubmit');
-  if(btn && !btn.disabled) btn.click();
-});
+/* The note editor is the one field whose Enter means more than "stop
+   typing": Enter is Apply, the same thing its own button does, so the note
+   closes rather than being left open over the entry it belongs to. */
 setRichEnter('detailNoteInput', ()=>{
   const btn = document.getElementById('detailNoteApply');
   if(btn) btn.click();

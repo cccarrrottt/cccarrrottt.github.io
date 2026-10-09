@@ -18,14 +18,13 @@ Releases before 0.9.0 were not numbered.
   descenders, a reading over a word and a glyph set larger all move the
   border. Words are centred on their ink across as well as down.
 - **The pixel is from the inside of the border that is drawn**
-  (`textInsetFor`): half a plain stroke, a ripple's swing inward, a double
-  border's inner rail. A border style therefore changes an entry's size by
+  (`textInsetFor`): half a plain stroke, or a ripple's swing inward. A border style therefore changes an entry's size by
   that much and no more. Cards and loose captions keep their old padding.
 - **And across the corners.** A rounded corner is now no rounder than keeps
   that pixel diagonally too (`inkCornerR`): the radius of the innermost line
   is at most its half-stroke plus the pixel, so the corner gives way rather
-  than the box growing. A double border's outer rail follows its inner one;
-  a connector note's plate and a portrait's card the same rule.
+  than the box growing. A connector note's plate and a portrait's card follow
+  the same rule.
 - **A box closed onto its words keeps its middle where it was placed**, not
   its top, so entries of a row stay level whatever letters are in them.
 - **A connector note sits on the ordinary baseline.** It was set on its
@@ -40,7 +39,7 @@ Releases before 0.9.0 were not numbered.
   sharper one against a true 6.1×6.5. Runs are now measured sixty-four
   times larger and scaled back (`INK_SCALE`).
 - **A border that takes more room grows the box about its middle.** Switching
-  to wavy or double added all the extra width on the right, from the box's
+  to wavy added all the extra width on the right, from the box's
   top-left corner; the stored position is now the left edge of the box a
   plain border would draw, and the border's extra is taken off both sides.
   Longer words still grow a box to the right of where it was put.
@@ -62,6 +61,32 @@ Releases before 0.9.0 were not numbered.
 - **An empty callout, pinned to a line or not, is one grid step square**, and
   a new one is centred where it was asked for.
 
+### Making an entry
+
+- **The zoom buttons are gone, and a round + stands in their corner.** The
+  wheel and two fingers still zoom. Pointing at the + turns the plus once
+  and stands the five styles up above it; leaving turns it back. Picking a
+  style puts an empty entry of that style on the clear ground nearest the
+  middle of the view, selected, with the caret in it if it holds words. On
+  a phone a tap does what pointing does. The Add form and its toolbar
+  button are gone: everything it asked for is set on the entry itself.
+- **An entry with nothing in it is one grid step square**, the same as an
+  empty callout. A corner drag can take any box down to that size.
+- **Square corners are the default for every entry.** Rounding them is the
+  choice that is recorded (`square:false`); entries saved without a setting
+  now draw square.
+- **A double border is the single one split in two**: two lines a third of
+  its weight with a third between them, inside the same outer and inner
+  edge, rather than a second line drawn inside the first. A double border
+  no longer changes an entry's size.
+- **A reference is made the way a tag is.** The + on the References tab
+  puts an empty row at the foot of the list with the caret in it; Enter
+  keeps it, Escape or a click elsewhere keeps nothing. The dialog is gone.
+- **About says only what a reader needs**, in five short paragraphs, with
+  the version history folded away. The card is sized to the space under
+  the top bar, so on a phone it no longer runs up beneath the two-row bar
+  and takes its close button with it.
+
 ### Bends by hand
 
 - **A bend placed between an entry and its run-out no longer hooks.** The
@@ -71,6 +96,10 @@ Releases before 0.9.0 were not numbered.
   same holds at the source.
 
 ### Found on the way
+
+- **Escape shuts the sticker library and the File menu**, as it shuts
+  About. It walked past both to deselecting the chart, which went unseen
+  because opening the Add form happened to close them.
 
 - **Where a rippled border stands is read along its side's own normal**, not
   from the middle of the box, which under-read it by up to half on short

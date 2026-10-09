@@ -102,14 +102,14 @@ function openRefsPanel(focusKey){
   }
 }
 function buildRefsInto(host){
-  if(!REFS.length){
+  if(!REFS.length && !pendingNewRef){
     const empty = document.createElement('p');
     empty.className = 'legend-status';
     empty.textContent = 'No references yet. Add one with +, then cite it with the [n] button on any text toolbar.';
     host.appendChild(empty);
     return;
   }
-  if(refFilterText && !REFS.some(refMatchesFilter)){
+  if(refFilterText && !REFS.some(refMatchesFilter) && !pendingNewRef){
     const none = document.createElement('div');
     none.className = 'legend-empty';
     none.textContent = `No reference matches \u201c${refFilterText}\u201d.`;
@@ -154,6 +154,63 @@ function buildRefsInto(host){
     }
     host.appendChild(row);
   });
+  if(pendingNewRef) host.appendChild(buildNewRefRow(REFS.length + 1));
+}
+/* Making a reference where it will stand — the same gesture as a tag.
+ *
+ * It used to be made in a dialog, with a field for the text and one for
+ * the link and an OK button, while a tag was written straight into an
+ * empty shape on its own list. Two lists side by side that are added to
+ * in two different ways is one way too many. So the + puts an empty row at
+ * the foot of the list, numbered as it will be, with the caret in it: type
+ * what it says, Enter to keep it. Nothing typed, Escape, or a click
+ * anywhere else, and no reference was made. A link is added afterwards
+ * with the pencil, which is where it is changed too. */
+let pendingNewRef = false;
+function startNewRefEntry(){
+  if(readOnlyView) return;
+  pendingNewRef = true;
+  // A search that would hide the new row is cleared, or it opens unseen.
+  refFilterText = '';
+  setSideTab(refsPanel, true);
+  buildSideTabs();
+  const box = refsList.querySelector('.ref-naming-text');
+  if(box){
+    box.closest('.ref-item').scrollIntoView({block:'nearest'});
+    focusNaming(box);
+  }
+}
+function buildNewRefRow(num){
+  const row = document.createElement('div');
+  row.className = 'ref-item ref-item-new';
+  row.innerHTML =
+    `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">[${num}]</span>` +
+    `<span class="ref-detail ref-naming-text" contenteditable="plaintext-only" spellcheck="false"></span>` +
+    `<span class="ref-uses">0</span></div>`;
+  const box = row.querySelector('.ref-naming-text');
+  let done = false;
+  const finish = (keep)=>{
+    if(done) return;
+    done = true;
+    const typed = (box.textContent || '').replace(/\s+/g, ' ').trim();
+    pendingNewRef = false;
+    if(keep && typed) createRef(typed);
+    else buildSideTabs();
+  };
+  box.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  box.addEventListener('blur', ()=> finish(false));
+  box.addEventListener('click', ev=> ev.stopPropagation());
+  box.addEventListener('mousedown', ev=> ev.stopPropagation());
+  return row;
+}
+function createRef(detail){
+  const key = uniqueRefKey(detail || 'ref');
+  applyEdit(()=> REFS.push({key, title:'', detail, url:''}));
+  buildSideTabs(); rebuildChart();
 }
 /* What a reference SAYS. A chart written before references lost their
    heading may still carry one; it is shown, and folded into the text the
@@ -185,15 +242,6 @@ async function refPrompt(existing, title){
             url: existing ? (existing.url || '') : '', refused: true};
   }
   return {title:'', detail:(got.detail||'').trim(), url};
-}
-async function addRef(){
-  const got = await refPrompt(null, 'New reference');
-  if(!got || (!got.detail && !got.url)) return;
-  const key = uniqueRefKey(got.detail || 'ref');
-  applyEdit(()=> REFS.push({key, title:got.title, detail:got.detail, url:got.url}));
-  buildSideTabs(); rebuildChart();
-  if(got.refused) setRefsStatus('err', REFUSED_LINK);
-  else setRefsStatus('ok', `Added [${REFS.length}].`);
 }
 async function editRef(key){
   const i = refIndex(key);

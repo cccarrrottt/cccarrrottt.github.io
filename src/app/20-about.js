@@ -320,13 +320,15 @@ function renderVersionInfo(){
   if(line) line.textContent = `${APP_NAME} · version ${APP_VERSION}`;
   const log = document.getElementById('versionLog');
   if(!log) return;
-  log.innerHTML = '<h3>Version history</h3>' + VERSION_LOG.map(r=>
+  /* Folded away: the history is longer than everything else in the card
+     put together, and it is the part almost nobody opens About for. */
+  log.innerHTML = '<details><summary>Version history</summary>' + VERSION_LOG.map(r=>
     `<div class="version-entry"><div class="version-head">` +
     `<b>${escapeHtml(r.v)}</b>${r.title ? ' — ' + escapeHtml(r.title) : ''}` +
     `<span class="version-date">${escapeHtml(r.date)}</span></div>` +
     `<ul>${r.notes.map(t=> `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>`
   ).join('') +
-  '<p class="version-foot">Releases before 0.9.0 were not numbered.</p>';
+  '<p class="version-foot">Releases before 0.9.0 were not numbered.</p></details>';
 }
 /* ---------------------------------------------------------------------
    A comment, read at full size.

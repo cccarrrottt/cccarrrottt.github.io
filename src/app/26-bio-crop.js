@@ -520,12 +520,10 @@ bioImageFile.addEventListener('change', async ()=>{
     /* This picker also feeds the free-standing Image element and a card's
        picture slot, which are rectangles — only a character bio is round,
        so the round frame is shown only when the entry actually is one.
-       Both selects are reached by id at call time rather than captured:
-       they are declared further down the file, and a `const` read before
-       its declaration throws even through `typeof`. */
-    const shapeSel = target && target.id === 'addNodeImage'
-      ? document.getElementById('addNodeShape')
-      : document.getElementById('editShapeInput');
+       The select is reached by id at call time rather than captured: it
+       is declared further down the file, and a `const` read before its
+       declaration throws even through `typeof`. */
+    const shapeSel = document.getElementById('editShapeInput');
     const roundTarget = !!shapeSel && shapeSel.value === 'ellipse';
     const crop = await openCropper(file, 'Choose the part of the picture to use',
                                    roundTarget ? 'circle' : 'square');
@@ -550,5 +548,4 @@ function wireImagePicker(pickBtnId, clearBtnId, inputId){
   };
 }
 wireImagePicker('editImagePick', 'editImageClear', 'editImageInput');
-wireImagePicker('addNodeImagePick', 'addNodeImageClear', 'addNodeImage');
 

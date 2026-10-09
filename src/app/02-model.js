@@ -58,7 +58,6 @@ const BORDER_STYLES = {
   double:  {label:'Double',       dash:null},
   wavy:    {label:'Wavy',         dash:null}
 };
-const BORDER_DOUBLE_GAP = 2.4;   // between the two lines of a double border
 function borderStyleOf(n){
   const k = (n && n.border) || 'solid';
   return BORDER_STYLES[k] ? k : 'solid';
@@ -277,21 +276,28 @@ const NODE_PAD_X = 7, NODE_PAD_Y = 5;
    The border's own reach inward is therefore part of the padding, and
    differs by style: a plain stroke comes half its width inside the box,
    a ripple swings in by its amplitude before its stroke starts, and a
-   double border's second rail stands a gap further in again. Which means
-   a border style can now change an entry's size by a pixel or two — the
-   one thing a look was not supposed to do — because the alternative is
-   words touching the inner rail of a double border, which is worse.
+   double border, being the plain stroke split in three, reaches exactly
+   as far as the plain one. Only a ripple changes an entry's size, and it
+   grows about the middle (see growShiftX).
  *
    NODE_PAD_X and NODE_PAD_Y stay for what is NOT a box closed on its
    words: a loose caption, which has no border to stand off, and the wrap
    width a label is folded at before the box closes on it. */
 const TEXT_GAP = 1;
-const NODE_BORDER_W = 1.6;          // .node > rect in the stylesheet
-const NODE_INNER_RAIL_W = 0.9;      // .border-inner, a double border's second line
+const NODE_BORDER_W = 1.6;          // .node > rect in the stylesheet; see DOUBLE_LINE_W
+/* A double border is the ordinary border SPLIT, not a second one added
+   inside it: the same band the plain stroke covers, drawn as two lines of
+   equal weight with a gap of the same weight between them — a third, a
+   third and a third. It used to be the plain stroke with a thinner rail
+   two and a half pixels further in, which made a double-bordered entry
+   bigger than a plain one and its two lines unequal. Now the box is the
+   same size whatever the style, and the lines match. */
+const DOUBLE_LINE_W = NODE_BORDER_W / 3;
+/* How far each line's centre stands from the box's edge, out and in. */
+const DOUBLE_LINE_OFF = (NODE_BORDER_W - DOUBLE_LINE_W) / 2;
 function borderReachIn(n){
   if(isTextboxShape(n)) return TEXTBOX_FRAME_W / 2;
   if(isWavyBorder(n)) return POCKET_AMP + NODE_BORDER_W / 2;
-  if(borderStyleOf(n) === 'double') return BORDER_DOUBLE_GAP + NODE_INNER_RAIL_W / 2;
   return NODE_BORDER_W / 2;
 }
 /* A caption has no border, only the frame that shows while it is pointed
@@ -320,26 +326,21 @@ function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
  * the corner has to cost size — which is the other way to do it, and the
  * one not wanted: the corner gives, not the box.
  *
- * For a double border the inner rail is that line, and the outer one is
- * the same arc a rail's gap further out. A ripple's corner is already
+ * A double border's two lines lie inside the plain stroke's band, so the
+ * innermost edge is where a plain stroke's is and the radius is the same;
+ * each line is drawn at that radius moved by its own offset. A ripple's corner is already
  * clear: its arc's centre stands inside the ink's corner. Returned is the
  * radius of the OUTERMOST line of ring 0, which is what every other radius
  * on the entry is measured from. */
 function inkCornerR(n){
   if(isTextboxShape(n)) return TEXT_GAP + TEXTBOX_FRAME_W / 2;
-  if(borderStyleOf(n) === 'double') return TEXT_GAP + NODE_INNER_RAIL_W / 2 + BORDER_DOUBLE_GAP;
   return TEXT_GAP + NODE_BORDER_W / 2;
 }
 function round2(v){ return Math.round(v * 100) / 100; }
-/* The smallest an auto-sized box is allowed to get, whatever its text.
-   Not a padding — a floor, so that a one-letter entry is still a box with
-   room for its ports and its resize grip rather than a chip. NODE_MINH
-   above is no longer that floor: it is the height an entry is CREATED and
-   RESIZED at, which is why it is larger — a new entry should arrive as a
-   box with room in it, and a corner drag should not be able to crush one
-   to a sliver. What an entry settles to once it has closed on its own text
-   is this. */
-const NODE_FIT_MINW = 52, NODE_FIT_MINH = 24;
+/* The height of a one-line entry, which is what an entry's stored
+   position is the middle of (see NODE_GROW_REF), and the floor for the
+   boxes that do not close on their words. */
+const NODE_FIT_MINH = 24;
 // The smallest a portrait may be dragged to; below this it is a dot.
 const BIO_MIN_SIZE = 20;
 /* The height a box's GROWTH is measured from — see growShift.
@@ -566,7 +567,9 @@ workingNodes.forEach(item=>{
     border: (opts && typeof opts.border === 'string' && BORDER_STYLES[opts.border])
             ? opts.border : null,
     /* Square corners instead of rounded ones — see hasSquareCorners. */
-    square: !!(opts && opts.square),
+    /* Square unless asked otherwise: an entry's default box has square
+       corners, and rounding them is the choice that is recorded. */
+    square: !(opts && opts.square === false),
     tags,
     font: (opts && opts.font) || null,
     fontSize: (opts && typeof opts.fontSize==='number') ? opts.fontSize : null,

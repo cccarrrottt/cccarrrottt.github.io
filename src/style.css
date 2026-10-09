@@ -248,7 +248,7 @@
      tag filters, language tabs and the bio cards all stay. */
   body.read-only #saveBtn,
   body.read-only #stickersToggle,
-  body.read-only #addNodeToggle,
+  body.read-only #addFab,
   body.read-only #detailEditToggle,
   body.read-only .detail-note-btn,
   body.read-only .node-handles,
@@ -1505,10 +1505,7 @@
   .mini-toolbar .hex-reset:hover{color:var(--accent);}
 
   /* ---- picking an archetype by its picture -------------------------
-     Five buttons, each drawing the archetype it stands for. A row that
-     wraps rather than a grid: the set is small and may grow, and a wrap is
-     the layout that does not have to be re-tuned when it does. */
-  .node-style-choice{display:flex;flex-wrap:wrap;gap:6px;}
+     Five buttons, each drawing the archetype it stands for. */
   .node-style-btn{
     display:flex;flex-direction:column;align-items:center;gap:3px;
     width:62px;padding:5px 2px 4px;
@@ -1516,8 +1513,6 @@
     color:var(--ink-dim);cursor:pointer;
   }
   .node-style-btn:hover{border-color:var(--accent);color:var(--ink);}
-  .node-style-btn.on{border-color:var(--accent);background:var(--panel);color:var(--ink);}
-  .node-style-btn.on .nsi-box{stroke:var(--accent);}
   .node-style-icon{width:40px;height:30px;display:block;}
   .nsi-box{fill:var(--panel);stroke:var(--ink-dim);stroke-width:1.6;}
   .nsi-line{fill:none;stroke:var(--ink-dim);stroke-width:1.4;}
@@ -1530,12 +1525,13 @@
   }
 
   /* The second line of a double border. Named so the entry's own border
-     rules — 1.6px, the panel fill, the selection's glow — do not claim it:
-     it is one half of a border, not a border of its own. */
+     rules — the panel fill, the selection's glow — do not claim it: it is
+     one half of a border, not a border of its own. Its weight is set where
+     it is drawn, the same as the first line's (see DOUBLE_LINE_W). */
   .node > rect.border-inner, .node > path.border-inner, .node > circle.border-inner,
   .node.selected > rect.border-inner, .node.selected > path.border-inner,
   .node.selected > circle.border-inner,
-  .border-inner{stroke-width:0.9;fill:none;filter:none;}
+  .border-inner{fill:none;filter:none;}
 
   /* Swatches beside the border-colors field, one per colour listed. */
   .swatch-strip{display:flex;gap:4px;margin-top:6px;align-items:center;min-height:16px;}
@@ -1543,18 +1539,40 @@
     width:16px;height:16px;border-radius:4px;border:1px solid var(--line);flex:0 0 auto;
   }
 
-  /* ---------- Zoom controls ---------- */
-  .zoomctl{
+  /* ---------- The round + in the corner ----------
+     Zoom has the wheel and two fingers, so the corner the zoom buttons
+     stood in is the add button's now. The styles stand in a column above
+     it; their padding, not a margin, is what separates them from the
+     button, so the pointer travelling up crosses no gap and the widget's
+     mouseleave does not shut the column under it. */
+  .add-fab{
     position:absolute;bottom:16px;right:16px;z-index:25;
-    display:flex;flex-direction:column;gap:6px;
+    display:flex;flex-direction:column;align-items:flex-end;
   }
-  .zoomctl.shifted{right:352px;}
-  .zoomctl button{
-    width:32px;height:32px;background:var(--panel);border:1px solid var(--line);
-    color:var(--ink-dim);border-radius:4px;cursor:pointer;font-size:16px;
-    box-shadow:var(--shadow);
+  .add-fab.shifted{right:352px;}
+  .add-fab-btn{
+    width:44px;height:44px;border-radius:50%;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);
+    cursor:pointer;box-shadow:var(--shadow);
   }
-  .zoomctl button:hover{color:var(--accent);border-color:var(--accent);}
+  .add-fab-btn svg{width:22px;height:22px;display:block;
+                   transition:transform 0.45s cubic-bezier(.4,0,.2,1);}
+  /* One whole turn on the way in, and the same turn undone on the way
+     out — a transition, so leaving halfway unwinds from where it got to. */
+  .add-fab.open .add-fab-btn{color:var(--accent);border-color:var(--accent);}
+  .add-fab.open .add-fab-btn svg{transform:rotate(360deg);}
+  .add-fab-styles{
+    position:absolute;right:0;bottom:100%;padding-bottom:8px;
+    display:flex;flex-direction:column;align-items:flex-end;gap:5px;
+    opacity:0;visibility:hidden;transform:translateY(6px);
+    transition:opacity 0.16s, transform 0.16s, visibility 0s linear 0.16s;
+  }
+  .add-fab.open .add-fab-styles{
+    opacity:1;visibility:visible;transform:none;
+    transition:opacity 0.16s, transform 0.16s;
+  }
+  .add-fab-styles .node-style-btn{box-shadow:var(--shadow);background:var(--panel);}
 
   .coord{
     /* Clear of the tabs at the left edge, and of a drawer when one is open. */
@@ -1578,7 +1596,11 @@
      stays put and the prose scrolls under it. */
   .about-card{
     width:min(480px, 88vw);
-    max-height:min(86vh, 900px);
+    /* Measured against the overlay, not the window: the overlay starts
+       under the top bar, and on a phone that bar is two rows tall, so a
+       card as tall as the window ran up underneath it and took its own
+       close button with it. */
+    max-height:min(86%, 900px, calc(100% - 16px));
     display:flex;flex-direction:column;
     background:var(--panel);border:1px solid var(--line);border-radius:8px;
     box-shadow:var(--shadow);overflow:hidden;
@@ -1630,9 +1652,6 @@
     padding:10px 12px;tab-size:2;
   }
   .editor-field textarea:focus{outline:none;border-color:var(--accent);}
-  /* Small forms (Add Node) share the .editor-field textarea rule above but
-     need a much shorter box than the old raw-data editor did. */
-  #addNodeLabel{min-height:46px;}
   .editor-help{font-size:11.5px;color:var(--ink-faint);line-height:1.6;}
   /* A second, quieter label inside a field that carries more than one
      control — the field's own label names the thing, this names the
@@ -1801,21 +1820,6 @@
   }
   .edge-popover .rich-surface:focus{outline:none;border-color:var(--accent);}
   .edge-popover .mini-toolbar{margin:0 0 5px;}
-
-  /* The new-entry form is a popover too, anchored under the + button in the
-     top bar rather than a modal over the whole chart: the map behind it stays
-     visible, pannable and zoomable while you fill the form in, so you can see
-     where the entry is about to land. */
-  .add-popover{
-    position:absolute;top:12px;left:12px;z-index:96;
-    width:246px;max-height:calc(100% - 24px);overflow-y:auto;
-    background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    box-shadow:var(--shadow);
-    padding:9px 11px 11px;
-    display:none;
-    flex-direction:column;gap:8px;
-  }
-  .add-popover.open{display:flex;}
 
   /* The file popover — export, import, and forgetting local work. */
   .file-popover{
@@ -2066,9 +2070,6 @@
   .node-free > .image-empty{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:4 3;}
   .node-free > .image-empty-mark{fill:var(--ink-faint);stroke:none;opacity:0.55;}
   .node-image > image{cursor:pointer;}
-  .add-popover .editor-status{margin:0;}
-  .add-popover .editor-field{gap:5px;}
-  .add-popover .editor-help{font-size:10.5px;}
 
   /* One labelled row per setting, each a strip of small symbol buttons —
      compact enough that the whole popover reads at a glance instead of
@@ -2299,6 +2300,12 @@
     flex:1;min-width:0;font-size:10.5px;color:var(--ink-dim);line-height:1.45;
   }
   .ref-detail em{color:var(--ink-faint);}
+  /* A reference being written: the row it will be, with a caret in it and
+     a rule under the words, as a tag being named has an outline. */
+  .ref-naming-text{
+    outline:none;cursor:text;min-height:1.45em;
+    border-bottom:1px solid var(--accent);
+  }
   .ref-link{
     display:block;margin-top:3px;font-size:9.5px;color:var(--accent);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -2538,8 +2545,9 @@
     letter-spacing:0.04em;color:var(--ink-faint);text-transform:uppercase;
     margin:0 0 14px;}
   .version-log{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;}
-  .version-log h3{font-family:'Big Shoulders Display',sans-serif;
-    text-transform:uppercase;letter-spacing:0.5px;font-size:15px;margin:0 0 10px;}
+  .version-log summary{font-family:'Big Shoulders Display',sans-serif;
+    text-transform:uppercase;letter-spacing:0.5px;font-size:15px;cursor:pointer;}
+  .version-log details[open] summary{margin-bottom:10px;}
   .version-entry{margin-bottom:14px;}
   .version-head{display:flex;align-items:baseline;gap:8px;font-size:13px;}
   .version-date{margin-left:auto;font-family:'IBM Plex Mono',monospace;
@@ -2597,13 +2605,13 @@
             border-radius:12px 12px 0 0;border-bottom:none;
             transform:translateY(calc(100% + 20px));}
     .detail.open{transform:none;}
-    .zoomctl{right:12px;bottom:12px;}
-    /* Under the open sheet there is nowhere for them to stand, and two
-       fingers do what they do. */
-    .zoomctl.shifted{display:none;}
-    .zoomctl button{width:40px;height:40px;font-size:18px;}
+    .add-fab{right:12px;bottom:12px;}
+    /* Under the open sheet there is nowhere for it to stand. */
+    .add-fab.shifted{display:none;}
     .coord{display:none;}
-    .about-card{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);}
+    .about-card{width:calc(100vw - 16px);max-height:calc(100% - 16px);}
+    /* A fingertip, not a cursor, has to find the way out. */
+    .about-card .detail-close{min-width:40px;min-height:40px;}
   }
 
   /* ---------- A finger --------------------------------------------
