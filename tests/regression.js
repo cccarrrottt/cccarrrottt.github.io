@@ -1721,44 +1721,23 @@ async function main(){
       {pos:[13600,-600], colors:['#111111','#c23b22']}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 420));
     const ringPaths = [...document.querySelectorAll('[data-id="pkph"] > path[stroke]')];
-    /* Each further ring is the first ring's ripple carried straight out:
-       it starts directly over the first ring's start, and on every side
-       its crests and troughs stand where the first ring's do — so the
-       rings run parallel all the way round rather than agreeing at one
-       corner and drifting apart from it. */
+    /* Each ring is its own closed line with a whole number of waves on it,
+       and both start at their own top-left corner, on the baseline and
+       heading the same way — so the rings run parallel rather than
+       drifting into one another. */
     const pk = nodes.get('pkph');
-    const first = wavePts(ringPaths[0].getAttribute('d'));
     out.ringPhases = ringPaths.map((pth, i)=>{
       const p = wavePts(pth.getAttribute('d'));
       if(p.length < 4) return null;
       const grow = i * ringStepFor(pk);
-      const o = pocketOutlineOfRing(pk, i), o0 = pocketOutlineOfRing(pk, 0);
-      /* Compared on the DRAWING: every point of this ring that stands on a
-         straight side is the first ring's point at the same place along
-         that side, moved straight out — so the wave stands the same
-         distance off its own side in both. */
-      let worst = 0, matched = 0;
-      const key = (q)=> q.bx.toFixed(3) + ',' + q.by.toFixed(3);
-      const firstAt = new Map(o0.drawn.map(q=> [key(q), q]));
-      o.drawn.forEach(q=>{
-        const onX = Math.abs(q.by - (pk.y - grow)) < 1e-6 || Math.abs(q.by - (pk.y + pk.h + grow)) < 1e-6;
-        const onY = Math.abs(q.bx - (pk.x - grow)) < 1e-6 || Math.abs(q.bx - (pk.x + pk.w + grow)) < 1e-6;
-        if(!onX && !onY) return;
-        const back = {bx: q.bx - (onY ? Math.sign(q.bx - pk.x - pk.w/2) * grow : 0),
-                      by: q.by - (onX ? Math.sign(q.by - pk.y - pk.h/2) * grow : 0)};
-        const twin = firstAt.get(key(back));
-        if(!twin) return;
-        matched++;
-        worst = Math.max(worst, Math.abs((q.x - q.bx) - (twin.x - twin.bx)),
-                                Math.abs((q.y - q.by) - (twin.y - twin.by)));
-      });
-      return {overFirst: Math.abs(p[0].x - first[0].x) < 0.2 &&
-                         Math.abs(p[0].y - (first[0].y - grow)) < 0.2,
-              inStep: matched >= 20 && worst < 0.05, worst: +worst.toFixed(3), matched,
+      const o = pocketOutline(pk.x - grow, pk.y - grow, pk.w + grow*2, pk.h + grow*2);
+      return {startsAtCorner: Math.abs(p[0].x - (pk.x - grow + o.r)) < 0.2 &&
+                              Math.abs(p[0].y - (pk.y - grow)) < 0.2,
+              whole: Math.abs(o.total / o.lam - Math.round(o.total / o.lam)) < 1e-9,
               outward: p[Math.round(WAVE_STEP_DIV/4)].y < pk.y - grow};
     });
     out.ringsInPhase = out.ringPhases.length === 2 && out.ringPhases.every(Boolean) &&
-      out.ringPhases.every(p=> p.overFirst && p.inStep && p.outward);
+      out.ringPhases.every(p=> p.startsAtCorner && p.whole && p.outward);
 
     // The connector popover survives a click in any other menu.
     const hit = document.querySelector('#edgeLayer path.edge-hit');
@@ -1839,7 +1818,7 @@ async function main(){
      different perimeters would otherwise drift out of phase and touch. */
   check('a pocket reality’s rings nest at the ordinary spacing',
         r10.pocketStep === r10.ringStep, 'step ' + r10.pocketStep);
-  check('and every ring is the first ring’s ripple carried outward, in step on every side',
+  check('and every ring carries whole waves from its own corner, the same way up',
         r10.ringsInPhase, JSON.stringify(r10.ringPhases));
   check('the connector popover survives a click in another menu',
         r10.popoverOpen && r10.popoverAfterMenu, JSON.stringify(r10.popoverAfterMenu));

@@ -8,6 +8,16 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Ripples as they were
+
+- **The rippled border is drawn as it was before the rings were put in
+  step** (owner's request). Each ring is again a ripple of its own, laid
+  round its own box from its own top-left corner (`pocketOutline(x, y, w,
+  h)`, `wavyRectPath`, `wavySideOpenPath`), which takes back both "the
+  rings of a rippled entry run parallel on every side" and "wavy borders
+  ripple along each side into clean corners". The later reading of how far
+  a ripple stands out along its side's own normal is kept.
+
 ### After the turn
 
 - **A turned entry keeps its colours.** The turn used to wrap the drawing in
