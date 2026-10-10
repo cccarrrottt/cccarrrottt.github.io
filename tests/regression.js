@@ -13200,6 +13200,53 @@ async function main(){
       } else out.reachLit = true;
     }
 
+    /* A bead stands on a disc of paper, so a bead stepped back with the
+       rest of the merge does not show the bar through it. */
+    {
+      const beads = [...document.querySelectorAll('#edgeLayer .amalgam-bead')];
+      const grounds = [...document.querySelectorAll('#edgeLayer .amalgam-bead-ground')];
+      out.beadsGrounded = beads.length > 0 && beads.every(b=> grounds.some(g=>
+        g.getAttribute('cx') === b.getAttribute('cx') && g.getAttribute('cy') === b.getAttribute('cy') &&
+        +g.getAttribute('r') >= +b.getAttribute('r') &&
+        g.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
+      selectNode('wmA');
+      await wait(240);
+      out.groundsOpaque = grounds.every(g=> getComputedStyle(g).opacity === '1' &&
+        getComputedStyle(g).fill !== 'none');
+      deselect();
+      await wait(150);
+    }
+
+    /* ---- a corner pulled inward stops where the words are a pixel inside ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['mzA','A label with some width',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['mzB','A remark that wraps when it is narrow',null,null,null,'callout',{pos:[X + 400, Y]}]);
+    });
+    await wait(400);
+    out.floors = {};
+    for(const id of ['mzA', 'mzB']){
+      const n = nodes.get(id), g = document.querySelector(`.node[data-id="${id}"]`);
+      const natural = {w: n.w, h: n.h};
+      beginNodeResize(new MouseEvent('mousedown', {button:0, clientX:400, clientY:300}), n, g,
+                      {key:'se', sx:1, sy:1});
+      for(let k = 1; k <= 6; k++){
+        window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX: 400 - k*80, clientY: 300 - k*40}));
+        await wait(16);
+      }
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+      await wait(300);
+      const m = nodes.get(id);
+      const box = document.querySelector(`.node[data-id="${id}"] > rect`).getBoundingClientRect();
+      const ink = document.querySelector(`.node[data-id="${id}"] > text`).getBoundingClientRect();
+      out.floors[id] = {natural, now: {w: m.w, h: m.h}, min: m.minSize,
+        inside: ink.left >= box.left - 0.5 && ink.right <= box.right + 0.5 &&
+                ink.top >= box.top - 0.5 && ink.bottom <= box.bottom + 0.5};
+    }
+    out.resizeFloored = Object.values(out.floors).every(f=> f.min &&
+      f.now.w >= f.min.w - 0.01 && f.now.h >= f.min.h - 0.01 && f.inside &&
+      f.now.w < f.natural.w + 0.01);
+
     /* ---- carrying one entry leaves every unrelated route where it was ---- */
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
@@ -13240,6 +13287,10 @@ async function main(){
   check('a wavy lineage waves along its stretch of the bar too', rS.wavyBar, rS.wavyBarAt);
   check('the reach into the junction lies on the line beneath it, and lights with its lineage',
         rS.reachOnWave && rS.reachLit);
+  check('an amalgam\'s dots stand on paper, so nothing shows through them',
+        rS.beadsGrounded && rS.groundsOpaque);
+  check('a corner pulled inward stops where the words are a pixel inside the border',
+        rS.resizeFloored, JSON.stringify(rS.floors));
   check('carrying an entry leaves the routes it has nothing to do with where they were',
         rS.routeHeld, rS.routeHeldAt);
 
