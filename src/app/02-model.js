@@ -117,7 +117,6 @@ function ringStepFor(n){ return isWavyBorder(n) ? POCKET_RING_STEP : RING_STEP; 
 function ringCountOf(n){
   const shape = (n && n.shape) || '';
   if(shape === 'amalgam') return 1;
-  if(n && n.card) return 1;
   return (n && n.colors && n.colors.length) ? n.colors.length : 1;
 }
 /* Written the way they are read. A hyphen is how a tag has to be written

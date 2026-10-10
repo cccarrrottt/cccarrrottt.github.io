@@ -78,6 +78,43 @@ function silenceEdgeFade(){
     });
   });
 }
+/* While an entry is carried, the connectors that have nothing to do with
+   it keep the routes they had.
+ *
+   Routing is order-sensitive: each connector is scored against the ones
+   drawn before it, and two of a connector's candidate routes are often
+   within a hair of each other. Every frame of a drag re-routes everything,
+   and the carried entry's own connectors, drawn earlier in the order,
+   shift that hair — so a line on the far side of the chart, joined to
+   nothing that moved, flicked between its two routes for as long as the
+   hand was moving. A connector is held when neither of its entries is
+   being carried, its ports are where they were, its look is unchanged
+   and its held route does not now run through a carried entry; anything
+   else is routed afresh. The drop redraws everything from nothing. */
+let dragRouteHold = null;   // {memo: Map, moving: Set} while a drag draws
+function heldRoute(e, a, b, style, rec){
+  const hold = dragRouteHold;
+  if(!hold || !rec || !rec.p1 || !rec.p2) return null;
+  if(hold.moving.has(e.from) || hold.moving.has(e.to)) return null;
+  const key = edgePairKey(e.from, e.to);
+  const sig = [rec.p1.x, rec.p1.y, rec.p2.x, rec.p2.y, rec.lane || 0]
+                .map(v=> (+v).toFixed(2)).join(',') + '|' + JSON.stringify(style);
+  const kept = hold.memo.get(key);
+  if(kept && kept.sig === sig && !kept.pts.some((q, i)=>{
+       const r = kept.pts[i+1];
+       return r && [...hold.moving].some(id=>{
+         const m = nodes.get(id);
+         return m && segHitsBox(q.x, q.y, r.x, r.y, m.x, m.y, m.x + m.w, m.y + m.h);
+       });
+     })){
+    if(kept.registered) registerRoutedSegments(kept.pts);
+    return kept.result;
+  }
+  const before = routedSegments.length;
+  const result = routeEdge(a, b, style, rec);
+  hold.memo.set(key, {sig, result, pts: result.pts, registered: routedSegments.length > before});
+  return result;
+}
 function redrawEdges(){
   silenceEdgeFade();
   while(edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
@@ -162,7 +199,8 @@ function redrawEdges(){
     const a = nodes.get(e.from), b = nodes.get(e.to);
     if(!a||!b) return;
     const style = edgeStyleFor(e.from, e.to);
-    const { d, angleDeg, pts } = routeEdge(a,b,style,ports.get(e));
+    const { d, angleDeg, pts } = heldRoute(e, a, b, style, ports.get(e)) ||
+                                 routeEdge(a,b,style,ports.get(e));
     const dash = DASH_PATTERNS[style.dash];
     const grad = style.gradient;
     /* The colour a connector takes when it was not given one: the border

@@ -8,6 +8,50 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### After the turn
+
+- **A turned entry keeps its colours.** The turn used to wrap the drawing in
+  a group of its own, which took every piece out of reach of the
+  stylesheet's `.node > rect` / `.node > text`: the ground and words fell
+  back to defaults and a portrait got a white ring. Each piece now carries
+  the turn itself (`turnDrawing`, `.turned-piece`).
+- **The style bar stays put when ⟳ is pressed**, so several quarters can be
+  turned in a row; **a portrait's card goes round with the portrait**
+  (`.bio-card-turn` in `drawOneBioCard`), and its field opens on the card
+  where it now stands.
+- **Carrying an entry no longer shoves its neighbours.** The push
+  (`pushBlockers`, `PUSH_MIN_GAP`) is gone; an entry carried up to another
+  stops where it is let go.
+- **Routes that have nothing to do with a drag hold still during it**
+  (`dragRouteHold`, `heldRoute` in `14-edges-draw.js`): a route is reused
+  from the start of the drag while neither of its entries moves and nothing
+  carried lands on it, instead of being re-solved every frame against a
+  chart that is changing under it — which is what made far-off connectors
+  flicker between two lanes.
+- **Wavy borders ripple along each side into clean corners**
+  (`pocketOutline`): each side gets whole half-waves, eased to nothing at
+  its ends, and the corner arc is sampled finely enough not to bevel.
+- **A lit lineage runs on into the junction dot** (`amalgam-reach`): the few
+  units between the seam and the merged arrow's dot used to stay dimmed
+  with the neighbour's colour and showed as a bump.
+- **A wavy lineage waves along its stretch of the super-line**, and the
+  reach into the junction lies on the line beneath it.
+- **Words are spaced as a space is wide.** A lone space measures 0 in SVG,
+  so every gap fell through to a 6.5-unit guess — double a real space in
+  11.5 Arial. `measureSpace` measures it between two letters; entries that
+  size themselves to their words come out a little narrower.
+- **The inline editor shows the words as drawn**: the drawing's own line
+  height, never pressed to fit a box closed on its ink. The frame is drawn
+  at the entry's size by a layer of its own (`--hang`) and the words hang
+  over it, as they hang over the entry.
+- **Card layout catches up**: a ring per colour like any boxed entry
+  (`ringCountOf` no longer says 1 for a card), a double border on a local
+  multiverse's sheets, and the inline editor on the heading band
+  (`n.cardHead`). **A picture never pushes the words out**: a depth set by
+  hand gives way to the bands' own height.
+- A turned field near the edge of the view is kept on the page by what is
+  seen, not by its upright layout, which had pushed it off its words.
+
 ### Turning, keeping, and saying what things mean
 
 - **A bend dropped on an entry's border, or a few units off it, is set

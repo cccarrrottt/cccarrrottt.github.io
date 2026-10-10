@@ -190,7 +190,15 @@ function applyStyleBar(group, value){
   if(!t) return;
   if(t.kind === 'node' && group === 'turn'){
     const n = nodes.get(t.id);
-    if(n) turnEntryTo(t.id, quarterTurnOf(n) + 90);
+    if(!n) return;
+    /* The bar stays exactly where it is. Put back over the turned box it
+       would jump to a new place after every press, and the button would
+       no longer be under the hand that wants to press it again. */
+    const left = styleBar.style.left, top = styleBar.style.top;
+    turnEntryTo(t.id, quarterTurnOf(n) + 90);
+    syncStyleBar();
+    if(!styleBar.hidden){ styleBar.style.left = left; styleBar.style.top = top; }
+    return;
   } else if(t.kind === 'node'){
     applyEdit(()=>{
       const found = workingEntry(t.id);

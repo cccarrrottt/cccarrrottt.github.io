@@ -7107,7 +7107,8 @@ async function main(){
     await wait(900);
     const merge = ()=>{
       const drops = [...document.querySelectorAll('#edgeLayer path.edge')]
-        .filter(p=> p.dataset.to === 'sam' && /^sp\d$/.test(p.dataset.from || ''))
+        .filter(p=> p.dataset.to === 'sam' && /^sp\d$/.test(p.dataset.from || '') &&
+                    !p.classList.contains('amalgam-reach'))
         .map(p=>{ const a = p.getPointAtLength(0);
                   return p.dataset.from + '@' + Math.round(a.x) + ',' + Math.round(a.y); })
         .sort().join(' ');
@@ -10937,6 +10938,15 @@ async function main(){
       workingNodes.push(['stB','And another one below it','stA',null,null,null,{pos:[X + 30, Y + 220]}]);
     });
     await wait(600);
+    /* Out of line by a hair, measured rather than assumed: where the two
+       middles fall depends on how wide the words come out, and the offset
+       this used to rely on was whatever the widths of the day made it. */
+    {
+      const a = nodes.get('stA'), b = nodes.get('stB');
+      const dx = (a.x + a.w/2) - (b.x + b.w/2) - 0.15;
+      applyEdit(()=>{ workingNodes.find(x=> x[0] === 'stB')[6].pos = [X + 30 + dx, Y + 220]; });
+      await wait(400);
+    }
     {
       const pts = (drawnRoutes.get(calloutEdgeKey('stA','stB')) || {}).pts || [];
       let knees = 0;
@@ -11068,9 +11078,6 @@ async function main(){
 
   });
 
-  /* MIN_SIDE_GAP, written out: the suite does not share the program's
-     scope, and this number is the point of the check. */
-  const PUSH_MIN_GAP_EXPECTED = 26;
   await scenario("handles that step back, a picture kept whole, and room to be a line", async () => {
   const rP = await page.evaluate(async () => {
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
@@ -11217,6 +11224,47 @@ async function main(){
       const rules = [...wg.querySelectorAll('.card-rule')];
       out.wavyCardSealed = !!wImg && /^url\(#/.test(wImg.getAttribute('clip-path') || '') &&
         rules.length > 0 && rules.every(r=> /^url\(#/.test(r.getAttribute('clip-path') || ''));
+
+      /* A picture given a depth by hand, on a card then made smaller, gives
+         way to the words: every band's text stays inside the card. */
+      applyEdit(()=>{
+        workingNodes.push(['ciH','Heading',null,null,'A note',null,
+                           {pos:[X, Y + 300], card:true, image:wide, medium:'Medium',
+                            size:[150, 90], cardImgH:80}]);
+        workingNodes.push(['ciR','Two rings',null,null,null,null,
+                           {pos:[X + 260, Y + 300], card:true, image:wide,
+                            colors:['#20242b', '#c03a2b']}]);
+      });
+      await wait(500);
+      {
+        const g = document.querySelector('.node[data-id="ciH"]');
+        const h = nodes.get('ciH');
+        const box = g.querySelector(':scope > rect').getBoundingClientRect();
+        const texts = [...g.querySelectorAll('text')].filter(t=> t.textContent.trim());
+        out.cardWordsInside = texts.length >= 3 && texts.every(t=>{
+          const b = t.getBoundingClientRect();
+          return b.top >= box.top - 1 && b.bottom <= box.bottom + 1;
+        });
+        out.cardWordsAt = JSON.stringify({top: h.cardTop, texts: texts.length});
+      }
+      /* A card wears a ring per colour, as any boxed entry does. */
+      {
+        const g = document.querySelector('.node[data-id="ciR"]');
+        const second = [...g.querySelectorAll('rect, path')].filter(r=>
+          (r.getAttribute('stroke') || '').toLowerCase() === '#c03a2b');
+        const n = nodes.get('ciR');
+        out.cardRings = ringCountOf(n) === 2 && second.length > 0 &&
+          second.some(r=> r.getBBox().width > n.w + 1);
+      }
+      /* The inline editor stands on the heading, not on the picture. */
+      {
+        openNodeEditor('ciA');
+        await wait(80);
+        const surf = richFields.get('nodeEditorText').surface.getBoundingClientRect();
+        const head = document.querySelector('.node[data-id="ciA"] > text').getBoundingClientRect();
+        out.cardEditorOnHeading = Math.abs((surf.top + surf.height/2) - (head.top + head.height/2)) < 3 * vs;
+        closeNodeEditor(true);
+      }
     }
 
     /* ---- carried too close, the other entry moves ---- */
@@ -11234,9 +11282,12 @@ async function main(){
       const sx = r.x + r.width / 2, sy = r.y + r.height / 2;
       g.dispatchEvent(new MouseEvent('mousedown',
         {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
+      /* Up to a little short of B, with room left for a straight line. */
+      const A0 = nodes.get('psA'), B0 = nodes.get('psB');
+      const reach = (B0.x - 40 - (A0.x + A0.w)) * vs;
       for(let k = 1; k <= 24; k++){
         window.dispatchEvent(new MouseEvent('mousemove',
-          {bubbles:true, clientX: sx + k * 16, clientY: sy}));
+          {bubbles:true, clientX: sx + reach * k / 24, clientY: sy}));
         await wait(16);
       }
       window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
@@ -11273,7 +11324,7 @@ async function main(){
                                    want:[+(A.x + A.w).toFixed(1), +(A.y + A.h/2).toFixed(1)],
                                    to:[+e1.x.toFixed(1), +e1.y.toFixed(1)],
                                    wantTo:[+B.x.toFixed(1), +(B.y + B.h/2).toFixed(1)]});
-      /* One gesture, one step back: the shove undoes with the move. */
+      /* One gesture, one step back. */
       undoLastEdit();
       await wait(600);
       out.undoneTogether = Math.abs(nodes.get('psB').x - beforeB) < 0.5 &&
@@ -11300,15 +11351,17 @@ async function main(){
         JSON.stringify({fit:rP.fitWhole, crop:rP.cropWhenAsked}));
   check('and the band is as deep as the picture needs', rP.bandFollowsPicture, rP.bands);
   check('a rippled card is airtight', rP.wavyCardSealed);
-  check('an entry carried too close pushes the one it is joined to',
-        rP.pushedMoved && rP.pushedGap >= PUSH_MIN_GAP_EXPECTED - 1 &&
-        rP.pushedGap <= PUSH_MIN_GAP_EXPECTED + 1 && rP.unlinkedStill,
+  check('a card\'s picture gives way to its words, which stay inside the card',
+        rP.cardWordsInside, rP.cardWordsAt);
+  check('a card wears a ring per colour', rP.cardRings);
+  check('a card\'s heading is written in the field where the card writes it',
+        rP.cardEditorOnHeading);
+  check('an entry carried up to one it is joined to leaves it where it stands',
+        !rP.pushedMoved && rP.unlinkedStill,
         JSON.stringify({gap:rP.pushedGap, moved:rP.pushedMoved, other:rP.unlinkedStill}));
-  check('and what is left between them is a line, not a scribble',
-        rP.pushedKnees === 0, rP.pushedPts);
   check('both ends sit exactly on their ports when the drag is over',
         rP.endsSeated, rP.endsAt);
-  check('the shove undoes with the move it came from', rP.undoneTogether);
+  check('the move undoes in one step', rP.undoneTogether);
 
   });
 
@@ -11427,7 +11480,7 @@ async function main(){
       await wait(150);
     }
 
-    /* ---- a merge pushes its parents; its parents do not push it ---- */
+    /* ---- nothing is pushed: neither a merge's parents nor the merge ---- */
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       for(let i = 0; i < 3; i++)
@@ -11482,9 +11535,9 @@ async function main(){
         rC.picGrips === 4 && rC.picNoTextEditor && rC.picNoDrawer,
         JSON.stringify({grips:rC.picGrips, text:rC.picNoTextEditor, drawer:rC.picNoDrawer}));
   check('and its corners resize it', rC.picResized, rC.picBands);
-  check('a merge pushes the parents it is carried into',
-        rC.mergePushedParent, rC.mergePushAt);
-  check('and a parent carried into the merge does not push it back',
+  check('a merge carried into its parents leaves them where they stand',
+        !rC.mergePushedParent, rC.mergePushAt);
+  check('and a parent carried into the merge leaves the merge where it stands',
         rC.parentHeldMerge);
 
   });
@@ -11642,7 +11695,7 @@ async function main(){
                                 bars[i-1].entry - 10 - bars[i-1].bar < AMALGAM_GAP);
     }
 
-    /* ---- a lineage in the way takes its whole merge with it ---- */
+    /* ---- an entry carried up to a merge's lineage moves nothing else ---- */
     {
       applyEdit(()=>{
         workingNodes.length = 0; refill(EDGE_STYLES, []);
@@ -11677,18 +11730,18 @@ async function main(){
       const now = at();
       const dys = ['mw0','mw1','mw2','mw3','mm'].map(id=> now[id][1] - was[id][1]);
       out.wholeMerge = JSON.stringify(dys);
-      out.wholeMoved = dys[0] > 0 && dys.every(d=> Math.abs(d - dys[0]) < 1e-6);
+      out.wholeMoved = dys.every(d=> Math.abs(d) < 1e-6);
       const bend = (EDGE_STYLES.find(o=> o.from === 'mw1' && o.to === 'mw2') || {}).bends;
       out.bendAt = JSON.stringify(bend);
       out.bendCarried = !!bend && bend.length === 1 &&
-        Math.abs(bend[0][0] - (X + 285)) < 1e-6 && Math.abs(bend[0][1] - (Y + 110 + dys[1])) < 1e-6;
-      // Carried from the inside, the row gives way as a row.
+        Math.abs(bend[0][0] - (X + 285)) < 1e-6 && Math.abs(bend[0][1] - (Y + 110)) < 1e-6;
+      // Carried from the inside, the row stays where it is.
       const was2 = at();
       await carry('mm', -200 * vs);
       const now2 = at();
       const ups = ['mw0','mw1','mw2','mw3'].map(id=> now2[id][1] - was2[id][1]);
       out.rowUp = JSON.stringify(ups);
-      out.rowMoved = ups[0] < 0 && ups.every(d=> Math.abs(d - ups[0]) < 1e-6);
+      out.rowMoved = ups.every(d=> Math.abs(d) < 1e-6);
     }
 
     applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
@@ -11713,10 +11766,10 @@ async function main(){
   check('and the bar offers them there, but not a ripple', rW.bioOffered);
   check('the merge’s bar moves in whole grid steps or not at all', rW.barWhole, rW.barSteps);
   check('and stays put while the merged arrow still has its room', rW.barWaits, rW.barSteps);
-  check('a lineage pushed by an outsider takes its whole merge with it',
+  check('an outsider carried up to a lineage leaves the whole merge where it stands',
         rW.wholeMoved, rW.wholeMerge);
-  check('a merge carried into its lineages moves them as a row', rW.rowMoved, rW.rowUp);
-  check('a pushed merge carries the bends set by hand between its members',
+  check('a merge carried into its lineages leaves them where they stand', rW.rowMoved, rW.rowUp);
+  check('and the bends set by hand between its members stay where they were set',
         rW.bendCarried, rW.bendAt + ' after ' + rW.wholeMerge);
   });
 
@@ -12765,17 +12818,30 @@ async function main(){
     {
       const n = nodes.get('bq3');
       const before = {cx: n.x + n.w/2, cy: n.y + n.h/2, w: n.w, h: n.h};
+      const paintOf = ()=>{
+        const g = document.querySelector('.node[data-id="bq3"]');
+        const r = g && g.querySelector(':scope > rect:not(.node-hover-pad)'), x = g && g.querySelector(':scope > text');
+        return r && x ? [getComputedStyle(r).fill, getComputedStyle(r).stroke, getComputedStyle(x).fill].join('|') : null;
+      };
+      const paintBefore = paintOf();
       turnEntryTo('bq3', 90);
       await wait(150);
       const m = nodes.get('bq3');
       out.turnSwapped = Math.abs(m.w - before.h) < 0.6 && Math.abs(m.h - before.w) < 0.6;
       out.turnCentre = Math.abs(m.x + m.w/2 - before.cx) < 0.02 && Math.abs(m.y + m.h/2 - before.cy) < 0.02;
-      /* The whole drawing turns, in one group inside the entry's own. */
-      const t = document.querySelector('.node[data-id="bq3"] > .node-turned');
-      out.turnText = !!t && /^rotate\(90,/.test(t.getAttribute('transform') || '') &&
-        !!t.querySelector('text') && !!t.querySelector('rect');
+      /* The whole drawing turns, piece by piece, each still a child of
+         the entry's own group — a wrapper group took every piece out of
+         reach of the stylesheet's `.node > rect` and `.node > text`. */
+      const t = document.querySelector('.node[data-id="bq3"]');
+      const tText = t && t.querySelector(':scope > text.turned-piece');
+      const tRect = t && t.querySelector(':scope > rect.turned-piece:not(.node-hover-pad)');
+      out.turnText = !!tText && !!tRect && !t.querySelector('.node-turned') &&
+        /^rotate\(90,/.test(tText.getAttribute('transform') || '') &&
+        /^rotate\(90,/.test(tRect.getAttribute('transform') || '');
+      /* …and so it keeps its colours: ground, border and words alike. */
+      out.turnKeepsPaint = !!paintBefore && paintOf() === paintBefore;
       /* The words stand inside the turned box. */
-      const tb = t.querySelector('text').getBoundingClientRect(), bb = t.querySelector('rect').getBoundingClientRect();
+      const tb = tText.getBoundingClientRect(), bb = tRect.getBoundingClientRect();
       out.turnTextInside = tb.height > tb.width && tb.top >= bb.top - 1 && tb.bottom <= bb.bottom + 1;
       out.turnStored = /rot:90/.test(serializeNodes(workingNodes.filter(it=> it[0] === 'bq3')));
       /* A connector meets the turned box, not the one it used to be. */
@@ -12819,6 +12885,7 @@ async function main(){
         rQ.turnSwapped && rQ.turnCentre && rQ.turnStored,
         JSON.stringify({w:rQ.turnSwapped, c:rQ.turnCentre, s:rQ.turnStored}));
   check('and its words turn with it, inside it', rQ.turnText && rQ.turnTextInside);
+  check('and it keeps its colours when it turns', rQ.turnKeepsPaint);
   check('a connector meets the turned box', rQ.turnPort);
   check('four quarters bring it home', rQ.turnHome);
   check('everything but a caption turns in quarters, and no entry wears a turning handle',
@@ -12977,14 +13044,29 @@ async function main(){
       openStyleBar({kind:'node', id});
       const btn = turnBtn();
       if(!btn || btn.parentNode.hidden || styleBar.hidden){ out.turned[id] = 'no button'; continue; }
+      const barAt = styleBar.style.left + ',' + styleBar.style.top;
       btn.click();
       await wait(120);
       const m = nodes.get(id);
-      const wrap = document.querySelector(`.node[data-id="${id}"] > .node-turned`);
+      const wrap = document.querySelector(`.node[data-id="${id}"] > .turned-piece`);
+      /* The bar stays where it was, so the button can be pressed again
+         without chasing it across the chart. */
+      out.barStill = (out.barStill !== false) && styleBar.style.left + ',' + styleBar.style.top === barAt;
       out.turned[id] = quarterTurnOf(m) === 90 && !!wrap &&
         Math.abs(m.w - was.h) < 0.6 && Math.abs(m.h - was.w) < 0.6 &&
         Math.abs(m.x + m.w/2 - was.cx) < 0.02 && Math.abs(m.y + m.h/2 - was.cy) < 0.02 &&
         styleBarTarget && styleBarTarget.id === id && !styleBar.hidden;
+    }
+    /* A portrait's card goes round the portrait with it. */
+    {
+      openBioCard('htP', true);
+      await wait(150);
+      const holder = bioCardLayer.querySelector('.bio-card-turn');
+      const card = bioCardLayer.querySelector('.bio-card-g[data-id="htP"]');
+      out.bioCardTurns = !!holder && !!card && holder.contains(card) &&
+        /^rotate\(90,/.test(holder.getAttribute('transform') || '');
+      out.bioCardAt = holder ? holder.getAttribute('transform') : 'no turned card';
+      closeBioCard();
     }
     /* Its ground turns with it, and keeps the turn while it is carried. */
     const piece = fanLayer.querySelector('[data-ground="htR"] > *');
@@ -13018,7 +13100,16 @@ async function main(){
       for(const id of ['heA', 'heB', 'heC', 'htR']){
         openNodeEditor(id);
         await wait(60);
-        const f = richFields.get('nodeEditorText').surface.getBoundingClientRect();
+        /* The FRAME, which is what is seen: the words may hang over it
+           above and below, as they hang over an entry closed on its ink. */
+        const surf = richFields.get('nodeEditorText').surface;
+        const hg = parseFloat(surf.style.getPropertyValue('--hang')) || 0;
+        const r0 = surf.getBoundingClientRect();
+        /* A turned field hangs sideways, since its own up is the page's
+           left. */
+        const side = /rotate\((90|270)deg\)/.test(surf.style.transform || '');
+        const f = side ? {width: r0.width - 2*hg, height: r0.height, left: r0.left + hg, top: r0.top}
+                       : {width: r0.width, height: r0.height - 2*hg, left: r0.left, top: r0.top + hg};
         const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
         if(f.width > b.width + 0.6 || f.height > b.height + 0.6 ||
            f.left < b.left - 0.6 || f.top < b.top - 0.6) sizes.push([z, id, f.width, f.height, b.width, b.height].join(' '));
@@ -13041,6 +13132,8 @@ async function main(){
         rW.lineages.every(k=> k >= 0 && k <= 2), JSON.stringify(rW.lineages));
   check('the style bar turns an entry, a card and a portrait a quarter clockwise, in place',
         Object.values(rW.turned).every(v=> v === true), JSON.stringify(rW.turned));
+  check('the style bar stays where it was when its turn button is pressed', rW.barStill === true);
+  check('a turned portrait takes its card round with it', rW.bioCardTurns, rW.bioCardAt);
   check('a turned entry\'s ground turns with it', rW.groundTurned);
   check('a caption is not given the quarter turn', rW.captionNoBar);
   check('a picture turns from its own menu', rW.pictureTurned);
@@ -13049,6 +13142,130 @@ async function main(){
   });
 
   /* ---- 29. nothing threw along the way ---- */
+  await scenario("words spaced as drawn, a field that does not squeeze, a wavy merge and routes that hold still", async () => {
+  const rS = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(430, 260);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+
+    /* ---- the gap between two words is a space, not a guess ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['wsA','Beast Wars: Uprising',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['wsB','Two\nlines',null,null,null,null,{pos:[X + 300, Y]}]);
+    });
+    await wait(400);
+    {
+      const spans = [...document.querySelectorAll('.node[data-id="wsA"] text tspan')];
+      const space = measureText('a a') - measureText('aa');
+      const gaps = spans.slice(1).map((t, i)=>
+        parseFloat(t.getAttribute('x')) - parseFloat(spans[i].getAttribute('x')) - spans[i].getComputedTextLength());
+      out.gaps = JSON.stringify({space: +space.toFixed(2), gaps: gaps.map(g=> +g.toFixed(2))});
+      out.wordGapIsASpace = spans.length === 3 && space > 0 &&
+        gaps.every(g=> Math.abs(g - space) < 0.05) && Math.abs(measureSpace({}) - space) < 0.01;
+    }
+    /* ---- the field keeps the drawing's line, however short the box ---- */
+    {
+      openNodeEditor('wsB');
+      await wait(80);
+      const surf = richFields.get('nodeEditorText').surface;
+      const want = parseFloat(surf.dataset.lineH);
+      out.fieldLine = JSON.stringify({want, got: getComputedStyle(surf).lineHeight});
+      out.fieldKeepsLine = want > 0 && Math.abs(parseFloat(getComputedStyle(surf).lineHeight) - want) < 0.05;
+      closeNodeEditor(true);
+    }
+
+    /* ---- a wavy lineage waves along its stretch of the bar ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      ['A','B','C','D'].forEach((k, i)=>
+        workingNodes.push(['wm' + k, 'P ' + k, null, null, null, null, {pos:[X + i*230, Y]}]));
+      workingNodes.push(['wmM','Merge',['wmA','wmB','wmC','wmD'],null,null,'amalgam',{pos:[X + 260, Y + 320]}]);
+    });
+    await wait(500);
+    const memberD = (f)=>{
+      const p = document.querySelector(`#edgeLayer path.amalgam-member:not(.amalgam-reach)[data-from="${f}"][data-to="wmM"]`);
+      return p ? p.getAttribute('d') : '';
+    };
+    /* A middle lineage owns a stretch of bar after its turn: the last run
+       of its path. Plain, that run is one straight L; wavy, it is curves. */
+    const tail = (d)=> d.slice(d.lastIndexOf('M'));
+    const middle = ['wmB','wmC'].filter(f=> / L[\d.-]+,[\d.-]+$/.test(memberD(f)));
+    out.plainBar = middle.length > 0;
+    applyEdit(()=>{
+      ['wmA','wmB','wmC','wmD'].forEach(f=> setEdgeStyleOverride(f, 'wmM',
+        Object.assign({}, edgeStyleFor(f, 'wmM'), {sinusoid:true})));
+    });
+    await wait(400);
+    out.wavyBar = out.plainBar && middle.every(f=>{
+      const d = memberD(f);
+      return (d.match(/M/g) || []).length >= 2 && /C/.test(tail(d));
+    });
+    out.wavyBarAt = JSON.stringify(middle.map(f=> tail(memberD(f)).slice(0, 60)));
+    /* The reach into the junction lies on the line beneath it, wavy or not. */
+    {
+      const reach = document.querySelector('#edgeLayer path.amalgam-reach');
+      out.reachOnWave = !reach || /C/.test(reach.getAttribute('d') || '');
+      /* …and lights with its own lineage. */
+      if(reach){
+        selectNode(reach.dataset.from);
+        await wait(240);
+        out.reachLit = reach.isConnected ? reach.classList.contains('lit')
+          : !!document.querySelector('#edgeLayer path.amalgam-reach.lit');
+        deselect();
+        await wait(150);
+      } else out.reachLit = true;
+    }
+
+    /* ---- carrying one entry leaves every unrelated route where it was ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['rhU','Upper',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['rhV','Lower','rhU',null,null,null,{pos:[X + 260, Y + 260]}]);
+      workingNodes.push(['rhW','Carried',null,null,null,null,{pos:[X + 600, Y]}]);
+      workingNodes.push(['rhZ','Its child','rhW',null,null,null,{pos:[X + 600, Y + 260]}]);
+    });
+    await wait(500);
+    {
+      const dOf = (f, t)=>{ const p = document.querySelector(`#edgeLayer path.edge[data-from="${f}"][data-to="${t}"]`); return p ? p.getAttribute('d') : null; };
+      const still = dOf('rhU', 'rhV'), own0 = dOf('rhW', 'rhZ');
+      const g = document.querySelector('.node[data-id="rhW"]');
+      const r = g.getBoundingClientRect();
+      const sx = r.x + r.width/2, sy = r.y + r.height/2;
+      g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
+      let moved = 0, ownChanged = false;
+      for(let k = 1; k <= 16; k++){
+        window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX: sx - k*9, clientY: sy + k*3}));
+        await wait(20);
+        if(dOf('rhU', 'rhV') !== still) moved++;
+        if(dOf('rhW', 'rhZ') !== own0) ownChanged = true;
+      }
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+      await wait(300);
+      out.routeHeld = !!still && moved === 0 && ownChanged;
+      out.routeHeldAt = JSON.stringify({moved, ownChanged});
+    }
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart();
+    await wait(300);
+    return out;
+  });
+  check('the gap between two words is the width of a space', rS.wordGapIsASpace, rS.gaps);
+  check('the inline editor keeps the line the entry draws its words on', rS.fieldKeepsLine, rS.fieldLine);
+  check('a wavy lineage waves along its stretch of the bar too', rS.wavyBar, rS.wavyBarAt);
+  check('the reach into the junction lies on the line beneath it, and lights with its lineage',
+        rS.reachOnWave && rS.reachLit);
+  check('carrying an entry leaves the routes it has nothing to do with where they were',
+        rS.routeHeld, rS.routeHeldAt);
+
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

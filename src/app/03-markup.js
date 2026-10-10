@@ -382,7 +382,7 @@ function runsWidth(runs, fallback, family){
 function lineWidth(words, fontOpts){
   const fontSize = (fontOpts && fontOpts.fontSize) || undefined;
   const family = (fontOpts && fontOpts.family) || undefined;
-  const SPACE_W = measureText(' ', {fontSize, family}) || 3;
+  const SPACE_W = measureSpace({fontSize, family});
   let total = 0;
   words.forEach((w,i)=>{
     if(i>0 && !w.glue) total += SPACE_W;

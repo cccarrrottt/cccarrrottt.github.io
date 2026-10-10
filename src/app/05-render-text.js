@@ -219,6 +219,19 @@ function measureText(text, {bold, italic, fontSize, family}={}){
   measureCache.set(key, w);
   return w;
 }
+/* The width of the gap between two words.
+ *
+ * Not `measureText(' ')`: SVG collapses a text that is nothing but white
+ * space to nothing, so a lone space measures 0 and fell through to the
+ * 6.5-per-character guess above — double the real gap in an 11.5 Arial.
+ * Every line on the chart was set with that, so its words stood apart
+ * wider than the same words anywhere else, and the inline editor, which
+ * lets the browser space them, looked as if it squeezed them. The gap is
+ * what a space adds between two letters that are already measured. */
+function measureSpace(opts){
+  const w = measureText('a a', opts) - measureText('aa', opts);
+  return w > 0 ? w : 3;
+}
 /* Widths measured before a web font arrives are the fallback face's, not
    the real one's. When the fonts land every remembered width is wrong at
    once, so the cache is emptied and the chart redrawn — otherwise entries
@@ -240,7 +253,7 @@ if(document.fonts && document.fonts.ready){
 function layoutLine(textEl, words, centerX, baselineY, fontOpts){
   const fontSize = (fontOpts && fontOpts.fontSize) || undefined;
   const family = (fontOpts && fontOpts.family) || undefined;
-  const SPACE_W = measureText(' ', {fontSize, family}) || 3;
+  const SPACE_W = measureSpace({fontSize, family});
   // A sticker and a citation are set at the size of the run they sit in,
   // so making a phrase bigger takes them with it.
   const widths = words.map(w => w.type==='sticker' ? stickerBox(w.size || fontSize)

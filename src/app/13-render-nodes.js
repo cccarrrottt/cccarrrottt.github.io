@@ -75,23 +75,33 @@ function imageAspect(src){
    the entry's own group, its scenery and its ground — turned about the
    middle of the upright box it was drawn in (x, y and w, h on n).
  *
-   The scenery and the entry are carried during a drag by a translate on
-   the group, so the turn goes on a group INSIDE them, where a carry does
-   not reach it. The ground's pieces are carried one by one, each by its
-   own transform, so a piece keeps its turn in data-rot-transform and the
-   carry writes it back after the translate — the way a caption's turn is
-   kept on its group. */
+   Inside the entry's group each piece takes the turn on ITSELF and stays
+   where it was, a direct child of the group. A wrapper group would have
+   been one line, and it broke the stylesheet: the box, the portrait's
+   circle and the hover pad are all styled as `.node > rect` and the like,
+   so one level deeper they lost their fill and stroke and the turned
+   entry came out in other colours, a portrait with a white ring.
+ *
+   The scenery is carried during a drag by a translate on its group, and
+   its pieces animate their own transforms, so there the turn goes on a
+   group in between, where neither reaches it. The ground's pieces are
+   carried one by one, each by its own transform, so a piece keeps its
+   turn in data-rot-transform and the carry writes it back after the
+   translate — the way a caption's turn is kept on its group. */
 function turnDrawing(n, g, turn, w, h){
   const midX = n.x + w/2, midY = n.y + h/2;
   const spin = `rotate(${turn},${midX.toFixed(2)},${midY.toFixed(2)})`;
-  const wrapAll = (host, transform)=>{
-    const kids = [...host.childNodes];
-    const wrap = el('g', {class:'node-turned', transform}, host);
+  [...g.children].forEach(piece=>{
+    if(piece.tagName === 'title') return;
+    const own = piece.getAttribute('transform');
+    piece.setAttribute('transform', own ? `${spin} ${own}` : spin);
+    piece.classList.add('turned-piece');
+  });
+  auraLayer.querySelectorAll(`.node-aura[data-id="${CSS.escape(n.id)}"]`).forEach(a=>{
+    const kids = [...a.childNodes];
+    const wrap = el('g', {class:'node-turned', transform:spin}, a);
     kids.forEach(k=> wrap.appendChild(k));
-  };
-  wrapAll(g, spin);
-  auraLayer.querySelectorAll(`.node-aura[data-id="${CSS.escape(n.id)}"]`)
-    .forEach(a=> wrapAll(a, spin));
+  });
   const ground = fanLayer.querySelector(`[data-ground="${CSS.escape(n.id)}"]`);
   if(ground){
     // The ground is drawn from the box's top-left, so its middle is local.
@@ -468,8 +478,14 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      panel of text ground, which is nothing anybody was asking for. The
      words take the room they need; the picture takes what is left. */
   const cardTextH = cardHeadH + cardMedH + cardBodyH;
+  /* …and never more than is left once the words have theirs. A depth set
+     by hand on the picture, kept while the card was made smaller, used to
+     be honoured whatever the box: the bands went below the picture and so
+     below the card, and the heading was written across its bottom border.
+     The words are what the card is FOR; the picture gives way. */
   const cardImgB = isCard
-    ? n.y + ((manual && n.image && n.cardImgH == null) ? Math.max(0, h - cardTextH) : cardImgH)
+    ? n.y + ((manual && n.image && n.cardImgH == null) ? Math.max(0, h - cardTextH)
+             : Math.max(0, Math.min(cardImgH, h - cardTextH)))
     : 0;
   /* Each band below the picture takes the height its own words need, in
      order, and the heading takes whatever is left over — so a card given
@@ -486,6 +502,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      by that box and nothing inside it — see portOnSide. Kept because the
      drawing measures its own bands from it. */
   n.cardTop = isCard ? cardImgB - n.y : 0;
+  /* And where the heading is written, in the upright card: the inline
+     editor stands on this band, not on the whole card, so what is typed
+     is seen where the card will write it rather than over the picture. */
+  n.cardHead = isCard ? {top: cardImgB - n.y, h: cardHeadB - cardImgB} : null;
 
   /* The grounds are drawn in the ENTRY'S coordinates, not the chart's.
    *
@@ -695,7 +715,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
          three different ways. Every style is carried now: the dash
          pattern, and the second rail a double border is made of. */
       const sheetDash = (BORDER_STYLES[borderStyleOf(n)] || BORDER_STYLES.solid).dash;
-      const sheetDouble = borderStyleOf(n) === 'double' && !n.card;
+      const sheetDouble = borderStyleOf(n) === 'double';
       for(let i = LOCAL_SHEETS; i >= 1; i--){
         const off = i * LOCAL_SHEET_STEP;
         const shp = sheetShape(n.x + own + off, n.y - own - off);
@@ -803,9 +823,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   if(isCard){
     /* Three bands inside one border. The picture is clipped to the card's
        own outline, so its top corners round with the box and it never
-       overhangs; two hairlines rule off the heading and the body. There is
-       no second border colour here — the rules already divide the card, and
-       nested rings on top of them would be noise. */
+       overhangs; two hairlines rule off the heading and the body. */
     const c = ringColors[0];
     /* The card's outline is whatever the border style draws, and its
        picture is clipped to that same outline — so a rippled card's
@@ -868,6 +886,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     }
 
     borderRing(isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
+    /* And a ring per further colour, stepping outward exactly as an
+       entry's do. A card used to keep its first colour and drop the rest,
+       on the grounds that its rules already divide it — but the rings are
+       OUTSIDE the box and the rules inside it, so the two never met, and a
+       card was the one boxed entry that could not wear two borders. */
+    ringColors.slice(1).forEach((rc, k)=>{
+      const grow = (k + 1) * ringStepFor(n);
+      borderRing(isWavy ? 'path' : 'rect', (ins)=> isWavy
+        ? {d: wavyRectPath(n.x-grow+ins, n.y-grow+ins, w+grow*2-ins*2, h+grow*2-ins*2, grow)}
+        : {x:n.x-grow+ins, y:n.y-grow+ins, width:w+grow*2-ins*2, height:h+grow*2-ins*2,
+           rx:rad(5+grow-ins)}, rc, 'fill:none;');
+    });
     const rule = (yy)=> el('line', {x1:n.x - bleed, y1:yy, x2:n.x + w + bleed, y2:yy,
                                     stroke:c, class:'card-rule',
                                     'clip-path': `url(#${clipId})`}, g);

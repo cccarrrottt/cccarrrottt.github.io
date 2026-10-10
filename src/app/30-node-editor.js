@@ -77,7 +77,19 @@ function nodeEditorBoxFor(t){
        portrait and so begins at the circle's rim. */
     const box = g && g.dataset.box && g.dataset.box.split(' ').map(Number);
     if(box && box.length === 4 && box.every(v=> Number.isFinite(v))){
-      return {x:box[0], y:box[1], w:box[2], h:box[3]};
+      const [bx, by, bw, bh] = box;
+      const turn = quarterTurnOf(n);
+      if(!turn) return {x:bx, y:by, w:bw, h:bh};
+      /* A turned portrait's card has gone round its portrait (see
+         drawOneBioCard): the field stands at the card's turned middle and
+         is turned itself; `outer` is the card as drawn. */
+      const px = n.x + n.w/2, py = n.y + n.h/2;
+      const a = turn * Math.PI / 180, c = Math.round(Math.cos(a)), s = Math.round(Math.sin(a));
+      const dx = bx + bw/2 - px, dy = by + bh/2 - py;
+      const mx = px + dx*c - dy*s, my = py + dx*s + dy*c;
+      const side = turn % 180 ? {w: bh, h: bw} : {w: bw, h: bh};
+      return {x: mx - bw/2, y: my - bh/2, w: bw, h: bh, turn,
+              outer: {x: mx - side.w/2, y: my - side.h/2, w: side.w, h: side.h}};
     }
   }
   /* A turned entry writes its words along its own length, so the field is
@@ -86,6 +98,19 @@ function nodeEditorBoxFor(t){
      to clear. */
   const turn = quarterTurnOf(n);
   const outer = {x:n.x, y:n.y, w:n.w, h:(n.h || 0)};
+  /* A card writes its heading in a band of its own, below the picture.
+     The field covers that band — found in the upright card and turned
+     about the card's middle with the rest of it. */
+  if(n.card && n.cardHead && n.cardHead.h > 0){
+    const sideways = turn === 90 || turn === 270;
+    const uw = sideways ? outer.h : outer.w, uh = sideways ? outer.w : outer.h;
+    const cx = n.x + outer.w/2, cy = n.y + outer.h/2;
+    const dy = n.cardHead.top + n.cardHead.h/2 - uh/2;
+    const a = turn * Math.PI / 180;
+    const mx = cx - dy*Math.round(Math.sin(a)), my = cy + dy*Math.round(Math.cos(a));
+    const band = {x: mx - uw/2, y: my - n.cardHead.h/2, w: uw, h: n.cardHead.h};
+    return Object.assign(band, turn ? {turn, outer} : {outer});
+  }
   if(turn === 90 || turn === 270){
     return {x: n.x + (outer.w - outer.h)/2, y: n.y + (outer.h - outer.w)/2,
             w: outer.h, h: outer.w, turn, outer};
@@ -126,9 +151,9 @@ function positionNodeEditor(){
    * the textarea it replaced, so on a small entry the field opened as a
    * slab several times the size of the thing being edited and hid the
    * entries round it. Now the box sets the size and the field fits its
-   * words into it: measured bare, then padded out to the box, and where
-   * the type's line is taller than a box closed on its ink, the line is
-   * drawn in to fit. As the words grow the entry grows under them, and the
+   * words into it: measured bare, then padded out to the box; where the
+   * type's line is taller than a box closed on its ink, the field hangs
+   * over the box rather than squeeze the line. As the words grow the entry grows under them, and the
    * field — put back over it after every redraw — grows with it.
    *
    * Where the field wraps, the width is the box's and is not negotiable;
@@ -151,19 +176,21 @@ function positionNodeEditor(){
     surf.width = '';
     surf.minWidth = '0px';
   }
-  const bare = rec.surface.getBoundingClientRect();
-  if(bare.height > hBox && lineH){
-    const lines = Math.max(1, Math.round((bare.height - 2*(parseFloat(surf.borderWidth) || 0)) / lineH));
-    surf.lineHeight = Math.max(1, (hBox - 2*(parseFloat(surf.borderWidth) || 0)) / lines).toFixed(2) + 'px';
-  }
+  /* Never drawn in to fit. A box closed on its ink is shorter than the
+     line its words stand on, and pressing the line to the box's height
+     set the words on top of one another — the field showed the text
+     squeezed where the entry shows it as it is. The field keeps the
+     drawing's own line and hangs over the box, above and below alike. */
   const fitted = rec.surface.getBoundingClientRect();
   const padY = Math.max(0, (hBox - fitted.height) / 2);
   const padX = wraps ? 0 : Math.max(0, (w - fitted.width) / 2);
   surf.padding = padY.toFixed(2) + 'px ' + padX.toFixed(2) + 'px';
-  /* The browser sets a line a hair wider, or a line box a hair taller,
-     than the drawing measured it. That hair is let hang over the field's
-     edge rather than make the field bigger than the box. */
-  if(fitted.height > hBox) surf.height = hBox + 'px';
+  /* The browser sets a line a hair wider than the drawing measured it.
+     That hair is let hang over the field's edge rather than make the field
+     bigger than the box; so is a line taller than a box closed on its ink,
+     which the frame (see the stylesheet) is drawn inside of. */
+  const hang = Math.max(0, (fitted.height - hBox) / 2);
+  surf.setProperty('--hang', hang.toFixed(2) + 'px');
   if(!wraps){
     surf.minWidth = w + 'px';
     if(fitted.width > w && fitted.width - w < 4*vs) surf.width = w + 'px';
@@ -175,7 +202,7 @@ function positionNodeEditor(){
      writes its words. A field pinned to the top of the box would put what
      is being typed a line above where it will end up. */
   const fieldH = rec.surface.getBoundingClientRect().height || NODE_EDITOR_MINH * vs;
-  const fieldTop = top + Math.max(0, (box.h*vs - fieldH)/2);
+  const fieldTop = top + (box.h*vs - fieldH)/2;
   const outerTop = box.outer ? (r.top - host.top) + box.outer.y*vs + vy : fieldTop;
   const barW = bar ? bar.getBoundingClientRect().width : w;
   /* Grown past the entry, the field grows BOTH WAYS. An entry writes its
@@ -190,12 +217,21 @@ function positionNodeEditor(){
   const fieldLeft = wraps ? left : left - Math.max(0, (fieldW - box.w*vs) / 2);
   /* Kept on the page: an entry at the very top or edge of the view would
      put its toolbar where it cannot be reached. */
-  const x = Math.max(6, Math.min(fieldLeft, host.width - Math.max(fieldW, barW) - 6));
+  /* A field turned on its side is laid out upright and only drawn turned,
+     so its laid-out ends stick out past what is seen by half the
+     difference between its length and its depth. Kept on the page by what
+     is SEEN: clamping the laid-out box pushed the field of a turned entry
+     near the edge of the view sideways, off the words it stands on. */
+  const sideways = box.turn === 90 || box.turn === 270;
+  const overhang = sideways ? Math.max(0, (fieldW - fieldH) / 2) : 0;
+  const x = Math.max(6 - overhang, Math.min(fieldLeft, host.width - Math.max(fieldW - overhang, barW) - 6));
   /* Over a turned entry the field is drawn taller than it is laid out, so
      the toolbar is held off by the difference to stay clear of it. */
   const lift = Math.max(0, fieldTop - outerTop);
   if(bar) bar.style.marginBottom = lift ? (gap + lift) + 'px' : '';
-  const y = Math.max(6, fieldTop - barH - gap - lift);
+  // …and the toolbar, which is not turned, is held on the page by itself.
+  if(bar) bar.style.marginLeft = x < 6 ? (6 - x) + 'px' : '';
+  const y = Math.max(6, fieldTop + hang - barH - gap - lift);
   surf.transform = box.turn ? `rotate(${box.turn}deg)` : '';
   surf.transformOrigin = box.turn ? 'center' : '';
   nodeEditor.style.left = x + 'px';
