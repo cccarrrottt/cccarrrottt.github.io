@@ -18,6 +18,14 @@
  *               chooses how it is written down, and the line's own
  *               corners are the line's.
  *
+ * And an entry has one more button, at the end: a quarter turn clockwise.
+ * It used to be a round arrow standing off the entry's corner, a handle
+ * among four grips, a link badge and a row of language chips — one more
+ * thing to miss on a small box, and on a phone one more thing in the way
+ * of the finger. A turn is a look too, and a button is a press with no
+ * aim in it. A picture, which has no bar, keeps the same button in its
+ * own menu (see freeMenuTurn).
+ *
  * Every click is one step of undo, and the bar stays where it is through
  * the redraw, on the thing it was opened for, so several looks can be
  * tried in a row.
@@ -29,6 +37,7 @@ const STYLE_BAR_BORDERS = [
 ];
 const STYLE_BAR_CORNERS = [['square', '┌', 'Square corners'], ['round', '╭', 'Rounded corners']];
 const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
+const STYLE_BAR_TURN = [['quarter', '⟳', 'Turn a quarter clockwise']];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
 const STYLE_BAR_LINGER = 260;
@@ -56,6 +65,7 @@ const styleBar = (()=>{
   group('border', STYLE_BAR_BORDERS);
   group('frame', STYLE_BAR_FRAMES);
   group('corners', STYLE_BAR_CORNERS);
+  group('turn', STYLE_BAR_TURN);
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -116,6 +126,7 @@ function syncStyleBar(){
       b.disabled = !!(off && off(b.dataset.value));
     });
   };
+  rows.turn.hidden = !n;
   if(n){
     rows.border.hidden = false;
     rows.frame.hidden = true;
@@ -177,7 +188,10 @@ function positionStyleBar(){
 function applyStyleBar(group, value){
   const t = styleBarTarget;
   if(!t) return;
-  if(t.kind === 'node'){
+  if(t.kind === 'node' && group === 'turn'){
+    const n = nodes.get(t.id);
+    if(n) turnEntryTo(t.id, quarterTurnOf(n) + 90);
+  } else if(t.kind === 'node'){
     applyEdit(()=>{
       const found = workingEntry(t.id);
       if(!found) return;

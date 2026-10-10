@@ -153,13 +153,13 @@ function isFreeShape(shape){ return shape === 'image' || shape === 'textbox'; }
  *
  * An entry turns in quarters only: the chart is drawn in right angles, and
  * a box at any other angle has no side for a connector to meet square-on.
- * A caption is not one of these — it turns freely, as a drawing does — and
- * nor is anything whose inside has a direction of its own the turn would
- * make nonsense of: a portrait, a picture, a card's bands, a merge's bar. */
+ * Every kind of entry turns — a box, a callout, a card, a portrait, a
+ * picture, a merge — because the whole of what is drawn turns with it, and
+ * the box the chart reasons with is the turned one. A caption is the one
+ * exception: it turns freely, as a drawing does, by a handle of its own. */
 function quarterTurnable(n){
   if(!n) return false;
-  const shape = n.shape || 'rect';
-  return !n.card && (shape === 'rect' || shape === 'callout');
+  return (n.shape || 'rect') !== 'textbox';
 }
 function quarterTurnOf(n){
   if(!n || !n.rot || !quarterTurnable(n)) return 0;

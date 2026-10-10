@@ -60,9 +60,9 @@
 
 
     <!-- The tags the chart filters by, the references it cites and what its
-         marks mean, as three tabs down the left edge of one window. The
-         tabs stand where they stand whether the window is open or not;
-         pressing one shows its page, pressing it again shuts the window. -->
+         marks mean, as three drawers spaced down the left edge. Each opens
+         and shuts on its own, into its own third of the edge, so any of
+         them can be open together and no tab ever moves. -->
     <div class="side-tabs" id="sideTabs">
       <section class="side-tab" id="tagsPanel">
         <button type="button" class="side-tab-handle" id="tagsTab" aria-expanded="false"
@@ -476,6 +476,12 @@
           <div class="free-menu-row" id="freeMenuLayerRow">
             <button type="button" class="editor-btn" data-z="-1" title="Behind the entries and the arrows, as a backdrop">Behind</button>
             <button type="button" class="editor-btn" data-z="1" title="Over the entries and the arrows">In front</button>
+          </div>
+        </div>
+        <div class="editor-field">
+          <label>Turn</label>
+          <div class="free-menu-row">
+            <button type="button" class="editor-btn" id="freeMenuTurn" title="Turn the picture a quarter clockwise">⟳ A quarter clockwise</button>
           </div>
         </div>
       </div>

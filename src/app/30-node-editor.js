@@ -80,7 +80,17 @@ function nodeEditorBoxFor(t){
       return {x:box[0], y:box[1], w:box[2], h:box[3]};
     }
   }
-  return {x:n.x, y:n.y, w:n.w, h:(n.h || 0)};
+  /* A turned entry writes its words along its own length, so the field is
+     the UPRIGHT box — the same middle, the sides the other way round — and
+     is turned to match; `outer` is the box as drawn, which the toolbar has
+     to clear. */
+  const turn = quarterTurnOf(n);
+  const outer = {x:n.x, y:n.y, w:n.w, h:(n.h || 0)};
+  if(turn === 90 || turn === 270){
+    return {x: n.x + (outer.w - outer.h)/2, y: n.y + (outer.h - outer.w)/2,
+            w: outer.h, h: outer.w, turn, outer};
+  }
+  return turn ? Object.assign({turn, outer}, outer) : outer;
 }
 function positionNodeEditor(){
   const box = nodeEditorBoxFor(nodeEditorTarget);
@@ -110,17 +120,53 @@ function positionNodeEditor(){
   const tn = nodeEditorTarget.kind === 'entry' ? nodes.get(nodeEditorTarget.id) : null;
   const wraps = nodeEditorTarget.kind === 'note' || (tn && (tn.shape || '') === 'ellipse');
   nodeEditor.dataset.wrap = wraps ? 'on' : 'off';
-  /* A floor, not a width, where the field may grow: it is `width:max-content`
-     then, so it is the entry's width until the words need more, and then it
-     is the words' width — which is what the entry itself does. Where it
-     wraps, the width is the box's and is not negotiable. */
-  const w = Math.max(NODE_EDITOR_MINW * vs, box.w*vs);
+  /* The field starts as exactly the box it stands on — never bigger.
+   *
+   * It used to have a floor of its own, 120 units wide, and the height of
+   * the textarea it replaced, so on a small entry the field opened as a
+   * slab several times the size of the thing being edited and hid the
+   * entries round it. Now the box sets the size and the field fits its
+   * words into it: measured bare, then padded out to the box, and where
+   * the type's line is taller than a box closed on its ink, the line is
+   * drawn in to fit. As the words grow the entry grows under them, and the
+   * field — put back over it after every redraw — grows with it.
+   *
+   * Where the field wraps, the width is the box's and is not negotiable;
+   * where it does not, the box's width is a floor (`width:max-content`), so
+   * the field is the entry's width until the words need more, which is
+   * what the entry itself does. */
+  const w = box.w*vs, hBox = box.h*vs;
+  const surf = rec.surface.style;
+  const lineH = parseFloat(rec.surface.dataset.lineH) || 0;
+  // Measured upright; turned to match a turned entry only at the end.
+  surf.transform = '';
+  surf.minHeight = '0px';
+  surf.height = '';
+  surf.padding = '0px';
+  if(lineH) surf.lineHeight = lineH.toFixed(2) + 'px';
   if(wraps){
-    rec.surface.style.minWidth = '';
-    rec.surface.style.width = w + 'px';
+    surf.minWidth = '';
+    surf.width = w + 'px';
   } else {
-    rec.surface.style.width = '';
-    rec.surface.style.minWidth = w + 'px';
+    surf.width = '';
+    surf.minWidth = '0px';
+  }
+  const bare = rec.surface.getBoundingClientRect();
+  if(bare.height > hBox && lineH){
+    const lines = Math.max(1, Math.round((bare.height - 2*(parseFloat(surf.borderWidth) || 0)) / lineH));
+    surf.lineHeight = Math.max(1, (hBox - 2*(parseFloat(surf.borderWidth) || 0)) / lines).toFixed(2) + 'px';
+  }
+  const fitted = rec.surface.getBoundingClientRect();
+  const padY = Math.max(0, (hBox - fitted.height) / 2);
+  const padX = wraps ? 0 : Math.max(0, (w - fitted.width) / 2);
+  surf.padding = padY.toFixed(2) + 'px ' + padX.toFixed(2) + 'px';
+  /* The browser sets a line a hair wider, or a line box a hair taller,
+     than the drawing measured it. That hair is let hang over the field's
+     edge rather than make the field bigger than the box. */
+  if(fitted.height > hBox) surf.height = hBox + 'px';
+  if(!wraps){
+    surf.minWidth = w + 'px';
+    if(fitted.width > w && fitted.width - w < 4*vs) surf.width = w + 'px';
   }
   const bar = document.getElementById('nodeEditorBar');
   const barH = bar ? bar.getBoundingClientRect().height : 0;
@@ -130,6 +176,7 @@ function positionNodeEditor(){
      is being typed a line above where it will end up. */
   const fieldH = rec.surface.getBoundingClientRect().height || NODE_EDITOR_MINH * vs;
   const fieldTop = top + Math.max(0, (box.h*vs - fieldH)/2);
+  const outerTop = box.outer ? (r.top - host.top) + box.outer.y*vs + vy : fieldTop;
   const barW = bar ? bar.getBoundingClientRect().width : w;
   /* Grown past the entry, the field grows BOTH WAYS. An entry writes its
      words centred on itself and lets a long one hang off either end; a
@@ -144,11 +191,17 @@ function positionNodeEditor(){
   /* Kept on the page: an entry at the very top or edge of the view would
      put its toolbar where it cannot be reached. */
   const x = Math.max(6, Math.min(fieldLeft, host.width - Math.max(fieldW, barW) - 6));
-  const y = Math.max(6, fieldTop - barH - gap);
+  /* Over a turned entry the field is drawn taller than it is laid out, so
+     the toolbar is held off by the difference to stay clear of it. */
+  const lift = Math.max(0, fieldTop - outerTop);
+  if(bar) bar.style.marginBottom = lift ? (gap + lift) + 'px' : '';
+  const y = Math.max(6, fieldTop - barH - gap - lift);
+  surf.transform = box.turn ? `rotate(${box.turn}deg)` : '';
+  surf.transformOrigin = box.turn ? 'center' : '';
   nodeEditor.style.left = x + 'px';
   nodeEditor.style.top  = y + 'px';
 }
-const NODE_EDITOR_MINW = 120, NODE_EDITOR_MINH = 22;
+const NODE_EDITOR_MINH = 22;
 /* Whether this entry writes its words on itself. A picture has no words at
    all; everything else that carries text does. */
 function nodeTakesInlineEditor(n){
@@ -219,7 +272,8 @@ function syncNodeEditorLook(){
   if(nodeEditorTarget.kind === 'note'){
     rec.surface.style.fontFamily = EDGE_NOTE_FAMILY;
     rec.surface.style.fontSize = (EDGE_NOTE_FS * vs).toFixed(2) + 'px';
-    rec.surface.style.lineHeight = (EDGE_NOTE_LINE_H * vs).toFixed(2) + 'px';
+    rec.surface.dataset.lineH = (EDGE_NOTE_LINE_H * vs).toFixed(2);
+    rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
     return finishNodeEditorLook(rec);
   }
   const n = nodes.get(nodeEditorTarget.id);
@@ -227,7 +281,8 @@ function syncNodeEditorLook(){
   const size = (n.fontSize && n.fontSize >= 6 && n.fontSize <= 28) ? n.fontSize : NODE_FS;
   rec.surface.style.fontFamily = fontFamilyFor(n.font);
   rec.surface.style.fontSize = (size * vs).toFixed(2) + 'px';
-  rec.surface.style.lineHeight = (LINE_H * (size / NODE_FS) * vs).toFixed(2) + 'px';
+  rec.surface.dataset.lineH = (LINE_H * (size / NODE_FS) * vs).toFixed(2);
+  rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
   return finishNodeEditorLook(rec);
 }
 function finishNodeEditorLook(rec){
@@ -242,11 +297,8 @@ function finishNodeEditorLook(rec){
       (nodes.get(nodeEditorTarget.id) || {}).shape === 'callout'));
   if(hex) hex.style.display = inherits ? 'none' : '';
   rec.surface.style.textAlign = nodeEditorAlign();
-  /* The padding and the border scale too. Left at flat pixels they became
-     most of the box as the drawing was zoomed out: six pixels of padding
-     either side of type set at four is a field that is mostly margin, and
-     the words no longer sat where the entry will put them. */
-  rec.surface.style.padding = (3*vs).toFixed(2) + 'px ' + (6*vs).toFixed(2) + 'px';
+  /* The border scales with the drawing, as the type does; the padding is
+     whatever is left of the box round the words (see positionNodeEditor). */
   rec.surface.style.borderWidth = Math.max(0.6, 1.6*vs).toFixed(2) + 'px';
   rec.surface.style.borderRadius = (5*vs).toFixed(2) + 'px';
 }

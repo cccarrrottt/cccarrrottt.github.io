@@ -104,6 +104,17 @@ document.querySelectorAll('#freeMenuLayerRow .editor-btn').forEach(b=>{
   });
 });
 
+/* A picture turns in quarters like any entry; it has no style bar, so the
+   button is here. Whatever the menu still holds is committed first, so the
+   turn is a step of its own on top of it. */
+document.getElementById('freeMenuTurn').addEventListener('click', ev=>{
+  ev.stopPropagation();
+  const n = freeMenuId && nodes.get(freeMenuId);
+  if(!n) return;
+  flushFreeMenuCommit();
+  turnEntryTo(n.id, quarterTurnOf(n) + 90);
+});
+
 /* The free-element menu commits as you use it too — one undo step for the
    whole time the menu is open, the same as the entry editor. */
 let freeMenuUndoPushed = false;

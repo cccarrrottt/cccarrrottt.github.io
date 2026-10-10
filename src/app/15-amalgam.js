@@ -373,12 +373,27 @@ function drawAmalgam(list, ports){
      the port is not, so the landing moves. Both properties then hold at
      once: the fan leaves evenly spaced AND every lineage drops straight
      onto the bar. */
+  /* A lineage that leaves ALONG the bar — by the bottom of its entry, say,
+     towards a bar that stands upright beside it — cannot land level with
+     its port: it has to run out of the entry first, and only then turn
+     towards the bar. Landing it level with the port asked it to run out,
+     come back, turn, and turn again — the S at the top of the line,
+     wherever a single corner would have done. So its landing is where its
+     run-out ends, and the run-out is pinned to that length, so the router
+     and this arithmetic agree on where the corner is. */
+  const runOutAlong = (p)=>{
+    const pn = p && SIDE_NORMAL[p.side];
+    if(!pn) return 0;
+    const alongBar = pn.x * ux + pn.y * uy;
+    if(Math.abs(alongBar) < 0.5) return 0;
+    return alongBar * stubLength(Object.assign({}, p, {head: true}), null);
+  };
   const alongOf = (e)=>{
     const rec = ports.get(e);
     const p = rec && rec.p1;
     const src = nodes.get(e.from);
     let c;
-    if(p) c = sideIsVertical(side) ? p.x : p.y;
+    if(p) c = (sideIsVertical(side) ? p.x : p.y) + runOutAlong(p);
     else if(src) c = sideIsVertical(side) ? src.x + src.w/2 : src.y + src.h/2;
     else return 0;
     const base = sideIsVertical(side) ? cx : cy;
@@ -570,7 +585,9 @@ function drawAmalgam(list, ports){
        landing is placed under it (see alongOf) rather than the other way
        round: the lineage comes down in one straight run, and nothing of
        the merge depends on which slot of a fan it happened to be given. */
-    const p1 = recM.p1 || portOnSide(a, amalgamFromSide(a, geo, style), 0, 1, style.fromRing || 0);
+    const p1raw = recM.p1 || portOnSide(a, amalgamFromSide(a, geo, style), 0, 1, style.fromRing || 0);
+    const run = Math.abs(runOutAlong(p1raw));
+    const p1 = run ? Object.assign({}, p1raw, {stub: run}) : p1raw;
     // Approached head-on, from the side the lineages are on.
     const target = {x: land.x, y: land.y, side, ring: 0, stub: AMALGAM_APPROACH};
     const { pts } = pathFromPorts(p1, target, style, new Set([a.id, b.id]), recM.lane || 0);
