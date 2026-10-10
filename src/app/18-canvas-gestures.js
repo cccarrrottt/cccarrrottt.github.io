@@ -957,22 +957,37 @@ window.addEventListener('mousemove', e=>{
       snapToGrid(st.originW + Math.max(dx*c.sx, dy*c.sy)));
     w = h = side;
   }
-  st.node.size = {w, h};
-  /* Pulling a top or left corner holds the opposite one still, which means
-     the entry's own origin travels as the box grows. An entry whose origin
-     moves has to be written down as placed by hand — otherwise the next
-     redraw reads it back out of the layout and puts it where the layout
-     wants it, which is not where the reader just dragged its corner to. */
-  if(c.sx < 0 || c.sy < 0){
-    const nx = c.sx < 0 ? st.originX + (st.originW - w) : st.originX;
-    const ny = c.sy < 0 ? st.originY + (st.originH - h) : st.originY;
-    // Both: `pos` is what the next full rebuild reads, `x`/`y` are what
-    // this redraw draws — a redraw does not go back to `pos` for a box
-    // that already has one.
-    st.node.pos = {x: nx, y: ny};
-    st.node.x = nx; st.node.y = ny;
+  /* Never smaller than the entry closes to by itself (see n.minSize):
+     the words stay a pixel inside the border however far in the corner
+     is pulled. */
+  const floor = st.node.minSize;
+  if(floor){ w = Math.max(w, floor.w); h = Math.max(h, floor.h); }
+  const place = (w, h)=>{
+    st.node.size = {w, h};
+    /* Pulling a top or left corner holds the opposite one still, which
+       means the entry's own origin travels as the box grows. An entry
+       whose origin moves has to be written down as placed by hand —
+       otherwise the next redraw reads it back out of the layout and puts
+       it where the layout wants it, which is not where the reader just
+       dragged its corner to. */
+    if(c.sx < 0 || c.sy < 0){
+      const nx = c.sx < 0 ? st.originX + (st.originW - w) : st.originX;
+      const ny = c.sy < 0 ? st.originY + (st.originH - h) : st.originY;
+      // Both: `pos` is what the next full rebuild reads, `x`/`y` are what
+      // this redraw draws — a redraw does not go back to `pos` for a box
+      // that already has one.
+      st.node.pos = {x: nx, y: ny};
+      st.node.x = nx; st.node.y = ny;
+    }
+    renderNodes();
+  };
+  place(w, h);
+  /* A callout wraps to the width it is given, so a narrower one needs a
+     taller floor — known only once it has been laid out at that width. */
+  const again = st.node.minSize;
+  if(again && (again.w > w + 0.01 || again.h > h + 0.01)){
+    place(Math.max(w, again.w), Math.max(h, again.h));
   }
-  renderNodes();
   redrawEdges();
   applyVisibility();
   if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);

@@ -8,6 +8,21 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Nothing through the dots, nothing under the words
+
+- **An amalgam's dots no longer let the bar show through them.** A dot is
+  a gradient, and when the chart dims everything but the selection it
+  falls to a few percent opacity — at which point the line it sits on read
+  straight through it. Each dot now stands on a disc of paper of its own
+  (`beadGround`, `.amalgam-bead-ground`), which is not among the parts
+  that dim, so a faded dot fades into paper rather than into the line.
+- **An entry cannot be pulled smaller than its words.** The smallest size
+  is the one the entry is drawn at by itself — the words a pixel inside
+  the border — and `renderNodes` now records it as `n.minSize`. Dragging a
+  corner inward stops there, on both axes; a callout's floor is read again
+  after each step, because its height depends on its width. A size saved
+  smaller than that before this is drawn at the floor.
+
 ### Ripples as they were
 
 - **The rippled border is drawn as it was before the rings were put in

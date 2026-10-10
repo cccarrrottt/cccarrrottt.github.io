@@ -2231,6 +2231,7 @@
   .crop-spacer{flex:1;}
 
   .amalgam-bead{pointer-events:none;}
+  .amalgam-bead-ground{fill:var(--paper);stroke:none;pointer-events:none;}
 
   /* ---- callouts ------------------------------------------------------
      The card itself is an entry and is drawn as one; only the line joining

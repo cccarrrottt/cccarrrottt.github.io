@@ -376,6 +376,27 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const cardMedH = cardMedium
     ? CARD_PAD_Y + wrapAndMeasure(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedFit).totalH
     : 0;
+  /* The smallest box this entry may be made by hand: the one it closes to
+     by itself, its words a pixel inside the border — never past the widest
+     box it would allow itself, where it clips instead. A corner dragged
+     inward stops here (see beginNodeResize); without it a box could be
+     pulled down until its words stood across the border. Worked out for
+     the box as laid out, upright, and turned with it below. A wrapping
+     callout's floor follows the width it is being given, which is why it
+     is read again after every step of a resize. */
+  const inkW = maxInkW > 0 ? maxInkW + inkPad*2 : 0;
+  const minUpright = (isBio || isImage) ? null
+    : isCard ? {w: Math.max(GRID, Math.min(CARD_MAXW, Math.ceil(inkW))),
+                h: Math.max(GRID, cardHeadH + cardMedH + cardBodyH)}
+    : !(maxInkW > 0) ? {w: GRID, h: GRID}
+    : {w: round2(Math.min(inkW, isTextbox ? TEXTBOX_MAXW : noWrap ? NODE_LINE_MAXW : inkW)),
+       h: round2(maxTotalH + inkPad*2)};
+  n.minSize = !minUpright ? null
+    : turned ? {w: minUpright.h, h: minUpright.w} : minUpright;
+  /* …and a size set by hand never holds the box below it either: words
+     typed into a box sized by hand grow it, rather than run across its
+     border. */
+  if(manual && minUpright && w < minUpright.w){ n.w = w = minUpright.w; }
 
   let h = isBio ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
@@ -384,6 +405,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           : manual ? manual.h
           : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
+  if(manual && minUpright && h < minUpright.h) h = minUpright.h;
   /* Placed as the turned box — where it stands is decided by the shape
      the reader sees, which is also how a turned entry has always been
      saved. Drawn upright below, at the same middle. */

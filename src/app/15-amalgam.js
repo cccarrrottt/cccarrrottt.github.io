@@ -778,6 +778,7 @@ function drawAmalgam(list, ports){
       {x: jp.x - ux*r, y: jp.y - uy*r},
       {x: jp.x + ux*r, y: jp.y + uy*r}
     ]);
+    beadGround(jp, r);
     el('circle', {class:'amalgam-bead amalgam-joint', cx:jp.x.toFixed(2), cy:jp.y.toFixed(2),
                   r, fill:jointPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
   }
@@ -787,6 +788,7 @@ function drawAmalgam(list, ports){
     {x: dimple.x - ux*beadR, y: dimple.y - uy*beadR},
     {x: dimple.x + ux*beadR, y: dimple.y + uy*beadR}
   ]);
+  beadGround(dimple, beadR);
   el('circle', {class:'amalgam-bead amalgam-junction', cx:dimple.x.toFixed(2), cy:dimple.y.toFixed(2),
                 r:beadR, fill:beadPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
 
@@ -846,8 +848,19 @@ function drawStraightAmalgam(members, ports, b, port, ring, meet, ux, uy, nrm, s
     {x: meet.x - ux*beadR, y: meet.y - uy*beadR},
     {x: meet.x + ux*beadR, y: meet.y + uy*beadR}
   ]);
+  beadGround(meet, beadR);
   el('circle', {class:'amalgam-bead amalgam-junction', cx:meet.x.toFixed(2), cy:meet.y.toFixed(2),
                 r:beadR, fill:beadPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
+}
+/* A disc of paper under a bead, the bead's own size.
+ *
+ * A bead is drawn ON the bar, and a bead stepped back with the rest of an
+ * unrelated merge is drawn at a twentieth of its ink — so the bar and the
+ * merged arrow underneath showed straight through it, and a dot read as a
+ * ring with lines crossing it. The ground is never dimmed: whatever the
+ * bead is doing, nothing beneath it is seen through it. */
+function beadGround(at, r){
+  el('circle', {class:'amalgam-bead-ground', cx:at.x.toFixed(2), cy:at.y.toFixed(2), r}, edgeLayer);
 }
 /* A point `back` short of `to`, along the line from `from`. */
 function edgeShortened(from, to, back){
