@@ -29,7 +29,7 @@
  * so a name arriving here is a note that the page learned a new trick. */
 const BROWSER = {
   window: 'readonly', document: 'readonly', navigator: 'readonly',
-  location: 'readonly', localStorage: 'readonly', sessionStorage: 'readonly',
+  location: 'readonly', localStorage: 'readonly', indexedDB: 'readonly', sessionStorage: 'readonly',
   console: 'readonly', fetch: 'readonly',
   setTimeout: 'readonly', clearTimeout: 'readonly',
   setInterval: 'readonly', clearInterval: 'readonly',

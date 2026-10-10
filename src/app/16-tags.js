@@ -17,6 +17,7 @@ const hiddenTags = new Set();
 let allTags = [];
 const legendList = document.getElementById('tagsList');
 const refsList = document.getElementById('refsList');
+const keyList = document.getElementById('keyList');
 
 /* ---- tags and their categories -------------------------------------
  *
@@ -222,6 +223,189 @@ function buildSideTabs(){
   buildRefsInto(refsList);
   refsList.scrollTop = scroll;
   syncLegendEye();
+  if(document.getElementById('keyPanel').classList.contains('open')) buildKeyTab();
+}
+/* ---------------------------------------------------------------------
+   The legend: what the marks on this chart mean.
+
+   Built from the chart rather than written out once, so it lists the marks
+   that are actually ON it — a reader looking up what a dotted border means
+   is not helped by a catalogue of eleven things, nine of which this chart
+   never uses. Each row is a small drawing of the mark, its name, and what
+   it means HERE. The program knows what some marks mean because it gives
+   them that meaning (a remark, a merge, a citation, the four tags that
+   change how an entry is drawn); what a dashed connector or a double
+   border means is the chart author's decision, so the row says it only
+   once the author has, and in their words. Those words are kept with the
+   chart, in SETTINGS.legend, keyed by the mark.
+   ------------------------------------------------------------------ */
+const KEY_SVG_W = 40, KEY_SVG_H = 20;
+function keySvg(inner){
+  return `<svg class="key-sample" viewBox="0 0 ${KEY_SVG_W} ${KEY_SVG_H}" width="${KEY_SVG_W}" height="${KEY_SVG_H}" aria-hidden="true">${inner}</svg>`;
+}
+const KEY_BOX = 'x="7" y="4.5" width="26" height="11"';
+function keyBoxSample(extra){
+  return keySvg(`<rect ${KEY_BOX} class="key-box" ${extra || ''}/>`);
+}
+function keyLineSample(dash, opts){
+  const o = opts || {};
+  const head = (x, dir)=> `<path class="key-head" d="M${x},10 l${-5*dir},-3 l0,6 z"/>`;
+  let line;
+  if(dash === 'double'){
+    line = `<line class="key-line" x1="4" y1="8.4" x2="31" y2="8.4"/><line class="key-line" x1="4" y1="11.6" x2="31" y2="11.6"/>`;
+  } else if(o.wavy){
+    line = `<path class="key-line" d="M4,10 q3.4,-4 6.8,0 t6.8,0 t6.8,0 t6.8,0"/>`;
+  } else {
+    const da = DASH_PATTERNS[dash] ? ` stroke-dasharray="${DASH_PATTERNS[dash]}"` : '';
+    line = `<line class="key-line" x1="${o.headIn ? 9 : 4}" y1="10" x2="${o.noHead ? 36 : 31}" y2="10"${da}/>`;
+  }
+  return keySvg(line + (o.noHead ? '' : head(36, 1)) + (o.headIn ? head(4, -1) : ''));
+}
+/* Every mark the chart is using, in reading order: the entries, what is
+   drawn round and under them, then the lines between them. */
+function keyMarksInUse(){
+  const has = new Set();
+  let anyEdge = false;
+  nodes.forEach(n=>{
+    const shape = n.shape || 'rect';
+    if(shape === 'ellipse') has.add('shape:bio');
+    else if(shape === 'amalgam') has.add('shape:amalgam');
+    else if(shape === 'callout') has.add('shape:callout');
+    else if(shape === 'image') has.add('shape:image');
+    else if(shape === 'textbox') has.add('shape:textbox');
+    else if(n.card) has.add('shape:card');
+    else has.add('shape:entry');
+    if(!isFreeShape(shape)){
+      const b = borderStyleOf(n);
+      if(b !== 'solid') has.add('border:' + b);
+    }
+    Object.keys(SPECIAL_TAGS).forEach(t=>{ if(nodeHasTag(n, t)) has.add('tag:' + t); });
+    (n.parents || []).forEach(pid=>{
+      if(!nodes.has(pid)) return;
+      anyEdge = true;
+      const st = edgeStyleFor(pid, n.id);
+      if(st.sinusoid) has.add('line:wavy');
+      else has.add('line:' + (DASH_PATTERNS.hasOwnProperty(st.dash) ? st.dash : 'solid'));
+      if(st.arrowIn && st.arrow !== false) has.add('line:both');
+      if(st.arrow === false && !st.arrowIn) has.add('line:none');
+    });
+  });
+  if(!anyEdge) ['solid','dashed','dotted','dashdot','double'].forEach(d=> has.delete('line:' + d));
+  if(REFS.length) has.add('mark:cite');
+  return KEY_MARKS.filter(m=> has.has(m.key));
+}
+/* What each mark looks like, what it is called, and — where the program
+   itself gives it a meaning — what that meaning is. */
+const KEY_MARKS = [
+  {key:'shape:entry',   group:'Entries', name:'Entry',     sample:()=> keyBoxSample()},
+  {key:'shape:card',    group:'Entries', name:'Card',      sample:()=> keySvg(`<rect ${KEY_BOX} class="key-box"/><line class="key-rule" x1="7" y1="10" x2="33" y2="10"/>`)},
+  {key:'shape:bio',     group:'Entries', name:'Portrait',  sample:()=> keySvg('<circle cx="20" cy="10" r="6.5" class="key-box"/>')},
+  {key:'shape:amalgam', group:'Entries', name:'Amalgam',   meaning:'Several lineages merging into one.',
+   sample:()=> keySvg(`<rect ${KEY_BOX} class="key-box key-amalgam"/>`)},
+  {key:'shape:callout', group:'Entries', name:'Remark',    meaning:'A note about the chart rather than a part of it.',
+   sample:()=> keySvg('<path class="key-box" d="M7,4.5 h26 v9 h-17 l-4,3.5 v-3.5 h-5 z"/>')},
+  {key:'shape:image',   group:'Entries', name:'Picture',   sample:()=> keySvg(`<rect ${KEY_BOX} class="key-pic"/><path class="key-pic-ink" d="M9,14 l7,-6 l5,4 l3,-2 l7,4 z"/>`)},
+  {key:'shape:textbox', group:'Entries', name:'Caption',   sample:()=> keySvg('<text class="key-text" x="20" y="14" text-anchor="middle">Aa</text>')},
+  {key:'border:dashed',  group:'Borders', name:'Dashed border',      sample:()=> keyBoxSample(`stroke-dasharray="${BORDER_STYLES.dashed.dash}"`)},
+  {key:'border:dotted',  group:'Borders', name:'Dotted border',      sample:()=> keyBoxSample(`stroke-dasharray="${BORDER_STYLES.dotted.dash}"`)},
+  {key:'border:dashdot', group:'Borders', name:'Dash-dotted border', sample:()=> keyBoxSample(`stroke-dasharray="${BORDER_STYLES.dashdot.dash}"`)},
+  {key:'border:double',  group:'Borders', name:'Double border',
+   sample:()=> keySvg(`<rect x="6" y="3.5" width="28" height="13" class="key-box key-thin"/><rect x="8.2" y="5.7" width="23.6" height="8.6" class="key-box key-thin"/>`)},
+  {key:'border:wavy',    group:'Borders', name:'Wavy border',
+   sample:()=> keySvg('<path class="key-box" d="M7,4.5 q3.25,-2 6.5,0 t6.5,0 t6.5,0 t6.5,0 v11 q-3.25,2 -6.5,0 t-6.5,0 t-6.5,0 t-6.5,0 z"/>')},
+  {key:'tag:' + FANFIC_TAG,     group:'Grounds', name:'Woven ground',  meaning:'Fan fiction.',
+   sample:()=> keySvg(`<path class="key-weave" d="M2,18 L18,2 M10,18 L26,2 M18,18 L34,2 M26,18 L40,4 M2,2 L18,18 M10,2 L26,18 M18,2 L34,18 M26,2 L40,16"/><rect ${KEY_BOX} class="key-box"/>`)},
+  {key:'tag:' + UNRELEASED_TAG, group:'Grounds', name:'Ruled ground',  meaning:'Not released.',
+   sample:()=> keySvg(`<path class="key-ruled" d="M1,3 H39 M1,7 H39 M1,11 H39 M1,15 H39 M1,19 H39"/><rect ${KEY_BOX} class="key-box"/>`)},
+  {key:'tag:' + HUB_TAG,        group:'Grounds', name:'Echo',          meaning:'A multiversal hub.',
+   sample:()=> keySvg(`<rect x="2" y="1" width="36" height="18" class="key-box key-faint"/><rect x="4.5" y="2.75" width="31" height="14.5" class="key-box key-faint"/><rect ${KEY_BOX} class="key-box"/>`)},
+  {key:'tag:' + LOCAL_TAG,      group:'Grounds', name:'Stacked worlds', meaning:'A local multiverse.',
+   sample:()=> keySvg(`<rect x="13" y="1" width="26" height="11" class="key-box key-faint"/><rect x="10" y="2.75" width="26" height="11" class="key-box key-faint"/><rect x="7" y="4.5" width="26" height="11" class="key-box"/>`)},
+  {key:'line:solid',   group:'Connectors', name:'Connector',            sample:()=> keyLineSample('solid')},
+  {key:'line:dashed',  group:'Connectors', name:'Dashed connector',     sample:()=> keyLineSample('dashed')},
+  {key:'line:dotted',  group:'Connectors', name:'Dotted connector',     sample:()=> keyLineSample('dotted')},
+  {key:'line:dashdot', group:'Connectors', name:'Dash-dotted connector', sample:()=> keyLineSample('dashdot')},
+  {key:'line:double',  group:'Connectors', name:'Double connector',     sample:()=> keyLineSample('double')},
+  {key:'line:wavy',    group:'Connectors', name:'Wavy connector',       sample:()=> keyLineSample('solid', {wavy:true})},
+  {key:'line:both',    group:'Connectors', name:'Arrow at both ends',   sample:()=> keyLineSample('solid', {headIn:true})},
+  {key:'line:none',    group:'Connectors', name:'Line with no arrow',   sample:()=> keyLineSample('solid', {noHead:true})},
+  {key:'mark:cite',    group:'Marks', name:'Citation', meaning:'The number of a source in References.',
+   sample:()=> keySvg(`<text class="key-text" x="9" y="14">a</text><text class="key-cite" x="16" y="9" fill="${escapeHtml(refColor())}">[1]</text>`)}
+];
+function keyMeaningOf(mark){
+  const own = SETTINGS.legend && typeof SETTINGS.legend[mark.key] === 'string' ? SETTINGS.legend[mark.key] : null;
+  return own !== null ? own : (mark.meaning || '');
+}
+function setKeyMeaning(key, text){
+  const mark = KEY_MARKS.find(m=> m.key === key);
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  const now = SETTINGS.legend && typeof SETTINGS.legend[key] === 'string' ? SETTINGS.legend[key] : null;
+  /* Saying what the program already says is not a setting; it is stored
+     only where it differs, so the chart's settings carry what its author
+     actually wrote and nothing else. */
+  const want = (mark && t === (mark.meaning || '')) ? null : t;
+  if(want === now) return;
+  applyEdit(()=>{
+    const next = Object.assign({}, SETTINGS.legend || {});
+    if(want === null) delete next[key]; else next[key] = want;
+    if(Object.keys(next).length) SETTINGS.legend = next; else delete SETTINGS.legend;
+  });
+}
+function buildKeyTab(){
+  if(!keyList) return;
+  const scroll = keyList.scrollTop;
+  keyList.innerHTML = '';
+  const marks = keyMarksInUse();
+  keyList.appendChild(sectionHead('Legend', marks.length));
+  if(!marks.length){
+    const empty = document.createElement('div');
+    empty.className = 'key-empty';
+    empty.textContent = 'Nothing on the chart yet.';
+    keyList.appendChild(empty);
+  }
+  let group = null;
+  marks.forEach(m=>{
+    if(m.group !== group){
+      group = m.group;
+      const gh = document.createElement('div');
+      gh.className = 'key-group';
+      gh.textContent = group;
+      keyList.appendChild(gh);
+    }
+    const row = document.createElement('div');
+    row.className = 'key-item';
+    row.dataset.key = m.key;
+    const meaning = keyMeaningOf(m);
+    row.innerHTML = m.sample() +
+      `<div class="key-words"><div class="key-name">${escapeHtml(m.name)}</div></div>`;
+    const words = row.querySelector('.key-words');
+    if(readOnlyView){
+      if(meaning){
+        const d = document.createElement('div');
+        d.className = 'key-meaning';
+        d.textContent = meaning;
+        words.appendChild(d);
+      }
+    } else {
+      /* A field that grows with what is written in it, so a meaning of a
+         sentence or two is read whole rather than scrolled sideways. */
+      const box = document.createElement('textarea');
+      box.rows = 1;
+      box.className = 'key-meaning-input';
+      box.value = meaning;
+      box.placeholder = 'What it means on this chart';
+      box.setAttribute('aria-label', `What “${m.name}” means on this chart`);
+      box.addEventListener('keydown', ev=>{
+        ev.stopPropagation();
+        if(ev.key === 'Enter'){ ev.preventDefault(); box.blur(); }
+        if(ev.key === 'Escape'){ ev.preventDefault(); box.value = keyMeaningOf(m); box.blur(); }
+      });
+      box.addEventListener('change', ()=> setKeyMeaning(m.key, box.value));
+      words.appendChild(box);
+    }
+    keyList.appendChild(row);
+  });
+  keyList.scrollTop = scroll;
 }
 function buildLegend(){
   tagCounts.clear();

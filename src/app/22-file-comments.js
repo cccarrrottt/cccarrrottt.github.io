@@ -326,6 +326,10 @@ function importChartFromText(text){
        /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(settingsIn.refColor)){
       SETTINGS.refColor = settingsIn.refColor;
     }
+    /* The legend's words belong to the chart they describe: brought in
+       with it, and not left over from the chart it replaced. */
+    const legendIn = cleanLegend(settingsIn && settingsIn.legend);
+    if(Object.keys(legendIn).length) SETTINGS.legend = legendIn; else delete SETTINGS.legend;
     rebuildStickerMap();
     rebuildMediaMap();
   });
@@ -466,6 +470,7 @@ function markEditable(){
   document.body.classList.remove('read-only');
   try{ rebuildChart(); }catch(e){}
   try{ refreshSaveUI(); }catch(e){}
+  try{ lookForDraft(); }catch(e){}
 }
 function isReadOnlyError(e){
   const code = e && e.code;
@@ -703,3 +708,172 @@ window.addEventListener('beforeunload', e=>{
   e.returnValue = '';
 });
 
+
+/* ---------------------------------------------------------------------
+   The draft: unsaved work kept against the page closing without asking.
+
+   The question beforeunload asks is only asked when there is someone to
+   ask. A power cut, a crash, a laptop whose battery ran out — the page is
+   simply gone, and with it everything since the last Save. So while
+   there is unsaved work, a copy of it is kept in this browser a moment
+   after each edit, and the next time this page opens it offers it back:
+   restore it, or throw it away. Nothing is put back without being asked —
+   the chart the page opens with is still the published one until the
+   reader says otherwise — and a Save, or undoing back to what was saved,
+   removes the copy, because there is nothing left for it to protect.
+
+   It is kept in IndexedDB rather than localStorage. A chart carries
+   pictures, and a megabyte or two of base64 is past what localStorage
+   will hold on some browsers; IndexedDB stores the chart as it is, and
+   does it off the main thread, so keeping a copy after every keystroke
+   costs the typing nothing. One copy per page, under the same key the
+   chart is saved under in this browser.
+   ------------------------------------------------------------------ */
+const DRAFT_DB_NAME = 'rhizome.drafts', DRAFT_STORE = 'drafts';
+/* Long enough for a burst of typing to be one write, short enough that a
+   power cut takes no more than the last few keystrokes. */
+const DRAFT_DELAY = 700;
+let draftDbPromise = null;
+function draftDb(){
+  if(draftDbPromise) return draftDbPromise;
+  draftDbPromise = new Promise(resolve=>{
+    try{
+      if(typeof indexedDB === 'undefined') return resolve(null);
+      const req = indexedDB.open(DRAFT_DB_NAME, 1);
+      req.onupgradeneeded = ()=>{ req.result.createObjectStore(DRAFT_STORE); };
+      req.onsuccess = ()=> resolve(req.result);
+      req.onerror = ()=> resolve(null);
+      req.onblocked = ()=> resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  return draftDbPromise;
+}
+async function draftDo(mode, fn){
+  const db = await draftDb();
+  if(!db) return null;
+  return new Promise(resolve=>{
+    try{
+      const tx = db.transaction(DRAFT_STORE, mode);
+      const req = fn(tx.objectStore(DRAFT_STORE));
+      tx.oncomplete = ()=> resolve(req ? req.result : true);
+      tx.onerror = tx.onabort = ()=> resolve(null);
+    }catch(e){ resolve(null); }
+  });
+}
+function readDraft(){ return draftDo('readonly', st=> st.get(STORE_KEY)); }
+function dropDraft(){ return draftDo('readwrite', st=> st.delete(STORE_KEY)); }
+/* A fingerprint of a chart, so a draft can say which saved chart it was
+   made on top of. Not a security measure — only a way to notice that the
+   chart has been saved somewhere else since, which is the one case where
+   restoring the draft would quietly undo somebody's later work. */
+function chartPrint(data){
+  const text = JSON.stringify(data);
+  let h = 0x811c9dc5;
+  for(let i = 0; i < text.length; i++){ h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36) + ':' + text.length;
+}
+function writeDraftNow(){
+  clearTimeout(draftTimer);
+  draftTimer = 0;
+  if(!draftLooked) return;
+  if(readOnlyView || !isDirty()){ dropDraft(); return; }
+  /* Handed over as it is: the store takes its own copy at the moment of
+     the put, so a later edit cannot reach into the kept one. */
+  draftDo('readwrite', st=> st.put({at: Date.now(), base: draftBase, data: chartData()}, STORE_KEY));
+}
+function scheduleDraft(){
+  if(!draftLooked) return;
+  if(!isDirty()){
+    clearTimeout(draftTimer); draftTimer = 0;
+    /* Clean again — just saved, or undone back to what was saved. This
+       is the chart a draft written from here on is made on top of. */
+    try{ draftBase = chartPrint(chartData()); }catch(e){}
+    /* …unless it is the one being offered back, which is the reader's to
+       keep or throw away. */
+    if(!draftOffer) dropDraft();
+    return;
+  }
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(writeDraftNow, DRAFT_DELAY);
+}
+/* The last edit before the page goes away is written at once rather than
+   left on the timer: a tab being closed or hidden gives the page a moment,
+   and the moment is spent here. */
+window.addEventListener('pagehide', ()=>{ if(draftTimer) writeDraftNow(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden' && draftTimer) writeDraftNow();
+});
+/* Putting a kept chart back. One undo step, like an import: the page is
+   then simply dirty, and Save publishes it the usual way. */
+function restoreChartData(data){
+  applyEdit(()=>{
+    if(Array.isArray(data.nodes)) workingNodes = data.nodes.map(it=> Array.isArray(it) ? it.slice() : it);
+    if(Array.isArray(data.edgeStyles)) refill(EDGE_STYLES, data.edgeStyles);
+    if(Array.isArray(data.stickers)) refill(STICKERS, data.stickers);
+    if(Array.isArray(data.media)) refill(MEDIA, data.media);
+    if(Array.isArray(data.comments)) refill(COMMENTS, data.comments);
+    if(Array.isArray(data.tagCats)) refill(TAG_CATS, data.tagCats);
+    if(Array.isArray(data.refs)) refill(REFS, data.refs);
+    if(data.settings && typeof data.settings === 'object'){
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+      Object.assign(SETTINGS, data.settings);
+    }
+    rebuildStickerMap();
+    rebuildMediaMap();
+  });
+  try{ buildSideTabs(); }catch(e){}
+}
+let draftOffer = null;
+function hideDraftBar(){
+  const bar = document.getElementById('draftBar');
+  if(bar) bar.remove();
+  draftOffer = null;
+}
+function showDraftBar(draft, stale){
+  hideDraftBar();
+  draftOffer = draft;
+  const bar = document.createElement('div');
+  bar.id = 'draftBar';
+  bar.className = 'draft-bar';
+  bar.setAttribute('role', 'alert');
+  let when = '';
+  try{
+    when = new Date(draft.at).toLocaleString(undefined,
+      {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+  }catch(e){}
+  bar.innerHTML =
+    `<div class="draft-words"><b>Unsaved changes were kept</b>` +
+    `<span>${escapeHtml(when ? 'from ' + when + ', ' : '')}when this page last closed without saving.` +
+    (stale ? ' The chart has been saved since then; restoring will put back the older version.' : '') +
+    `</span></div>` +
+    `<button type="button" class="draft-restore">Restore</button>` +
+    `<button type="button" class="draft-discard">Discard</button>`;
+  bar.querySelector('.draft-restore').addEventListener('click', ()=>{
+    const d = draftOffer;
+    hideDraftBar();
+    if(d && d.data) restoreChartData(d.data);
+    setSaveState('dirty', 'Restored — not saved yet');
+  });
+  bar.querySelector('.draft-discard').addEventListener('click', ()=>{
+    hideDraftBar();
+    if(!isDirty()) dropDraft();
+  });
+  document.body.appendChild(bar);
+}
+/* Looked for once the page can edit: at once where it can from the start,
+   and when the owner is confirmed on the site, where it starts as a
+   reader. A reader never has a draft to be offered. */
+async function lookForDraft(){
+  if(draftLooked) return;
+  if(readOnlyView) return;
+  draftLooked = true;
+  try{ draftBase = chartPrint(chartData()); }catch(e){}
+  const draft = await readDraft();
+  if(!draft || !draft.data || !Array.isArray(draft.data.nodes)) return;
+  let same = false;
+  try{ same = JSON.stringify(draft.data) === JSON.stringify(chartData()); }catch(e){}
+  if(same){ if(!isDirty()) dropDraft(); return; }
+  if(readOnlyView) return;
+  showDraftBar(draft, !!draft.base && draft.base !== draftBase);
+}
+lookForDraft();

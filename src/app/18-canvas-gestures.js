@@ -1265,12 +1265,12 @@ window.addEventListener('mouseup', ()=>{
  * the caption back level.
    ------------------------------------------------------------------ */
 let nodeRotateState = null;
-function beginNodeRotate(ev, n, g){
+function beginNodeRotate(ev, n, g, quarter){
   if(ev.button !== 0 || readOnlyView) return;
   ev.stopPropagation();
   ev.preventDefault();
   nodeRotateState = {
-    node: n, g,
+    node: n, g, quarter: !!quarter,
     cx: n.x + n.w/2, cy: n.y + n.h/2,
     start: n.rot || 0, moved: false,
     startClientX: ev.clientX, startClientY: ev.clientY
@@ -1300,7 +1300,8 @@ window.addEventListener('mousemove', e=>{
   const p = clientToWorld(e.clientX, e.clientY);
   const now = Math.atan2(p.y - st.cy, p.x - st.cx) * 180/Math.PI;
   let deg = st.start + (now - st.grab);
-  if(e.shiftKey) deg = Math.round(deg / ROT_SNAP) * ROT_SNAP;
+  if(st.quarter) deg = Math.round(deg / 90) * 90;
+  else if(e.shiftKey) deg = Math.round(deg / ROT_SNAP) * ROT_SNAP;
   st.at = applyNodeRotation(st.node, st.g, deg);
 });
 window.addEventListener('mouseup', ()=>{
@@ -1308,6 +1309,17 @@ window.addEventListener('mouseup', ()=>{
   nodeRotateState = null;
   if(!st) return;
   document.body.classList.remove('rotating');
+  if(st.quarter){
+    /* A press without a drag is a quarter clockwise; a drag is wherever it
+       was let go. The preview turned the whole drawing about its middle,
+       which is what the turned entry will look like — so its middle is
+       where the turned entry is put. */
+    const to = st.moved ? (st.at || 0) : (st.start + 90) % 360;
+    st.node.rot = st.start || undefined;
+    if(st.moved){ suppressNodeClick = true; setTimeout(()=>{ suppressNodeClick = false; }, 0); }
+    turnEntryTo(st.node.id, to);
+    return;
+  }
   if(!st.moved) return;
   // The click that ends the drag must not also select or open anything.
   suppressNodeClick = true;
@@ -1320,6 +1332,45 @@ window.addEventListener('mouseup', ()=>{
     putEntry(found.index, found.entry, opts);
   });
 });
+/* Standing an entry on another side, about its own middle.
+ *
+ * The position an entry keeps is the top-left of its box, and turning a
+ * box that is not square moves its top-left — so a turn that only wrote
+ * the angle down would swing the entry off to one side every time, and
+ * four quarter turns would walk it across the chart. The turn is made,
+ * the new box measured, and the position moved by however far the middle
+ * went, so the entry turns where it stands. One undo step for both. */
+function turnEntryTo(id, deg){
+  if(readOnlyView) return;
+  const n = nodes.get(id);
+  if(!n || !quarterTurnable(n)) return;
+  const to = ((Math.round(deg / 90) * 90) % 360 + 360) % 360;
+  if(to === quarterTurnOf(n)) { rebuildChart(); return; }
+  const cx = n.x + n.w/2, cy = n.y + n.h/2;
+  const pinned = !!n.pos;
+  applyEdit(()=>{
+    const found = workingEntry(id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    if(to) opts.rot = to; else delete opts.rot;
+    /* A size set by hand is the size of the box as drawn, so it turns
+       with it. */
+    if(Array.isArray(opts.size) && opts.size.length === 2) opts.size = [opts.size[1], opts.size[0]];
+    putEntry(found.index, found.entry, opts);
+  });
+  const m = nodes.get(id);
+  if(!pinned || !m) return;
+  const dx = snapToGrid(cx - (m.x + m.w/2)), dy = snapToGrid(cy - (m.y + m.h/2));
+  if(!dx && !dy) return;
+  const found = workingEntry(id);
+  if(!found) return;
+  const opts = entryOpts(found.entry);
+  if(!Array.isArray(opts.pos)) return;
+  opts.pos = [+(opts.pos[0] + dx).toFixed(2), +(opts.pos[1] + dy).toFixed(2)];
+  putEntry(found.index, found.entry, opts);
+  rebuildChart();
+  refreshSaveUI();
+}
 
 function beginConnectorDrag(ev, n, side, ring, ringColor){
   if(ev.button !== 0 || readOnlyView) return;

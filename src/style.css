@@ -781,7 +781,7 @@
   svg.connector-dragging .node-handles{pointer-events:auto;}
   .node-handle{cursor:crosshair;}
   .node-handle-hit{fill:transparent;stroke:none;}
-  /* Corner grip, shown with the side bands on hover. */
+  /* Corner dots, shown with the side bands on hover. */
   .node-resize{opacity:0;transition:opacity 110ms ease;cursor:nwse-resize;pointer-events:none;}
   /* The two corners on the other diagonal take the other arrow. */
   .node-resize-ne, .node-resize-sw{cursor:nesw-resize;}
@@ -796,8 +796,8 @@
   .card-img-frame{fill:none;stroke:var(--accent);stroke-width:1;
                   stroke-dasharray:4 3;pointer-events:none;opacity:0.8;}
   .node-resize-hit{fill:transparent;stroke:none;}
-  .node-resize-mark{stroke:var(--ink-faint);stroke-width:1.4;fill:none;stroke-linecap:round;}
-  .node-resize:hover .node-resize-mark{stroke:var(--accent);}
+  .node-resize-mark{fill:var(--panel);stroke:var(--ink-faint);stroke-width:0.9;}
+  .node-resize:hover .node-resize-mark{fill:var(--accent);stroke:var(--accent);}
   /* The round arrow that turns a caption. Same family as the corner grips
      — invisible until the element is hovered, live only then — because it
      is the same kind of thing: a handle on the drawing for a property of
@@ -955,47 +955,47 @@
   .edge-arrow.lit, .amalgam-bead.lit{opacity:1;}
 
 
-  /* ---------- The side tabs: tags and references ----------
-     Two drawers down the left edge, each with its own tab. A drawer that
-     is open takes its share of the edge's height and one that is shut is
-     only its tab, so however the two are set neither lies over the other
-     — and each tab stands beside its own drawer, where it can always be
-     pressed to shut it again. */
+  /* ---------- The side tabs: tags, references and the legend ----------
+     One window at the left edge with its tabs down its spine. Every tab is
+     the same length and stands at the same place whether the window is
+     open or shut, so nothing moves under the hand: the tab that was
+     pressed is still there to be pressed again, and the others are where
+     they were. The window is the same size whichever page it shows —
+     exactly as tall as the row of tabs — and a page longer than that
+     scrolls inside it.
+
+     It used to be two drawers that shared the edge's height, each opening
+     beside its own tab. Opening one pushed the other's tab down the
+     screen, a long tag list made its drawer as tall as the canvas, and two
+     open drawers read as two unrelated boxes. */
   .side-tabs{
-    position:absolute;top:14px;left:0;bottom:14px;
+    --side-tab-len:118px;
+    --side-tab-gap:6px;
+    position:absolute;top:14px;left:0;
+    width:26px;
+    height:min(calc(var(--side-tab-len) * 3 + var(--side-tab-gap) * 2), calc(100% - 28px));
     z-index:30;
-    display:flex;flex-direction:column;gap:8px;
-    /* The column is as tall as the canvas; only the tabs and the open
-       drawers in it should take a click. */
+    /* The column is as tall as the window; only the tabs and the open
+       page should take a click. */
     pointer-events:none;
   }
-  .side-tab{
-    display:flex;flex-direction:row;align-items:stretch;
-    flex:0 0 auto;min-height:0;
-    /* As wide as itself, not as the widest drawer: the strip beside a shut
-       tab is chart, and has to take the chart's clicks. */
-    align-self:flex-start;
-    pointer-events:auto;
-  }
-  .side-tab.open{flex:1 1 0;}
+  .side-tab{display:contents;}
   .side-tab-body{
-    width:0;margin-left:0;
+    position:absolute;left:25px;top:0;bottom:0;
+    width:252px;
     background:var(--panel);
-    border:0 solid var(--line);
+    border:1px solid var(--line);
     border-radius:0 6px 6px 0;
     box-shadow:var(--shadow);
     display:flex;flex-direction:column;
-    /* Shut, it gives up its height as well as its width: the list in it
-       is still there, and would otherwise hold the tab as tall as itself. */
-    max-height:0;
     overflow:hidden;visibility:hidden;
+    pointer-events:auto;
   }
-  .side-tab.open .side-tab-body{
-    width:252px;max-height:none;border-width:1px 1px 1px 0;visibility:visible;
-  }
+  .side-tab.open .side-tab-body{visibility:visible;}
   .side-tab-handle{
-    align-self:flex-start;flex:0 0 auto;
-    width:26px;padding:12px 0;
+    position:absolute;left:0;
+    width:26px;height:var(--side-tab-len);padding:0;
+    max-height:calc((100% - var(--side-tab-gap) * 2) / 3);
     background:var(--panel);color:var(--ink-dim);
     border:1px solid var(--line);border-left:none;
     border-radius:0 6px 6px 0;
@@ -1003,12 +1003,45 @@
     font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';font-size:13px;
     text-transform:uppercase;letter-spacing:0.6px;font-weight:700;
     cursor:pointer;
+    pointer-events:auto;
+  }
+  /* Each at its own place down the spine, open or shut. The length is
+     shared out of whatever height there is, so on a short screen they
+     shrink together rather than the last one falling off the bottom. */
+  #tagsTab{top:0;}
+  #refsTab{top:min(calc(var(--side-tab-len) + var(--side-tab-gap)),
+                   calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap)));}
+  #keyTab{top:min(calc((var(--side-tab-len) + var(--side-tab-gap)) * 2),
+                  calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2));}
+  /* While the window is open its tabs are its spine: square on the left
+     where they meet the edge of the screen, and the one whose page is
+     showing joined to the page — same ground, no rule between them —
+     the way the tab of a folder is part of the folder. */
+  .side-tabs.open .side-tab-handle{border-radius:0;box-shadow:none;background:var(--panel-2);}
+  .side-tabs.open .side-tab.open .side-tab-handle{
+    background:var(--panel);width:27px;z-index:1;border-right:none;
+  }
+  .side-tabs.open::before{
+    /* The spine itself, behind the tabs: what makes three tabs and a page
+       one window rather than four boxes next to each other. */
+    content:'';position:absolute;left:0;top:0;bottom:0;width:26px;
+    background:var(--panel-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    box-shadow:var(--shadow);
   }
   /* Read from the bottom up, the way a spine is labelled. */
-  .side-tab-handle span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;}
+  .side-tab-handle span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;white-space:nowrap;}
   .side-tab-handle:hover{color:var(--accent);}
   .side-tab.open .side-tab-handle{color:var(--ink);}
-  .legend-list{overflow-y:auto;flex:1;padding:6px 8px;}
+  .legend-list{overflow-y:auto;flex:1;min-height:0;padding:6px 8px;
+    scrollbar-width:thin;scrollbar-color:var(--ink-faint) transparent;}
+  /* A scrollbar that is drawn, not one that appears only while scrolling:
+     the window is a fixed size now, and the bar is how a reader learns
+     there is more of the list below the edge. Given its own look, a
+     WebKit bar stays on screen where the system would have hidden it. */
+  .legend-list::-webkit-scrollbar{width:8px;}
+  .legend-list::-webkit-scrollbar-track{background:transparent;}
+  .legend-list::-webkit-scrollbar-thumb{background:var(--ink-faint);border-radius:4px;
+    border:2px solid var(--panel);}
   /* The left padding matches a category heading's, so every eye on the
      panel — the section's, each category's and each tag's — stands in one
      column instead of the rows stepping in by two pixels. */
@@ -2286,6 +2319,65 @@
     border-top:1px solid var(--line);
   }
   .legend-section-head .legend-group-name{font-size:13px;color:var(--ink);}
+  /* Unsaved work kept from a page that closed without asking: offered back
+     once, at the foot of the canvas, where it does not cover the chart it
+     is offering to change. */
+  .draft-bar{
+    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;
+    display:flex;align-items:center;gap:8px;
+    max-width:calc(100vw - 32px);box-sizing:border-box;
+    padding:9px 10px 9px 14px;border-radius:8px;
+    background:var(--panel);color:var(--ink);border:1px solid var(--accent);
+    box-shadow:var(--shadow);font-size:12px;
+  }
+  .draft-words{display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .draft-words span{color:var(--ink-dim);}
+  .draft-bar button{
+    flex:0 0 auto;font:inherit;font-weight:600;cursor:pointer;
+    padding:6px 11px;border-radius:5px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);
+  }
+  .draft-bar .draft-restore{background:var(--accent);border-color:var(--accent);color:#fff;}
+  @media (max-width:600px){
+    .draft-bar{flex-wrap:wrap;bottom:10px;}
+    .draft-words{flex:1 1 100%;}
+  }
+  /* The legend. A row is the mark as it is drawn, its name, and what it
+     means on this chart; the drawing is in the chart's own ink, so it
+     follows the theme like the chart does. */
+  .key-group{
+    margin:9px 6px 2px;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;
+    color:var(--ink-faint);font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .key-item{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:4px;}
+  .key-item:hover{background:var(--panel-2);}
+  .key-sample{flex:0 0 auto;overflow:visible;margin-top:1px;}
+  .key-box{fill:var(--panel);stroke:var(--ink);stroke-width:1.5;}
+  .key-thin{stroke-width:1;}
+  .key-faint{stroke:var(--ink-faint);stroke-width:1;}
+  .key-amalgam{stroke:#2f6fb5;stroke-width:2;}
+  .key-rule{stroke:var(--ink);stroke-width:1;}
+  .key-pic{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;}
+  .key-pic-ink{fill:var(--ink-faint);}
+  .key-text{font-size:11px;fill:var(--ink);font-family:Arial, Helvetica, sans-serif;}
+  .key-cite{font-size:7px;font-family:Arial, Helvetica, sans-serif;}
+  .key-line{stroke:var(--ink);stroke-width:1.5;fill:none;}
+  .key-head{fill:var(--ink);}
+  .key-weave{stroke:#e9c46a;stroke-width:1.6;opacity:0.7;}
+  .key-ruled{stroke:var(--ink-faint);stroke-width:0.8;opacity:0.7;}
+  .key-words{flex:1;min-width:0;}
+  .key-name{font-size:12px;color:var(--ink);line-height:1.3;}
+  .key-meaning{font-size:11px;color:var(--ink-dim);line-height:1.35;margin-top:1px;}
+  .key-meaning-input{
+    width:100%;box-sizing:border-box;margin-top:2px;
+    font-size:11px;color:var(--ink-dim);background:transparent;
+    border:1px solid transparent;border-radius:4px;padding:2px 4px;margin-left:-4px;
+    font-family:inherit;line-height:1.35;resize:none;overflow:hidden;
+    field-sizing:content;min-height:0;
+  }
+  .key-meaning-input:hover{border-color:var(--line);}
+  .key-meaning-input:focus{outline:none;border-color:var(--accent);background:var(--panel);color:var(--ink);}
+  .key-empty{padding:8px 6px;font-size:12px;color:var(--ink-faint);font-style:italic;}
   .ref-item{
     padding:7px 8px;border-bottom:1px solid var(--line);position:relative;
   }
@@ -2596,8 +2688,8 @@
     .topbar-stats{display:none;}
     .search-results{max-height:min(320px, 55dvh);}
 
-    .side-tabs{top:8px;bottom:8px;}
-    .side-tab.open .side-tab-body{width:calc(100vw - 34px);}
+    .side-tabs{top:8px;height:min(calc(var(--side-tab-len) * 3 + var(--side-tab-gap) * 2), calc(100% - 16px));}
+    .side-tab-body{width:calc(100vw - 34px);}
     /* The entry drawer is a sheet from the bottom instead. It opens on
        every tap of an entry, so a panel over the whole screen would have
        hidden the chart each time anything on it was picked — and the

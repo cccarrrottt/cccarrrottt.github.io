@@ -336,7 +336,24 @@ function serializeComments(list){
   ).join('\n') + '\n];';
 }
 function serializeSettings(o){
-  return `const SETTINGS = {refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}};`;
+  /* What the legend's marks mean, where the chart's author has said. Left
+     out entirely when nothing has been said, so a chart that never opened
+     the legend writes exactly the line it always wrote. */
+  const legend = cleanLegend(o.legend);
+  const keys = Object.keys(legend);
+  const legendPart = keys.length
+    ? `, legend: {${keys.map(k=> `${jsStr(k)}: ${jsStr(legend[k])}`).join(', ')}}` : '';
+  return `const SETTINGS = {refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}};`;
+}
+/* Only strings, under names a legend row can have. Anything else in there
+   came from a file edited by hand and would be written back verbatim. */
+function cleanLegend(v){
+  const out = {};
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  Object.keys(v).sort().forEach(k=>{
+    if(typeof v[k] === 'string' && /^(shape|border|tag|line|mark):/.test(k)) out[k] = v[k];
+  });
+  return out;
 }
 function serializeRefs(list){
   if(!list.length) return 'const REFS = [\n];';

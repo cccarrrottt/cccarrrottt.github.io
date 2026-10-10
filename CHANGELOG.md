@@ -8,6 +8,36 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Turning, keeping, and saying what things mean
+
+- **A bend dropped on an entry's border, or a few units off it, is set
+  aside** like one dropped inside (`usableHandBends`): closer than a corner
+  needs, counted from the entry's outermost ring, it could only be reached by
+  driving the line through the box and hooking back into the port. The route
+  is worked out as though it were not there.
+- **Resize handles are dots on the corners**, shown on hover. The old
+  hatched squares were ten units a side, as big as the smallest entry, so
+  an empty box was four grips with no middle left to drag or click.
+- **Tags, References and the new Legend are pages of one window.** The
+  three tabs are the same length and stand still whether the window is open
+  or not; every page is the same size, and a long list scrolls inside it
+  with a visible bar. Pressing another tab turns the page; pressing the open
+  one shuts the window.
+- **The Legend** lists the marks that are actually on the chart (kinds of
+  entry, border styles, the four drawing tags, connector styles, citations),
+  each drawn as it appears. What a mark means is written beside it and kept
+  in `SETTINGS.legend`; the program's own meanings (a remark, a merge, the
+  drawing tags, a citation) are offered until replaced.
+- **Entries turn in quarters.** A round arrow off the bottom-right corner turns
+  an entry a quarter clockwise on a press, or to any side on a drag. The box
+  the chart reasons with is the turned one, so connectors meet it as drawn,
+  and the entry turns about its own middle. Captions still turn freely;
+  portraits, pictures, cards and amalgams do not turn.
+- **Unsaved work survives a power cut.** A moment after each edit the
+  unsaved chart is kept in this browser (IndexedDB). The next time the page
+  opens it offers the copy back, Restore or Discard, and puts nothing back
+  unasked. A Save, or undoing back to what was saved, removes it.
+
 ### Words a pixel from their border
 
 - **Every box that holds words stands one pixel off their ink, on every

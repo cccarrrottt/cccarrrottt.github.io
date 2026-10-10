@@ -59,10 +59,10 @@
     </svg>
 
 
-    <!-- The tags the chart filters by and the references it cites, as two
-         tabs down the left edge. Each opens and shuts on its own, and an
-         open one takes its share of the height rather than lying over the
-         other: both tabs are always there to be pressed. -->
+    <!-- The tags the chart filters by, the references it cites and what its
+         marks mean, as three tabs down the left edge of one window. The
+         tabs stand where they stand whether the window is open or not;
+         pressing one shows its page, pressing it again shuts the window. -->
     <div class="side-tabs" id="sideTabs">
       <section class="side-tab" id="tagsPanel">
         <button type="button" class="side-tab-handle" id="tagsTab" aria-expanded="false"
@@ -76,6 +76,13 @@
                 aria-controls="refsList" title="References — what the chart cites"><span>References</span></button>
         <div class="side-tab-body">
           <div class="legend-list" id="refsList"></div>
+        </div>
+      </section>
+      <section class="side-tab" id="keyPanel">
+        <button type="button" class="side-tab-handle" id="keyTab" aria-expanded="false"
+                aria-controls="keyList" title="Legend — what the marks on the chart mean"><span>Legend</span></button>
+        <div class="side-tab-body">
+          <div class="legend-list" id="keyList"></div>
         </div>
       </section>
       <!-- Moved in under the Tags heading by the + that asks for it. -->

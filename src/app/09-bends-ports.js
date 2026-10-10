@@ -62,12 +62,29 @@ function absorbBendOffsets(s1, bends, s2){
  * back out. Every shape that satisfies it is worse than the shape that
  * ignores it, so it is ignored. The handle stays where it was dropped and
  * can be pulled back out into the open, where it means something again. */
+/* …and nor is a bend standing so close to one that a corner cannot fit
+ * between the two.
+ *
+ * Dropped on an entry's border, or a few units off it, a bend asks for the
+ * same impossible thing as one inside: the route either touches the box at
+ * the bend or has to wrap round the entry to arrive from the far side — the
+ * line diving through the box and the hook back up into the port, which is
+ * what such a bend drew. A corner needs EDGE_CORNER_R of room and a little
+ * more to read as a turn rather than as a nick in the border, so that much
+ * clear paper round the entry's OUTERMOST ring is where a bend starts to
+ * mean anything. Closer than that it is set aside like one inside, and the
+ * route is worked out as though it were not there. */
+const BEND_DODGE = EDGE_CORNER_R + 4;
+function outerRingOf(n){
+  return Math.max(0, ringCountOf(n) - 1) * ringStepFor(n);
+}
 function usableHandBends(style, a, b){
   const list = handBends(style);
   if(!list.length) return list;
-  const m = 1.5;
-  const boxes = [a, b].filter(Boolean)
-    .map(n=> ({x0:n.x + m, y0:n.y + m, x1:n.x + n.w - m, y1:n.y + n.h - m}));
+  const boxes = [a, b].filter(Boolean).map(n=>{
+    const m = outerRingOf(n) + BEND_DODGE;
+    return {x0:n.x - m, y0:n.y - m, x1:n.x + n.w + m, y1:n.y + n.h + m};
+  });
   if(!boxes.length) return list;
   return list.filter(p=> !boxes.some(r=> p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1));
 }
@@ -78,11 +95,13 @@ function usableHandBends(style, a, b){
  * instead of. Its own two entries are the exception, because it does not
  * cross them either: it ENDS on them. A line that dives through the box it
  * is arriving at and comes back up into the port from underneath is not a
- * deliberate route, it is the only shape the L happened to have. */
+ * deliberate route, it is the only shape the L happened to have. The box
+ * is the one the reader sees, outer rings and all. */
 function ownEndBoxes(p1, p2){
-  const m = 1.5;   // the border itself belongs to the connector
-  return [p1, p2].map(p=> nodes.get(p && p.owner)).filter(Boolean)
-    .map(n=> ({x0:n.x + m, y0:n.y + m, x1:n.x + n.w - m, y1:n.y + n.h - m}));
+  return [p1, p2].map(p=> nodes.get(p && p.owner)).filter(Boolean).map(n=>{
+    const m = 1.5 - outerRingOf(n);   // the innermost border belongs to the connector
+    return {x0:n.x + m, y0:n.y + m, x1:n.x + n.w - m, y1:n.y + n.h - m};
+  });
 }
 function bentRoute(p1, p2, handBendsList){
   const s1 = stubPoint(p1, handBendsList[0]);
@@ -126,9 +145,8 @@ function bentRoute(p1, p2, handBendsList){
   const turnsBack = (pts, first, last)=>
     (first && pts.length > 1 && along(pts[0], pts[1], n1, -1)) ||
     (last && pts.length > 1 && along(pts[pts.length - 2], pts[pts.length - 1], n2, 1));
-  /* How far outside a box a detour stands. A corner's radius and a little,
-     so the turn has room to round without touching the border. */
-  const BEND_DODGE = EDGE_CORNER_R + 4;
+  /* A detour stands BEND_DODGE outside a box: a corner's radius and a
+     little, so the turn has room to round without touching the border. */
   /* One leg of the chain, as the points BETWEEN its two ends.
    *
    * An L where an L is clear, which is almost always; where it is not, a
