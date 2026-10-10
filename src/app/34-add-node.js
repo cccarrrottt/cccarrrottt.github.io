@@ -305,7 +305,9 @@ function visibleCanvasRect(){
   }
   /* The tabs at the left edge, open or shut: a shut one is a strip, and
      an open one is a panel — either way the chart under it is not on show. */
-  document.querySelectorAll('.side-tab').forEach(tab=>{
+  /* Asked of the tabs and the open page, not of the sections that hold
+     them: those are only a grouping now, and draw no box of their own. */
+  document.querySelectorAll('.side-tab-handle, .side-tab.open .side-tab-body').forEach(tab=>{
     const p = tab.getBoundingClientRect();
     if(p.width && p.left < left + edgeBand) left = Math.max(left, p.right);
   });

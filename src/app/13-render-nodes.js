@@ -2,6 +2,9 @@
    language chip (see the chip row below), because they are the same kind of
    thing and sit a few pixels apart on the same edge. */
 const LINK_BADGE_R = 5.5;
+/* A resize grip is a dot on the corner: this big to see, and this far out
+   to catch the hand — see the grips below for why it is not a square. */
+const RESIZE_DOT_R = 1.9, RESIZE_DOT_HIT = 3.6;
 /* The card whose PICTURE is being edited, if any.
  *
  * A card is two things in one box — words and a picture — and a double
@@ -159,7 +162,15 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
 
      opts.size overrules all of it: a node dragged by its corner keeps
      exactly the size it was given. */
-  const manual = n.size;
+  /* An entry turned a quarter is laid out as though it were not — its
+     words measured and wrapped along their own line — and then stood on
+     its side: the box the chart reasons with is the TURNED one, so its
+     ports, its handles, its scenery and every connector meet the entry as
+     it is drawn. A size set by hand is the size of the turned box, so it
+     is turned back for the layout and forward again below. */
+  const turn = quarterTurnOf(n);
+  const turned = turn === 90 || turn === 270;
+  const manual = (turned && n.size) ? {w: n.size.h, h: n.size.w} : n.size;
   /* An entry's text is NEVER folded by the measurer.
    *
      Where the author typed a break, the text breaks; nowhere else. The box
@@ -325,13 +336,17 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     ? CARD_PAD_Y + wrapAndMeasure(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedFit).totalH
     : 0;
 
-  const h = isBio ? bioSide
+  let h = isBio ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
           : emptyBox ? GRID
           : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
           : manual ? manual.h
           : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
+  /* Kept for the words, which are laid out in the box as it was before
+     it was turned. */
+  const textW = w, textH = h;
+  if(turned){ [w, h] = [h, w]; n.w = w; }
   n.h = h;
   /* A hand-placed entry grows about its MIDDLE, not downward from its top.
    *
@@ -976,8 +991,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const clipId = defId('textclip-', n.id);
     const clip = el('clipPath', {id: clipId}, nodeDefs);
     const reach = closesOnInk ? borderReachIn(n) : NODE_PAD_X/2;
-    el('rect', {x: n.x + reach, y: n.y, width: Math.max(1, n.w - reach*2),
-                height: h}, clip);
+    /* In the words' own frame, which on a turned entry is the box before
+       it was turned: a clip is laid out in the space of what it clips,
+       turn included. */
+    const cx = n.x + n.w/2, cy = n.y + h/2;
+    el('rect', {x: cx - textW/2 + reach, y: cy - textH/2,
+                width: Math.max(1, textW - reach*2), height: textH}, clip);
     txt.setAttribute('clip-path', `url(#${clipId})`);
   }
   const fontOpts = {fontSize, family:fontFamily};
@@ -997,6 +1016,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const mb = measureTextBlock(active, maxChars, lineH, fontScale, fontOpts, fit);
     renderNodeText(txt, active, textAreaCenterY - (mb.mid || 0),
                    centerX - (mb.midX || 0), maxChars, lineH, fontScale, fontOpts, fit);
+    if(turn) txt.setAttribute('transform',
+      `rotate(${turn},${centerX.toFixed(2)},${textAreaCenterY.toFixed(2)})`);
   }
 
   // The card's middle band, between the heading and the note.
@@ -1159,12 +1180,16 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const grip = el('g', {class:'node-resize node-resize-' + c.key,
         'data-corner': c.key,
         transform:`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}, g);
-      /* The strip you can grab is the mark you can see, plus a hair. It used
-         to reach two pixels PAST the corner and three inside the box, so the
-         pointer became a resize handle over ground where nothing was drawn —
-         and picking the entry up by its bottom-right corner resized it. */
-      el('rect', {x:-9.5, y:-9.5, width:10, height:10, class:'node-resize-hit'}, grip);
-      el('path', {d:'M-8,-1 L-1,-8 M-4,-1 L-1,-4', class:'node-resize-mark'}, grip);
+      /* A dot ON the corner, not a hatched square tucked inside it.
+       *
+         The square was ten units a side, and so is the smallest entry: an
+         empty box was four grips and nothing else, and wherever the hand
+         went on it, it picked up a corner instead of the entry. A dot
+         centred on the corner takes a quarter of its reach from the box
+         and the rest from the paper outside, so even the smallest entry
+         keeps its middle for dragging, clicking and starting a connector. */
+      el('circle', {cx:0, cy:0, r:RESIZE_DOT_HIT, class:'node-resize-hit'}, grip);
+      el('circle', {cx:0, cy:0, r:RESIZE_DOT_R, class:'node-resize-mark'}, grip);
       el('title',{},grip).textContent = 'Drag to resize; double-click to fit the text again';
       grip.addEventListener('mousedown', ev=> beginNodeResize(ev, n, g, c));
       grip.addEventListener('click', ev=> ev.stopPropagation());
@@ -1208,6 +1233,21 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           putEntry(found.index, found.entry, opts);
         });
       });
+    } else if(quarterTurnable(n)){
+      /* An entry has the same round arrow, and turns in quarters: a press
+         turns it one clockwise, a drag turns it to whichever side the hand
+         points at. Where the caption's stands off the top-left corner,
+         this one stands off the bottom-right: the top edge is where the
+         style bar, the language chips and the link badge already are. */
+      const rx = n.x + w + 14, ry = n.y + h + 14;
+      const rot = el('g', {class:'node-rotate node-turn', transform:`translate(${rx},${ry})`}, g);
+      el('circle', {cx:-5, cy:-5, r:6, class:'node-rotate-hit'}, rot);
+      el('path', {d:'M-9.5,-3 A5,5 0 1 1 -3,-1.2', class:'node-rotate-mark'}, rot);
+      el('path', {d:'M-1.2,-4.2 L-2.4,0.2 L-6,-1.6 Z', class:'node-rotate-head'}, rot);
+      el('title',{},rot).textContent = 'Click to turn a quarter; drag to stand it on any side';
+      rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g, true));
+      rot.addEventListener('click', ev=> ev.stopPropagation());
+      rot.addEventListener('dblclick', ev=>{ ev.stopPropagation(); ev.preventDefault(); });
     }
   }
 

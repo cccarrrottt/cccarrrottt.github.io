@@ -2351,11 +2351,12 @@ async function main(){
     out.shortOffGrid = [ off(short.x), mid(short) ];
     out.tallIsTall = tall.h > short.h * 2.5;
 
-    // The resize grip's hit strip is the mark you can see, not a wider
-    // square hanging off the corner.
+    /* The resize grip is a dot ON the corner, and what catches the hand
+       is not much more than the dot: the smallest entry is GRID a side,
+       and four grips must leave the middle of it to the entry. */
     const hit = document.querySelector('[data-id="gs"] .node-resize-hit');
-    out.gripBox = hit ? [+hit.getAttribute('x'), +hit.getAttribute('y'),
-                         +hit.getAttribute('width'), +hit.getAttribute('height')] : null;
+    out.gripBox = hit ? [hit.tagName, +hit.getAttribute('cx'), +hit.getAttribute('cy'),
+                         +hit.getAttribute('r'), GRID] : null;
 
     /* An amalgam with no colours of its own wears its lineages' — in the
        order they lie along its bar. */
@@ -2434,8 +2435,9 @@ async function main(){
         r13.tallIsTall && r13.tallOffGrid[0] === 0 && r13.tallOffGrid[1] === 0 &&
         r13.shortOffGrid[0] === 0 && r13.shortOffGrid[1] === 0,
         JSON.stringify({tall:r13.tallOffGrid, short:r13.shortOffGrid}));
-  check('the resize grip can only be grabbed where it is drawn',
-        !!r13.gripBox && r13.gripBox[0] + r13.gripBox[2] <= 0.5 && r13.gripBox[2] <= 10,
+  check('the resize grip is a dot on the corner that leaves the smallest entry its middle',
+        !!r13.gripBox && r13.gripBox[0] === 'circle' && r13.gripBox[1] === 0 &&
+        r13.gripBox[2] === 0 && r13.gripBox[3] < r13.gripBox[4] / 2,
         JSON.stringify(r13.gripBox));
   check('an amalgam with no colours of its own wears its lineages’',
         JSON.stringify(r13.amalStops) === JSON.stringify(['#c23b22','#2f6fb5','#1d7a5f']),
@@ -7027,7 +7029,9 @@ async function main(){
       const aura = document.querySelector('#auraLayer .node-aura[data-id="lm"]');
       aura.classList.add('tag-lively');
       const sheets = [...aura.querySelectorAll('.local-sheet')];
-      const box = document.querySelector('.node[data-id="lm"]').getBoundingClientRect();
+      /* The entry's own outline: the group also holds its handles, which
+         stand off the corners. */
+      const box = document.querySelector('.node[data-id="lm"] rect').getBoundingClientRect();
       out.sheetCycle = parseFloat(getComputedStyle(sheets[0]).animationDuration);
       const starts = sheets.map(sh=>{
         sh.style.animationDelay = '0s';
@@ -7858,7 +7862,9 @@ async function main(){
     await wait(800);
     {
       out.captionHandle = !!document.querySelector('.node[data-id="rt"] .node-rotate');
-      out.entryNoHandle = !document.querySelector('.node[data-id="rb"] .node-rotate');
+      /* An entry has a handle too, but its own: one that turns in
+         quarters (see "a quarter turn"), not the caption's free one. */
+      out.entryNoHandle = !document.querySelector('.node[data-id="rb"] .node-rotate:not(.node-turn)');
       const n = nodes.get('rt');
       const g = document.querySelector('.node[data-id="rt"]');
       applyNodeRotation(n, g, 37);
@@ -7929,7 +7935,7 @@ async function main(){
   check('the + picks an archetype by its picture',
         r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
-  check('a caption is turned by a handle on the caption, and only a caption',
+  check('a caption is turned freely by a handle on the caption, and only a caption',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
         JSON.stringify({caption:r39.captionHandle, entry:r39.entryNoHandle,
                         live:r39.turnedLive, snap:r39.snapStep}));
@@ -12333,32 +12339,58 @@ async function main(){
     rebuildChart(); buildSideTabs();
     const tags = document.getElementById('tagsPanel'), refs = document.getElementById('refsPanel');
     const rect = (e)=> e.getBoundingClientRect();
-    const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const tabFree = (id)=>{
       const r = rect(document.getElementById(id));
       const at = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
       return !!(at && at.closest('#' + id));
     };
     out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
+    /* Three pages of one window: the tabs stand still whatever is open,
+       every page is the same box, and only one shows at a time. */
+    const tabIds = ['tagsTab', 'refsTab', 'keyTab'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel'].map(id=> document.getElementById(id));
+    const tabRects = ()=> tabIds.map(id=>{ const r = rect(document.getElementById(id)); return [r.top, r.height].map(v=> Math.round(v)); });
+    const shutRects = JSON.stringify(tabRects());
     const states = [];
-    for(const [t, r] of [[true, false], [true, true], [false, true], [false, false]]){
-      setSideTab(tags, t); setSideTab(refs, r);
+    for(const open of panels){
+      setSideTab(open, true);
       await wait(60);
-      states.push({t, r,
-        apart: !overlap(rect(tags), rect(refs)),
-        tabsFree: tabFree('tagsTab') && tabFree('refsTab'),
-        bodies: [tags, refs].map(p=> getComputedStyle(p.querySelector('.side-tab-body')).visibility)});
+      const bodies = panels.map(p=> p.querySelector('.side-tab-body'));
+      states.push({id: open.id,
+        tabsStill: JSON.stringify(tabRects()) === shutRects,
+        tabsFree: tabIds.every(tabFree),
+        onlyOne: panels.every(p=> getComputedStyle(p.querySelector('.side-tab-body')).visibility ===
+                                  (p === open ? 'visible' : 'hidden')),
+        box: bodies.map(b=> { const r = rect(b); return [r.left, r.top, r.width, r.height].map(v=> Math.round(v)).join(); })});
     }
+    setSideTab(panels[2], false);
     out.tabStates = states;
-    out.tabsApart = states.every(s=> s.apart && s.tabsFree &&
-      s.bodies[0] === (s.t ? 'visible' : 'hidden') && s.bodies[1] === (s.r ? 'visible' : 'hidden'));
-    /* A press on one tab leaves the other as it was. */
+    out.tabsApart = states.every(s=> s.tabsStill && s.tabsFree && s.onlyOne &&
+      new Set(s.box).size === 1) && new Set(states.map(s=> s.box[0])).size === 1;
+    out.tabLengths = tabRects().map(r=> r[1]);
+    /* A press on another tab turns the page; a press on the open one
+       shuts the window. */
+    document.getElementById('tagsTab').click();
+    document.getElementById('refsTab').click();
+    out.pressTurns = !tags.classList.contains('open') && refs.classList.contains('open');
+    document.getElementById('refsTab').click();
+    out.pressShuts = panels.every(p=> !p.classList.contains('open')) &&
+      !document.getElementById('sideTabs').classList.contains('open');
+    /* A list longer than the window scrolls inside it, with a bar. */
+    applyEdit(()=>{ for(let i = 0; i < 40; i++) REFS.push({key:'tz' + i, title:'', detail:'Filler ' + i}); });
+    buildSideTabs();
     setSideTab(refs, true);
-    document.getElementById('tagsTab').click();
-    out.pressOneKeepsOther = tags.classList.contains('open') && refs.classList.contains('open');
-    document.getElementById('tagsTab').click();
-    out.pressShuts = !tags.classList.contains('open') && refs.classList.contains('open');
+    await wait(60);
+    {
+      const list = document.getElementById('refsList');
+      const body = refs.querySelector('.side-tab-body');
+      out.scrolls = list.scrollHeight > list.clientHeight + 20 &&
+        rect(body).height <= 400 &&
+        ['auto', 'scroll'].includes(getComputedStyle(list).overflowY);
+    }
     setSideTab(refs, false);
+    applyEdit(()=>{ for(let i = REFS.length - 1; i >= 0; i--) if(/^tz/.test(REFS[i].key)) REFS.splice(i, 1); });
+    buildSideTabs();
     /* Each tab has its own search and its own +. */
     out.ownTools = ['tagsList', 'refsList'].every(id=>{
       const list = document.getElementById(id);
@@ -12398,9 +12430,11 @@ async function main(){
   check('an empty remark, pinned or not, is one grid step square', rT.emptyIsStep, JSON.stringify(rT.empty));
   check('and a step snapped to comes out clean', rT.snapClean);
   check('the top bar has no menu for tags and references', rT.noToolbarButton);
-  check('tags and references are two tabs that never cover each other, open or shut',
+  check('tags, references and the legend are pages of one window whose tabs never move',
         rT.tabsApart, JSON.stringify(rT.tabStates));
-  check('pressing one tab leaves the other as it was', rT.pressOneKeepsOther && rT.pressShuts);
+  check('and the three tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
+  check('pressing another tab turns the page, pressing the open one shuts it', rT.pressTurns && rT.pressShuts);
+  check('a list longer than the window scrolls inside it', rT.scrolls);
   check('each tab has its own search and its own +', rT.ownTools);
   check('the references can be searched, by words or by number',
         rT.refFound === 'tB' && rT.refByNumber === 'tA' && rT.refAll === 2,
@@ -12618,6 +12652,219 @@ async function main(){
           fab.open && fab.onScreen && fab.aboutShut, JSON.stringify(fab));
   } finally {
     await phone.close();
+  }
+  });
+
+  /* ---- bends that cannot mean anything, dots on corners, a legend, quarter turns, a kept draft ---- */
+  await scenario("a bend too close to its entry, dots on the corners, a legend and a quarter turn", async () => {
+  const rQ = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const beforeSettings = JSON.parse(JSON.stringify(SETTINGS));
+    /* The three connectors the owner circled, as they were saved: a bend
+       on the border of the entry it arrives at, a bend inside one, and a
+       bend just below a stacked entry whose rings reach past it. Moved
+       well clear of the rest of the chart, together. */
+    const DX = 4000, DY = 4000;
+    const at = (x, y)=> [+(x + DX).toFixed(2), +(y + DY).toFixed(2)];
+    applyEdit(()=>{
+      workingNodes.push(['bq3', 'Прчоао', null, null, null, null, {pos: at(-110.77, 123.95)}]);
+      workingNodes.push(['bq4', 'Човьлы', 'bq3', null, null, null, {pos: at(-171.24, 194.44)}]);
+      workingNodes.push(['bq5', 'Пролл', null, null, null, null, {pos: at(-112.5, 244.79)}]);
+      workingNodes.push(['bq6', 'Гаягкягкч', 'bq5', null, null, null, {pos: at(-40.28, 234.72)}]);
+      workingNodes.push(['bqA', 'asdasdи', null, null, null, null,
+        {pos: at(-38.15, 133.33), colors:['#20242b', '#c2c'], tags:['local multiverse']}]);
+      workingNodes.push(['bqB', 'asdasd', 'bqA', null, null, null, {pos: at(24.68, 109.51), border:'dashdot'}]);
+      EDGE_STYLES.push(
+        {from:'bq3', to:'bq4', routing:'orthogonal', dash:'solid', arrow:true, bends:[at(-140.98, 201.4)], fromSide:'bottom', toSide:'bottom'},
+        {from:'bq5', to:'bq6', routing:'orthogonal', dash:'solid', arrow:true, bends:[at(-40.28, 211.47), at(-20.14, 251.75)], fromSide:'top', toSide:'top'},
+        {from:'bqA', to:'bqB', routing:'orthogonal', dash:'solid', arrow:true, arrowIn:true, bends:[at(-20.14, 161.12)], fromSide:'top', toSide:'top', fromRing:1, square:true});
+    });
+    await wait(300);
+    /* A route is a polyline through every point its path names — a
+       rounded corner's control point IS the corner. */
+    const routeOf = (f, t)=>{
+      const p = document.querySelector(`#edgeLayer path.edge.struct[data-from="${f}"][data-to="${t}"]`);
+      if(!p) return null;
+      const nums = (p.getAttribute('d').match(/-?\d+(\.\d+)?/g) || []).map(Number);
+      const pts = [];
+      for(let i = 0; i + 1 < nums.length; i += 2) pts.push({x: nums[i], y: nums[i+1]});
+      return pts;
+    };
+    /* Through an own entry: any run but the two run-outs crossing the box
+       a little inside its border. Back on itself: a run followed straight
+       away by one the opposite way. */
+    const faults = (f, t)=>{
+      const pts = routeOf(f, t);
+      if(!pts) return ['no route'];
+      const bad = [];
+      const boxes = [nodes.get(f), nodes.get(t)].map(n=> ({x0:n.x + 1.5, y0:n.y + 1.5, x1:n.x + n.w - 1.5, y1:n.y + n.h - 1.5}));
+      for(let i = 1; i < pts.length - 2; i++){
+        const a = pts[i], b = pts[i+1];
+        if(boxes.some(r=> segIntersectsRect(a.x, a.y, b.x, b.y, r))) bad.push('through ' + i);
+      }
+      for(let i = 0; i + 2 < pts.length; i++){
+        const a = pts[i], b = pts[i+1], c = pts[i+2];
+        const u = {x: Math.sign(Math.round(b.x - a.x)), y: Math.sign(Math.round(b.y - a.y))};
+        const v = {x: Math.sign(Math.round(c.x - b.x)), y: Math.sign(Math.round(c.y - b.y))};
+        if((u.x || u.y) && u.x === -v.x && u.y === -v.y) bad.push('back ' + i);
+      }
+      return bad;
+    };
+    out.circled = {'bq3>bq4': faults('bq3', 'bq4'), 'bq5>bq6': faults('bq5', 'bq6'), 'bqA>bqB': faults('bqA', 'bqB')};
+    /* …and the same of every connector on the chart that carries bends. */
+    out.chartWide = [];
+    EDGE_STYLES.forEach(st=>{
+      if(!st.bends || !st.bends.length || !nodes.has(st.from) || !nodes.has(st.to)) return;
+      const f = faults(st.from, st.to);
+      if(f.length && f[0] !== 'no route') out.chartWide.push(`${st.from}>${st.to}: ${f.join(',')}`);
+    });
+
+    /* ---- the corner dots leave the smallest entry its middle ---- */
+    applyEdit(()=>{ workingNodes.push(['bqE', '', null, null, null, null, {pos: at(200, 300)}]); });
+    await wait(200);
+    {
+      const n = nodes.get('bqE');
+      vs = 4; vx = 700 - (n.x + n.w/2) * vs; vy = 450 - (n.y + n.h/2) * vs; applyTransform();
+      await wait(100);
+      const g = document.querySelector('.node[data-id="bqE"]');
+      g.classList.add('hover');
+      const box = g.querySelector('rect').getBoundingClientRect();
+      const mid = document.elementFromPoint(box.left + box.width/2, box.top + box.height/2);
+      out.middleIsEntry = !!mid && !!mid.closest('.node[data-id="bqE"]') && !mid.closest('.node-resize');
+      out.dots = [...g.querySelectorAll('.node-resize')].length;
+    }
+
+    /* ---- the legend lists what is on the chart, and keeps what it means ---- */
+    setSideTab(document.getElementById('keyPanel'), true);
+    await wait(60);
+    const keys = ()=> [...document.querySelectorAll('#keyList .key-item')].map(r=> r.dataset.key);
+    out.keyHas = ['shape:entry', 'border:dashdot', 'tag:local multiverse', 'line:solid', 'line:both'].every(k=> keys().includes(k));
+    out.keyLacksUnused = !keys().includes('border:wavy') || [...nodes.values()].some(n=> borderStyleOf(n) === 'wavy');
+    {
+      const box = document.querySelector('#keyList .key-item[data-key="border:dashdot"] .key-meaning-input');
+      box.value = 'Not yet confirmed';
+      box.dispatchEvent(new Event('change'));
+      await wait(60);
+      out.keySaved = SETTINGS.legend && SETTINGS.legend['border:dashdot'] === 'Not yet confirmed';
+      out.keyWritten = /legend: \{'border:dashdot': 'Not yet confirmed'\}/.test(serializeSettings(SETTINGS));
+      out.keyRead = cleanLegend(readRegionObject('/* @@EDIT:SETTINGS:START@@ */\n' + serializeSettings(SETTINGS) +
+        '\n/* @@EDIT:SETTINGS:END@@ */', 'SETTINGS').legend)['border:dashdot'] === 'Not yet confirmed';
+      /* Saying what the program already says is no setting at all. */
+      const am = KEY_MARKS.find(m=> m.key === 'shape:amalgam');
+      setKeyMeaning('shape:amalgam', am.meaning);
+      out.keyDefaultNotStored = !('shape:amalgam' in (SETTINGS.legend || {}));
+    }
+    setSideTab(document.getElementById('keyPanel'), false);
+
+    /* ---- an entry turns a quarter about its own middle ---- */
+    {
+      const n = nodes.get('bq3');
+      const before = {cx: n.x + n.w/2, cy: n.y + n.h/2, w: n.w, h: n.h};
+      turnEntryTo('bq3', 90);
+      await wait(150);
+      const m = nodes.get('bq3');
+      out.turnSwapped = Math.abs(m.w - before.h) < 0.6 && Math.abs(m.h - before.w) < 0.6;
+      out.turnCentre = Math.abs(m.x + m.w/2 - before.cx) <= GRID/2 + 0.01 && Math.abs(m.y + m.h/2 - before.cy) <= GRID/2 + 0.01;
+      const t = document.querySelector('.node[data-id="bq3"] text');
+      out.turnText = /^rotate\(90,/.test(t.getAttribute('transform') || '');
+      /* The words stand inside the turned box. */
+      const tb = t.getBoundingClientRect(), bb = document.querySelector('.node[data-id="bq3"] rect').getBoundingClientRect();
+      out.turnTextInside = tb.height > tb.width && tb.top >= bb.top - 1 && tb.bottom <= bb.bottom + 1;
+      out.turnStored = /rot:90/.test(serializeNodes(workingNodes.filter(it=> it[0] === 'bq3')));
+      /* A connector meets the turned box, not the one it used to be. */
+      const r = routeOf('bq3', 'bq4');
+      const last = r && r[0];
+      out.turnPort = !!last && Math.abs(last.y - (m.y + m.h)) < 3;
+      /* Four quarters are a whole turn, and back where it started. */
+      for(const d of [180, 270, 0]){ turnEntryTo('bq3', d); await wait(80); }
+      const z = nodes.get('bq3');
+      out.turnHome = Math.abs(z.x + z.w/2 - before.cx) < GRID && Math.abs(z.w - before.w) < 0.6 && !z.rot;
+      /* A caption, a portrait, a picture and a card do not turn in quarters. */
+      out.turnOnlyEntries = !quarterTurnable({shape:'textbox'}) && !quarterTurnable({shape:'ellipse'}) &&
+        !quarterTurnable({shape:'image'}) && !quarterTurnable({card:true}) && quarterTurnable({shape:null});
+      out.turnHandle = !!document.querySelector('.node[data-id="bq5"] .node-turn') &&
+        !document.querySelector('.node[data-id="bq5"] .node-rotate:not(.node-turn)');
+    }
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{
+      workingNodes = beforeNodes;
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+      Object.assign(SETTINGS, beforeSettings);
+    });
+    rebuildChart(); buildSideTabs();
+    await wait(300);
+    return out;
+  });
+  check('a bend on or inside the entry it meets no longer drags the line through it',
+        Object.values(rQ.circled).every(f=> !f.length), JSON.stringify(rQ.circled));
+  check('no connector on the chart with bends runs through its own entries or back on itself',
+        !rQ.chartWide.length, rQ.chartWide.slice(0, 4).join(' | '));
+  check('the corner dots leave even the smallest entry its middle', rQ.middleIsEntry && rQ.dots === 4);
+  check('the legend lists the marks that are on the chart', rQ.keyHas && rQ.keyLacksUnused);
+  check('what a mark means is kept with the chart, written and read back',
+        rQ.keySaved && rQ.keyWritten && rQ.keyRead && rQ.keyDefaultNotStored,
+        JSON.stringify({s:rQ.keySaved, w:rQ.keyWritten, r:rQ.keyRead, d:rQ.keyDefaultNotStored}));
+  check('a quarter turn stands the box on its side about its own middle',
+        rQ.turnSwapped && rQ.turnCentre && rQ.turnStored,
+        JSON.stringify({w:rQ.turnSwapped, c:rQ.turnCentre, s:rQ.turnStored}));
+  check('and its words turn with it, inside it', rQ.turnText && rQ.turnTextInside);
+  check('a connector meets the turned box', rQ.turnPort);
+  check('four quarters bring it home', rQ.turnHome);
+  check('only entries turn in quarters, by their own handle', rQ.turnOnlyEntries && rQ.turnHandle);
+
+  /* ---- unsaved work outlives a page that closes without asking ---- */
+  {
+    const c3 = await browser.newContext();
+    await c3.addInitScript(() => { try { delete window.claude; } catch(e){} });
+    const p3 = await c3.newPage();
+    const e3 = []; p3.on('pageerror', e => e3.push(e.message));
+    p3.on('dialog', d => d.accept());
+    try {
+      await p3.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+      await wait(900);
+      const label0 = await p3.evaluate(() => workingNodes[0][1]);
+      await p3.evaluate(() => applyEdit(() => { workingNodes[0][1] = '__KEPT__'; }));
+      await wait(1300);
+      const kept = await p3.evaluate(async () => { const d = await readDraft(); return !!d && d.data.nodes[0][1]; });
+      /* A crash: the page goes with nothing asked and nothing saved. */
+      await p3.reload({waitUntil:'networkidle'});
+      await wait(1200);
+      const offered = await p3.evaluate(() => ({bar: !!document.getElementById('draftBar'),
+        label: workingNodes[0][1], dirty: isDirty()}));
+      await p3.click('#draftBar .draft-restore');
+      await wait(400);
+      const back = await p3.evaluate(() => ({label: workingNodes[0][1], dirty: isDirty(),
+        bar: !!document.getElementById('draftBar')}));
+      /* Saved, there is nothing left to keep — and nothing is offered. */
+      await p3.evaluate(() => saveNow());
+      await wait(1200);
+      const afterSave = await p3.evaluate(async () => !!(await readDraft()));
+      await p3.reload({waitUntil:'networkidle'});
+      await wait(1000);
+      const quiet = await p3.evaluate(() => !document.getElementById('draftBar'));
+      /* …and Discard throws a kept copy away. */
+      await p3.evaluate(() => applyEdit(() => { workingNodes[0][1] = '__THROWN__'; }));
+      await wait(1300);
+      await p3.reload({waitUntil:'networkidle'});
+      await wait(1200);
+      await p3.click('#draftBar .draft-discard');
+      await wait(300);
+      const discarded = await p3.evaluate(async () => ({draft: !!(await readDraft()), label: workingNodes[0][1]}));
+      check('unsaved work is kept in the browser a moment after an edit', kept === '__KEPT__', String(kept));
+      check('and offered back, not put back, when the page opens again',
+            offered.bar && offered.label === label0 && !offered.dirty, JSON.stringify(offered));
+      check('restoring it puts the work back as unsaved', back.label === '__KEPT__' && back.dirty && !back.bar, JSON.stringify(back));
+      check('a save removes the kept copy, and nothing is offered after it', !afterSave && quiet);
+      check('discarding throws the kept copy away', !discarded.draft && discarded.label === '__KEPT__', JSON.stringify(discarded));
+      check('no page errors around the kept copy', e3.length === 0, e3.join('; '));
+      await p3.evaluate(() => { try { localStorage.clear(); } catch(e){} });
+    } finally {
+      await c3.close();
+    }
   }
   });
 

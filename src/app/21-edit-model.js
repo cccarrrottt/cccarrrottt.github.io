@@ -177,12 +177,24 @@ function restoreSnapshot(s){
 // Dirty is derived, never a flag that can drift: undoing back to exactly
 // what was last published correctly leaves nothing to save.
 function isDirty(){ return savedParts !== null && partsDiffer(savedParts); }
+/* The draft's state — see the draft, at the foot of 22-file-comments.
+   Declared here because refreshSaveUI asks after it, and the first
+   refresh happens before that part has finished running.
+ *
+   Until the page has looked for a draft and the reader has answered, no
+   copy is written or removed: the first refresh after loading is always
+   clean, and would otherwise delete the very draft about to be offered. */
+let draftLooked = false, draftTimer = 0;
+/* What the saved chart was the last time the page was clean. */
+let draftBase = null;
 function refreshSaveUI(){
   const d = isDirty();
   saveBtn.disabled = !d;
   saveBtn.textContent = d ? 'Save' : 'Saved';
   if(d) setSaveState('dirty', 'Unsaved changes');
   else setSaveState(null);
+  /* …and keeps the copy that outlives a power cut in step. */
+  scheduleDraft();
 }
 
 // The single wrapper every edit goes through: snapshot for undo, mutate,

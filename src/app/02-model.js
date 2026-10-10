@@ -149,6 +149,22 @@ const drawnRoutes = new Map();     // edge key -> the route as last drawn
    the chart rather than an entry in it: no ports, no connectors, and none
    of the decoration an entry can carry. */
 function isFreeShape(shape){ return shape === 'image' || shape === 'textbox'; }
+/* Which entries may be stood on their side, and how far they are turned.
+ *
+ * An entry turns in quarters only: the chart is drawn in right angles, and
+ * a box at any other angle has no side for a connector to meet square-on.
+ * A caption is not one of these — it turns freely, as a drawing does — and
+ * nor is anything whose inside has a direction of its own the turn would
+ * make nonsense of: a portrait, a picture, a card's bands, a merge's bar. */
+function quarterTurnable(n){
+  if(!n) return false;
+  const shape = n.shape || 'rect';
+  return !n.card && (shape === 'rect' || shape === 'callout');
+}
+function quarterTurnOf(n){
+  if(!n || !n.rot || !quarterTurnable(n)) return 0;
+  return ((Math.round(n.rot / 90) * 90) % 360 + 360) % 360;
+}
 /* ---------------------------------------------------------------------
    Callouts.
 
@@ -636,8 +652,8 @@ workingNodes.forEach(item=>{
        the way, 'left' and 'right' are the reader's own answer. */
     bioSide: (opts && (opts.bioSide === 'left' || opts.bioSide === 'right'))
              ? opts.bioSide : null,
-    // Degrees clockwise about the element's own centre. Only a loose text
-    // block uses it — a caption set at an angle across the chart.
+    // Degrees clockwise about the element's own centre. A loose text block
+    // takes any angle; an entry takes quarters (see quarterTurnOf).
     rot: (opts && typeof opts.rot==='number' && Number.isFinite(opts.rot))
          ? ((opts.rot % 360) + 360) % 360 : 0,
     // A hand-set box size, from dragging a node's corner. Absent means the
