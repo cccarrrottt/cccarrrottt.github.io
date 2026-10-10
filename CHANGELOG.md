@@ -32,6 +32,17 @@ Releases before 0.9.0 were not numbered.
   rings of a rippled entry run parallel on every side" and "wavy borders
   ripple along each side into clean corners". The later reading of how far
   a ripple stands out along its side's own normal is kept.
+- **…and then laid out from the middle of each side** (owner's choice of
+  four drawn options). Walked round from a corner, an outer ring had to
+  fit whole waves into a longer outline, so on a small entry its waves
+  came out about 30% longer than the first ring's and the rings drifted in
+  and out of step. Now every side carries an even number of half-waves
+  fitted to the entry's own side and centred on its middle; every ring and
+  every rail of a double border uses that same wave, so they ripple in
+  step, and each side eases to rest over its last half-wave, so the
+  corners are clean round turns. `pocketOutline` takes how far the outline
+  stands outside the entry (`out`) and hands back the drawn points, which
+  the ring, the clip, the side band and the connector's aim all read.
 
 ### After the turn
 

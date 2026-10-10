@@ -749,7 +749,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           const inner = isWavy
             ? {tag:'path', attrs:{d: wavyRectPath(n.x + own + off + gap,
                                                   n.y - own - off + gap,
-                                                  n.w - gap*2, h - gap*2, 0)}}
+                                                  n.w - gap*2, h - gap*2, -gap)}}
             : {tag:'rect', attrs:{x: n.x + own + off + gap,
                                   y: n.y - own - off + gap,
                                   width: Math.max(0, n.w - gap*2),
@@ -853,7 +853,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        shape, asked for once: see cardShape below, which the ground, the
        clip and the border all take. */
     const cardShape = (i)=> isWavy
-      ? {tag:'path', attrs:{d: wavyRectPath(n.x+i, n.y+i, w-i*2, h-i*2)}}
+      ? {tag:'path', attrs:{d: wavyRectPath(n.x+i, n.y+i, w-i*2, h-i*2, -i)}}
       : {tag:'rect', attrs:{x:n.x+i, y:n.y+i, width:w-i*2, height:h-i*2, rx:rad(5-i)}};
     const clipId = defId('cardclip-', n.id);
     const clip = el('clipPath', {id:clipId}, nodeDefs);
@@ -916,7 +916,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     ringColors.slice(1).forEach((rc, k)=>{
       const grow = (k + 1) * ringStepFor(n);
       borderRing(isWavy ? 'path' : 'rect', (ins)=> isWavy
-        ? {d: wavyRectPath(n.x-grow+ins, n.y-grow+ins, w+grow*2-ins*2, h+grow*2-ins*2, grow)}
+        ? {d: wavyRectPath(n.x-grow+ins, n.y-grow+ins, w+grow*2-ins*2, h+grow*2-ins*2, grow - ins)}
         : {x:n.x-grow+ins, y:n.y-grow+ins, width:w+grow*2-ins*2, height:h+grow*2-ins*2,
            rx:rad(5+grow-ins)}, rc, 'fill:none;');
     });
@@ -1035,7 +1035,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const grow = i*POCKET_RING_STEP;
       borderRing('path',
         (ins)=>({d: wavyRectPath(n.x-grow+ins, n.y-grow+ins,
-                                 n.w+grow*2-ins*2, h+grow*2-ins*2, grow)}),
+                                 n.w+grow*2-ins*2, h+grow*2-ins*2, grow - ins)}),
         c, i>0 ? 'fill:none;' : (bgFillStyle || 'fill:var(--panel);'));
     });
   } else {
