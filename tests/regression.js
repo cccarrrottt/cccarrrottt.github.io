@@ -1721,23 +1721,38 @@ async function main(){
       {pos:[13600,-600], colors:['#111111','#c23b22']}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 420));
     const ringPaths = [...document.querySelectorAll('[data-id="pkph"] > path[stroke]')];
-    /* Each ring is its own closed line with a whole number of waves on it,
-       and both start at their own top-left corner, on the baseline and
-       heading the same way — so the rings run parallel rather than
-       drifting into one another. */
+    /* Every ring takes its waves from the entry's own sides, laid out from
+       the middle of each side, so down the middle of a side the rings
+       ripple in step: crest over crest, the ring step apart. */
     const pk = nodes.get('pkph');
     out.ringPhases = ringPaths.map((pth, i)=>{
-      const p = wavePts(pth.getAttribute('d'));
-      if(p.length < 4) return null;
-      const grow = i * ringStepFor(pk);
-      const o = pocketOutline(pk.x - grow, pk.y - grow, pk.w + grow*2, pk.h + grow*2);
-      return {startsAtCorner: Math.abs(p[0].x - (pk.x - grow + o.r)) < 0.2 &&
-                              Math.abs(p[0].y - (pk.y - grow)) < 0.2,
-              whole: Math.abs(o.total / o.lam - Math.round(o.total / o.lam)) < 1e-9,
-              outward: p[Math.round(WAVE_STEP_DIV/4)].y < pk.y - grow};
+      const o = pocketOutlineOfRing(pk, i), o0 = pocketOutlineOfRing(pk, 0);
+      if(!o || !o0) return null;
+      const grow = i * ringStepFor(pk), cx = pk.x + pk.w/2, cy = pk.y + pk.h/2;
+      /* Only where the first ring is at full swing: each side's wave eases
+         to rest over its last half-wave, and that is where the rings part.
+         The tolerance is the sampling — the rings are sampled from their
+         own corners, so a crest can fall between two samples on one ring
+         and on a sample on the other; out of step is a swing of the
+         amplitude. */
+      const reach = (side)=>{
+        const L0 = side - 2*o0.r, halves = Math.max(2, 2*Math.round(L0 / POCKET_WAVELEN));
+        return L0/2 - L0/halves;
+      };
+      let worst = 0;
+      for(let u = -reach(pk.w); u <= reach(pk.w); u += 0.5){
+        worst = Math.max(worst, Math.abs(o.offsetAt('top', cx + u, pk.y - grow) -
+                                         o0.offsetAt('top', cx + u, pk.y)));
+      }
+      for(let u = -reach(pk.h); u <= reach(pk.h); u += 0.5){
+        worst = Math.max(worst, Math.abs(o.offsetAt('left', pk.x - grow, cy + u) -
+                                         o0.offsetAt('left', pk.x, cy + u)));
+      }
+      return {drawnAsLaid: pth.getAttribute('d') === ringOutlinePath(pk, i),
+              inStep: worst < 0.25, worst: +worst.toFixed(3)};
     });
     out.ringsInPhase = out.ringPhases.length === 2 && out.ringPhases.every(Boolean) &&
-      out.ringPhases.every(p=> p.startsAtCorner && p.whole && p.outward);
+      out.ringPhases.every(p=> p.drawnAsLaid && p.inStep);
 
     // The connector popover survives a click in any other menu.
     const hit = document.querySelector('#edgeLayer path.edge-hit');
@@ -1818,7 +1833,7 @@ async function main(){
      different perimeters would otherwise drift out of phase and touch. */
   check('a pocket reality’s rings nest at the ordinary spacing',
         r10.pocketStep === r10.ringStep, 'step ' + r10.pocketStep);
-  check('and every ring carries whole waves from its own corner, the same way up',
+  check('and every ring ripples in step with the first down the middle of each side',
         r10.ringsInPhase, JSON.stringify(r10.ringPhases));
   check('the connector popover survives a click in another menu',
         r10.popoverOpen && r10.popoverAfterMenu, JSON.stringify(r10.popoverAfterMenu));
@@ -10417,7 +10432,8 @@ async function main(){
       // Nothing is held back from a bend or an end any more: the wave is
       // run along the finished line.
       const o = pocketOutline(0, 0, 160, 90);
-      out.noBareEnds = !!o && Math.abs(o.total / o.lam - Math.round(o.total / o.lam)) < 1e-9;
+      const ends = o && [o.drawn[0], o.drawn[o.drawn.length-1]];
+      out.noBareEnds = !!o && Math.hypot(ends[0].x - ends[1].x, ends[0].y - ends[1].y) < 1e-9;
       const p = wavePts(wavyPath([{x:0,y:0},{x:61,y:0}]));
       // The wave starts at the very start: the first step already leaves
       // the baseline.
