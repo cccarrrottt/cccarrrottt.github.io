@@ -71,6 +71,37 @@ function imageAspect(src){
   }catch(e){}
   return 0;
 }
+/* Stands an entry's drawing on its side: everything drawn for it so far —
+   the entry's own group, its scenery and its ground — turned about the
+   middle of the upright box it was drawn in (x, y and w, h on n).
+ *
+   The scenery and the entry are carried during a drag by a translate on
+   the group, so the turn goes on a group INSIDE them, where a carry does
+   not reach it. The ground's pieces are carried one by one, each by its
+   own transform, so a piece keeps its turn in data-rot-transform and the
+   carry writes it back after the translate — the way a caption's turn is
+   kept on its group. */
+function turnDrawing(n, g, turn, w, h){
+  const midX = n.x + w/2, midY = n.y + h/2;
+  const spin = `rotate(${turn},${midX.toFixed(2)},${midY.toFixed(2)})`;
+  const wrapAll = (host, transform)=>{
+    const kids = [...host.childNodes];
+    const wrap = el('g', {class:'node-turned', transform}, host);
+    kids.forEach(k=> wrap.appendChild(k));
+  };
+  wrapAll(g, spin);
+  auraLayer.querySelectorAll(`.node-aura[data-id="${CSS.escape(n.id)}"]`)
+    .forEach(a=> wrapAll(a, spin));
+  const ground = fanLayer.querySelector(`[data-ground="${CSS.escape(n.id)}"]`);
+  if(ground){
+    // The ground is drawn from the box's top-left, so its middle is local.
+    const local = `rotate(${turn},${(w/2).toFixed(2)},${(h/2).toFixed(2)})`;
+    [...ground.children].forEach(piece=>{
+      piece.dataset.rotTransform = local;
+      piece.setAttribute('transform', local);
+    });
+  }
+}
 function renderNodes(){
 while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
 while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
@@ -162,12 +193,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
 
      opts.size overrules all of it: a node dragged by its corner keeps
      exactly the size it was given. */
-  /* An entry turned a quarter is laid out as though it were not — its
-     words measured and wrapped along their own line — and then stood on
-     its side: the box the chart reasons with is the TURNED one, so its
-     ports, its handles, its scenery and every connector meet the entry as
-     it is drawn. A size set by hand is the size of the turned box, so it
-     is turned back for the layout and forward again below. */
+  /* An entry turned a quarter is laid out and drawn as though it were not,
+     and then the whole drawing is stood on its side about its middle. The
+     box the chart reasons with is the TURNED one, so its ports, its grips,
+     its badges and every connector meet the entry as it is drawn. A size
+     set by hand is the size of the turned box, so it is turned back for
+     the layout; see turnDrawing below for the rest. */
   const turn = quarterTurnOf(n);
   const turned = turn === 90 || turn === 270;
   const manual = (turned && n.size) ? {w: n.size.h, h: n.size.w} : n.size;
@@ -343,9 +374,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           : manual ? manual.h
           : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
-  /* Kept for the words, which are laid out in the box as it was before
-     it was turned. */
-  const textW = w, textH = h;
+  /* Placed as the turned box — where it stands is decided by the shape
+     the reader sees, which is also how a turned entry has always been
+     saved. Drawn upright below, at the same middle. */
   if(turned){ [w, h] = [h, w]; n.w = w; }
   n.h = h;
   /* A hand-placed entry grows about its MIDDLE, not downward from its top.
@@ -416,6 +447,15 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       n.growShiftX = round2(borderReachIn(n) - NODE_BORDER_W / 2);
       n.x = n.pos.x - n.growShiftX;
     }
+  }
+  /* The box the chart keeps, and the upright one everything below is
+     drawn in: the same middle, the sides the other way round. */
+  const turnedBox = turned ? {x: n.x, y: n.y, w, h} : null;
+  if(turned){
+    const midX = n.x + w/2, midY = n.y + h/2;
+    [w, h] = [h, w];
+    n.w = w; n.h = h;
+    n.x = midX - w/2; n.y = midY - h/2;
   }
   /* Where the rules across the card fall, once its height is settled.
      The picture's rule is only there when there is a picture. */
@@ -835,7 +875,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        grips on the box the picture is drawn in. Free by default — the
        picture takes the shape you pull it into — and proportional with
        Shift held, which is the one thing a picture usually wants. */
-    if(cardImgEditId === n.id && n.image && cardImgB > n.y + 0.5){
+    /* Not on a turned card: the grips would turn with the picture, and a
+       corner dragged one way would pull the picture another. */
+    if(cardImgEditId === n.id && n.image && cardImgB > n.y + 0.5 && !turn){
       const gy0 = n.y, gy1 = cardImgB;
       [[imgX, gy0, 'nw'], [imgX + imgW, gy0, 'ne'],
        [imgX, gy1, 'sw'], [imgX + imgW, gy1, 'se']].forEach(([gx, gyy, key])=>{
@@ -991,12 +1033,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const clipId = defId('textclip-', n.id);
     const clip = el('clipPath', {id: clipId}, nodeDefs);
     const reach = closesOnInk ? borderReachIn(n) : NODE_PAD_X/2;
-    /* In the words' own frame, which on a turned entry is the box before
-       it was turned: a clip is laid out in the space of what it clips,
-       turn included. */
-    const cx = n.x + n.w/2, cy = n.y + h/2;
-    el('rect', {x: cx - textW/2 + reach, y: cy - textH/2,
-                width: Math.max(1, textW - reach*2), height: textH}, clip);
+    el('rect', {x: n.x + reach, y: n.y,
+                width: Math.max(1, n.w - reach*2), height: h}, clip);
     txt.setAttribute('clip-path', `url(#${clipId})`);
   }
   const fontOpts = {fontSize, family:fontFamily};
@@ -1016,8 +1054,6 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const mb = measureTextBlock(active, maxChars, lineH, fontScale, fontOpts, fit);
     renderNodeText(txt, active, textAreaCenterY - (mb.mid || 0),
                    centerX - (mb.midX || 0), maxChars, lineH, fontScale, fontOpts, fit);
-    if(turn) txt.setAttribute('transform',
-      `rotate(${turn},${centerX.toFixed(2)},${textAreaCenterY.toFixed(2)})`);
   }
 
   // The card's middle band, between the heading and the note.
@@ -1035,6 +1071,14 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     renderNodeText(bodyEl, cardBody, (cardMedB + n.y + h)/2, centerX,
                    cardBodyChars, cardBodyLineH, cardBodyScale,
                    {fontSize:cardBodyFS, family:fontFamily}, cardBodyFit);
+  }
+
+  if(turn){
+    turnDrawing(n, g, turn, w, h);
+    if(turned){
+      ({x: n.x, y: n.y, w, h} = turnedBox);
+      n.w = w; n.h = h;
+    }
   }
 
   if(hasLangTabs && !isBio && !isFree){
@@ -1205,11 +1249,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         });
       });
     });
-    /* And a caption gets one more handle: the round arrow that turns it.
-       Only a caption — an entry belongs to a chart that reads left to
-       right, and a picture turned on its side is a thing to crop rather
-       than to spin. It stands off the top-left corner, where a corner grip
-       would be, so the two read as one family of handles. */
+    /* And a caption gets one more handle: the round arrow that turns it,
+       to any angle. Only a caption — everything else turns in quarters,
+       by the ⟳ in its style bar (or, for a picture, in its menu), because
+       a box on a chart of right angles has to keep sides a connector can
+       meet. It stands off the top-left corner, where a corner grip would
+       be, so the two read as one family of handles. */
     if(isTextbox){
       const rx = n.x - 4, ry = n.y - 4;
       const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, g);
@@ -1233,21 +1278,6 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           putEntry(found.index, found.entry, opts);
         });
       });
-    } else if(quarterTurnable(n)){
-      /* An entry has the same round arrow, and turns in quarters: a press
-         turns it one clockwise, a drag turns it to whichever side the hand
-         points at. Where the caption's stands off the top-left corner,
-         this one stands off the bottom-right: the top edge is where the
-         style bar, the language chips and the link badge already are. */
-      const rx = n.x + w + 14, ry = n.y + h + 14;
-      const rot = el('g', {class:'node-rotate node-turn', transform:`translate(${rx},${ry})`}, g);
-      el('circle', {cx:-5, cy:-5, r:6, class:'node-rotate-hit'}, rot);
-      el('path', {d:'M-9.5,-3 A5,5 0 1 1 -3,-1.2', class:'node-rotate-mark'}, rot);
-      el('path', {d:'M-1.2,-4.2 L-2.4,0.2 L-6,-1.6 Z', class:'node-rotate-head'}, rot);
-      el('title',{},rot).textContent = 'Click to turn a quarter; drag to stand it on any side';
-      rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g, true));
-      rot.addEventListener('click', ev=> ev.stopPropagation());
-      rot.addEventListener('dblclick', ev=>{ ev.stopPropagation(); ev.preventDefault(); });
     }
   }
 

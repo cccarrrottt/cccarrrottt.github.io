@@ -286,7 +286,7 @@
    * at this size the pieces left between two descenders are a few pixels
    * long and read as full stops after each letter. */
   .node text, .rich-surface, .note-overlay-body, .edge-note,
-  .bio-card-g text, .tag-shape, .detail-note{
+  .bio-card-g text, .tag-shape{
     -webkit-text-decoration-skip-ink:none;
     text-decoration-skip-ink:none;
   }
@@ -956,30 +956,35 @@
 
 
   /* ---------- The side tabs: tags, references and the legend ----------
-     One window at the left edge with its tabs down its spine. Every tab is
-     the same length and stands at the same place whether the window is
-     open or shut, so nothing moves under the hand: the tab that was
-     pressed is still there to be pressed again, and the others are where
-     they were. The window is the same size whichever page it shows —
-     exactly as tall as the row of tabs — and a page longer than that
-     scrolls inside it.
+     Three drawers spaced down the left edge, each with its own tab, and
+     each given a third of the edge's height from the start. A drawer
+     opens into its own third and no further, so any of them can be open
+     together and none moves another: every tab stands where it always
+     stood, open or shut. The drawers are the same size, and a list longer
+     than its drawer scrolls inside it.
 
-     It used to be two drawers that shared the edge's height, each opening
-     beside its own tab. Opening one pushed the other's tab down the
-     screen, a long tag list made its drawer as tall as the canvas, and two
-     open drawers read as two unrelated boxes. */
+     They were briefly pages of one window. That made the sizes equal and
+     the tabs still, and it also meant one page at a time — the tags could
+     not stay open while a reference was looked up. */
   .side-tabs{
     --side-tab-len:118px;
-    --side-tab-gap:6px;
-    position:absolute;top:14px;left:0;
+    --side-tab-gap:8px;
+    position:absolute;top:14px;bottom:14px;left:0;
     width:26px;
-    height:min(calc(var(--side-tab-len) * 3 + var(--side-tab-gap) * 2), calc(100% - 28px));
     z-index:30;
-    /* The column is as tall as the window; only the tabs and the open
-       page should take a click. */
+    /* The column is as tall as the canvas; only the tabs and the open
+       drawers should take a click. */
     pointer-events:none;
   }
-  .side-tab{display:contents;}
+  /* Each drawer's third. The tab sits at the top of it; the drawer, when
+     open, fills it beside the tab. */
+  .side-tab{
+    position:absolute;left:0;
+    height:calc((100% - var(--side-tab-gap) * 2) / 3);
+  }
+  #tagsPanel{top:0;}
+  #refsPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap));}
+  #keyPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2);}
   .side-tab-body{
     position:absolute;left:25px;top:0;bottom:0;
     width:252px;
@@ -993,9 +998,8 @@
   }
   .side-tab.open .side-tab-body{visibility:visible;}
   .side-tab-handle{
-    position:absolute;left:0;
-    width:26px;height:var(--side-tab-len);padding:0;
-    max-height:calc((100% - var(--side-tab-gap) * 2) / 3);
+    position:absolute;left:0;top:0;
+    width:26px;height:min(var(--side-tab-len), 100%);padding:0;
     background:var(--panel);color:var(--ink-dim);
     border:1px solid var(--line);border-left:none;
     border-radius:0 6px 6px 0;
@@ -1005,28 +1009,12 @@
     cursor:pointer;
     pointer-events:auto;
   }
-  /* Each at its own place down the spine, open or shut. The length is
-     shared out of whatever height there is, so on a short screen they
-     shrink together rather than the last one falling off the bottom. */
-  #tagsTab{top:0;}
-  #refsTab{top:min(calc(var(--side-tab-len) + var(--side-tab-gap)),
-                   calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap)));}
-  #keyTab{top:min(calc((var(--side-tab-len) + var(--side-tab-gap)) * 2),
-                  calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2));}
-  /* While the window is open its tabs are its spine: square on the left
-     where they meet the edge of the screen, and the one whose page is
-     showing joined to the page — same ground, no rule between them —
-     the way the tab of a folder is part of the folder. */
-  .side-tabs.open .side-tab-handle{border-radius:0;box-shadow:none;background:var(--panel-2);}
-  .side-tabs.open .side-tab.open .side-tab-handle{
+  /* An open drawer and its tab are one thing: the tab takes the drawer's
+     ground and covers the rule between them, the way the tab of a folder
+     is part of the folder. */
+  .side-tab.open .side-tab-handle{
     background:var(--panel);width:27px;z-index:1;border-right:none;
-  }
-  .side-tabs.open::before{
-    /* The spine itself, behind the tabs: what makes three tabs and a page
-       one window rather than four boxes next to each other. */
-    content:'';position:absolute;left:0;top:0;bottom:0;width:26px;
-    background:var(--panel-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);
-    box-shadow:var(--shadow);
+    border-radius:0;box-shadow:none;
   }
   /* Read from the bottom up, the way a spine is labelled. */
   .side-tab-handle span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;white-space:nowrap;}
@@ -1806,8 +1794,9 @@
     border:1.6px solid var(--accent);
     border-radius:5px;
     box-shadow:0 2px 10px rgba(20,28,43,0.16);
-    padding:3px 6px;
+    padding:0;
     max-height:none;
+    overflow:visible;
     text-align:center;
   }
   /* Broken where the THING IT IS STANDING ON breaks it, and nowhere else.
@@ -2313,11 +2302,6 @@
     margin-top:10px;border-bottom-width:2px;
   }
   .legend-section-head:first-child{margin-top:0;}
-  /* Two lists, not one list with a subtitle in the middle. */
-  .legend-section-split{
-    margin-top:22px;padding-top:12px;
-    border-top:1px solid var(--line);
-  }
   .legend-section-head .legend-group-name{font-size:13px;color:var(--ink);}
   /* Unsaved work kept from a page that closed without asking: offered back
      once, at the foot of the canvas, where it does not cover the chart it
@@ -2688,7 +2672,7 @@
     .topbar-stats{display:none;}
     .search-results{max-height:min(320px, 55dvh);}
 
-    .side-tabs{top:8px;height:min(calc(var(--side-tab-len) * 3 + var(--side-tab-gap) * 2), calc(100% - 16px));}
+    .side-tabs{top:8px;bottom:8px;}
     .side-tab-body{width:calc(100vw - 34px);}
     /* The entry drawer is a sheet from the bottom instead. It opens on
        every tap of an entry, so a panel over the whole screen would have

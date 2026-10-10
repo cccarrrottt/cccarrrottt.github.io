@@ -7862,9 +7862,9 @@ async function main(){
     await wait(800);
     {
       out.captionHandle = !!document.querySelector('.node[data-id="rt"] .node-rotate');
-      /* An entry has a handle too, but its own: one that turns in
-         quarters (see "a quarter turn"), not the caption's free one. */
-      out.entryNoHandle = !document.querySelector('.node[data-id="rb"] .node-rotate:not(.node-turn)');
+      /* An entry turns in quarters, from its style bar (see "a quarter
+         turn"); it has no handle of either kind. */
+      out.entryNoHandle = !document.querySelector('.node[data-id="rb"] .node-rotate');
       const n = nodes.get('rt');
       const g = document.querySelector('.node[data-id="rt"]');
       applyNodeRotation(n, g, 37);
@@ -12345,37 +12345,39 @@ async function main(){
       return !!(at && at.closest('#' + id));
     };
     out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
-    /* Three pages of one window: the tabs stand still whatever is open,
-       every page is the same box, and only one shows at a time. */
+    /* Three drawers down the left edge: the tabs stand still whatever is
+       open, every drawer is the same size, any of them can be open at
+       once, and no two ever overlap. */
     const tabIds = ['tagsTab', 'refsTab', 'keyTab'];
     const panels = ['tagsPanel', 'refsPanel', 'keyPanel'].map(id=> document.getElementById(id));
     const tabRects = ()=> tabIds.map(id=>{ const r = rect(document.getElementById(id)); return [r.top, r.height].map(v=> Math.round(v)); });
     const shutRects = JSON.stringify(tabRects());
+    const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const states = [];
-    for(const open of panels){
-      setSideTab(open, true);
+    for(const mask of [[1,0,0],[0,1,0],[0,0,1],[1,1,0],[0,1,1],[1,1,1]]){
+      panels.forEach((p, i)=> setSideTab(p, !!mask[i]));
       await wait(60);
       const bodies = panels.map(p=> p.querySelector('.side-tab-body'));
-      states.push({id: open.id,
+      const open = bodies.filter((b, i)=> mask[i]);
+      states.push({mask: mask.join(''),
         tabsStill: JSON.stringify(tabRects()) === shutRects,
         tabsFree: tabIds.every(tabFree),
-        onlyOne: panels.every(p=> getComputedStyle(p.querySelector('.side-tab-body')).visibility ===
-                                  (p === open ? 'visible' : 'hidden')),
-        box: bodies.map(b=> { const r = rect(b); return [r.left, r.top, r.width, r.height].map(v=> Math.round(v)).join(); })});
+        shown: panels.every((p, i)=> getComputedStyle(bodies[i]).visibility === (mask[i] ? 'visible' : 'hidden')),
+        apart: open.every((b, i)=> open.every((c, j)=> i === j || !overlap(rect(b), rect(c)))),
+        sizes: bodies.map(b=> { const r = rect(b); return [r.width, r.height].map(v=> Math.round(v)).join('x'); })});
     }
-    setSideTab(panels[2], false);
+    panels.forEach(p=> setSideTab(p, false));
     out.tabStates = states;
-    out.tabsApart = states.every(s=> s.tabsStill && s.tabsFree && s.onlyOne &&
-      new Set(s.box).size === 1) && new Set(states.map(s=> s.box[0])).size === 1;
+    out.tabsApart = states.every(s=> s.tabsStill && s.tabsFree && s.shown && s.apart &&
+      new Set(s.sizes).size === 1);
     out.tabLengths = tabRects().map(r=> r[1]);
-    /* A press on another tab turns the page; a press on the open one
-       shuts the window. */
+    /* A press on one tab leaves the others as they were. */
+    setSideTab(refs, true);
     document.getElementById('tagsTab').click();
-    document.getElementById('refsTab').click();
-    out.pressTurns = !tags.classList.contains('open') && refs.classList.contains('open');
-    document.getElementById('refsTab').click();
-    out.pressShuts = panels.every(p=> !p.classList.contains('open')) &&
-      !document.getElementById('sideTabs').classList.contains('open');
+    out.pressTurns = tags.classList.contains('open') && refs.classList.contains('open');
+    document.getElementById('tagsTab').click();
+    out.pressShuts = !tags.classList.contains('open') && refs.classList.contains('open');
+    setSideTab(refs, false);
     /* A list longer than the window scrolls inside it, with a bar. */
     applyEdit(()=>{ for(let i = 0; i < 40; i++) REFS.push({key:'tz' + i, title:'', detail:'Filler ' + i}); });
     buildSideTabs();
@@ -12430,10 +12432,10 @@ async function main(){
   check('an empty remark, pinned or not, is one grid step square', rT.emptyIsStep, JSON.stringify(rT.empty));
   check('and a step snapped to comes out clean', rT.snapClean);
   check('the top bar has no menu for tags and references', rT.noToolbarButton);
-  check('tags, references and the legend are pages of one window whose tabs never move',
+  check('tags, references and the legend are three drawers that open together and never move or overlap',
         rT.tabsApart, JSON.stringify(rT.tabStates));
   check('and the three tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
-  check('pressing another tab turns the page, pressing the open one shuts it', rT.pressTurns && rT.pressShuts);
+  check('pressing one tab leaves the others as they were', rT.pressTurns && rT.pressShuts);
   check('a list longer than the window scrolls inside it', rT.scrolls);
   check('each tab has its own search and its own +', rT.ownTools);
   check('the references can be searched, by words or by number',
@@ -12767,11 +12769,13 @@ async function main(){
       await wait(150);
       const m = nodes.get('bq3');
       out.turnSwapped = Math.abs(m.w - before.h) < 0.6 && Math.abs(m.h - before.w) < 0.6;
-      out.turnCentre = Math.abs(m.x + m.w/2 - before.cx) <= GRID/2 + 0.01 && Math.abs(m.y + m.h/2 - before.cy) <= GRID/2 + 0.01;
-      const t = document.querySelector('.node[data-id="bq3"] text');
-      out.turnText = /^rotate\(90,/.test(t.getAttribute('transform') || '');
+      out.turnCentre = Math.abs(m.x + m.w/2 - before.cx) < 0.02 && Math.abs(m.y + m.h/2 - before.cy) < 0.02;
+      /* The whole drawing turns, in one group inside the entry's own. */
+      const t = document.querySelector('.node[data-id="bq3"] > .node-turned');
+      out.turnText = !!t && /^rotate\(90,/.test(t.getAttribute('transform') || '') &&
+        !!t.querySelector('text') && !!t.querySelector('rect');
       /* The words stand inside the turned box. */
-      const tb = t.getBoundingClientRect(), bb = document.querySelector('.node[data-id="bq3"] rect').getBoundingClientRect();
+      const tb = t.querySelector('text').getBoundingClientRect(), bb = t.querySelector('rect').getBoundingClientRect();
       out.turnTextInside = tb.height > tb.width && tb.top >= bb.top - 1 && tb.bottom <= bb.bottom + 1;
       out.turnStored = /rot:90/.test(serializeNodes(workingNodes.filter(it=> it[0] === 'bq3')));
       /* A connector meets the turned box, not the one it used to be. */
@@ -12781,12 +12785,15 @@ async function main(){
       /* Four quarters are a whole turn, and back where it started. */
       for(const d of [180, 270, 0]){ turnEntryTo('bq3', d); await wait(80); }
       const z = nodes.get('bq3');
-      out.turnHome = Math.abs(z.x + z.w/2 - before.cx) < GRID && Math.abs(z.w - before.w) < 0.6 && !z.rot;
-      /* A caption, a portrait, a picture and a card do not turn in quarters. */
-      out.turnOnlyEntries = !quarterTurnable({shape:'textbox'}) && !quarterTurnable({shape:'ellipse'}) &&
-        !quarterTurnable({shape:'image'}) && !quarterTurnable({card:true}) && quarterTurnable({shape:null});
-      out.turnHandle = !!document.querySelector('.node[data-id="bq5"] .node-turn') &&
-        !document.querySelector('.node[data-id="bq5"] .node-rotate:not(.node-turn)');
+      out.turnHome = Math.abs(z.x + z.w/2 - before.cx) < 0.02 && Math.abs(z.y + z.h/2 - before.cy) < 0.02 &&
+        Math.abs(z.w - before.w) < 0.6 && !z.rot;
+      /* Everything turns in quarters but a caption, which turns freely. */
+      out.turnOnlyEntries = !quarterTurnable({shape:'textbox'}) && quarterTurnable({shape:'ellipse'}) &&
+        quarterTurnable({shape:'image'}) && quarterTurnable({card:true}) && quarterTurnable({shape:null}) &&
+        quarterTurnable({shape:'amalgam'}) && quarterTurnable({shape:'callout'});
+      /* …by a button in the style bar, not by a handle on the entry. */
+      out.turnHandle = !document.querySelector('.node .node-turn') &&
+        !document.querySelector('.node[data-id="bq5"] .node-rotate');
     }
 
     refill(EDGE_STYLES, beforeStyles);
@@ -12814,7 +12821,8 @@ async function main(){
   check('and its words turn with it, inside it', rQ.turnText && rQ.turnTextInside);
   check('a connector meets the turned box', rQ.turnPort);
   check('four quarters bring it home', rQ.turnHome);
-  check('only entries turn in quarters, by their own handle', rQ.turnOnlyEntries && rQ.turnHandle);
+  check('everything but a caption turns in quarters, and no entry wears a turning handle',
+        rQ.turnOnlyEntries && rQ.turnHandle);
 
   /* ---- unsaved work outlives a page that closes without asking ---- */
   {
@@ -12866,6 +12874,178 @@ async function main(){
       await c3.close();
     }
   }
+  });
+
+  /* ---- a hand route that cannot be drawn, a lineage without an S, a turn from the bar, an editor the size of its entry ---- */
+  await scenario("a hand route that cannot be drawn, a straight lineage, a turn button and a field the size of its entry", async () => {
+  const rW = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const DX = 8000, DY = 8000;
+    const at = (x, y)=> [+(x + DX).toFixed(2), +(y + DY).toFixed(2)];
+    const broken = (pts, a, b)=>{
+      if(!pts || pts.length < 2) return 'no route';
+      const boxes = [a, b].map(n=> ({x0:n.x + 1.5, y0:n.y + 1.5, x1:n.x + n.w - 1.5, y1:n.y + n.h - 1.5}));
+      for(let i = 1; i < pts.length - 2; i++){
+        if(boxes.some(r=> segIntersectsRect(pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y, r))) return 'through ' + i;
+      }
+      for(let i = 0; i + 2 < pts.length; i++){
+        const u = segDir(pts[i], pts[i+1]), v = segDir(pts[i+1], pts[i+2]);
+        if(u && v && u.x === -v.x && u.y === -v.y) return 'back ' + i;
+      }
+      return null;
+    };
+    const drawn = (f, t)=>{
+      const p = document.querySelector(`#edgeLayer path.edge.struct[data-from="${f}"][data-to="${t}"]`);
+      if(!p) return null;
+      const nums = (p.getAttribute('d').match(/-?\d+(\.\d+)?/g) || []).map(Number);
+      const pts = [];
+      for(let i = 0; i + 1 < nums.length; i += 2) pts.push({x: nums[i], y: nums[i+1]});
+      return pts;
+    };
+
+    /* The two the owner drew in ordinary work and saved: a bend between two
+       entries that only a route through one of them could reach, and the
+       same under an entry turned upside down. */
+    applyEdit(()=>{
+      workingNodes.push(['hw3', 'Прчоао', null, null, null, null, {pos: at(-171.19, 113.88)}]);
+      workingNodes.push(['hw4', 'Човьлы', 'hw3', null, null, null, {pos: at(-221.59, 134.02)}]);
+      workingNodes.push(['hw5', 'Пролл', null, null, null, null, {pos: at(-142.71, 253.7)}]);
+      workingNodes.push(['hw6', 'Гаягкягкч', 'hw5', null, null, null, {pos: at(-70.49, 234.72), rot:180}]);
+      EDGE_STYLES.push({from:'hw3', to:'hw4', routing:'orthogonal', dash:'solid', arrow:true,
+                        bends:[at(-201.4, 191.33)], fromSide:'bottom', toSide:'bottom'});
+      EDGE_STYLES.push({from:'hw5', to:'hw6', routing:'orthogonal', dash:'solid', arrow:true,
+                        bends:[at(-40.28, 211.47)], fromSide:'top', toSide:'top', square:true});
+    });
+    await wait(300);
+    out.saved = [['hw3','hw4'], ['hw5','hw6']].map(([f, t])=> broken(drawn(f, t), nodes.get(f), nodes.get(t)));
+
+    /* And every bend on a coarse grid round two entries, from every side to
+       every side: none may come out through an end or doubled back. */
+    const bad = [];
+    for(const [bx, by] of [[120, 60], [-30, 25]]){
+      applyEdit(()=>{
+        workingNodes = workingNodes.filter(it=> !/^hz/.test(it[0]));
+        workingNodes.push(['hzA', 'Alpha one', null, null, null, null, {pos: at(0, 600)}]);
+        workingNodes.push(['hzB', 'Beta', 'hzA', null, null, null, {pos: at(bx, 600 + by)}]);
+      });
+      const a = nodes.get('hzA'), b = nodes.get('hzB');
+      for(const fs of ['top','bottom','left','right']) for(const ts of ['top','bottom','left','right']){
+        const p1 = Object.assign(portOnSide(a, fs, 0, 1), {owner:'hzA'});
+        const p2 = Object.assign(portOnSide(b, ts, 0, 1), {owner:'hzB'});
+        for(let gx = -60; gx <= 180; gx += 40) for(let gy = -60; gy <= 120; gy += 40){
+          const st = Object.assign({}, DEFAULT_EDGE_STYLE, {bends:[[a.x + gx, a.y + gy]]});
+          resetRoutedSegments();
+          const why = broken(pathFromPorts(p1, p2, st, new Set(['hzA','hzB']), 0).pts, a, b);
+          if(why) bad.push([bx, fs, ts, gx, gy, why].join(' '));
+        }
+      }
+    }
+    out.fuzz = bad;
+
+    /* Two lineages leaving along the bar's own direction: each turns once
+       towards the bar and once onto it, and never makes an S. */
+    const G = GRID;
+    applyEdit(()=>{
+      workingNodes.push(['hmA', 'фыфывфывфыв', null, null, null, null, {pos: at(0, 1200)}]);
+      workingNodes.push(['hmB', 'фячсячс', null, null, null, null, {pos: at(G, 1200 + G*18)}]);
+      workingNodes.push(['hmT', 'фывфыв', ['hmA','hmB'], null, null, 'amalgam', {pos: at(G*34, 1200 + G*9)}]);
+      EDGE_STYLES.push({from:'hmA', to:'hmT', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom'});
+      EDGE_STYLES.push({from:'hmB', to:'hmT', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'top'});
+    });
+    await wait(300);
+    out.lineages = ['hmA', 'hmB'].map(f=>{
+      const p = [...document.querySelectorAll('#edgeLayer path.edge')].find(e=> e.dataset.from === f && e.dataset.to === 'hmT');
+      return p ? (p.getAttribute('d').match(/Q/g) || []).length : -1;
+    });
+
+    /* The turn is a button in the style bar, on every kind of entry. */
+    applyEdit(()=>{
+      workingNodes.push(['htR', 'A long entry name', null, null, null, null, {pos: at(0, 1700), tags:['fan-fiction']}]);
+      workingNodes.push(['htC', 'Card entry', null, null, 'Note body', null, {pos: at(300, 1700), card:true}]);
+      workingNodes.push(['htP', 'Portrait', null, null, null, 'ellipse', {pos: at(0, 1900)}]);
+      workingNodes.push(['htT', 'Caption', null, null, null, 'textbox', {pos: at(300, 1900)}]);
+    });
+    await wait(300);
+    const turnBtn = ()=> document.querySelector('#styleBar [data-group="turn"] button');
+    out.turned = {};
+    for(const id of ['htR', 'htC', 'htP']){
+      const n = nodes.get(id);
+      const was = {cx: n.x + n.w/2, cy: n.y + n.h/2, w: n.w, h: n.h};
+      openStyleBar({kind:'node', id});
+      const btn = turnBtn();
+      if(!btn || btn.parentNode.hidden || styleBar.hidden){ out.turned[id] = 'no button'; continue; }
+      btn.click();
+      await wait(120);
+      const m = nodes.get(id);
+      const wrap = document.querySelector(`.node[data-id="${id}"] > .node-turned`);
+      out.turned[id] = quarterTurnOf(m) === 90 && !!wrap &&
+        Math.abs(m.w - was.h) < 0.6 && Math.abs(m.h - was.w) < 0.6 &&
+        Math.abs(m.x + m.w/2 - was.cx) < 0.02 && Math.abs(m.y + m.h/2 - was.cy) < 0.02 &&
+        styleBarTarget && styleBarTarget.id === id && !styleBar.hidden;
+    }
+    /* Its ground turns with it, and keeps the turn while it is carried. */
+    const piece = fanLayer.querySelector('[data-ground="htR"] > *');
+    out.groundTurned = !!piece && /^rotate\(90,/.test(piece.dataset.rotTransform || '');
+    /* A caption has no style bar, so no quarter turn either. */
+    openStyleBar({kind:'node', id:'htT'});
+    out.captionNoBar = styleBar.hidden;
+    /* A picture has the same button in its own menu. */
+    applyEdit(()=>{ workingNodes.push(['htI', '', null, null, null, 'image', {pos: at(600, 1900), size:[120, 60]}]); });
+    await wait(200);
+    openFreeMenu('htI');
+    document.getElementById('freeMenuTurn').click();
+    await wait(150);
+    closeFreeMenu();
+    const pic = nodes.get('htI');
+    out.pictureTurned = quarterTurnOf(pic) === 90 && Math.abs(pic.w - 60) < 0.6 && Math.abs(pic.h - 120) < 0.6;
+
+    /* The field opens exactly over the entry, at whatever zoom — never
+       bigger — and is turned with a turned one. */
+    applyEdit(()=>{
+      workingNodes.push(['heA', 'Ab', null, null, null, null, {pos: at(0, 2300)}]);
+      workingNodes.push(['heB', 'Two\nlines', null, null, null, null, {pos: at(100, 2300)}]);
+      workingNodes.push(['heC', '', null, null, null, 'callout', {pos: at(200, 2300)}]);
+    });
+    await wait(300);
+    const sizes = [];
+    const vs0 = vs, vx0 = vx, vy0 = vy;
+    for(const z of [0.5, 1, 2.5]){
+      const n0 = nodes.get('heA');
+      vs = z; vx = 300 - n0.x*vs; vy = 300 - n0.y*vs; applyTransform();
+      for(const id of ['heA', 'heB', 'heC', 'htR']){
+        openNodeEditor(id);
+        await wait(60);
+        const f = richFields.get('nodeEditorText').surface.getBoundingClientRect();
+        const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
+        if(f.width > b.width + 0.6 || f.height > b.height + 0.6 ||
+           f.left < b.left - 0.6 || f.top < b.top - 0.6) sizes.push([z, id, f.width, f.height, b.width, b.height].join(' '));
+        closeNodeEditor(true);
+      }
+    }
+    vs = vs0; vx = vx0; vy = vy0; applyTransform();
+    out.editorTooBig = sizes;
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart();
+    await wait(300);
+    return out;
+  });
+  check('the bends the owner saved no longer send a line through an entry or back on itself',
+        rW.saved.every(f=> !f), JSON.stringify(rW.saved));
+  check('no hand bend anywhere round two entries breaks the route', !rW.fuzz.length, rW.fuzz.slice(0, 4).join(' | '));
+  check('a lineage leaving along the bar turns only towards it and onto it',
+        rW.lineages.every(k=> k >= 0 && k <= 2), JSON.stringify(rW.lineages));
+  check('the style bar turns an entry, a card and a portrait a quarter clockwise, in place',
+        Object.values(rW.turned).every(v=> v === true), JSON.stringify(rW.turned));
+  check('a turned entry\'s ground turns with it', rW.groundTurned);
+  check('a caption is not given the quarter turn', rW.captionNoBar);
+  check('a picture turns from its own menu', rW.pictureTurned);
+  check('the inline field opens no bigger than its entry, at any zoom and turned or not',
+        !rW.editorTooBig.length, rW.editorTooBig.slice(0, 4).join(' | '));
   });
 
   /* ---- 29. nothing threw along the way ---- */

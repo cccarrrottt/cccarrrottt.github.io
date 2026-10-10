@@ -787,7 +787,8 @@ function pushBlockers(st){
     if(p.g) p.g.setAttribute('transform',
       `translate(${p.pushX},${p.pushY}) ${p.g.dataset.rotTransform || ''}`.trim());
     if(p.aura) p.aura.setAttribute('transform', `translate(${p.pushX},${p.pushY})`);
-    (p.fan || []).forEach(f=> f.setAttribute('transform', `translate(${p.pushX},${p.pushY})`));
+    (p.fan || []).forEach(f=> f.setAttribute('transform',
+      `translate(${p.pushX},${p.pushY}) ${f.dataset.rotTransform || ''}`.trim()));
   });
   return moved;
 }
@@ -880,7 +881,8 @@ window.addEventListener('mousemove', e=>{
       if(m.g) m.g.setAttribute('transform',
         `translate(${dOffX},${dOffY}) ${m.g.dataset.rotTransform || ''}`.trim());
       if(m.aura) m.aura.setAttribute('transform', `translate(${dOffX},${dOffY})`);
-      (m.fan || []).forEach(f=> f.setAttribute('transform', `translate(${dOffX},${dOffY})`));
+      (m.fan || []).forEach(f=> f.setAttribute('transform',
+        `translate(${dOffX},${dOffY}) ${f.dataset.rotTransform || ''}`.trim()));
     });
     pushBlockers(st);
     queueDragRedraw(st);
@@ -944,7 +946,8 @@ window.addEventListener('mousemove', e=>{
     if(m.g) m.g.setAttribute('transform',
       `translate(${offX},${offY}) ${m.g.dataset.rotTransform || ''}`.trim());
     if(m.aura) m.aura.setAttribute('transform', `translate(${offX},${offY})`);
-    (m.fan || []).forEach(f=> f.setAttribute('transform', `translate(${offX},${offY})`));
+    (m.fan || []).forEach(f=> f.setAttribute('transform',
+      `translate(${offX},${offY}) ${f.dataset.rotTransform || ''}`.trim()));
   });
   pushBlockers(st);
   /* The entries themselves move on every pointer event — that is a
@@ -1265,12 +1268,12 @@ window.addEventListener('mouseup', ()=>{
  * the caption back level.
    ------------------------------------------------------------------ */
 let nodeRotateState = null;
-function beginNodeRotate(ev, n, g, quarter){
+function beginNodeRotate(ev, n, g){
   if(ev.button !== 0 || readOnlyView) return;
   ev.stopPropagation();
   ev.preventDefault();
   nodeRotateState = {
-    node: n, g, quarter: !!quarter,
+    node: n, g,
     cx: n.x + n.w/2, cy: n.y + n.h/2,
     start: n.rot || 0, moved: false,
     startClientX: ev.clientX, startClientY: ev.clientY
@@ -1300,8 +1303,7 @@ window.addEventListener('mousemove', e=>{
   const p = clientToWorld(e.clientX, e.clientY);
   const now = Math.atan2(p.y - st.cy, p.x - st.cx) * 180/Math.PI;
   let deg = st.start + (now - st.grab);
-  if(st.quarter) deg = Math.round(deg / 90) * 90;
-  else if(e.shiftKey) deg = Math.round(deg / ROT_SNAP) * ROT_SNAP;
+  if(e.shiftKey) deg = Math.round(deg / ROT_SNAP) * ROT_SNAP;
   st.at = applyNodeRotation(st.node, st.g, deg);
 });
 window.addEventListener('mouseup', ()=>{
@@ -1309,17 +1311,6 @@ window.addEventListener('mouseup', ()=>{
   nodeRotateState = null;
   if(!st) return;
   document.body.classList.remove('rotating');
-  if(st.quarter){
-    /* A press without a drag is a quarter clockwise; a drag is wherever it
-       was let go. The preview turned the whole drawing about its middle,
-       which is what the turned entry will look like — so its middle is
-       where the turned entry is put. */
-    const to = st.moved ? (st.at || 0) : (st.start + 90) % 360;
-    st.node.rot = st.start || undefined;
-    if(st.moved){ suppressNodeClick = true; setTimeout(()=>{ suppressNodeClick = false; }, 0); }
-    turnEntryTo(st.node.id, to);
-    return;
-  }
   if(!st.moved) return;
   // The click that ends the drag must not also select or open anything.
   suppressNodeClick = true;
@@ -1360,7 +1351,10 @@ function turnEntryTo(id, deg){
   });
   const m = nodes.get(id);
   if(!pinned || !m) return;
-  const dx = snapToGrid(cx - (m.x + m.w/2)), dy = snapToGrid(cy - (m.y + m.h/2));
+  /* Not rounded to the grid: rounding moved the middle by up to half a
+     step, so a box turned in place visibly hopped, and four turns did not
+     bring it back to where it started. */
+  const dx = round2(cx - (m.x + m.w/2)), dy = round2(cy - (m.y + m.h/2));
   if(!dx && !dy) return;
   const found = workingEntry(id);
   if(!found) return;

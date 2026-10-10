@@ -18,21 +18,33 @@ Releases before 0.9.0 were not numbered.
 - **Resize handles are dots on the corners**, shown on hover. The old
   hatched squares were ten units a side, as big as the smallest entry, so
   an empty box was four grips with no middle left to drag or click.
-- **Tags, References and the new Legend are pages of one window.** The
-  three tabs are the same length and stand still whether the window is open
-  or not; every page is the same size, and a long list scrolls inside it
-  with a visible bar. Pressing another tab turns the page; pressing the open
-  one shuts the window.
+- **Tags, References and the new Legend are three drawers down the left
+  edge**, each with its own third of the height, so any of them can be open
+  at once and none moves or covers another. The tabs are the same length and
+  stand still open or shut; a long list scrolls inside its drawer with a
+  visible bar. Escape shuts every open drawer.
 - **The Legend** lists the marks that are actually on the chart (kinds of
   entry, border styles, the four drawing tags, connector styles, citations),
   each drawn as it appears. What a mark means is written beside it and kept
   in `SETTINGS.legend`; the program's own meanings (a remark, a merge, the
   drawing tags, a citation) are offered until replaced.
-- **Entries turn in quarters.** A round arrow off the bottom-right corner turns
-  an entry a quarter clockwise on a press, or to any side on a drag. The box
-  the chart reasons with is the turned one, so connectors meet it as drawn,
-  and the entry turns about its own middle. Captions still turn freely;
-  portraits, pictures, cards and amalgams do not turn.
+- **Everything but a caption turns in quarters**, by a ⟳ button at the end
+  of the style bar (for a picture, in its own menu): each press is a quarter
+  clockwise, about the entry's own middle. The whole drawing turns — box,
+  words, card bands, portrait, picture, scenery and ground — and the box the
+  chart reasons with is the turned one, so connectors, grips and badges meet
+  it as drawn. Captions still turn freely by their own handle.
+- **A hand route that cannot be drawn cleanly is not drawn.** A bend that
+  only a line through one of its own entries, or one doubling back on
+  itself, could reach now gives way to the automatic route
+  (`handRouteBroken`). A sweep of every side pair against a grid of bends
+  found 1,542 such routes out of 14,880; it finds none now.
+- **A lineage into a merge no longer makes an S.** One leaving its entry
+  along the bar's own direction landed level with its port instead of where
+  its run-out ended, and had to jog to get there.
+- **The field for writing on an entry opens the entry's size**, at any
+  zoom, instead of a wide slab with a floor of its own, and grows with the
+  entry as the words do. On a turned entry it is turned with it.
 - **Unsaved work survives a power cut.** A moment after each edit the
   unsaved chart is kept in this browser (IndexedDB). The next time the page
   opens it offers the copy back, Restore or Discard, and puts nothing back

@@ -350,27 +350,15 @@ const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel'];
 function sideTabsOpen(){
   return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
 }
-/* Opening or shutting one page of the side window. The three are pages of
-   ONE window, the same size and in the same place, so opening one turns
-   to it and the page that was showing goes behind; shutting the page that
-   is showing shuts the window. The coordinates readout stands clear of
-   whatever is open. */
+/* Opening or shutting one drawer. The others are left exactly as they
+   were — each has its own third of the edge, so none has to make way by
+   closing. The coordinates readout stands clear of whatever is open. */
 function setSideTab(panel, open){
   if(!panel) return;
-  if(open) SIDE_TABS.forEach(id=>{
-    const other = document.getElementById(id);
-    if(other && other !== panel && other.classList.contains('open')){
-      other.classList.remove('open');
-      const h = other.querySelector('.side-tab-handle');
-      if(h) h.setAttribute('aria-expanded', 'false');
-    }
-  });
   panel.classList.toggle('open', !!open);
   const handle = panel.querySelector('.side-tab-handle');
   if(handle) handle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  const any = sideTabsOpen().length > 0;
-  document.getElementById('sideTabs').classList.toggle('open', any);
-  document.body.classList.toggle('side-tab-open', any);
+  document.body.classList.toggle('side-tab-open', sideTabsOpen().length > 0);
   if(open && panel.id === 'keyPanel') buildKeyTab();
 }
 SIDE_TABS.forEach(id=>{
@@ -500,8 +488,8 @@ document.addEventListener('keydown', e=>{
     // a Delete button, over an element that was no longer selected.
     if(freeMenu.classList.contains('open')){ closeFreeMenu(); return; }
     if(detailEditForm.style.display==='block'){ closeEditForm(); return; }
-    /* Last of all, since it is what stays open while the chart is worked
-       on. */
+    /* Last of all, since they are what stays open while the chart is
+       worked on: every open drawer at once. */
     const tabs = sideTabsOpen();
     if(tabs.length){ tabs.forEach(p=> setSideTab(p, false)); return; }
     deselect(); searchResults.classList.remove('show'); searchInput.blur();

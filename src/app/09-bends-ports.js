@@ -97,11 +97,38 @@ function usableHandBends(style, a, b){
  * is arriving at and comes back up into the port from underneath is not a
  * deliberate route, it is the only shape the L happened to have. The box
  * is the one the reader sees, outer rings and all. */
+/* …and a little more than the box. Measured to the box itself, a run that
+ * passed a unit inside the border or a unit outside it counted as clear,
+ * and was drawn ON the border — a connector laid along its own entry's
+ * edge, then hooking into the port from the far side. Nothing reaches
+ * these boxes but the legs between the two run-outs, and every run-out
+ * stands further out than this, so the margin costs no route that was
+ * ever right. */
+const OWN_BOX_CLEAR = 3;
 function ownEndBoxes(p1, p2){
   return [p1, p2].map(p=> nodes.get(p && p.owner)).filter(Boolean).map(n=>{
-    const m = 1.5 - outerRingOf(n);   // the innermost border belongs to the connector
-    return {x0:n.x + m, y0:n.y + m, x1:n.x + n.w - m, y1:n.y + n.h - m};
+    const m = OWN_BOX_CLEAR + outerRingOf(n);
+    return {x0:n.x - m, y0:n.y - m, x1:n.x + n.w + m, y1:n.y + n.h + m};
   });
+}
+/* Whether a route built through hand bends came out as one nobody would
+ * draw: a leg between the two run-outs through either of its own entries,
+ * or a run that turns straight back on the one before it. Either is the
+ * mark of bends that cannot all be honoured from these two ports — and a
+ * connector that ignores them reads correctly, where one that obeys them
+ * does not. */
+function handRouteBroken(pts, p1, p2){
+  if(!pts || pts.length < 2) return true;
+  const boxes = ownEndBoxes(p1, p2);
+  for(let i = 1; i < pts.length - 2; i++){
+    const a = pts[i], b = pts[i+1];
+    if(boxes.some(r=> segIntersectsRect(a.x, a.y, b.x, b.y, r))) return true;
+  }
+  for(let i = 0; i + 2 < pts.length; i++){
+    const u = segDir(pts[i], pts[i+1]), v = segDir(pts[i+1], pts[i+2]);
+    if(u && v && u.x === -v.x && u.y === -v.y) return true;
+  }
+  return false;
 }
 function bentRoute(p1, p2, handBendsList){
   const s1 = stubPoint(p1, handBendsList[0]);
@@ -271,9 +298,15 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
    * connector may be given points it must pass through, and where it has
    * them they ARE the route — no search, no avoidance, no second-guessing
    * a placement somebody made on purpose. */
-  const hand = usableHandBends(style, nodes.get(p1 && p1.owner), nodes.get(p2 && p2.owner));
+  let hand = usableHandBends(style, nodes.get(p1 && p1.owner), nodes.get(p2 && p2.owner));
+  let bent = hand.length ? bentRoute(q1, q2, hand) : null;
+  /* Bends that cannot be honoured cleanly are not honoured at all. They
+     stay where they were put — the handles still show them, and moving an
+     entry or a bend can make them good again — but the line is drawn as
+     though they were not there. */
+  if(bent && handRouteBroken(bent, q1, q2)){ hand = []; bent = null; }
   const pts = sinkEnds(
-    hand.length ? bentRoute(q1, q2, hand)
+    bent ? bent
       : style.routing === 'straight' ? [p1,p2]
       : squareUp(levelSlivers(orthPointsAvoiding(q1,q2,excludeIds,lane)), q1, q2),
     r1, r2);
