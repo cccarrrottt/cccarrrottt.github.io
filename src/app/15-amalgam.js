@@ -531,6 +531,9 @@ function drawAmalgam(list, ports){
      it was given (see noteAimOf). The apparatus had become an elaborate
      way of computing an answer nobody reads. */
 
+  /* Each middle lineage's run along the bar, as drawn — the reach below
+     has to lie on exactly the same line where it crosses one. */
+  const stretches = [];
   members.forEach((e, i)=>{
     const a = nodes.get(e.from);
     const recM = ports.get(e);
@@ -602,7 +605,19 @@ function drawAmalgam(list, ports){
     const bar = Math.abs(inward - o) > 0.5 ? barPt(inward) : null;
     const joined = (bar && onEnd) ? pts.concat([bar]) : pts;
     let d = style.sinusoid ? wavyPath(joined) : roundedPath(joined, edgeCornerR(style));
-    if(bar && !onEnd) d += ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
+    /* A wavy lineage waves along its stretch of the bar too. The stretch
+       is its own run, started afresh at the landing, so the T stays a T:
+       the upright arrives at the bar and the ripple sets off along it,
+       rather than one wave laid round the corner as though the line turned
+       there. It was always drawn straight, so a lineage set to wavy came
+       down rippling and then ran the whole of its colour along the bar as
+       a plain line. A wave fits whole lengths into its run and so ends on
+       the bar's own line, where the next colour picks up. */
+    if(bar && !onEnd){
+      d += style.sinusoid ? ' ' + wavyPath([land, bar])
+                          : ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
+      stretches[i] = {land, bar, wavy: !!style.sinusoid};
+    }
     /* What the reader sees, whichever way the corner was drawn. `joined`
        carries the bar leg only for the two end lineages, so anchoring a
        note on it put a note on a MIDDLE lineage back on the short routed
@@ -636,6 +651,45 @@ function drawAmalgam(list, ports){
      nothing else, leaving the merged arrow to carry whatever is still
      there. Naming a source here — it used to name the first member — meant
      hiding one tag could delete the arrow the whole amalgam hangs from. */
+  /* The lineage next to the junction runs on INTO it.
+   *
+   * The colours hand over at the seam, the middle of the ground the
+   * lineages cover, and that point stands still whatever the entry does
+   * (see the seam above). The merged arrow leaves from in front of the
+   * entry, and the two are rarely the same point. Between them lay a few
+   * units of bar that belonged to the lineage on the far side — which no
+   * one sees while the merge is all one ink, and which every reader sees
+   * the moment one lineage is lit: its line came down, turned, ran a
+   * stub's length and stopped just short of the dot it was plainly
+   * feeding, the bar between dimmed with the rest. So the lineage on the
+   * near side of the junction carries its own line on to it. Its stretch,
+   * and so the seam and anything anchored on the stretch, is unchanged;
+   * this is only the last few units of line, drawn over its neighbour's. */
+  if(Math.abs(junction - seam) > 0.5){
+    const k = junction > seam ? bounds.findIndex(r=> Math.abs(r.hi - seam) < 1e-6 && r.lo < seam)
+                              : bounds.findIndex(r=> Math.abs(r.lo - seam) < 1e-6 && r.hi > seam);
+    const e = k >= 0 ? members[k] : null;
+    if(e){
+      const style = edgeStyleFor(e.from, e.to);
+      const from = barPt(seam), to = barPt(junction);
+      /* Drawn over its neighbour's stretch, so it takes that stretch's
+         shape: where the neighbour ripples, this is the same ripple cut
+         to the few units between the seam and the junction — a straight
+         piece laid over a wave stood out as a flat bar across its crests. */
+      const j = junction > seam ? bounds.findIndex(r=> Math.abs(r.lo - seam) < 1e-6 && r.hi > seam)
+                                : bounds.findIndex(r=> Math.abs(r.hi - seam) < 1e-6 && r.lo < seam);
+      const under = j >= 0 ? stretches[j] : null;
+      const d = (under && under.wavy)
+        ? wavyPath([under.land, under.bar], Math.hypot(under.land.x - to.x, under.land.y - to.y), 0)
+        : `M${from.x.toFixed(2)},${from.y.toFixed(2)} L${to.x.toFixed(2)},${to.y.toFixed(2)}`;
+      const attrs = {class:'edge struct amalgam-reach',
+                     d,
+                     stroke: amalgamMemberColor(e), 'data-from':e.from, 'data-to':e.to};
+      const dash = DASH_PATTERNS[style.dash];
+      if(dash) attrs['stroke-dasharray'] = dash;
+      edgePath(attrs, Object.assign({}, style, {sinusoid: false}), edgeLayer);
+    }
+  }
   const colors = allMembers.map(amalgamMemberColor);
   // It leaves from a point ON the bar, so the bar and the arrow are one
   // continuous shape rather than a line crossing another line.

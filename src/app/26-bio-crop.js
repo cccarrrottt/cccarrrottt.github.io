@@ -149,9 +149,19 @@ function drawOneBioCard(n, already){
    * left of it and hung off the end. Anything that wants the card as a box
    * has to be told where the box is; measuring the group gives it the
    * whole assembly instead. */
+  /* A turned portrait carries its card round with it: the card is the
+     portrait's own words, standing where the portrait's right-hand side
+     now faces. The turn goes on a group of its own, about the portrait's
+     middle, because the card's group slides in on a CSS transform that
+     would replace one written on it. */
+  const turn = quarterTurnOf(n);
+  const host = turn
+    ? el('g', {class:'bio-card-turn', 'data-turn': turn,
+               transform:`rotate(${turn},${(n.x + n.w/2).toFixed(2)},${cy.toFixed(2)})`}, bioCardLayer)
+    : bioCardLayer;
   const g = el('g', {class:'bio-card-g' + (flip ? ' flip' : ''), 'data-id': n.id,
                      'data-box': [x, y, w, h].map(v=> (+v).toFixed(2)).join(' ')},
-               bioCardLayer);
+               host);
   /* Reading the card means moving onto it, and moving onto it means
      leaving the portrait — which is what closed it. So the card holds
      itself open, and the stub's own width is enough to cross. */

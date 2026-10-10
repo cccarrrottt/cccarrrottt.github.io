@@ -566,8 +566,6 @@ function beginNodeDrag(ev, n, g){
     grabDY: (n.y + n.h/2) - grabAt.y,
     originX: n.x, originY: n.y,
     members: group.map(dragPiece),
-    /* The entries this drag can shove out of its way; see pushBlockers. */
-    pushable: pushCandidates(group),
     /* The hand-set bends of every connector the group carries whole.
      *
      * A bend is stored in chart coordinates, not relative to anything, so
@@ -602,196 +600,13 @@ function dragPiece(id){
            fan: [...fanLayer.querySelectorAll(
                    GROUND_PARTS.split(', ')
                      .map(sel=> `${sel}[data-id="${CSS.escape(id)}"]`).join(', '))],
-           originX: m.x, originY: m.y, pushX: 0, pushY: 0 };
+           originX: m.x, originY: m.y };
 }
-/* How close an entry may be carried to one it is joined to.
- *
- * A connector needs a little room to be a connector: it leaves a port,
- * stands off, turns if it has to, and arrives with an arrowhead. Squeezed
- * below that it has nowhere to put any of it, and what had been a line
- * between two entries became a scribble in the gap — the router doing its
- * best with a space that cannot hold an answer.
- *
- * So the gap is not negotiable. The connector is taken down to the
- * shortest sane length and then the entry in the way is PUSHED: the
- * reader is moving one box towards another, and the honest reading of
- * that gesture is that the second one should get out of the way, not that
- * the line between them should break. */
-/* The shortest gap two joined entries can stand at and still be joined by
-   a LINE — and it is not a number of this mechanism's own choosing. It is
-   the router's own threshold: below MIN_SIDE_GAP the two facing sides are
-   judged too crowded to hold a connector at all and the route is sent
-   round the outside instead, which is the loop out of the bottom of both
-   boxes that reads as the connector breaking. The entry in the way is
-   pushed from exactly the point where the line would stop being a line —
-   and that point has itself been halved, from fifty-two to twenty-six, so
-   two entries may now be brought properly close before either gives way.
-   See MIN_SIDE_GAP, which is where the number is argued. */
-const PUSH_MIN_GAP = MIN_SIDE_GAP;
-/* The entries a drag may push: the ones joined to something being carried
-   and not being carried themselves. Gathered when the drag starts, since
-   the chart's connections do not change while it is under way. */
-function pushCandidates(group){
-  const held = new Set(group);
-  const byId = new Map();
-  structEdges.forEach(e=>{
-    const fromHeld = held.has(e.from), toHeld = held.has(e.to);
-    if(fromHeld === toHeld) return;
-    const otherId = fromHeld ? e.to : e.from;
-    const other = nodes.get(otherId);
-    if(!other || isFreeShape(other.shape || '')) return;
-    /* A merge pushes its parents; its parents do not push it.
-     *
-       The bar hangs from where the lineages are, so the entry is the thing
-       that follows and the parents are the thing followed — carry a parent
-       into the merge and shoving the merge would move the bar, which would
-       move every other lineage on it. The other way round is the honest
-       one: carry the merge up into the row of parents it is made of and
-       they give way. So the only merged lineage that is skipped is the one
-       whose PARENT is being carried. */
-    if(isAmalgamMember(e.from, e.to)
-       && fromHeld) return;
-    let rec = byId.get(otherId);
-    if(!rec){ rec = dragPiece(otherId); rec.links = new Set(); byId.set(otherId, rec); }
-    rec.links.add(fromHeld ? e.from : e.to);
-  });
-  /* An entry that is part of a merge is not pushed on its own: the whole
-   * merge is.
-   *
-   * A merge is a row of lineages hanging one bar between them and the
-   * entry they feed, and its shape is the arrangement. Shoving the one
-   * lineage the carried box happened to run into pulled that lineage out
-   * of the row — its drop onto the bar grew, the bar tilted its landings,
-   * and the merge came out of the gesture rearranged by a box that was
-   * only ever pushed against one corner of it. So the lineage in the way
-   * takes its merge with it: every other lineage, and the amalgam, travel
-   * by exactly the push it was given.
-   *
-   * Carrying the AMALGAM up into its own lineages is the same gesture
-   * from the inside: the row gives way as a row, rather than only the
-   * parents standing over the entry. Carrying one of the LINEAGES is not —
-   * that is rearranging the merge from within, and the sibling in the way
-   * is pushed aside on its own exactly as before. */
-  const teams = new Map();             // a member's id -> its team
-  [...byId.values()].forEach(rec=>{
-    if(teams.has(rec.id)) return;
-    const whole = mergeStructureOf(rec.id);
-    if(whole.size < 2) return;
-    // A lineage in the hand means the merge is being rearranged, not moved.
-    const carried = [...whole].filter(id=> held.has(id));
-    if(carried.some(id=> (nodes.get(id) || {}).shape !== 'amalgam')) return;
-    const team = {pieces: []};
-    whole.forEach(id=>{
-      if(held.has(id)) return;
-      const other = nodes.get(id);
-      if(!other || isFreeShape(other.shape || '')) return;
-      let piece = byId.get(id);
-      if(!piece){ piece = dragPiece(id); piece.links = new Set(); byId.set(id, piece); }
-      piece.team = team;
-      team.pieces.push(piece);
-      teams.set(id, team);
-    });
-    /* And the hand-set bends between them, for the reason the drag's own
-       group carries its bends (see bendCarry): a bend is a point on the
-       chart, and a merge pushed as a row would otherwise be re-drawn back
-       through the place it was pushed away from. */
-    const ids = new Set(team.pieces.map(q=> q.id));
-    team.bends = EDGE_STYLES
-      .filter(o=> Array.isArray(o.bends) && o.bends.length && ids.has(o.from) && ids.has(o.to))
-      .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])}));
-  });
-  return [...byId.values()];
-}
-/* Every entry that belongs to the same merge as this one — the amalgams it
-   feeds or is, every lineage of those, and so on outwards, since a
-   lineage can feed two merges and tie them into one arrangement. A merge
-   is an amalgam with at least two lineages; with one, it is an ordinary
-   connector and nothing hangs between them. */
-function mergeStructureOf(id){
-  const out = new Set();
-  const queue = [id];
-  while(queue.length){
-    const cur = queue.pop();
-    if(out.has(cur)) continue;
-    out.add(cur);
-    nodes.forEach(b=>{
-      if((b.shape || '') !== 'amalgam') return;
-      const ps = (b.parents || []).filter(pid=> nodes.has(pid));
-      if(ps.length < 2) return;
-      if(b.id !== cur && !ps.includes(cur)) return;
-      queue.push(b.id);
-      ps.forEach(pid=> queue.push(pid));
-    });
-  }
-  return out.size > 1 ? out : new Set([id]);
-}
-/* Shove whatever the carried entries have run into, once per pointer move.
- *
- * The push RATCHETS: a shoved entry never slides back when the hand
- * retreats. A box that springs back the moment you give it room is a box
- * on elastic, and the gesture this is answering — carry one entry up
- * against another — reads as moving both, not as stretching something. */
-function pushBlockers(st){
-  if(!st.pushable || !st.pushable.length) return false;
-  let moved = false;
-  st.pushable.forEach(p=>{
-    const b = p.node;
-    st.members.forEach(m=>{
-      if(!p.links.has(m.id)) return;
-      const a = m.node;
-      const bx = p.originX + p.pushX, by = p.originY + p.pushY;
-      /* Only an entry that is IN THE WAY is pushed, and being in the way
-         means standing across the face the connector has to cross.
-       *
-         Growing the carried box by the gap on all four sides and pushing
-         whatever it then touched was much too eager: two entries passing
-         each other diagonally, with clear air between them on both axes,
-         were still inside a corner of that grown box, so one shoved the
-         other aside from a distance of seventy-odd pixels — and shoved it
-         along whichever axis it happened to be least far into, which from
-         a corner is a coin toss. What matters is the pair of facing
-         sides: the boxes have to overlap along one axis, so that a
-         connector between them must live in the gap on the other, and
-         only then does that gap have a minimum. */
-      const overX = Math.min(a.x + a.w, bx + b.w) - Math.max(a.x, bx);
-      const overY = Math.min(a.y + a.h, by + b.h) - Math.max(a.y, by);
-      const gapX = Math.max(bx - (a.x + a.w), a.x - (bx + b.w));
-      const gapY = Math.max(by - (a.y + a.h), a.y - (by + b.h));
-      if(overY > 0 && gapX < PUSH_MIN_GAP && (gapX >= gapY || overX <= 0)){
-        const need = PUSH_MIN_GAP - gapX;
-        p.pushX += ((bx + b.w/2) >= (a.x + a.w/2) ? need : -need);
-        moved = true;
-      } else if(overX > 0 && gapY < PUSH_MIN_GAP){
-        const need = PUSH_MIN_GAP - gapY;
-        p.pushY += ((by + b.h/2) >= (a.y + a.h/2) ? need : -need);
-        moved = true;
-      } else return;
-    });
-  });
-  /* A merge moves as one: every member takes the largest push any of
-     them was given, on each axis — see pushCandidates. */
-  const seen = new Set();
-  st.pushable.forEach(p=>{
-    if(!p.team || seen.has(p.team)) return;
-    seen.add(p.team);
-    const most = (k)=> p.team.pieces.reduce((a, q)=> Math.abs(q[k]) > Math.abs(a) ? q[k] : a, 0);
-    const px = most('pushX'), py = most('pushY');
-    p.team.pieces.forEach(q=>{ q.pushX = px; q.pushY = py; });
-    carryBends({bendCarry: p.team.bends}, px, py);
-  });
-  st.pushable.forEach(p=>{
-    if(!p.pushX && !p.pushY) return;
-    const b = p.node;
-    b.x = p.originX + p.pushX;
-    b.y = p.originY + p.pushY;
-    if(p.g) p.g.setAttribute('transform',
-      `translate(${p.pushX},${p.pushY}) ${p.g.dataset.rotTransform || ''}`.trim());
-    if(p.aura) p.aura.setAttribute('transform', `translate(${p.pushX},${p.pushY})`);
-    (p.fan || []).forEach(f=> f.setAttribute('transform',
-      `translate(${p.pushX},${p.pushY}) ${f.dataset.rotTransform || ''}`.trim()));
-  });
-  return moved;
-}
+/* An entry carried up to another used to PUSH it out of the way once the
+   gap between two joined entries fell below the router's own threshold
+   (0.9.x to 0.10.x). The owner found it more in the way than helpful: the
+   reader moves what they take hold of, and nothing else moves. A
+   connector squeezed too short is the router's to draw as best it can. */
 function carryBends(st, offX, offY){
   if(!st.bendCarry || !st.bendCarry.length) return;
   st.bendCarry.forEach(c=>{
@@ -884,7 +699,6 @@ window.addEventListener('mousemove', e=>{
       (m.fan || []).forEach(f=> f.setAttribute('transform',
         `translate(${dOffX},${dOffY}) ${f.dataset.rotTransform || ''}`.trim()));
     });
-    pushBlockers(st);
     queueDragRedraw(st);
     return;
   }
@@ -949,7 +763,6 @@ window.addEventListener('mousemove', e=>{
     (m.fan || []).forEach(f=> f.setAttribute('transform',
       `translate(${offX},${offY}) ${f.dataset.rotTransform || ''}`.trim()));
   });
-  pushBlockers(st);
   /* The entries themselves move on every pointer event — that is a
      transform on a handful of groups and costs nothing. The CONNECTORS are
      rebuilt from nothing, every one of them re-routed around every other,
@@ -967,7 +780,11 @@ function queueDragRedraw(st){
     // Where the carried entries stood when these routes were drawn; see
     // connectorAlignments, which has to allow for the pointer being ahead.
     if(st && st.node) st.drawnOff = {x: st.node.x - st.originX, y: st.node.y - st.originY};
-    redrawEdges();
+    // The connectors joined to nothing carried keep their routes; see heldRoute.
+    if(st && !st.routeMemo) st.routeMemo = new Map();
+    dragRouteHold = st ? {memo: st.routeMemo, moving: new Set(st.members.map(m=> m.id))} : null;
+    try{ redrawEdges(); }
+    finally{ dragRouteHold = null; }
     applyVisibility();
     /* Every connector has just been rebuilt from nothing, so none of them
        remembers being faded — and the highlight is what says which of them
@@ -1015,8 +832,7 @@ window.addEventListener('mouseup', ()=>{
   // real click on any node.
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
-  if(st.node.x===st.originX && st.node.y===st.originY &&
-     !(st.pushable || []).some(p=> p.pushX || p.pushY)){
+  if(st.node.x===st.originX && st.node.y===st.originY){
     // Snapped back to where it started — and the bends with it.
     carryBends(st, 0, 0);
     return;
@@ -1024,15 +840,12 @@ window.addEventListener('mouseup', ()=>{
   /* Any bend these entries' connectors no longer need goes with the drop;
      see pruneHandBends. Settled against the drawing just made, and inside
      the same step of undo as the move itself. */
-  const shoved = (st.pushable || []).filter(p=> p.pushX || p.pushY);
-  const ids = new Set(st.members.map(m=> m.id).concat(shoved.map(p=> p.id)));
+  const ids = new Set(st.members.map(m=> m.id));
   redrawEdges();
   pruneHandBends(structEdges.filter(e=> ids.has(e.from) || ids.has(e.to))
                             .map(e=> ({from: e.from, to: e.to})));
-  /* One step of undo for the whole gesture, the entries it shoved
-     included: what the reader did was move things, once. */
-  saveNodePositions(st.members.concat(shoved)
-                      .map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
+  // One step of undo for the whole gesture.
+  saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
 });
 
 // Writes the dropped position into the node's saved entry. Deliberately
