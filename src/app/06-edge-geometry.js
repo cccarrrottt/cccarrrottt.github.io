@@ -121,114 +121,27 @@ function sideBandRect(n, h, side, inset, hitW){
  * rather than a second implementation that can drift from it: see
  * pocketOutline, which hands back both the samples the border is drawn
  * from and the way to ask where a point of it stands. */
-/* …and an outer ring is the inner ring's ripple, carried outward.
- *
- * Each ring used to be a ripple of its own, laid round a box `grow` larger
- * with the wave stretched to fit that box's own perimeter. A bigger box has
- * a different number of waves, and every ring started its wave at its own
- * top-left corner, so the rings agreed at that corner and drifted apart
- * from it — a side or two in step and the rest of them crest against
- * trough. They are one ripple now: the innermost ring's wave, each point
- * moved `grow` straight out from the outline it was drawn along. On every
- * side the crests of all the rings stand at the same place; at a corner
- * the outer ring turns on a radius `grow` larger, which is what a ring
- * drawn round another ring does. `grow` is how far (x, y, w, h) has
- * already been grown from the innermost ring, so the box is still the box
- * the ring is drawn round. */
-function pocketOutline(x, y, w, h, grow){
-  const g = (typeof grow === 'number' && grow > 0) ? grow : 0;
-  const ix = x + g, iy = y + g, iw = w - g*2, ih = h - g*2;
-  const r = Math.max(0, Math.min(POCKET_CORNER_R, iw/2 - 1, ih/2 - 1));
-  const corners = [{x:ix + r, y:iy}, {x:ix + iw - r, y:iy}, {x:ix + iw, y:iy + r},
-                   {x:ix + iw, y:iy + ih - r}, {x:ix + iw - r, y:iy + ih},
-                   {x:ix + r, y:iy + ih}, {x:ix, y:iy + ih - r}, {x:ix, y:iy + r},
-                   {x:ix + r, y:iy}];          // closed: back to where it began
-  /* A corner is sampled finely whatever its size. The outer rings are this
-     outline carried outward, so a 2.5-unit corner drawn in three steps
-     becomes a ring's ten-unit corner drawn in three steps — a bevel. */
-  const samples = sampleRounded(corners, r, POCKET_WAVELEN / WAVE_STEP_DIV, POCKET_CORNER_SEGS);
+function pocketOutline(x, y, w, h){
+  const r = Math.max(0, Math.min(POCKET_CORNER_R, w/2 - 1, h/2 - 1));
+  const corners = [{x:x + r, y}, {x:x + w - r, y}, {x:x + w, y:y + r},
+                   {x:x + w, y:y + h - r}, {x:x + w - r, y:y + h},
+                   {x:x + r, y:y + h}, {x, y:y + h - r}, {x, y:y + r},
+                   {x:x + r, y}];          // closed: back to where it began
+  const samples = sampleRounded(corners, r, POCKET_WAVELEN / WAVE_STEP_DIV);
   const total = samples.length ? samples[samples.length-1].s : 0;
   if(total < POCKET_WAVELEN * 3) return null;
   const lam = waveLambda(total, POCKET_WAVELEN);
-  /* The ripple is laid along each SIDE, not round the whole outline.
-   *
-     It used to be one wave walked round the rounded rectangle, corners
-     and all, stretched to a whole number of waves for the perimeter. That
-     put a crest or a trough wherever the count happened to land — very
-     often on a corner — and a ripple going round a 2.5-unit corner is not
-     a corner any more: one corner bulged into a lobe, the next was cut off
-     at a slant, and on the outer rings, which carry the inner ring's wave
-     outward, every one of them was exaggerated. The box read as a blot.
-   *
-     Each straight run now carries a whole number of half-waves of its
-     own, starting and ending on the baseline, so every corner is the
-     plain rounded corner of the box with the ripple running into it from
-     both sides. The rings still share one phase: an outer ring is still
-     these points carried straight out. */
-  const half = POCKET_WAVELEN / 2;
-  const sw = iw - r*2, sh = ih - r*2;
-  const halves = (len)=> len > 0 ? Math.round(len / half) : 0;
-  const nTop = halves(sw), nSide = halves(sh);
-  const along = (q)=>{
-    const eps = 1e-6;
-    if(Math.abs(q.y - iy) < eps && q.x >= ix + r - eps && q.x <= ix + iw - r + eps)
-      return {t: q.x - (ix + r), len: sw, n: nTop};
-    if(Math.abs(q.x - (ix + iw)) < eps && q.y >= iy + r - eps && q.y <= iy + ih - r + eps)
-      return {t: q.y - (iy + r), len: sh, n: nSide};
-    if(Math.abs(q.y - (iy + ih)) < eps && q.x >= ix + r - eps && q.x <= ix + iw - r + eps)
-      return {t: (ix + iw - r) - q.x, len: sw, n: nTop};
-    if(Math.abs(q.x - ix) < eps && q.y >= iy + r - eps && q.y <= iy + ih - r + eps)
-      return {t: (iy + ih - r) - q.y, len: sh, n: nSide};
-    return null;                                  // on a corner: no ripple
-  };
-  /* Outward first: the wave's sign is to the left of the way the outline
-     is walked, which on a clockwise walk is inward, so the amplitude is
-     negated and every side starts with a crest. */
-  /* …and eased into the corner over its first and last half-wave. A sine
-     leaves the baseline at its steepest, so a side that simply stopped at
-     the corner met it at an angle and left a notch there; eased, the
-     ripple arrives level and the corner carries on from it smoothly. */
-  const ease = (u)=>{ const c = Math.max(0, Math.min(1, u)); return c*c*(3 - 2*c); };
-  const offs = samples.map(q=>{
-    const a = along(q);
-    if(!a || !a.n || a.len <= 0) return 0;
-    const step = a.len / a.n;
-    return -POCKET_AMP * Math.sin(Math.PI * a.n * a.t / a.len) *
-           ease(Math.min(a.t, a.len - a.t) / step);
-  });
-  /* Where each side's straight run begins and ends, as distances along
-     the outline — the stretch a reader grabs to draw a connector. Read off
-     the samples themselves, so they are where the drawing says. */
-  const runOf = (test)=>{
-    const ss = samples.filter(test).map(q=> q.s);
-    return ss.length ? [Math.min(...ss), Math.max(...ss)] : null;
-  };
-  const eps = 1e-6;
-  const sideRun = {
-    top:    runOf(q=> Math.abs(q.y - iy) < eps && q.x > ix + r - eps && q.x < ix + iw - r + eps),
-    right:  runOf(q=> Math.abs(q.x - (ix + iw)) < eps && q.y > iy + r - eps && q.y < iy + ih - r + eps),
-    bottom: runOf(q=> Math.abs(q.y - (iy + ih)) < eps && q.x > ix + r - eps && q.x < ix + iw - r + eps),
-    left:   runOf(q=> Math.abs(q.x - ix) < eps && q.y > iy + r - eps && q.y < iy + ih - r + eps)
-  };
-  /* The points this ring is drawn through, from `from` to `to` along the
-     innermost outline, each moved off the outline by the ripple and then
-     `grow` straight out. Outward is to the right of the way the outline is
-     walked — (dy, -dx). */
-  const ringPoints = (from, to)=>{
-    const lo = Math.max(0, from || 0), hi = Math.min(total, (typeof to === 'number') ? to : total);
-    const out = [];
-    for(let k = 0; k < samples.length; k++){
-      const q = samples[k];
-      if(q.s < lo - 1e-6 || q.s > hi + 1e-6) continue;
-      const a = samples[Math.max(0, k-1)], b = samples[Math.min(samples.length-1, k+1)];
-      let dx = b.x - a.x, dy = b.y - a.y;
-      const l = Math.hypot(dx, dy) || 1;
-      dx /= l; dy /= l;
-      const off = offs[k];
-      const p = {x: q.x - dy*off, y: q.y + dx*off, s: q.s, bx: q.x, by: q.y, nx: dy, ny: -dx};
-      out.push(g ? {x: p.x + p.nx*g, y: p.y + p.ny*g, s: p.s, bx: p.bx + p.nx*g, by: p.by + p.ny*g} : p);
-    }
-    return out;
+  /* How far along the outline a point on one of the four sides is. The
+     outline is walked clockwise from the top-left corner, so a side's
+     distance is measured from the corner it starts at, and the quarter
+     arcs between the sides count too. */
+  const arc = Math.PI * r / 2;
+  const sw = w - r*2, sh = h - r*2;
+  const at = (side, px, py)=>{
+    if(side === 'top') return px - (x + r);
+    if(side === 'right') return sw + arc + (py - (y + r));
+    if(side === 'bottom') return sw + arc + sh + arc + ((x + w - r) - px);
+    return sw + arc + sh + arc + sw + arc + ((y + h - r) - py);
   };
   /* How far out the border stands, read off the points it is DRAWN from.
    *
@@ -241,7 +154,7 @@ function pocketOutline(x, y, w, h, grow){
      from, and outward is simply the outward of the side it is on. A
      change to how the wave is drawn cannot put this out again, because
      this is not a description of the drawing, it is the drawing. */
-  const drawn = ringPoints(0, total);
+  const drawn = waveOffsetPoints(samples, -POCKET_AMP, lam, 0, total, true);
   /* …and it is looked up by WHERE IT IS, not by how far along the outline
      it ought to be. The distance a point is at can be worked out from the
      box (see distAt), and that arithmetic has to assume how long a rounded
@@ -279,15 +192,14 @@ function pocketOutline(x, y, w, h, grow){
     const t = (b.u - a.u) > 1e-9 ? (u - a.u) / (b.u - a.u) : 0;
     return a.off + (b.off - a.off) * t;
   };
-
-  return {drawn, total, lam, r, box: {x, y, w, h}, amp: POCKET_AMP,
+  return {samples, total, lam, r, box: {x, y, w, h}, amp: POCKET_AMP,
           offsetAt: (side, px, py)=> offAt(side, sideIsVertical(side) ? px : py),
-          sidePoints: (side)=> sideRun[side] ? ringPoints(sideRun[side][0], sideRun[side][1]) : []};
+          distAt: at};
 }
 function pocketOutlineOfRing(n, ring){
   const step = ringStepFor(n);
   const grow = (ring || 0) * step;
-  return pocketOutline(n.x - grow, n.y - grow, n.w + grow*2, n.h + grow*2, grow);
+  return pocketOutline(n.x - grow, n.y - grow, n.w + grow*2, n.h + grow*2);
 }
 /* Where an entry's border is, whatever the entry is drawn as.
  *
@@ -537,7 +449,7 @@ const WAVE_STEP_DIV = 6;
 /* The line itself, as points, with its corners already rounded — a
    rounded polyline sampled at roughly `step` apart, carrying the distance
    travelled with each point so the wave knows where it is. */
-function sampleRounded(pts, r, step, arcSegs){
+function sampleRounded(pts, r, step){
   const out = [];
   let run = 0;
   const push = (x, y)=>{
@@ -556,7 +468,7 @@ function sampleRounded(pts, r, step, arcSegs){
   };
   const quad = (ax, ay, cx, cy, bx, by)=>{
     const rough = Math.hypot(cx-ax, cy-ay) + Math.hypot(bx-cx, by-cy);
-    const n = Math.max(arcSegs || 2, Math.ceil(rough / step));
+    const n = Math.max(2, Math.ceil(rough / step));
     for(let i = 1; i <= n; i++){
       const t = i/n, mt = 1 - t;
       push(mt*mt*ax + 2*mt*t*cx + t*t*bx, mt*mt*ay + 2*mt*t*cy + t*t*by);
@@ -667,7 +579,7 @@ function waveOffsetPoints(samples, amp, lam, from, to, closed){
       if(hi < total - 0.01) k = Math.min(k, Math.max(0, (hi - p.s) / fade));
     }
     const off = waveOffsetAt(p.s, amp, lam) * k;
-    out.push({x: p.x - dy*off, y: p.y + dx*off, s: p.s, bx: p.x, by: p.y, nx: dy, ny: -dx});
+    out.push({x: p.x - dy*off, y: p.y + dx*off, s: p.s, bx: p.x, by: p.y});
   }
   return out;
 }
@@ -708,15 +620,13 @@ const POCKET_LIFT = POCKET_AMP;
    wants as much of each side as it can get, and a wave goes round a small
    corner as happily as along a straight. */
 const POCKET_CORNER_R = 2.5;
-// How many steps a rippled box's corner is drawn in; see pocketOutline.
-const POCKET_CORNER_SEGS = 10;
 /* The outline, waved. Nothing here knows about sides, corners or phases:
    the rounded rectangle is walked and the wave is laid along it, so it
    closes on itself and turns its corners like any other part of the line. */
-function wavyRectPath(x, y, w, h, grow){
-  const o = pocketOutline(x, y, w, h, grow);
-  if(!o) return roundedRectPath(x, y, w, h, POCKET_CORNER_R + (grow || 0));
-  return smoothPath(o.drawn, true);
+function wavyRectPath(x, y, w, h){
+  const o = pocketOutline(x, y, w, h);
+  if(!o) return roundedRectPath(x, y, w, h, POCKET_CORNER_R);
+  return wavyFromSamples(o.samples, -POCKET_AMP, o.lam, 0, o.total, true);
 }
 /* A plain rounded rectangle, for the entry too small to carry a wave. */
 function roundedRectPath(x, y, w, h, r){
@@ -729,11 +639,19 @@ function roundedRectPath(x, y, w, h, r){
 }
 /* One side of that same outline, left open: the strip a reader grabs to
    draw a connector is the border lit up, so it has to be the very same
-   curve. Cut out of the outline's own points rather than drawn again. */
-function wavySideOpenPath(x, y, w, h, side, grow){
-  const o = pocketOutline(x, y, w, h, grow);
+   curve. Cut out of the outline's own samples rather than drawn again. */
+function wavySideOpenPath(x, y, w, h, side){
+  const o = pocketOutline(x, y, w, h);
   if(!o) return '';
-  return smoothPath(o.sidePoints(side), false);
+  const r = o.r;
+  const ends = {
+    top:    [o.distAt('top', x + r, y), o.distAt('top', x + w - r, y)],
+    right:  [o.distAt('right', x + w, y + r), o.distAt('right', x + w, y + h - r)],
+    bottom: [o.distAt('bottom', x + w - r, y + h), o.distAt('bottom', x + r, y + h)],
+    left:   [o.distAt('left', x, y + h - r), o.distAt('left', x, y + r)]
+  }[side];
+  if(!ends) return '';
+  return wavyFromSamples(o.samples, -POCKET_AMP, o.lam, ends[0], ends[1], false);
 }
 
 // ---- obstacle-avoiding orthogonal routing -------------------------------
