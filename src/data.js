@@ -163,6 +163,6 @@ const EDGE_STYLES = [
   {from:'node-copy-2', to:'node-8', routing:'orthogonal', dash:'double', arrow:true, fromSide:'right', toSide:'right'},
   {from:'node-copy-3', to:'node-8', routing:'orthogonal', dash:'dotted', arrow:true, fromSide:'right', toSide:'bottom'},
   {from:'asdasd-copy', to:'beast-wars-uprising-copy-4', routing:'curve', dash:'solid', arrow:true, fromSide:'left', toSide:'top'},
-  {from:'node-9', to:'node-10', routing:'curve', dash:'solid', arrow:true, bends:[[-80.56, 533.71], [-50.35, 573.99]], fromSide:'right', toSide:'right'},
+  {from:'node-9', to:'node-10', routing:'curve', dash:'solid', arrow:true, fromSide:'right', toSide:'right'},
 ];
 /* @@EDIT:EDGESTYLES:END@@ */
