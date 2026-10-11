@@ -1,7 +1,24 @@
-/* The corner badge that opens an entry's linked page. The same height as a
-   language chip (see the chip row below), because they are the same kind of
-   thing and sit a few pixels apart on the same edge. */
-const LINK_BADGE_R = 5.5;
+/* The corner badges — the language chips and the link — are TABS standing
+   on the entry's top edge, outside it.
+ *
+   They used to be drawn on the corner, centred on the border, so half of
+   each one lay inside the box: and since the box closed to a pixel off its
+   words, that half lay over the first and last letters of the top line.
+   Standing on the border they cover nothing, and they read as what they
+   are, handles on the entry rather than marks in its text. A size down
+   from what they were, too: a tab only has to be found, not read across
+   the room. LINK_TAB is the link's square, the height of an active chip. */
+const CHIP_TAB_H = 9;
+const LINK_TAB = CHIP_TAB_H;
+/* Where the tabs stand: the outer edge of the outermost border line, so a
+   ringed or rippled entry's tabs clear all of it. */
+function tabBaseOf(n){
+  const own = (ringCountOf(n) - 1) * ringStepFor(n);
+  const out = isWavyBorder(n) ? POCKET_AMP + NODE_BORDER_W / 2
+            : borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2
+            : NODE_BORDER_W / 2;
+  return {y: n.y - own - out, left: n.x - own, right: n.x + n.w + own};
+}
 /* A resize grip is a dot on the corner: this big to see, and this far out
    to catch the hand — see the grips below for why it is not a square. */
 const RESIZE_DOT_R = 1.9, RESIZE_DOT_HIT = 3.6;
@@ -1144,7 +1161,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     /* The active chip is drawn at full size and the rest a little smaller,
        so which one is showing reads from the shape alone — the colour is
        then a reinforcement rather than the only signal. */
-    const CHIP_H = 11, CHIP_GAP = 3, CHIP_FS = 6.3, CHIP_PAD = 4;
+    const CHIP_H = CHIP_TAB_H, CHIP_GAP = 2, CHIP_FS = 5.2, CHIP_PAD = 3;
     const CHIP_IDLE = 0.82;             // how much smaller an unselected chip is
     const CHIP_R = 2.5;                 // rounded rectangle, not a pill
     const activeIdxNow = activeLangTab.get(n.id) ?? null;
@@ -1159,8 +1176,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        place on two entries standing side by side — and moved them the
        moment a picture was added or taken away. An entry's badges belong
        to the entry, so they are where the entry's corner is. */
-    const chipY = n.y;
-    let cursorX = n.x + 3;
+    const base = tabBaseOf(n);
+    let cursorX = base.left + 2;
     // One group, so the whole row can be raised above the edge handles.
     chipGroup = el('g', {class:'lang-chips'}, g);
     chipLabels.forEach((lbl, idx)=>{
@@ -1171,11 +1188,13 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const textW = measureText(lbl, {fontSize:fs, family: lbl === DEFAULT_LANG_CHIP ? EMOJI_FAMILY : undefined});
       const chipW = Math.max(hh, textW + CHIP_PAD*k*2);
       const cx = cursorX + chipW/2;
+      // Standing on the border: every chip's foot on the same line.
+      const cy = base.y - 0.3 - hh/2;
       const chipG = el('g', {class:'lang-chip' + (isActive ? ' active' : ''),
-                             transform:`translate(${cx},${chipY})`}, chipGroup);
+                             transform:`translate(${cx},${cy})`}, chipGroup);
       el('rect', {x:-chipW/2, y:-hh/2, width:chipW, height:hh, rx:CHIP_R,
                   class:'lang-chip-bg'}, chipG);
-      const chipLabelEl = el('text', {x:0, y:2.1*k, 'text-anchor':'middle', 'font-size':fs,
+      const chipLabelEl = el('text', {x:0, y:1.8*k, 'text-anchor':'middle', 'font-size':fs,
                                       class:'lang-chip-label' + (lbl === DEFAULT_LANG_CHIP ? ' emoji' : '')}, chipG);
       chipLabelEl.textContent = lbl;
       el('title',{},chipG).textContent = idx===0 ? 'Show the default text' : `Show the "${lbl}" text`;
@@ -1203,7 +1222,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     // How far the chips reach along the top edge — reported for the panel
     // and the tests; the edge itself no longer gives up any of its strip
     // for them, since they are drawn over it (see sideBandRect).
-    if(chipY === n.y){ n.chipLeft = n.x + 3; n.chipRight = cursorX; }
+    n.chipLeft = base.left + 2; n.chipRight = cursorX;
   }
 
   /* Corner grips: drag one to give this box a size of its own, overruling
@@ -1343,15 +1362,14 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     // it at the top-left of its picture, where it reads as belonging to the
     // picture rather than hovering over the heading.
     // The top-right corner, whatever the entry is — see the chips above.
+    /* A tab of its own at the right-hand end of the top edge, the same
+       height and shape as the language chips at the other end — see
+       tabBaseOf for why it stands on the border rather than over it. */
+    const base = tabBaseOf(n);
     const lg = el('g',{class:'node-link',
-      transform: `translate(${n.x+n.w},${n.y})`}, linkWrap);
-    /* The same size as a language chip. The two are the entry's only
-       corner badges and they sit within a few pixels of each other along
-       the same edge, so a link drawn half as big again as the chip beside
-       it read as a different order of thing — and it covered rather more
-       of the border than a badge on a corner has any business covering. */
-    el('circle',{r:LINK_BADGE_R, cx:0, cy:0}, lg);
-    el('path',{d:'M-1.9,1.9 L1.9,-1.9 M-0.6,-1.9 L1.9,-1.9 L1.9,0.6', fill:'none'}, lg);
+      transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y - 0.3 - LINK_TAB/2})`}, linkWrap);
+    el('rect',{x:-LINK_TAB/2, y:-LINK_TAB/2, width:LINK_TAB, height:LINK_TAB, rx:2.5}, lg);
+    el('path',{d:'M-1.6,1.6 L1.6,-1.6 M-0.5,-1.6 L1.6,-1.6 L1.6,0.5', fill:'none'}, lg);
     el('title',{},lg).textContent = 'Open linked page ↗';
     /* And while another entry is open this one's link does not fire: the
        page it would open belongs to a box the reader has stepped away

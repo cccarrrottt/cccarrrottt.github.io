@@ -14,39 +14,60 @@ function resolveExplicitParents(it){
   return [p];
 }
 
-/* Put a newly merged entry where its bar can reach it: centred across the
-   lineages along the bar's axis, and a comfortable distance off them. */
+/* Put a merged entry where its bar can reach it: centred on the middle of
+ * the bar, and a short way off it.
+ *
+   This used to happen only when the entry first BECAME a merge, and it
+   centred on the average of the lineages rather than the middle of the
+   ground they cover — so a third lineage drawn in left the entry where it
+   was, off to one side of a bar that had just grown, and a merge made
+   from lineages spread unevenly sat off-centre from the start. It also
+   stood the entry a fixed 220 off the lineages' MIDDLE whenever it moved
+   it at all, which for a tall column of parents is a long way below the
+   last of them. Now every lineage drawn in centres the entry on the bar
+   again, and the distance off is measured from the lineages' near edge:
+   left as it is when the entry already stands clear of them, and
+   otherwise just far enough for the bar and the merged arrow to read. */
 function bringAmalgamToItsLineages(found, parentIds){
   const kids = parentIds.map(id=> nodes.get(id)).filter(Boolean);
   if(kids.length < 2) return;
   const n = nodes.get(found.entry[0]);
   if(!n) return;
-  const cx = kids.reduce((a,p)=> a + p.x + p.w/2, 0) / kids.length;
-  const cy = kids.reduce((a,p)=> a + p.y + p.h/2, 0) / kids.length;
-  const spanX = Math.max(...kids.map(p=> p.x + p.w/2)) - Math.min(...kids.map(p=> p.x + p.w/2));
-  const spanY = Math.max(...kids.map(p=> p.y + p.h/2)) - Math.min(...kids.map(p=> p.y + p.h/2));
-  const own = {x: n.x + n.w/2, y: n.y + n.h/2};
-  // Already within reach along the bar and not absurdly far off it: leave it.
-  const along = spanX >= spanY ? own.x : own.y;
-  const lo = spanX >= spanY ? Math.min(...kids.map(p=> p.x + p.w/2))
-                            : Math.min(...kids.map(p=> p.y + p.h/2));
-  const hi = spanX >= spanY ? Math.max(...kids.map(p=> p.x + p.w/2))
-                            : Math.max(...kids.map(p=> p.y + p.h/2));
-  const off = spanX >= spanY ? Math.abs(own.y - cy) : Math.abs(own.x - cx);
-  if(along >= lo && along <= hi && off <= AMALGAM_LEASH) return;
-  // Centred across them, and clear of them on the side it is already on.
-  const stand = Math.min(Math.max(off, AMALGAM_HOME_GAP), AMALGAM_LEASH * 0.6);
-  const sign = (spanX >= spanY ? (own.y - cy) : (own.x - cx)) >= 0 ? 1 : -1;
-  const centre = spanX >= spanY
-    ? {x: cx, y: cy + sign * stand}
-    : {x: cx + sign * stand, y: cy};
+  const span = (k, len)=> ({lo: Math.min(...kids.map(p=> p[k])),
+                            hi: Math.max(...kids.map(p=> p[k] + p[len])),
+                            cLo: Math.min(...kids.map(p=> p[k] + p[len]/2)),
+                            cHi: Math.max(...kids.map(p=> p[k] + p[len]/2)),
+                            mean: kids.reduce((t, p)=> t + p[k] + p[len]/2, 0) / kids.length});
+  const sx = span('x', 'w'), sy = span('y', 'h');
+  /* The same reading of the layout amalgamGeometry makes: the bar runs
+     across the axis the entry stands clear of its lineages on, or, where
+     it is clear on both or on neither, across the way they are spread. */
+  const gapX = Math.max(n.x - sx.hi, sx.lo - (n.x + n.w));
+  const gapY = Math.max(n.y - sy.hi, sy.lo - (n.y + n.h));
+  const across = (sx.cHi - sx.cLo) >= (sy.cHi - sy.cLo) ? 'y' : 'x';
+  const off = (gapX > 0 && gapY > 0) ? across
+            : gapX > 0 ? 'x' : gapY > 0 ? 'y' : across;
+  const along = off === 'x' ? 'y' : 'x';
+  const sOff = off === 'x' ? sx : sy, sAlong = along === 'x' ? sx : sy;
+  const lenOff = off === 'x' ? 'w' : 'h', lenAlong = along === 'x' ? 'w' : 'h';
+  const pos = {x: n.x, y: n.y};
+  // Centred on the bar: the middle of the ground the lineages come down on.
+  pos[along] = (sAlong.cLo + sAlong.cHi) / 2 - n[lenAlong] / 2;
+  const gap = off === 'x' ? gapX : gapY;
+  if(!(gap > 0) || gap > AMALGAM_LEASH){
+    const after = (n[off] + n[lenOff]/2) >= sOff.mean;
+    pos[off] = after ? snapToGrid(sOff.hi + AMALGAM_HOME_GAP)
+                     : snapToGrid(sOff.lo - AMALGAM_HOME_GAP - n[lenOff]);
+  }
+  if(Math.abs(pos.x - n.x) < 1e-6 && Math.abs(pos.y - n.y) < 1e-6) return;
   const opts = entryOpts(found.entry);
-  opts.pos = [snapToGrid(centre.x - n.w/2), snapToGrid(centre.y - n.h/2)];
+  opts.pos = [+(pos.x + (n.growShiftX || 0)).toFixed(2), +(pos.y + (n.growShift || 0)).toFixed(2)];
   putEntry(found.index, found.entry, opts);
 }
-// How far off its lineages a newly merged entry is stood when it has to be
-// moved at all — far enough for the bar and the arrow to be legible.
-const AMALGAM_HOME_GAP = 220;
+/* How far a merged entry is stood off its lineages' near edge when it has
+   to be moved off them: the bar's own LEAD, and room after it for the
+   merged arrow to read as an arrow. */
+const AMALGAM_HOME_GAP = AMALGAM_LEAD + 4 * GRID;
 // `geom` is optional; when a connector is drawn between two border bands
 // it carries which side and which ring each end used, plus the colour of
 // the ring it was pulled from — all recorded with the connection so it
@@ -56,16 +77,15 @@ function connectNodes(sourceId, targetId, geom){
   if(!found){ flashStatus('That entry could not be found.'); return; }
   const parents = resolveExplicitParents(found.entry);
   if(parents.includes(sourceId)){ flashStatus('Those entries are already connected.'); return; }
-  /* An amalgam that has just become one is brought to its lineages.
+  /* An amalgam is brought to its lineages every time one is drawn in.
    *
    * The bar spans the ground the lineages cover and the merged arrow
    * leaves from a point on it, so an entry sitting a thousand pixels away
    * when its second lineage arrives has nothing sensible to draw: the
    * landings all clamp to one end and the arrow strikes off across the
-   * chart. Dragging an amalgam is already held inside its bar; this is the
-   * same rule applied at the moment it first becomes one, and it only
-   * moves an entry that is outside where it would be allowed to go. */
-  const willMerge = (found.entry[5] === 'amalgam') && parents.length === 1;
+   * chart. And each lineage after that moves the middle of the bar, which
+   * is where the entry is meant to stand — see bringAmalgamToItsLineages. */
+  const willMerge = (found.entry[5] === 'amalgam') && parents.length >= 1;
   applyEdit(()=>{
     parents.push(sourceId);
     if(willMerge) bringAmalgamToItsLineages(found, parents);

@@ -8,6 +8,67 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### A merge that keeps its middle
+
+- **An amalgam's bar is laid from where the entry and its parents stand.**
+  When the entry is clear of its parents on one axis, the bar runs across
+  that axis and rests a lead's length past the parents (`amalgamGeometry`,
+  `resting`); clear of them on both, the bar runs along the way the parents
+  are spread. Parents in a column now merge across an upright bar, and the
+  lineages no longer hook past it and turn back. The bar no longer pushes
+  itself ahead of the entry either, so **the entry can be carried across its
+  own bar** — the merged arrow then comes in from the other side.
+- **A merge is put back on the middle of its bar with every parent it gets**,
+  not only the first, and beside its parents rather than wherever it was
+  (`bringAmalgamToItsLineages`, `AMALGAM_HOME_GAP`).
+- **A bead where two lineages join steps back with the rest** unless one of
+  the two is the one picked: it carries the pair it joins (`data-pair`), and
+  the dimming asks about that pair instead of about the merge as a whole.
+- **A wavy lineage ripples on its stretch of the bar and in its reach** even
+  when the stretch is short (`wavyPath`'s `short`).
+
+### Tags, references and their lists
+
+- **The eye that hid every entry at once is gone from the tags list**, and
+  the **+ is two buttons**: one starts a tag, one a category; the menu that
+  stood between them is gone.
+- **A new tag, category or reference is kept by a click elsewhere**, as
+  Enter keeps it; Escape still drops it.
+- **A reference is found by its words as well as its number.**
+
+### One face for the headings
+
+- **Every heading set in Big Shoulders is now the bold of the buttons' IBM
+  Plex Mono** (`--head-font`, `.head-type`): the side tabs, the tag groups,
+  the overlays' titles, the crop and ask boxes, the version history. The
+  logo keeps its own face.
+
+### Tabs on the border
+
+- **Language chips and the link badge stand on the entry's top border as
+  tabs**, a little smaller than before, instead of lying across its words:
+  chips from the left, the link at the right (`tabBaseOf`, `CHIP_TAB_H`,
+  `LINK_TAB`). They stand clear of every ring and of a ripple's reach.
+
+### Lines
+
+- **A callout's leader can wear a line of its own** — solid, dashed,
+  dotted, dash-dotted, double or wavy — chosen from the callout's style bar
+  and kept on its anchor (`leader.line`, `LEADER_LINES`, `drawLeaderLine`).
+  The connector it points at keeps whatever line it has.
+- **A connector's path can be a curve** (`routing: 'curve'`,
+  `curvePoints`): it leaves square to its side, sweeps across, and arrives
+  square to the other, so an arrowhead always sits on a straight stretch.
+  The wave and the dash patterns follow it; corners are greyed for it.
+
+### A field the size of a remark
+
+- **The field on a connector's note or a callout is the size of the plate
+  or card it stands on**, set in the remark's own type, and folds where the
+  remark folds (`data-wrap="fit"`). It used to be held at the plate's
+  present width, breaking lines the drawing still had room for, and on a
+  callout it was an entry's size and type — half again as big as the card.
+
 ### Nothing through the dots, nothing under the words
 
 - **An amalgam's dots no longer let the bar show through them.** A dot is

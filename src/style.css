@@ -22,6 +22,12 @@
      the viewer's OS theme. Restore the old dark values here to bring
      dark mode back later. */
   :root{
+    /* Every heading and label that is not the logo: the buttons' own face,
+       bold. The tall condensed display face these used to be set in stood
+       apart from everything around it — the one voice on the page nothing
+       else spoke in — so it is kept for the name of the chart and nowhere
+       else. */
+    --head-font:'IBM Plex Mono',monospace,'Noto Color Emoji';
     --paper:#ffffff;
     --panel:#ffffff;
     --panel-2:#eef1f5;
@@ -862,9 +868,9 @@
     stroke-width:2.2;
   }
   .node-link{cursor:pointer;}
-  .node-link circle{fill:var(--panel);stroke:var(--accent);stroke-width:1.2;}
-  .node-link path{stroke:var(--accent);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;}
-  .node-link:hover circle{fill:var(--accent);}
+  .node-link rect{fill:var(--panel);stroke:var(--accent);stroke-width:1;}
+  .node-link path{stroke:var(--accent);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
+  .node-link:hover rect{fill:var(--accent);}
   .node-link:hover path{stroke:var(--accent-ink);}
   .lang-chip{cursor:pointer;}
   .lang-chip-bg{fill:var(--panel);stroke:var(--line);stroke-width:0.75;}
@@ -1004,8 +1010,8 @@
     border:1px solid var(--line);border-left:none;
     border-radius:0 6px 6px 0;
     box-shadow:var(--shadow);
-    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';font-size:13px;
-    text-transform:uppercase;letter-spacing:0.6px;font-weight:700;
+    font-family:var(--head-font);font-size:10.5px;
+    text-transform:uppercase;letter-spacing:0.4px;font-weight:700;
     cursor:pointer;
     pointer-events:auto;
   }
@@ -1086,8 +1092,8 @@
   }
   .legend-group-name{
     flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';text-transform:uppercase;
-    letter-spacing:0.6px;font-size:12px;color:var(--ink);
+    font-family:var(--head-font);font-weight:700;text-transform:uppercase;
+    letter-spacing:0.3px;font-size:10px;color:var(--ink);
   }
   /* Being typed over, in place. The name stops eliding while it is being
      edited — a name you cannot see the end of is not one you can correct —
@@ -1126,6 +1132,9 @@
      scale of a row rather than of the panel's top bar. */
   .plus-mini{width:19px;height:17px;flex:0 0 auto;margin-left:4px;}
   .plus-mini svg{width:11px;height:11px;}
+  /* The Tags heading's two: a tag and a category, drawn a size up so the
+     small + on each still reads. */
+  .plus-mini.add-tag svg, .plus-mini.add-cat svg{width:13px;height:13px;}
   /* An eye with nothing to hide is a control that cannot act, and reads
      as one — the same wash every other disabled control on the page has. */
   .eye-mini:disabled{opacity:0.4;cursor:default;}
@@ -1161,16 +1170,6 @@
   .icon-action.shut .eye-open{display:none;}
   .icon-action.shut .eye-shut{display:block;}
   .icon-action.shut{opacity:0.45;}
-  .legend-add-menu{
-    display:flex;flex-direction:column;
-    margin:0 12px 6px;padding:4px;
-    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
-  }
-  .legend-add-menu button{
-    background:none;border:none;text-align:left;cursor:pointer;
-    padding:4px 6px;border-radius:3px;font-size:10px;color:var(--ink-dim);
-  }
-  .legend-add-menu button:hover{background:var(--panel);color:var(--ink);}
 
   /* A tag field keeps its text box — the whole list stays visible and
      editable in one place — and gains a picker beside it so an existing
@@ -1276,8 +1275,8 @@
   }
   .tag-menu button:hover{background:var(--panel-2);color:var(--ink);}
   .tag-menu-head{
-    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';text-transform:uppercase;
-    letter-spacing:0.5px;font-size:9.5px;color:var(--ink-faint);
+    font-family:var(--head-font);font-weight:700;text-transform:uppercase;
+    letter-spacing:0.3px;font-size:8.5px;color:var(--ink-faint);
     padding:4px 6px 2px;
   }
   .tag-menu .tag-menu-empty{color:var(--ink-faint);cursor:default;}
@@ -1319,6 +1318,10 @@
   }
   /* …and its inline formatting must not reintroduce a line break. */
   .detail-head h2 br{display:none;}
+  /* An overlay's own title — About, Suggestions, Stickers, a note opened
+     whole — rather than an entry's name. */
+  .detail-head h2.head-type{font-family:var(--head-font);font-size:13px;
+    text-transform:uppercase;letter-spacing:0.4px;}
   .detail-head h2 ruby{ruby-position:over;}
   .detail-head .detail-edit-btn, .detail-head .detail-close{flex:0 0 auto;}
   .detail-close{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:16px;line-height:1;padding:2px;}
@@ -1831,6 +1834,14 @@
     overflow:visible;
     width:max-content;
   }
+  /* A remark folds at its own ceiling, set as a max-width by
+     positionNodeEditor, and is otherwise as wide as its words. */
+  .node-editor[data-wrap="fit"] .rich-surface{
+    white-space:pre-wrap;
+    word-break:normal;
+    overflow-wrap:break-word;
+    width:max-content;
+  }
   .node-editor .rich-surface::before{
     content:'';
     position:absolute;
@@ -2186,8 +2197,8 @@
   }
   .crop-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .crop-head h2{
-    flex:1;margin:0;font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';
-    text-transform:uppercase;letter-spacing:0.5px;font-size:16px;color:var(--ink);
+    flex:1;margin:0;font-family:var(--head-font);font-weight:700;
+    text-transform:uppercase;letter-spacing:0.4px;font-size:13px;color:var(--ink);
   }
   .crop-stage{
     position:relative;flex:1;min-height:0;display:flex;
@@ -2239,6 +2250,8 @@
      stroke comes from the connector's own paint, set per element, so only
      the geometry is written down. */
   .leader-line{stroke-width:1;fill:none;}
+  .leader-line.dbl-outer{stroke-width:3;}
+  .leader-line.dbl-inner{stroke-width:1;stroke:var(--paper);}
   .callout-leader{pointer-events:none;}
   /* …except the dot, which is where the callout attaches and is therefore
      something to take hold of. The visible dot is a couple of pixels
@@ -2453,8 +2466,8 @@
     width:min(420px,92vw);padding:16px 18px 14px;
   }
   .ask-box h2{
-    margin:0 0 8px;font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';
-    text-transform:uppercase;letter-spacing:0.5px;font-size:16px;color:var(--ink);
+    margin:0 0 8px;font-family:var(--head-font);font-weight:700;
+    text-transform:uppercase;letter-spacing:0.4px;font-size:13px;color:var(--ink);
   }
   .ask-message{margin:0 0 10px;font-size:11px;color:var(--ink-dim);line-height:1.5;}
   .ask-message:empty{display:none;}
@@ -2476,7 +2489,7 @@
   /* The `hidden` attribute must actually hide.
      The UA stylesheet gives [hidden] display:none, but that is the weakest
      rule there is: any author rule setting a display — .style-row{flex},
-     .legend-add-menu{flex} — beats it, and the element stays on screen
+     say — beats it, and the element stays on screen
      while element.hidden reports true. That gap is invisible to a test
      that checks the property rather than the computed style, which is
      exactly how a permanently-visible row got past one here. */
@@ -2646,8 +2659,8 @@
     letter-spacing:0.04em;color:var(--ink-faint);text-transform:uppercase;
     margin:0 0 14px;}
   .version-log{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;}
-  .version-log summary{font-family:'Big Shoulders Display',sans-serif;
-    text-transform:uppercase;letter-spacing:0.5px;font-size:15px;cursor:pointer;}
+  .version-log summary{font-family:var(--head-font);font-weight:700;
+    text-transform:uppercase;letter-spacing:0.4px;font-size:12px;cursor:pointer;}
   .version-log details[open] summary{margin-bottom:10px;}
   .version-entry{margin-bottom:14px;}
   .version-head{display:flex;align-items:baseline;gap:8px;font-size:13px;}

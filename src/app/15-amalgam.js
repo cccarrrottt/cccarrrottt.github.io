@@ -105,6 +105,54 @@ function amalgamGeometry(list, ports){
     const v = sideVotes.get(sName) || 0;
     if(v > best){ best = v; side = sName; }
   });
+  /* …unless the entry and its lineages say plainly which way the bar
+   * runs and which side of the entry it is on.
+   *
+     The vote is what the lineages would have done each on its own, and
+     that is the wrong question once the entry is close to them: an entry
+     standing just beside a column of parents got a vote for its bottom
+     edge, and the bar was laid ACROSS the column with every lineage
+     looping round to reach it. And an entry carried across the level the
+     bar hangs at pushed the bar ahead of it, so the entry could never be
+     put on the other side of its own bar.
+   *
+     So the bar is laid along whichever axis the entry stands clear of its
+     lineages on, at its resting place LEAD beyond the lineages on the
+     entry's side — a place that belongs to the lineages and not to the
+     entry — and the merged arrow comes off it into whichever side of the
+     entry faces it. Carry the entry across that line and the arrow simply
+     comes in from the other side. Only where the entry overlaps its
+     lineages on both axes, or a lineage was given a side by hand, does
+     the vote still decide. */
+  const pnodes = list.map(e=> nodes.get(e.from)).filter(Boolean);
+  const byHand = list.some(e=> SIDES.includes(edgeStyleFor(e.from, e.to).toSide));
+  let resting = null;
+  if(pnodes.length && !byHand){
+    const span = (k, len)=> ({lo: Math.min(...pnodes.map(p=> p[k])),
+                              hi: Math.max(...pnodes.map(p=> p[k] + p[len])),
+                              mid: pnodes.reduce((t, p)=> t + p[k] + p[len]/2, 0) / pnodes.length});
+    const sx = span('x', 'w'), sy = span('y', 'h');
+    const gapX = Math.max(b.x - sx.hi, sx.lo - (b.x + b.w));
+    const gapY = Math.max(b.y - sy.hi, sy.lo - (b.y + b.h));
+    /* Clear on one axis only: the bar crosses that one. Clear on both — an
+       entry off on the diagonal — the bar runs the way the lineages are
+       spread, as it would with the entry straight below them. */
+    const spreadX = Math.max(...pnodes.map(p=> p.x + p.w/2)) - Math.min(...pnodes.map(p=> p.x + p.w/2));
+    const spreadY = Math.max(...pnodes.map(p=> p.y + p.h/2)) - Math.min(...pnodes.map(p=> p.y + p.h/2));
+    let k = null;
+    if(gapX > 0 && gapY > 0) k = spreadX >= spreadY ? 'y' : 'x';
+    else if(gapX > 0) k = 'x';
+    else if(gapY > 0) k = 'y';
+    if(k){
+      const sp = k === 'x' ? sx : sy, len = k === 'x' ? 'w' : 'h';
+      const centre = b[k] + b[len]/2;
+      const after = centre >= sp.mid;
+      const at = after ? sp.hi + AMALGAM_LEAD : sp.lo - AMALGAM_LEAD;
+      side = k === 'x' ? (centre >= at ? 'left' : 'right')
+                       : (centre >= at ? 'top' : 'bottom');
+      resting = {at, k, towards: (SIDE_NORMAL[side][k] < 0) === after};
+    }
+  }
   const nrm = SIDE_NORMAL[side] || {x:0, y:-1};
   // The bar runs along the side, so its axis is the side's own direction.
   const ux = sideIsVertical(side) ? 1 : 0;
@@ -112,7 +160,15 @@ function amalgamGeometry(list, ports){
   // The single port everything funnels into: the middle of that edge.
   const port = portOnSide(b, side, 0, 1, ring);
   let nearest = Infinity;
-  list.forEach(e=>{
+  let towards = true;
+  if(resting){
+    /* The distance to the resting place, and to the lineages beyond it.
+       When the entry has been carried past the bar the lineages are on
+       the far side of the entry rather than in front of it, so a bar
+       giving way moves AWAY from them and there is nothing to squeeze. */
+    nearest = (resting.at - port[resting.k]) * nrm[resting.k] + AMALGAM_LEAD;
+    towards = resting.towards;
+  } else list.forEach(e=>{
     const sN = nodes.get(e.from);
     if(!sN) return;
     [[sN.x, sN.y], [sN.x+sN.w, sN.y], [sN.x, sN.y+sN.h], [sN.x+sN.w, sN.y+sN.h]]
@@ -157,7 +213,7 @@ function amalgamGeometry(list, ports){
   let barDist = rest;
   if(barDist < AMALGAM_GAP){
     barDist = rest + Math.ceil((AMALGAM_GAP - rest) / GRID - 1e-9) * GRID;
-    if(Number.isFinite(nearest) && barDist > nearest - AMALGAM_SQUEEZE)
+    if(towards && Number.isFinite(nearest) && barDist > nearest - AMALGAM_SQUEEZE)
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
@@ -592,7 +648,14 @@ function drawAmalgam(list, ports){
     const run = Math.abs(runOutAlong(p1raw));
     const p1 = run ? Object.assign({}, p1raw, {stub: run}) : p1raw;
     // Approached head-on, from the side the lineages are on.
-    const target = {x: land.x, y: land.y, side, ring: 0, stub: AMALGAM_APPROACH};
+    /* …from whichever side of the bar the lineage is on. That is the far
+       side, from the entry, whenever the entry stands clear of its
+       lineages; carried past the bar, the entry has them on its own side,
+       and approaching from beyond the bar there sent the line past it, back
+       round and onto it again — the hooked corner at either end. */
+    const beyond = (p1raw.x - land.x) * nrm.x + (p1raw.y - land.y) * nrm.y >= 0;
+    const target = {x: land.x, y: land.y, side: beyond ? side : OPPOSITE_SIDE[side],
+                    ring: 0, stub: AMALGAM_APPROACH};
     const { pts } = pathFromPorts(p1, target, style, new Set([a.id, b.id]), recM.lane || 0);
     /* Only the two lineages at the ENDS of the bar round their turn onto
        it. For them the bar starts where they land, and a rounded corner is
@@ -614,7 +677,7 @@ function drawAmalgam(list, ports){
        a plain line. A wave fits whole lengths into its run and so ends on
        the bar's own line, where the next colour picks up. */
     if(bar && !onEnd){
-      d += style.sinusoid ? ' ' + wavyPath([land, bar])
+      d += style.sinusoid ? ' ' + wavyPath([land, bar], 0, 0, true)
                           : ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
       stretches[i] = {land, bar, wavy: !!style.sinusoid};
     }
@@ -679,8 +742,15 @@ function drawAmalgam(list, ports){
       const j = junction > seam ? bounds.findIndex(r=> Math.abs(r.lo - seam) < 1e-6 && r.hi > seam)
                                 : bounds.findIndex(r=> Math.abs(r.hi - seam) < 1e-6 && r.lo < seam);
       const under = j >= 0 ? stretches[j] : null;
-      const d = (under && under.wavy)
-        ? wavyPath([under.land, under.bar], Math.hypot(under.land.x - to.x, under.land.y - to.y), 0)
+      /* …unless the lineage carrying it on is wavy itself, when it is its
+         OWN ripple that runs on: the line is that lineage's, and laying it
+         as a straight piece (or as the neighbour's ripple) between the last
+         of its waves and the dot it feeds is the style giving out a few
+         units short of where the line ends. */
+      const d = style.sinusoid
+        ? wavyPath([from, to], 0, 0, true)
+        : (under && under.wavy)
+        ? wavyPath([under.land, under.bar], Math.hypot(under.land.x - to.x, under.land.y - to.y), 0, true)
         : `M${from.x.toFixed(2)},${from.y.toFixed(2)} L${to.x.toFixed(2)},${to.y.toFixed(2)}`;
       const attrs = {class:'edge struct amalgam-reach',
                      d,
@@ -780,7 +850,8 @@ function drawAmalgam(list, ports){
     ]);
     beadGround(jp, r);
     el('circle', {class:'amalgam-bead amalgam-joint', cx:jp.x.toFixed(2), cy:jp.y.toFixed(2),
-                  r, fill:jointPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
+                  r, fill:jointPaint, 'data-from':'', 'data-to':b.id,
+                  'data-pair': members[i].from + '\u0000' + members[i+1].from}, edgeLayer);
   }
 
   const beadR = AMALGAM_BEAD_R;

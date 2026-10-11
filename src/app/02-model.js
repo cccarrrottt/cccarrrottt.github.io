@@ -185,13 +185,17 @@ function quarterTurnOf(n){
    the card points at, and where along it. That is drawn as a leader line
    in redrawEdges, once the connector's route is known.
    ------------------------------------------------------------------ */
+/* The lines a leader may wear besides the solid one — see drawLeaderLine. */
+const LEADER_LINES = ['dashed', 'dotted', 'dashdot', 'double', 'sinusoid'];
 function calloutAnchorOf(opts){
   const L = opts && opts.leader;
   if(!L || typeof L !== 'object') return null;
   if(typeof L.from !== 'string' || typeof L.to !== 'string') return null;
   const at = (typeof L.at === 'number' && L.at >= 0 && L.at <= 1) ? L.at : 0.5;
   const snap = validSnap(L.snap);
-  return snap ? {from: L.from, to: L.to, at, snap} : {from: L.from, to: L.to, at};
+  const out = snap ? {from: L.from, to: L.to, at, snap} : {from: L.from, to: L.to, at};
+  if(LEADER_LINES.includes(L.line)) out.line = L.line;
+  return out;
 }
 function isCalloutNode(n){ return !!n && (n.shape || '') === 'callout'; }
 /* Which face of a box a point outside it is seen through. The same slab

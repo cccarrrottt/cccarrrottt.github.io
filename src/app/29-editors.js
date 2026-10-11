@@ -411,7 +411,10 @@ function makeChoiceGroup(id, onChange){
 // Path stays a real dropdown: its two options need words to tell apart,
 // where the others read fine as symbols.
 const styleRoutingSel = document.getElementById('styleRouting');
-styleRoutingSel.addEventListener('change', ()=> applyLiveEdgeStyle());
+styleRoutingSel.addEventListener('change', ()=>{
+  syncCornerChoice();
+  applyLiveEdgeStyle();
+});
 styleRoutingSel.addEventListener('click', ev=> ev.stopPropagation());
 // "Sinusoid (wavy)" is one more option in the Line strip rather than a
 // separate switch — reading it back out into the two underlying fields
@@ -437,8 +440,10 @@ function greyChoice(group, off, why){
   });
 }
 function syncCornerChoice(){
-  greyChoice(styleCornersSel, styleDashSel.value === 'sinusoid',
-             'A wavy line keeps its rounded turns');
+  const curve = styleRoutingSel.value === 'curve';
+  greyChoice(styleCornersSel, styleDashSel.value === 'sinusoid' || curve,
+             curve ? 'A curve has no corners to turn'
+                   : 'A wavy line keeps its rounded turns');
 }
 
 /* Arrowheads are two independent toggles, not one either/or: a connector

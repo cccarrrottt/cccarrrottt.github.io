@@ -38,6 +38,14 @@ const STYLE_BAR_BORDERS = [
 const STYLE_BAR_CORNERS = [['square', '┌', 'Square corners'], ['round', '╭', 'Rounded corners']];
 const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
 const STYLE_BAR_TURN = [['quarter', '⟳', 'Turn a quarter clockwise']];
+/* A callout's leader, in the connector's own vocabulary — see
+   drawLeaderLine. Shown only on a callout, after a divider, because it is
+   a look of the LINE and not of the card the rest of the bar is about. */
+const STYLE_BAR_LEADER = [
+  ['solid', '──', 'Solid leader line'], ['dashed', '╌╌', 'Dashed leader line'],
+  ['dotted', '┈┈', 'Dotted leader line'], ['dashdot', '─·', 'Dash-dotted leader line'],
+  ['double', '═', 'Double leader line'], ['sinusoid', '∿', 'Wavy leader line']
+];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
 const STYLE_BAR_LINGER = 260;
@@ -66,6 +74,7 @@ const styleBar = (()=>{
   group('frame', STYLE_BAR_FRAMES);
   group('corners', STYLE_BAR_CORNERS);
   group('turn', STYLE_BAR_TURN);
+  group('leader', STYLE_BAR_LEADER);
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -127,6 +136,8 @@ function syncStyleBar(){
     });
   };
   rows.turn.hidden = !n;
+  rows.leader.hidden = !(n && isCalloutNode(n) && n.leader);
+  if(!rows.leader.hidden) light(rows.leader, n.leader.line || 'solid');
   if(n){
     rows.border.hidden = false;
     rows.frame.hidden = true;
@@ -209,6 +220,11 @@ function applyStyleBar(group, value){
       } else if(group === 'corners'){
         // Square is the default, so it is the absence of the flag.
         if(value === 'square') delete opts.square; else opts.square = false;
+      } else if(group === 'leader'){
+        if(!opts.leader) return;
+        // Solid is the absence of the field, as everywhere else.
+        opts.leader = Object.assign({}, opts.leader);
+        if(LEADER_LINES.includes(value)) opts.leader.line = value; else delete opts.leader.line;
       }
       putEntry(found.index, found.entry, opts);
     });

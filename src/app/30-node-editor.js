@@ -143,8 +143,21 @@ function positionNodeEditor(){
      run past the box. The field does the same as whatever it is covering —
      see the stylesheet, where the two cases are spelled out. */
   const tn = nodeEditorTarget.kind === 'entry' ? nodes.get(nodeEditorTarget.id) : null;
-  const wraps = nodeEditorTarget.kind === 'note' || (tn && (tn.shape || '') === 'ellipse');
-  nodeEditor.dataset.wrap = wraps ? 'on' : 'off';
+  /* A remark — a connector's note or a callout — wraps as well, but not at
+     the width it has NOW. Its plate or card is closed on the words it holds
+     and widens as more are typed, up to a width of its own; only past that
+     does it fold. So the field does exactly that: it is as wide as its
+     words (`width:max-content`) and folds at the remark's ceiling, which
+     is `fitW`. It used to be held at the plate's present width, so the
+     field broke a line the drawing still had room for — and, opened on a
+     callout, it was not folded at all and was set at an entry's size
+     rather than a remark's, a field half again as big as the card. */
+  const remark = nodeEditorTarget.kind === 'note' || (tn && isCalloutNode(tn));
+  const fitW = !remark ? 0
+    : nodeEditorTarget.kind === 'note' ? EDGE_NOTE_MAXW
+    : (tn.size ? tn.w : EDGE_NOTE_MAXW) - 2 * textInsetFor(tn);
+  const wraps = !remark && !!(tn && (tn.shape || '') === 'ellipse');
+  nodeEditor.dataset.wrap = remark ? 'fit' : wraps ? 'on' : 'off';
   /* The field starts as exactly the box it stands on — never bigger.
    *
    * It used to have a floor of its own, 120 units wide, and the height of
@@ -169,6 +182,8 @@ function positionNodeEditor(){
   surf.height = '';
   surf.padding = '0px';
   if(lineH) surf.lineHeight = lineH.toFixed(2) + 'px';
+  const edgePx = 2 * (parseFloat(surf.borderWidth) || 0);
+  surf.maxWidth = remark ? (fitW * vs + edgePx).toFixed(2) + 'px' : '';
   if(wraps){
     surf.minWidth = '';
     surf.width = w + 'px';
@@ -185,6 +200,8 @@ function positionNodeEditor(){
   const padY = Math.max(0, (hBox - fitted.height) / 2);
   const padX = wraps ? 0 : Math.max(0, (w - fitted.width) / 2);
   surf.padding = padY.toFixed(2) + 'px ' + padX.toFixed(2) + 'px';
+  // The padding is inside the ceiling's box, so the ceiling makes room for it.
+  if(remark) surf.maxWidth = (fitW * vs + edgePx + 2 * padX).toFixed(2) + 'px';
   /* The browser sets a line a hair wider than the drawing measured it.
      That hair is let hang over the field's edge rather than make the field
      bigger than the box; so is a line taller than a box closed on its ink,
@@ -193,7 +210,7 @@ function positionNodeEditor(){
   surf.setProperty('--hang', hang.toFixed(2) + 'px');
   if(!wraps){
     surf.minWidth = w + 'px';
-    if(fitted.width > w && fitted.width - w < 4*vs) surf.width = w + 'px';
+    if(!remark && fitted.width > w && fitted.width - w < 4*vs) surf.width = w + 'px';
   }
   const bar = document.getElementById('nodeEditorBar');
   const barH = bar ? bar.getBoundingClientRect().height : 0;
@@ -314,7 +331,9 @@ function syncNodeEditorLook(){
   }
   const n = nodes.get(nodeEditorTarget.id);
   if(!n) return;
-  const size = (n.fontSize && n.fontSize >= 6 && n.fontSize <= 28) ? n.fontSize : NODE_FS;
+  // A callout is set at a note's size unless it was given one — see renderNodes.
+  const size = (n.fontSize && n.fontSize >= 6 && n.fontSize <= 28) ? n.fontSize
+             : isCalloutNode(n) ? EDGE_NOTE_FS : NODE_FS;
   rec.surface.style.fontFamily = fontFamilyFor(n.font);
   rec.surface.style.fontSize = (size * vs).toFixed(2) + 'px';
   rec.surface.dataset.lineH = (LINE_H * (size / NODE_FS) * vs).toFixed(2);
