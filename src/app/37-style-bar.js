@@ -47,6 +47,12 @@ const STYLE_BAR_LEADER = [
   ['dotted', '┈┈', 'Dotted leader line'], ['dashdot', '─·', 'Dash-dotted leader line'],
   ['double', '═', 'Double leader line'], ['sinusoid', '∿', 'Wavy leader line']
 ];
+/* And what the leader leads to: a card, or — as on an engineering
+   drawing — a shelf the words stand on, the leader meeting its near end. */
+const STYLE_BAR_LEADER_FORM = [
+  ['card', '▭', 'Leader to a card round the words'],
+  ['shelf', '⎽', 'Drafting leader: the words on a shelf, the leader to its end']
+];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
 const STYLE_BAR_LINGER = 260;
@@ -76,6 +82,7 @@ const styleBar = (()=>{
   group('corners', STYLE_BAR_CORNERS);
   group('turn', STYLE_BAR_TURN);
   group('leader', STYLE_BAR_LEADER);
+  group('leaderForm', STYLE_BAR_LEADER_FORM);
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -140,10 +147,11 @@ function syncStyleBar(){
     });
   };
   rows.turn.hidden = !n;
-  rows.leader.hidden = !callout;
+  rows.leader.hidden = rows.leaderForm.hidden = !callout;
   if(callout){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     light(rows.leader, callout.leader.line || 'solid');
+    light(rows.leaderForm, callout.leader.shelf ? 'shelf' : 'card');
     styleBar.hidden = false;
     positionStyleBar();
     return;
@@ -157,10 +165,18 @@ function syncStyleBar(){
        and a rippled box keeps its rounded corners whatever is chosen — so
        both buttons are greyed where they would change nothing, rather than
        left to look as if they had been ignored. */
-    light(rows.border, borderStyleOf(n), (v)=> v === 'wavy' && WAVY_BORDER_SHAPES.includes(shape));
     const portrait = shape === 'ellipse';
+    /* A portrait ripples too, by a way of its own (isWavyPortrait); its
+       card then ripples with it, and a rippled card has no corners to
+       square, as a rippled box has none. */
+    /* A callout on a shelf has no card, and so no corners; its border
+       style is the shelf's, which is one line — a pattern, not a second
+       rail or a ripple. */
+    const shelf = !!(isCalloutNode(n) && n.leader && n.leader.shelf);
+    light(rows.border, borderStyleOf(n), (v)=> (v === 'wavy' && !portrait && WAVY_BORDER_SHAPES.includes(shape)) ||
+                                               (shelf && (v === 'wavy' || v === 'double')));
     light(rows.corners, n.square ? 'square' : 'round',
-          ()=> !portrait && (isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(shape)));
+          ()=> shelf || (portrait ? isWavyPortrait(n) : (isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(shape))));
     rows.corners.querySelectorAll('button').forEach(b=>{
       const own = STYLE_BAR_CORNERS.find(c=> c[0] === b.dataset.value)[2];
       b.title = portrait ? own + ' on the portrait’s card' : own;
@@ -168,8 +184,10 @@ function syncStyleBar(){
   } else {
     rows.border.hidden = true;
     rows.frame.hidden = false;
-    light(rows.frame, style.noteFrame ? 'frame' : 'bare');
-    light(rows.corners, style.noteSquare ? 'square' : 'round');
+    light(rows.frame, style.noteFrame === false ? 'bare' : 'frame');
+    /* A note with its frame taken off has no corners left to choose: the
+       buttons are greyed rather than left to look as if they did nothing. */
+    light(rows.corners, style.noteSquare ? 'square' : 'round', ()=> style.noteFrame === false);
   }
   styleBar.hidden = false;
   positionStyleBar();
@@ -244,6 +262,10 @@ function applyStyleBar(group, value){
         // Solid is the absence of the field, as everywhere else.
         opts.leader = Object.assign({}, opts.leader);
         if(LEADER_LINES.includes(value)) opts.leader.line = value; else delete opts.leader.line;
+      } else if(group === 'leaderForm'){
+        if(!opts.leader) return;
+        opts.leader = Object.assign({}, opts.leader);
+        if(value === 'shelf') opts.leader.shelf = true; else delete opts.leader.shelf;
       }
       putEntry(found.index, found.entry, opts);
     });

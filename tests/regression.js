@@ -11693,8 +11693,11 @@ async function main(){
       openStyleBar({kind:'note', from:'sqA', to:'sqB'});
       out.noteBar = bar.querySelector('[data-group="border"]').hidden &&
         !bar.querySelector('[data-group="frame"]').hidden;
-      press('frame', 'bare');
+      /* Corners first: with the frame off there are none to choose, and
+         the buttons are greyed (the owner's rule) — the square ones are
+         kept for when the frame comes back. */
       press('corners', 'square');
+      press('frame', 'bare');
       await wait(150);
       out.noteBare = !!plate() && plate().classList.contains('bare') && !plate().style.stroke &&
         +plate().getAttribute('rx') === 0 &&
@@ -11709,7 +11712,7 @@ async function main(){
       out.bioSquare = !!cardRect && +cardRect.getAttribute('rx') === 0;
       openStyleBar({kind:'node', id:'sqP'});
       out.bioOffered = [...bar.querySelectorAll('[data-group="corners"] button')].every(b=> !b.disabled) &&
-        bar.querySelector('[data-group="border"] button[data-value="wavy"]').disabled;
+        !bar.querySelector('[data-group="border"] button[data-value="wavy"]').disabled;
       closeStyleBar();
       closeBioCard();
       deselect();
@@ -11808,7 +11811,7 @@ async function main(){
   check('a note’s bar offers a frame and corners instead', rW.noteBar);
   check('and a note can go bare and square, and is saved so', rW.noteBare);
   check('a portrait’s corners square its card', rW.bioSquare);
-  check('and the bar offers them there, but not a ripple', rW.bioOffered);
+  check('and the bar offers them there, and the ripple', rW.bioOffered);
   check('the merge’s bar moves in whole grid steps or not at all', rW.barWhole, rW.barSteps);
   check('and stays put while the merged arrow still has its room', rW.barWaits, rW.barSteps);
   check('an outsider carried up to a lineage leaves the whole merge where it stands',
@@ -13682,12 +13685,112 @@ async function main(){
     out.bioDouble = sW.length === 2 && sW.some(l=> l.classList.contains('bio-stub-gap')) &&
                     cW.length === 2 && (Math.abs(x1 - outerEdge) < 0.6 || Math.abs(x1 - innerEdge) < 0.6);
 
+    /* The tab being shown keeps its outline: it is washed, not filled. */
+    const strokes = [...g.querySelectorAll('.lang-chip .lang-chip-bg')].map(p=> getComputedStyle(p).stroke);
+    const active = g.querySelector('.lang-chip.active .lang-chip-bg');
+    out.activeAt = JSON.stringify({strokes, fill: active && getComputedStyle(active).fill});
+    out.activeKeepsOutline = strokes.length >= 2 && strokes.every(v=> v === strokes[0]) &&
+                             !!active && getComputedStyle(active).fill !== strokes[0];
+
+    /* On a rippled entry the tabs grow out of the wave: carried down past
+       its troughs and cut off at it. */
+    applyEdit(()=>{
+      workingNodes.push(['tiR', 'Rippled', null, null, null, null,
+        {pos:[X + 400, Y], border:'wavy', multiLang:true, link:'https://example.com/',
+         langTabs:[{tag:'JP', text:'ja'}]}]);
+    });
+    await wait(300);
+    {
+      const r = nodes.get('tiR'), gr = document.querySelector('.node[data-id="tiR"]');
+      const chipsR = gr.querySelector('.lang-chips'), linkR = gr.querySelector('a');
+      const m = chipsR && chipsR.getAttribute('mask');
+      const base = tabBaseOf(r);
+      out.wavyTabAt = JSON.stringify({mask: m, link: linkR && linkR.getAttribute('mask'), sink: base.sink,
+                                      foot: +(base.y - r.y).toFixed(2)});
+      out.wavyTabs = !!m && !!document.querySelector(m.slice(4, -1)) && linkR.getAttribute('mask') === m &&
+                     base.sink > 0 && base.y > r.y - 0.01;
+    }
+
+    /* A rippled portrait: the circle, its line and its card all ripple,
+       and the style bar offers the ripple on a portrait. */
+    applyEdit(()=>{
+      workingNodes.push(['tiP', 'Rippled portrait', null, null, null, 'ellipse',
+        {pos:[X + 800, Y + 300], border:'wavy', bioCard:true}]);
+    });
+    await wait(300);
+    {
+      const ring = document.querySelector('.node[data-id="tiP"] .bio-ring');
+      const card = document.querySelector('.bio-card-g[data-id="tiP"]');
+      const stub = card && card.querySelector('.bio-stub');
+      const frame = card && card.querySelector('.bio-card-ring');
+      openStyleBar({kind:'node', id:'tiP'});
+      const wavyBtn = styleBar.querySelector('.style-bar-group[data-group="border"] button[data-value="wavy"]');
+      out.wavyPortraitAt = JSON.stringify({ring: ring && ring.tagName, stub: stub && stub.tagName,
+                                           frame: !!frame, offered: wavyBtn && !wavyBtn.disabled});
+      out.wavyPortrait = !!ring && ring.tagName === 'path' && !!stub && stub.tagName === 'path' &&
+                         !!frame && !!wavyBtn && !wavyBtn.disabled;
+      closeStyleBar();
+    }
+
+    /* A note with its frame off has no corners to choose. */
+    applyEdit(()=>{
+      workingNodes.push(['tiN1', 'From', null, null, null, null, {pos:[X, Y + 700]}]);
+      workingNodes.push(['tiN2', 'To', 'tiN1', null, null, null, {pos:[X + 300, Y + 700]}]);
+      EDGE_STYLES.push({from:'tiN1', to:'tiN2', routing:'orthogonal', dash:'solid', arrow:true,
+                        note:'a remark', noteFrame:false});
+    });
+    await wait(300);
+    {
+      const corners = ()=> [...styleBar.querySelectorAll('.style-bar-group[data-group="corners"] button')]
+                             .map(b=> b.disabled);
+      openStyleBar({kind:'note', from:'tiN1', to:'tiN2'});
+      const bare = corners();
+      applyEdit(()=>{ delete EDGE_STYLES.find(e=> e.from === 'tiN1' && e.to === 'tiN2').noteFrame; });
+      await wait(200);
+      openStyleBar({kind:'note', from:'tiN1', to:'tiN2'});
+      const framed = corners();
+      closeStyleBar();
+      out.noteCornersAt = JSON.stringify({bare, framed});
+      out.noteCorners = bare.length === 2 && bare.every(Boolean) && framed.every(v=> !v);
+    }
+
+    /* A drafting leader: the words on a shelf, the leader to its near end. */
+    applyEdit(()=>{
+      workingNodes.push(['tiS', 'On a shelf', null, null, null, 'callout',
+        {pos:[X + 500, Y + 600], leader:{from:'tiN1', to:'tiN2', at:0.5}}]);
+    });
+    await wait(300);
+    {
+      openStyleBar({kind:'leader', id:'tiS'});
+      styleBar.querySelector('.style-bar-group[data-group="leaderForm"] button[data-value="shelf"]').click();
+      await wait(300);
+      const k = nodes.get('tiS');
+      const shelf = document.querySelector('.callout-leader[data-id="tiS"] .leader-shelf');
+      const line = document.querySelector('.callout-leader[data-id="tiS"] .leader-line');
+      const lit = styleBar.querySelector('.style-bar-group[data-group="leaderForm"] button.on');
+      const sy = k.y + k.h;
+      const x2 = line ? +line.getAttribute('x2') : NaN, y2 = line ? +line.getAttribute('y2') : NaN;
+      const box = document.querySelector('.node[data-id="tiS"] > rect');
+      out.shelfAt = JSON.stringify({saved: workingEntry('tiS') && entryOpts(workingEntry('tiS').entry).leader,
+                                    shelf: !!shelf, end: [x2, y2], box: [k.x, k.x + k.w, sy],
+                                    lit: lit && lit.dataset.value, stroke: box && getComputedStyle(box).stroke});
+      out.shelf = !!shelf && Math.abs(+shelf.getAttribute('y1') - sy) < 0.05 &&
+                  Math.abs(y2 - sy) < 0.05 && (Math.abs(x2 - k.x) < 0.05 || Math.abs(x2 - k.x - k.w) < 0.05) &&
+                  !!lit && lit.dataset.value === 'shelf' && entryOpts(workingEntry('tiS').entry).leader.shelf === true;
+      closeStyleBar();
+    }
+
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
     rebuildChart();
     await wait(300);
     return out;
   });
+  check('the tab being shown keeps its outline, washed rather than filled', rT.activeKeepsOutline, rT.activeAt);
+  check('on a rippled entry the tabs grow out of the wave, cut off at it', rT.wavyTabs, rT.wavyTabAt);
+  check('a rippled portrait ripples its circle, its line and its card', rT.wavyPortrait, rT.wavyPortraitAt);
+  check('a note with no frame has its corner buttons greyed', rT.noteCorners, rT.noteCornersAt);
+  check('a drafting leader stands the words on a shelf and meets its near end', rT.shelf, rT.shelfAt);
   check('a language tab and the link tab are drawn in the colour of the border they stand on',
         rT.tabInk, rT.tabAt);
   check('and stand on the border\'s outer edge, never across its line', rT.tabOnBorder, rT.tabAt);

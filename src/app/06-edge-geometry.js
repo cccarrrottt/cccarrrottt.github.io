@@ -265,10 +265,22 @@ function borderProfileOf(n, ring){
     const step = ringStepFor(n);
     const rr = n.w/2 + (ring || 0) * step;
     const cx = n.x + n.w/2, cy = n.y + n.h/2;
+    /* A rippled portrait's rim is the circle's, swung in and out by the
+       ripple at that angle — read at the point the plain circle would have
+       given, which is near enough for a wave a pixel and a half deep. */
+    const wavy = isWavyPortrait(n);
     return {kind:'circle', amp: 0, structural: true,
             offsetAt: (side, px, py)=>{
               const d = sideIsVertical(side) ? (px - cx) : (py - cy);
-              const k = rr*rr - d*d;
+              let r = rr;
+              if(wavy){
+                const k0 = Math.sqrt(Math.max(0, rr*rr - d*d));
+                const nrm = SIDE_NORMAL[side] || {x:0, y:0};
+                const ox = sideIsVertical(side) ? d : nrm.x * k0;
+                const oy = sideIsVertical(side) ? nrm.y * k0 : d;
+                r = rippledRadius(rr, Math.atan2(oy, ox), rippleCount(n.w/2));
+              }
+              const k = r*r - d*d;
               return (k > 0 ? Math.sqrt(k) : 0) - rr;
             }};
   }
