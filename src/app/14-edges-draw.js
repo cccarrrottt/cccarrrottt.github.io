@@ -28,6 +28,19 @@ function edgePath(attrs, style, layer){
   return outer;
 }
 
+/* Which way a curve's heads point: along the curve's last arrowhead's
+   length, not along the route under it. A clamped spline is square to its
+   entry only AT the entry and leans a little a head's length back, so a
+   head set square met the line at a slant and left a notch beside it. The
+   head is laid on the chord the line would have drawn there, and the two
+   meet without a step. */
+function curveHeads(pts){
+  const c = curveThrough(pts, CURVE_STEP);
+  if(c.length < 2) return null;
+  const cut = cutAlong(c, ARROW_TRIM, ARROW_TRIM);
+  const deg = (a, b)=> Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  return {out: deg(cut[cut.length - 1], c[c.length - 1]), in: deg(cut[0], c[0])};
+}
 function edgeHit(d, from, to){
   const hit = el('path', {class:'edge-hit', d, 'data-from':from, 'data-to':to}, edgeLayer);
   hit.addEventListener('click', ev=>{
@@ -227,9 +240,13 @@ function redrawEdges(){
       : trimForHeads(pts, headIn, headOut, rec.p1, rec.p2);
     const drawD = style.sinusoid ? wavyPath(pts, cutIn, cutOut, false, edgeCornerR(style))
       : drawPts === pts ? d
+      /* A curve is cut where its heads begin by measuring along the CURVE,
+         not by shortening the route under it — see curveHeads. */
+      : style.routing === 'curve' ? polylinePath(cutAlong(curveThrough(pts, CURVE_STEP), cutIn, cutOut))
       : style.routing === 'straight'
         ? `M${drawPts[0].x},${drawPts[0].y} L${drawPts[drawPts.length-1].x},${drawPts[drawPts.length-1].y}`
         : roundedPath(drawPts, edgeCornerR(style));
+    const bent = style.routing === 'curve' ? curveHeads(pts) : null;
     const attrs = {class:'edge struct', d: drawD, stroke: paint, 'data-from':e.from,'data-to':e.to};
     if(dash){
       attrs['stroke-dasharray'] = dash;
@@ -278,11 +295,11 @@ function redrawEdges(){
     const clipHead = (port)=> (arrowLayerFor(port && port.ring, port) === arrowLayer
                                && port && port.wavy);
     if(headOut) drawArrowHead(arrowLayerFor(last.ring, rec.p2), tipOut.x, tipOut.y,
-                              angleDeg, paint, e.from, e.to,
+                              bent ? bent.out : angleDeg, paint, e.from, e.to,
                               clipHead(rec.p2) ? e.to : null,
                               rec.p2 ? rec.p2.ring : 0);
     if(headIn) drawArrowHead(arrowLayerFor(first.ring, rec.p1), tipIn.x, tipIn.y,
-                             startAngleDeg(pts), paint, e.from, e.to,
+                             bent ? bent.in : startAngleDeg(pts), paint, e.from, e.to,
                              clipHead(rec.p1) ? e.from : null,
                              rec.p1 ? rec.p1.ring : 0);
     /* Asked unconditionally: whether there is anything to draw is one

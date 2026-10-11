@@ -232,29 +232,57 @@ function positionNodeEditor(){
      the box is showing words that hang off both ends, and centring is the
      only placement that puts them where the drawing puts them. */
   const fieldLeft = wraps ? left : left - Math.max(0, (fieldW - box.w*vs) / 2);
-  /* Kept on the page: an entry at the very top or edge of the view would
-     put its toolbar where it cannot be reached. */
-  /* A field turned on its side is laid out upright and only drawn turned,
-     so its laid-out ends stick out past what is seen by half the
-     difference between its length and its depth. Kept on the page by what
-     is SEEN: clamping the laid-out box pushed the field of a turned entry
-     near the edge of the view sideways, off the words it stands on. */
-  const sideways = box.turn === 90 || box.turn === 270;
-  const overhang = sideways ? Math.max(0, (fieldW - fieldH) / 2) : 0;
-  const x = Math.max(6 - overhang, Math.min(fieldLeft, host.width - Math.max(fieldW - overhang, barW) - 6));
+  /* The FIELD stands on its entry, wherever that is; only the TOOLBAR is
+     kept on the page.
+   *
+     The two used to be kept on the page together, by the wider of the
+     two — and the toolbar is a row of buttons up to 340 pixels long. On a
+     phone that is most of the screen, so any entry right of the first
+     fifth of it had its field pushed left off its words to make room for
+     the buttons above it: the field "slid off sideways" the moment it
+     opened. The toolbar is not part of what is being edited and can stand
+     anywhere over it; the field is, and has exactly one place to be. A
+     field over an entry that is half off the view is half off the view —
+     the entry is too, and the chart can be moved under it. */
+  const x = fieldLeft;
+  const barX = Math.max(6, Math.min(fieldLeft, host.width - barW - 6));
+  if(bar) bar.style.marginLeft = (barX - x).toFixed(2) + 'px';
   /* Over a turned entry the field is drawn taller than it is laid out, so
      the toolbar is held off by the difference to stay clear of it. */
   const lift = Math.max(0, fieldTop - outerTop);
-  if(bar) bar.style.marginBottom = lift ? (gap + lift) + 'px' : '';
-  // …and the toolbar, which is not turned, is held on the page by itself.
-  if(bar) bar.style.marginLeft = x < 6 ? (6 - x) + 'px' : '';
-  const y = Math.max(6, fieldTop + hang - barH - gap - lift);
+  /* With no room above the entry for its toolbar — an entry at the very
+     top of the view — the toolbar goes UNDER it rather than pushing the
+     field down off the words, which is what holding the whole editor on
+     the page used to do. */
+  const above = fieldTop + hang - barH - gap - lift;
+  const under = above < 6;
+  nodeEditor.classList.toggle('bar-under', under);
+  if(bar){
+    bar.style.marginBottom = !under && lift ? (gap + lift) + 'px' : '';
+    bar.style.marginTop = under ? (gap + lift) + 'px' : '';
+  }
+  const y = under ? fieldTop + hang : above;
   surf.transform = box.turn ? `rotate(${box.turn}deg)` : '';
   surf.transformOrigin = box.turn ? 'center' : '';
   nodeEditor.style.left = x + 'px';
   nodeEditor.style.top  = y + 'px';
 }
 const NODE_EDITOR_MINH = 22;
+/* A phone's browser zooms the whole PAGE in on a field whose type is
+   smaller than 16 pixels as it takes the focus, and pans the page to it —
+   which on this chart is nearly every field, since it is set at the size
+   the entry is drawn at, and an entry seen whole on a phone is small. The
+   page swung off sideways and stayed there: the chart is not the thing
+   that zoomed, so nothing on it could bring it back. While the field is
+   open the page's zoom is held where it is; the chart's own zoom is what
+   makes the words bigger. Given back on close, so a reader can still
+   pinch the panels. */
+const viewportMeta = document.querySelector('meta[name="viewport"]');
+const viewportFree = viewportMeta ? viewportMeta.getAttribute('content') : '';
+function holdPageZoom(on){
+  if(!viewportMeta) return;
+  viewportMeta.setAttribute('content', on ? viewportFree + ', maximum-scale=1' : viewportFree);
+}
 /* Whether this entry writes its words on itself. A picture has no words at
    all; everything else that carries text does. */
 function nodeTakesInlineEditor(n){
@@ -308,6 +336,7 @@ function openTextEditorOn(target, opts){
   positionNodeEditor();
   const rec = richFields.get('nodeEditorText');
   if(rec && !(opts && opts.focus === false)){
+    holdPageZoom(true);
     rec.surface.focus({preventScroll:true});
     try{
       const sel = window.getSelection(), r = document.createRange();
@@ -433,6 +462,7 @@ function closeNodeEditor(keep){
   if(keep !== false) commitNodeEditorText();
   endLabelPreview(keep !== false);
   nodeEditor.hidden = true;
+  holdPageZoom(false);
   nodeEditorTarget = null;
   nodeEditorUndoPushed = false;
   /* A note that was asked for and never written stops being drawn here.
@@ -443,6 +473,9 @@ function closeNodeEditor(keep){
   if(wasNote){ redrawEdges(); applyVisibility(); }
 }
 setRichEnter('nodeEditorText', ()=> closeNodeEditor(true));
+/* A phone's keyboard coming up resizes the window; the field is put back
+   on its entry, and its toolbar back on the narrower page. */
+window.addEventListener('resize', ()=>{ if(nodeEditorTarget) positionNodeEditor(); });
 /* The surface writes through to this textarea, which fires no input event
    of its own, so both the preview and the commit are driven from the
    surface — the same wiring the drawer's Label and a callout's card use. */

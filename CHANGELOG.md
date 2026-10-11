@@ -8,6 +8,37 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Third thoughts (owner's notes)
+
+- **A tab stands on the border and wears its colour.** Language tabs and
+  the link tab no longer sink into the border's line (`TAB_SINK` is 0): the
+  foot stands on the outer edge of the outermost ring. Their outline and
+  words are in that ring's colour (`--tab-ink`, `tabInkOf`), the picked tab
+  filled with it.
+- **A curve is one sweep through the elbowed route**, not an elbow with
+  round corners: the route is the control polygon of a cubic B-spline
+  (`curveThrough`, `bsplineOver`), which leaves the first end and reaches the
+  last along the route's own legs and bows between them. Two entries one
+  over the other, joined side to side, are a bow inside the bracket the
+  elbow would draw. The arrowheads follow the curve's own last stretch
+  (`curveHeads`), so a curve arrives at a slant, and a wavy curve ripples
+  along the sweep.
+- **A portrait's line and card are drawn in its border's style**: dashed,
+  dotted and dash-dot as the circle is; double as two rails with the paper
+  between, the line starting on the outer rail's outer edge rather than
+  crossing it, and both of the card's rails outside its words.
+- **On a phone the field opens on its entry.** The field and its toolbar
+  were kept on the screen together, by the toolbar's width — most of a
+  phone's — so the field slid off its words. Now only the toolbar is kept
+  on the screen (and goes under the entry when there is no room above);
+  the field stands where the entry is. The page's own zoom is held while
+  the field is open, so a phone does not zoom and pan the page onto small
+  type.
+- **Guides for a finger.** Once the page has been touched, a button in the
+  chart's top-right corner holds Shift for every carry while it is lit:
+  an entry lines up on its neighbours, a bend on its route, a callout to
+  eighths, as under a held Shift.
+
 ### Second thoughts on the last round (owner's notes)
 
 - **A merge goes back to the middle of its bar when it loses a lineage**,

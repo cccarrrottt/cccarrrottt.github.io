@@ -275,6 +275,12 @@
     <!-- Making an entry: one round button in the corner. Pointed at, the
          styles stand up above it; picking one puts that entry on the
          nearest clear ground to the middle of the view. -->
+    <!-- Guides for a finger, which has no Shift to hold. Shown only once the
+         page has been touched; see 38-touch.js. -->
+    <button type="button" class="guide-toggle" id="guideToggle" aria-pressed="false"
+            title="Guides: line up whatever is carried, as Shift does">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
+    </button>
     <div class="add-fab" id="addFab">
       <div class="add-fab-styles" id="addFabStyles" role="menu"></div>
       <button type="button" class="add-fab-btn" id="addFabBtn" aria-haspopup="menu"

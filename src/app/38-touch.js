@@ -54,6 +54,27 @@ const TOUCH_HELD = '.draggable-row, .rich-surface:not(.locked) .rich-figure';
    an editable surface, and is still carried. */
 const TOUCH_NATIVE = 'input, textarea, select, [contenteditable="true"]';
 
+/* Guides, for a finger. Under a mouse the guides are asked for by holding
+   Shift while carrying — an entry lines up on its neighbours, a bend on
+   its route's corners, a callout swings to eighths, a connector's end
+   comes to its marks. A finger has no Shift, and the hold that stands in
+   for keys is already spoken for on an entry (it means Ctrl, a carry free
+   of the grid). So the button in the chart's corner holds Shift down for
+   it: while it is lit, every finger that MOVES something moves it with
+   Shift held. Only the moves and the release — never the press, because
+   a press with Shift on open canvas is the selection box, and a finger
+   panning the chart must go on panning. A held finger keeps its own
+   meaning: a free carry asked for on purpose outranks a standing offer. */
+let touchGuides = false;
+const guideToggle = document.getElementById('guideToggle');
+if(guideToggle) guideToggle.addEventListener('click', ()=>{
+  touchGuides = !touchGuides;
+  guideToggle.setAttribute('aria-pressed', touchGuides ? 'true' : 'false');
+});
+function touchCarryMods(st){
+  return st.mods || (touchGuides ? {shift: true} : null);
+}
+
 let touchGesture = null;
 let touchLastTap = null;
 let touchHoverChain = [];
@@ -279,7 +300,7 @@ function touchMoved(ev){
   ev.preventDefault();
   const under = touchTargetAt(st.x, st.y);
   touchHoverAt(under);
-  touchMouse('mousemove', under, st.x, st.y, st.mods);
+  touchMouse('mousemove', under, st.x, st.y, touchCarryMods(st));
 }
 
 function touchFinish(ev, cancelled){
@@ -301,7 +322,7 @@ function touchFinish(ev, cancelled){
   ev.preventDefault();
   const under = touchTargetAt(st.x, st.y);
   if(st.pressed){
-    touchMouse('mouseup', under, st.x, st.y, st.mods);
+    touchMouse('mouseup', under, st.x, st.y, touchCarryMods(st));
     /* A carry ends in a click, as it does under a mouse; the places that
        carry already swallow that one. A row has no click to give. */
     if(!cancelled && st.kind === 'now') touchMouse('click', touchClickTarget(st.target, under), st.x, st.y, st.mods, 1);

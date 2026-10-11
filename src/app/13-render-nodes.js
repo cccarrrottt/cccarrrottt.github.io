@@ -33,9 +33,17 @@ function tabOutline(w, h, r){
   return `M${x0},${y1} L${x0},${y0 + k} Q${x0},${y0} ${x0 + k},${y0} ` +
          `L${x1 - k},${y0} Q${x1},${y0} ${x1},${y0 + k} L${x1},${y1}`;
 }
-/* How far a tab's foot is sunk into the border, so the two meet with no
-   hairline of paper between them. */
-const TAB_SINK = 0.5;
+/* How far a tab's foot is sunk into the border. None: a tab stands ON the
+   border's outer edge and its own outline never crosses into the border's
+   line — sunk even half a pixel, the two strokes overlapped and the
+   border read as thicker under every tab. */
+const TAB_SINK = 0;
+/* The colour a tab is drawn in: the border it stands on, which is the
+   outermost ring. A tab is a part of the entry's edge, and grey or the
+   page's accent on a blue entry made it read as something laid on top. */
+function tabInkOf(ringColors){
+  return (ringColors && ringColors.length) ? ringColors[ringColors.length - 1] : null;
+}
 /* A resize grip is a dot on the corner: this big to see, and this far out
    to catch the hand — see the grips below for why it is not a square. */
 const RESIZE_DOT_R = 1.9, RESIZE_DOT_HIT = 3.6;
@@ -1197,6 +1205,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     let cursorX = base.left + 2;
     // One group, so the whole row can be raised above the edge handles.
     chipGroup = el('g', {class:'lang-chips'}, g);
+    const tabInk = tabInkOf(ringColors);
+    if(tabInk) chipGroup.style.setProperty('--tab-ink', tabInk);
     chipLabels.forEach((lbl, idx)=>{
       const tabIdx = idx===0 ? null : idx-1;
       const isActive = tabIdx === activeIdxNow;
@@ -1383,12 +1393,14 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        height and shape as the language chips at the other end — see
        tabBaseOf for why it stands on the border rather than over it. */
     const base = tabBaseOf(n);
+    const linkInk = tabInkOf(ringColors);
     const lg = el('g',{class:'node-link',
       transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y + TAB_SINK - LINK_TAB/2})`}, linkWrap);
     el('path',{d: tabOutline(LINK_TAB, LINK_TAB, 2.5), class:'node-link-bg',
                'data-w': LINK_TAB, 'data-h': LINK_TAB}, lg);
     el('path',{d:'M-1.6,1.9 L1.6,-1.3 M-0.5,-1.3 L1.6,-1.3 L1.6,0.8', fill:'none',
                class:'node-link-arrow'}, lg);
+    if(linkInk) lg.style.setProperty('--tab-ink', linkInk);
     el('title',{},lg).textContent = 'Open linked page ↗';
     /* And while another entry is open this one's link does not fire: the
        page it would open belongs to a box the reader has stepped away
