@@ -226,10 +226,20 @@ function drawOneBioCard(n, already){
   const rim = n.w/2 - outerR - railOut;   // negative: outside the box, by the rings
   /* The card's rails both stand OUTSIDE its box: it is closed a pixel off
      its words, and a rail inside that box would sit on them. */
-  const cardRailOut = dbl ? 2 * DOUBLE_LINE_OFF + DOUBLE_LINE_W / 2 : 0;
+  /* A rippled frame stands a ripple and a pixel clear of the words, or
+     its troughs would dip into them; the line reaches out to it. */
+  const ripplePad = isWavyPortrait(n) ? POCKET_AMP + 1 : 0;
+  const cardRailOut = dbl ? 2 * DOUBLE_LINE_OFF + DOUBLE_LINE_W / 2 : ripplePad;
   const stub = {x1: flip ? n.x + rim : n.x + n.w - rim, y1: cy,
                 x2: flip ? x + w + cardRailOut : x - cardRailOut, y2: cy};
-  if(dbl){
+  const rippled = isWavyPortrait(n);
+  if(rippled){
+    /* A rippled portrait's line ripples as a short wavy connector does,
+       laid from its middle so it leaves the circle and meets the card at
+       the baseline, where both of those are too (see rippleCount). */
+    el('path', {class:'bio-stub', stroke: n.color, fill:'none', 'stroke-width':1.2,
+                d: wavyPath([{x: stub.x1, y: stub.y1}, {x: stub.x2, y: stub.y2}], 0, 0, true)}, g);
+  } else if(dbl){
     el('line', Object.assign({class:'bio-stub', stroke: n.color,
                               'stroke-width': DOUBLE_BAND_W}, stub), g);
     el('line', Object.assign({class:'bio-stub bio-stub-gap',
@@ -260,6 +270,13 @@ function drawOneBioCard(n, already){
     const offs = dbl ? [2 * DOUBLE_LINE_OFF, 0] : [0];
     offs.forEach((off, k)=>{
       const gg = grow + off;
+      if(rippled){
+        // The card's frame ripples as a rippled entry's box does.
+        const gp = gg + ripplePad;
+        el('path', {d: wavyRectPath(x-gp, y-gp, w+gp*2, h+gp*2, gp), stroke:c, class:'bio-card-ring',
+                    style: i>0 ? 'fill:none;' : `fill:${cardBg || 'var(--panel)'};`}, g);
+        return;
+      }
       const a = {x:x-gg, y:y-gg, width:w+gg*2, height:h+gg*2,
                  rx: bioCardSquare(n) ? 0 : Math.max(0, BIO_CARD_INSET + gg),   // see inkCornerR
                  stroke:c, style: (i>0 || k>0) ? 'fill:none;'

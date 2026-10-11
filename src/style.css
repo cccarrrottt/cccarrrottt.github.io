@@ -269,8 +269,8 @@
      is added first, so it took the fill and the border was left hollow.
      A hollow border is nothing to click on: an empty portrait could not be
      picked up except by its rim. */
-  .node-bio > circle.bio-ring{stroke-width:2;fill:var(--panel);}
-  .node-bio > circle.bio-ring ~ circle.bio-ring{fill:none;}
+  .node-bio > .bio-ring{stroke-width:2;fill:var(--panel);}
+  .node-bio > .bio-ring ~ .bio-ring{fill:none;}
   /* The same specificity trap the hover pad fell into: `.node > path` and
      `.node-bio > circle` both set a panel fill and both beat a bare class,
      so the placeholder figure — which is meant to be a hairline drawing of
@@ -447,7 +447,7 @@
      behind it gives the selection its presence. */
   .node.selected > rect, .node.selected > polygon, .node.selected > ellipse,
   .node-bio.selected > circle, .node.selected > path,
-  .node-bio.selected > circle.bio-ring{
+  .node-bio.selected > .bio-ring{
     filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
@@ -871,15 +871,20 @@
   .node-link{cursor:pointer;}
   .node-link-bg{fill:var(--paper);stroke:var(--tab-ink,var(--accent));stroke-width:0.9;stroke-linejoin:round;}
   .node-link-arrow{stroke:var(--tab-ink,var(--accent));stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
-  .node-link:hover .node-link-bg{fill:var(--tab-ink,var(--accent));}
-  .node-link:hover .node-link-arrow{stroke:var(--paper);}
+  /* Lit by a wash of its own ink, not filled with it: the tab's outline
+     is the border's colour whether it is lit or not. */
+  .node-link:hover .node-link-bg{fill:color-mix(in srgb, var(--tab-ink,var(--accent)) 22%, var(--paper));}
   .lang-chip{cursor:pointer;}
   .lang-chip-bg{fill:var(--paper);stroke:var(--tab-ink,var(--line));stroke-width:0.75;stroke-linejoin:round;}
   .lang-chip-label.emoji{font-family:var(--emoji);}
   .lang-chip-label{fill:var(--tab-ink,var(--ink-dim,var(--ink)));font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:600;pointer-events:none;user-select:none;}
   .lang-chip:hover .lang-chip-bg{stroke-width:1.1;}
-  .lang-chip.active .lang-chip-bg{fill:var(--tab-ink,var(--accent));stroke:var(--tab-ink,var(--accent));}
-  .lang-chip.active .lang-chip-label{fill:var(--paper);}
+  /* The tab being shown is the bigger one, washed in its ink. Its outline
+     does not change: filled solid, the outline vanished into the fill and
+     the tab read as a block of a different colour from the border it
+     stands on. */
+  .lang-chip.active .lang-chip-bg{fill:color-mix(in srgb, var(--tab-ink,var(--line)) 22%, var(--paper));}
+  .lang-chip.active .lang-chip-label{font-weight:700;}
 
   .edge{fill:none;pointer-events:none;transition:opacity 120ms ease;}
   /* See silenceEdgeFade: a line that has only just been drawn does not
@@ -2293,6 +2298,12 @@
      its border is thinner and its text a shade quieter. Everything else
      about it is an ordinary entry, ports and connectors included. */
   .node-callout > rect{stroke-width:1.1;}
+  /* A drafting leader's words stand on a shelf, with no card: the box is
+     still there to be taken hold of, and shows only while it is. */
+  .node-callout.callout-shelf > rect{stroke:transparent !important;fill:transparent !important;}
+  .node-callout.callout-shelf.selected > rect, .node-callout.callout-shelf:hover > rect{
+    stroke:var(--line) !important;stroke-dasharray:2 2;filter:none;}
+  .leader-shelf{stroke-width:1.1;fill:none;}
   /* Full strength, like every other entry's text. At 86% the same hex came
      out a lighter grey than the border above it and than the words in the
      box beside it — two blacks on one chart, for no reason a reader could

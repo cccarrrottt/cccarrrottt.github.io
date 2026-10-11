@@ -19,7 +19,30 @@ function tabBaseOf(n){
   const out = isWavyBorder(n) ? POCKET_AMP + NODE_BORDER_W / 2
             : borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2
             : NODE_BORDER_W / 2;
-  return {y: n.y - own - out, left: n.x - own, right: n.x + n.w + own};
+  /* On a rippled border there is no straight edge to stand on. Stood on
+     the crests, a tab floated over every trough beside it with a gap of
+     paper under its foot. So it is carried down past the troughs (`sink`)
+     and cut off at the ripple (tabMaskFor): it grows out of the wave the
+     way it grows out of a straight border, and its top stays where it was. */
+  const sink = isWavyBorder(n) ? 2 * POCKET_AMP + NODE_BORDER_W : 0;
+  return {y: n.y - own - out + sink, sink, left: n.x - own, right: n.x + n.w + own};
+}
+/* The cut for those tabs: everything outside the outermost ripple, its
+   stroke included, so a tab stops where the drawn border begins. */
+function tabMaskFor(n, h){
+  if(!isWavyBorder(n)) return null;
+  const grow = (ringCountOf(n) - 1) * ringStepFor(n);
+  const id = defId('tabmask-', n.id);
+  // Asked for by the chips and by the link; one mask, made afresh each time.
+  const was = document.getElementById(id);
+  if(was) was.remove();
+  const m = el('mask', {id, maskUnits:'userSpaceOnUse', x: n.x - grow - 60, y: n.y - grow - 60,
+                        width: n.w + grow*2 + 120, height: h + grow*2 + 120}, nodeDefs);
+  el('rect', {x: n.x - grow - 60, y: n.y - grow - 60, width: n.w + grow*2 + 120,
+              height: h + grow*2 + 120, fill:'#fff'}, m);
+  el('path', {d: wavyRectPath(n.x - grow, n.y - grow, n.w + grow*2, h + grow*2, grow),
+              fill:'#000', stroke:'#000', 'stroke-width': NODE_BORDER_W}, m);
+  return `url(#${id})`;
 }
 /* A tab's outline: rounded at the top, square and OPEN at the foot, so it
    reads as grown out of the border it stands on — a folder's tab, which
@@ -210,6 +233,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
                  z < 0 ? backLayer : z > 0 ? frontLayer : nodeLayer);
   if(isBio) g.classList.add('node-bio');
   if(isCallout) g.classList.add('node-callout');
+  /* A drafting leader: the words stand on a shelf, with no card round
+     them — see drawCalloutLeaders, which draws the shelf with the line. */
+  if(isCallout && n.leader && n.leader.shelf) g.classList.add('callout-shelf');
   if(isFree) g.classList.add('node-free');
   if(isImage) g.classList.add('node-image');
   if(isTextbox) g.classList.add('node-textbox');
@@ -1031,7 +1057,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     if(n.image){
       const clipId = defId('bioclip-', n.id);
       const clip = el('clipPath', {id:clipId}, nodeDefs);
-      el('circle', {cx, cy, r:r-1}, clip);
+      // A rippled rim clips to its own ripple; the ring is drawn over the cut.
+      if(isWavyPortrait(n)) el('path', {d: rippledCirclePath(cx, cy, r, rippleCount(r))}, clip);
+      else el('circle', {cx, cy, r:r-1}, clip);
       const img = el('image', {
         x: cx-r, y: cy-r, width: r*2, height: r*2,
         'clip-path': `url(#${clipId})`,
@@ -1047,9 +1075,13 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        took the fill and the border lost it: a portrait with no picture in
        it had nothing under the pointer at all in its middle, and could
        not be picked up except by its two-pixel rim. */
+    const rippled = isWavyPortrait(n);
     ringColors.forEach((c,i)=>{
       const grow = i*RING_STEP;
-      borderRing('circle',
+      if(rippled) borderRing('path',
+        (ins)=>({d: rippledCirclePath(cx, cy, Math.max(0.5, r + grow - ins), rippleCount(r)), class:'bio-ring'}),
+        c, (i>0 || n.image) ? 'fill:none;' : bgFillStyle);
+      else borderRing('circle',
         (ins)=>({cx, cy, r: Math.max(0.5, r + grow - ins), class:'bio-ring'}),
         c, (i>0 || n.image) ? 'fill:none;' : bgFillStyle);
     });
@@ -1205,6 +1237,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     let cursorX = base.left + 2;
     // One group, so the whole row can be raised above the edge handles.
     chipGroup = el('g', {class:'lang-chips'}, g);
+    const tabMask = tabMaskFor(n, h);
+    if(tabMask) chipGroup.setAttribute('mask', tabMask);
     const tabInk = tabInkOf(ringColors);
     if(tabInk) chipGroup.style.setProperty('--tab-ink', tabInk);
     chipLabels.forEach((lbl, idx)=>{
@@ -1216,12 +1250,13 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const chipW = Math.max(hh, textW + CHIP_PAD*k*2);
       const cx = cursorX + chipW/2;
       // Standing on the border: every tab's foot on the same line, in it.
-      const cy = base.y + TAB_SINK - hh/2;
+      const th = hh + base.sink;
+      const cy = base.y + TAB_SINK - th/2;
       const chipG = el('g', {class:'lang-chip' + (isActive ? ' active' : ''),
                              transform:`translate(${cx},${cy})`}, chipGroup);
-      el('path', {d: tabOutline(chipW, hh, CHIP_R), class:'lang-chip-bg',
-                  'data-w': +chipW.toFixed(2), 'data-h': +hh.toFixed(2), 'data-r': CHIP_R}, chipG);
-      const chipLabelEl = el('text', {x:0, y:2.1*k, 'text-anchor':'middle', 'font-size':fs,
+      el('path', {d: tabOutline(chipW, th, CHIP_R), class:'lang-chip-bg',
+                  'data-w': +chipW.toFixed(2), 'data-h': +th.toFixed(2), 'data-r': CHIP_R}, chipG);
+      const chipLabelEl = el('text', {x:0, y:2.1*k - base.sink/2, 'text-anchor':'middle', 'font-size':fs,
                                       class:'lang-chip-label' + (lbl === DEFAULT_LANG_CHIP ? ' emoji' : '')}, chipG);
       chipLabelEl.textContent = lbl;
       el('title',{},chipG).textContent = idx===0 ? 'Show the default text' : `Show the "${lbl}" text`;
@@ -1394,12 +1429,16 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        tabBaseOf for why it stands on the border rather than over it. */
     const base = tabBaseOf(n);
     const linkInk = tabInkOf(ringColors);
+    const lh = LINK_TAB + base.sink;
+    const tabMask = tabMaskFor(n, h);
+    if(tabMask) linkWrap.setAttribute('mask', tabMask);
     const lg = el('g',{class:'node-link',
-      transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y + TAB_SINK - LINK_TAB/2})`}, linkWrap);
-    el('path',{d: tabOutline(LINK_TAB, LINK_TAB, 2.5), class:'node-link-bg',
-               'data-w': LINK_TAB, 'data-h': LINK_TAB}, lg);
-    el('path',{d:'M-1.6,1.9 L1.6,-1.3 M-0.5,-1.3 L1.6,-1.3 L1.6,0.8', fill:'none',
+      transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y + TAB_SINK - lh/2})`}, linkWrap);
+    el('path',{d: tabOutline(LINK_TAB, lh, 2.5), class:'node-link-bg',
+               'data-w': LINK_TAB, 'data-h': lh}, lg);
+    const arrow = el('path',{d:'M-1.6,1.9 L1.6,-1.3 M-0.5,-1.3 L1.6,-1.3 L1.6,0.8', fill:'none',
                class:'node-link-arrow'}, lg);
+    if(base.sink) arrow.setAttribute('transform', `translate(0,${-base.sink/2})`);
     if(linkInk) lg.style.setProperty('--tab-ink', linkInk);
     el('title',{},lg).textContent = 'Open linked page ↗';
     /* And while another entry is open this one's link does not fire: the

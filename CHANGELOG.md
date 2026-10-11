@@ -8,6 +8,24 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Fourth thoughts (owner's notes)
+
+- **A portrait can ripple** (`isWavyPortrait`, `rippledCirclePath`): the
+  circle, the line out to its card and the card's frame all ripple, the
+  rings in step; connectors meet the ripple where it is. Chosen by the
+  owner from drawn previews.
+- **A note with its frame off has its corner buttons greyed**: with no
+  frame there are no corners to choose.
+- **A tab keeps its outline when it is the one shown**: washed in its
+  ink rather than filled with it, so its outline never vanishes into a
+  block of colour. The link tab lights the same way.
+- **On a rippled entry the tabs grow out of the wave**: carried down past
+  its troughs and cut off at it (`tabMaskFor`, `sink`), instead of
+  standing on the crests over a gap.
+- **A drafting leader** (`leader.shelf`): as on an engineering drawing,
+  the words stand on a shelf as wide as they are and the leader runs to
+  the shelf's near end. Picked on the leader line, beside its pattern.
+
 ### Third thoughts (owner's notes)
 
 - **A tab stands on the border and wears its colour.** Language tabs and

@@ -323,6 +323,32 @@ function drawCalloutLeaders(from, to, pts, paint){
       }
     }
     const cx = n.x + n.w/2, cy = n.y + n.h/2;
+    /* The card belongs to its connector, so the leader is painted in the
+       connector's own stroke — a gradient included, which is a paint
+       server reference and works as a stroke. A callout with a colour of
+       its own overrules that: it was chosen. */
+    const ink = (n.colors && n.colors.length) ? n.colors[0] : (paint || 'var(--line)');
+    /* A drafting leader, as on an engineering drawing: no card, the words
+       standing on a shelf as wide as they are, and the leader running from
+       the place it points at to the NEAR end of the shelf. The shelf is
+       drawn here with the line rather than with the entry, because the
+       two are one stroke on paper and are dimmed, hidden and recoloured
+       together. Its pattern is the callout's own border's. */
+    if(n.leader.shelf){
+      calloutLeaderSides.set(n.id, 'bottom');
+      const sy = n.y + n.h;
+      const end = {x: m.x <= cx ? n.x : n.x + n.w, y: sy};
+      const g = el('g', {class:'callout-leader', 'data-id':n.id,
+                         'data-from':from, 'data-to':to}, edgeLayer);
+      const shelf = {class:'leader-shelf', stroke: ink, x1: n.x.toFixed(2), y1: sy.toFixed(2),
+                     x2: (n.x + n.w).toFixed(2), y2: sy.toFixed(2)};
+      const dash = (BORDER_STYLES[borderStyleOf(n)] || BORDER_STYLES.solid).dash;
+      if(dash) shelf['stroke-dasharray'] = dash;
+      el('line', shelf, g);
+      drawLeaderLine(g, m, end, ink, n.leader.line);
+      finishLeader(g, n, m, end, ink, pts);
+      return;
+    }
     /* Which edge the line ends up meeting, kept for the next render — see
        calloutLeaderSide, and the port it stops from existing. */
     calloutLeaderSides.set(n.id, sideFacing(n, m.x, m.y));
@@ -335,64 +361,64 @@ function drawCalloutLeaders(from, to, pts, paint){
     const len = Math.hypot(dx, dy);
     const into = Math.min(6, len);
     const edge = len < 0.01 ? rim : {x: rim.x + dx/len*into, y: rim.y + dy/len*into};
-    /* The card belongs to its connector, so the leader is painted in the
-       connector's own stroke — a gradient included, which is a paint
-       server reference and works as a stroke. A callout with a colour of
-       its own overrules that: it was chosen. */
-    const ink = (n.colors && n.colors.length) ? n.colors[0] : (paint || 'var(--line)');
     const g = el('g', {class:'callout-leader', 'data-id':n.id,
                        'data-from':from, 'data-to':to}, edgeLayer);
     drawLeaderLine(g, m, edge, ink, n.leader.line);
-    /* Only the dot actually being carried is drawn lifted. The drag used
-       to say so with a class on <body>, which every dot on the chart
-       matched — so sliding one anchor swelled all of them, and nothing
-       said which was in the hand. The leaders are redrawn every frame of
-       that drag, so the mark is put back here, on the one that moves. */
-    const carried = !!(anchorDrag && anchorDrag.moved && anchorDrag.id === n.id);
-    el('circle', {class: carried ? 'leader-dot lifted' : 'leader-dot',
-                  cx:m.x.toFixed(2), cy:m.y.toFixed(2),
-                  r:LEADER_DOT_R, fill:ink}, g);
-    /* The dot is a handle. Where a callout ATTACHES is as much a decision
-       as where it stands, and until now it could only be set once, in the
-       second half of the placing gesture — to move it a reader had to
-       delete the card and make another. It slides along the connector, and
-       the card comes with it, so the pair keep the offset they were aimed
-       at. A separate invisible circle catches the pointer, because a dot
-       two and a half pixels across is not something anyone can hit. */
-    if(!readOnlyView){
-      /* The leader's own line is a place to point at, too: its look is
-         chosen ON it, where the reader is looking at the line, rather than
-         on the card at the other end of it — see the style bar. Laid down
-         before the dot's handle, so the dot keeps the pointer where the
-         two meet. Wide in screen pixels, for the reason the dot's is. */
-      const lineHit = el('line', {class:'leader-line-hit', 'data-id':n.id,
-                                  x1:m.x.toFixed(2), y1:m.y.toFixed(2),
-                                  x2:edge.x.toFixed(2), y2:edge.y.toFixed(2),
-                                  'stroke-width': Math.max(4, 9 / (currentZoom() || 1))},
-                         leaderHitLayer);
-      lineHit.addEventListener('mousedown', ev=> ev.stopPropagation());
-      /* Sized in SCREEN pixels. A radius in chart units is a generous
-         target zoomed in and a two-pixel speck zoomed out, which is
-         exactly when a reader is most likely to be re-aiming things. */
-      const hit = el('circle', {class:'leader-dot-hit', 'data-id':n.id,
-                                cx:m.x.toFixed(2), cy:m.y.toFixed(2),
-                                r: Math.max(5, 11 / (currentZoom() || 1))}, leaderHitLayer);
-      el('title', {}, hit).textContent =
-        'Drag along the connector to move where this callout attaches';
-      /* The dot grows under the pointer. The handle is a good deal bigger
-         than the mark it stands for, so without this the cursor changed
-         over a patch of blank line and nothing said what it was over. The
-         two are in different layers now, so this is done by hand rather
-         than with a :hover rule. */
-      const dot = g.querySelector('.leader-dot');
-      if(dot){
-        hit.addEventListener('mouseenter', ()=> dot.classList.add('lifted'));
-        hit.addEventListener('mouseleave', ()=> dot.classList.remove('lifted'));
-      }
-      const route = pts.map(q=> ({x:q.x, y:q.y}));
-      hit.addEventListener('mousedown', ev=> beginAnchorDrag(ev, n.id, route));
-    }
+    finishLeader(g, n, m, edge, ink, pts);
   });
+}
+/* The anchor's dot and the two invisible handles over the line and the
+   dot, the same for a leader to a card and one to a shelf. */
+function finishLeader(g, n, m, edge, ink, pts){
+  /* Only the dot actually being carried is drawn lifted. The drag used
+     to say so with a class on <body>, which every dot on the chart
+     matched — so sliding one anchor swelled all of them, and nothing
+     said which was in the hand. The leaders are redrawn every frame of
+     that drag, so the mark is put back here, on the one that moves. */
+  const carried = !!(anchorDrag && anchorDrag.moved && anchorDrag.id === n.id);
+  el('circle', {class: carried ? 'leader-dot lifted' : 'leader-dot',
+                cx:m.x.toFixed(2), cy:m.y.toFixed(2),
+                r:LEADER_DOT_R, fill:ink}, g);
+  /* The dot is a handle. Where a callout ATTACHES is as much a decision
+     as where it stands, and until now it could only be set once, in the
+     second half of the placing gesture — to move it a reader had to
+     delete the card and make another. It slides along the connector, and
+     the card comes with it, so the pair keep the offset they were aimed
+     at. A separate invisible circle catches the pointer, because a dot
+     two and a half pixels across is not something anyone can hit. */
+  if(!readOnlyView){
+    /* The leader's own line is a place to point at, too: its look is
+       chosen ON it, where the reader is looking at the line, rather than
+       on the card at the other end of it — see the style bar. Laid down
+       before the dot's handle, so the dot keeps the pointer where the
+       two meet. Wide in screen pixels, for the reason the dot's is. */
+    const lineHit = el('line', {class:'leader-line-hit', 'data-id':n.id,
+                                x1:m.x.toFixed(2), y1:m.y.toFixed(2),
+                                x2:edge.x.toFixed(2), y2:edge.y.toFixed(2),
+                                'stroke-width': Math.max(4, 9 / (currentZoom() || 1))},
+                       leaderHitLayer);
+    lineHit.addEventListener('mousedown', ev=> ev.stopPropagation());
+    /* Sized in SCREEN pixels. A radius in chart units is a generous
+       target zoomed in and a two-pixel speck zoomed out, which is
+       exactly when a reader is most likely to be re-aiming things. */
+    const hit = el('circle', {class:'leader-dot-hit', 'data-id':n.id,
+                              cx:m.x.toFixed(2), cy:m.y.toFixed(2),
+                              r: Math.max(5, 11 / (currentZoom() || 1))}, leaderHitLayer);
+    el('title', {}, hit).textContent =
+      'Drag along the connector to move where this callout attaches';
+    /* The dot grows under the pointer. The handle is a good deal bigger
+       than the mark it stands for, so without this the cursor changed
+       over a patch of blank line and nothing said what it was over. The
+       two are in different layers now, so this is done by hand rather
+       than with a :hover rule. */
+    const dot = g.querySelector('.leader-dot');
+    if(dot){
+      hit.addEventListener('mouseenter', ()=> dot.classList.add('lifted'));
+      hit.addEventListener('mouseleave', ()=> dot.classList.remove('lifted'));
+    }
+    const route = pts.map(q=> ({x:q.x, y:q.y}));
+    hit.addEventListener('mousedown', ev=> beginAnchorDrag(ev, n.id, route));
+  }
 }
 /* ---------------------------------------------------------------------
    Sliding a callout's anchor along its connector.

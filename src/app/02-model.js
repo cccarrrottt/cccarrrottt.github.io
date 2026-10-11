@@ -107,6 +107,40 @@ function hasSquareCorners(n){
   return !!n.square;
 }
 function bioCardSquare(n){ return !!n && (n.shape || '') === 'ellipse' && !!n.square; }
+/* A portrait asked to ripple.
+ *
+ * Kept apart from isWavyBorder on purpose: everything that asks THAT
+ * reasons about a rippled box — its ports, its clip, its ring caps — and a
+ * portrait is a circle. So a portrait keeps every circle answer it had and
+ * only its outline, its line and its card are drawn rippled; where a
+ * connector meets it, borderProfileOf reads the ripple off the circle
+ * (rippledRadius). The owner chose this from drawn previews: the circle,
+ * the line out to the card and the card's frame all ripple together. */
+function isWavyPortrait(n){
+  return !!n && (n.shape || '') === 'ellipse' && borderStyleOf(n) === 'wavy';
+}
+/* How many waves go round a circle of this radius: as near the ripple's
+   own wavelength as a whole, EVEN number allows. Even, so the circle is at
+   its baseline exactly at the middle of each side, where the line to the
+   card leaves it and where a connector meets it head on. */
+function rippleCount(r){
+  return 2 * Math.max(2, Math.round(Math.PI * r / POCKET_WAVELEN));
+}
+/* `count` is the portrait's own, taken from its innermost circle and used
+   for every ring round it, so the rings ripple in step as a rippled box's
+   rings do — each counting its own waves put them out of phase. */
+function rippledRadius(r, theta, count){
+  return r + POCKET_AMP * Math.sin((count || rippleCount(r)) * theta);
+}
+function rippledCirclePath(cx, cy, r, count){
+  const N = count || rippleCount(r), steps = N * 12;
+  let d = '';
+  for(let k = 0; k < steps; k++){
+    const t = k / steps * 2 * Math.PI, rr = rippledRadius(r, t, N);
+    d += (k ? 'L' : 'M') + (cx + rr * Math.cos(t)).toFixed(2) + ',' + (cy + rr * Math.sin(t)).toFixed(2);
+  }
+  return d + 'Z';
+}
 function ringStepFor(n){ return isWavyBorder(n) ? POCKET_RING_STEP : RING_STEP; }
 /* How many borders an entry is drawn with. Rings step OUTWARD — ring 0 is
    the box itself and every further ring stands a step beyond the last — so
@@ -195,6 +229,7 @@ function calloutAnchorOf(opts){
   const snap = validSnap(L.snap);
   const out = snap ? {from: L.from, to: L.to, at, snap} : {from: L.from, to: L.to, at};
   if(LEADER_LINES.includes(L.line)) out.line = L.line;
+  if(L.shelf === true) out.shelf = true;
   return out;
 }
 function isCalloutNode(n){ return !!n && (n.shape || '') === 'callout'; }
@@ -322,7 +357,7 @@ const DOUBLE_LINE_W = (DOUBLE_BAND_W - DOUBLE_GAP_W) / 2;
 const DOUBLE_LINE_OFF = (DOUBLE_BAND_W - DOUBLE_LINE_W) / 2;
 function borderReachIn(n){
   if(isTextboxShape(n)) return TEXTBOX_FRAME_W / 2;
-  if(isWavyBorder(n)) return POCKET_AMP + NODE_BORDER_W / 2;
+  if(isWavyBorder(n) || isWavyPortrait(n)) return POCKET_AMP + NODE_BORDER_W / 2;
   if(borderStyleOf(n) === 'double') return DOUBLE_BAND_W / 2;
   return NODE_BORDER_W / 2;
 }
