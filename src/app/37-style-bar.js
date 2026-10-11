@@ -14,9 +14,14 @@
  *   an entry    the six border styles and the two corners. A portrait's
  *               circle has no corners of its own; on a portrait the
  *               corners are its card's (see bioCardSquare).
- *   a note      framed or bare, and its corners — a remark on a line
+ *   a note      framed or bare, its corners, which side of the line it
+ *               rides and what it is written on — a remark on a line
  *               chooses how it is written down, and the line's own
  *               corners are the line's.
+ *   a connector its pattern, its elbows and its arrowheads, offered where
+ *               the pointer reached the line. They were rows of the
+ *               connector's panel; what is left there is the route and
+ *               the paint.
  *
  * And an entry has one more button, at the end: a quarter turn clockwise.
  * It used to be a round arrow standing off the entry's corner, a handle
@@ -35,7 +40,9 @@ const STYLE_BAR_BORDERS = [
   ['dotted', '┈┈', 'Dotted border'], ['dashdot', '─·', 'Dash-dotted border'],
   ['double', '═', 'Double border'], ['wavy', '∿', 'Wavy border — the old pocket-reality edge']
 ];
-const STYLE_BAR_CORNERS = [['square', '┌', 'Square corners'], ['round', '╭', 'Rounded corners']];
+/* One button, not two: lit, the corners are rounded; dark, they are
+   square. Two buttons for one yes-or-no was one more thing on the bar. */
+const STYLE_BAR_CORNERS = [['round', '╭', 'Rounded corners — press again for square ones']];
 const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
 const STYLE_BAR_TURN = [['quarter', '⟳', 'Turn a quarter clockwise']];
 /* A callout's leader, in the connector's own vocabulary — see
@@ -52,6 +59,17 @@ const STYLE_BAR_LEADER = [
 const STYLE_BAR_LEADER_FORM = [
   ['card', '▭', 'Leader to a card round the words'],
   ['shelf', '⎽', 'Drafting leader: the words on a shelf, the leader to its end']
+];
+/* A connector's own line, and its two ends. */
+const STYLE_BAR_EDGE_LINE = [
+  ['solid', '──', 'Solid line'], ['dashed', '╌╌', 'Dashed line'],
+  ['dotted', '┈┈', 'Dotted line'], ['dashdot', '─·', 'Dash-dotted line'],
+  ['double', '═', 'Double line'], ['sinusoid', '∿', 'Wavy line']
+];
+const STYLE_BAR_ENDS = [['in', '◄', 'Arrowhead at the start'], ['out', '►', 'Arrowhead at the end']];
+/* Which side of its line a note rides. */
+const STYLE_BAR_NOTE_SIDE = [
+  ['above', '↑', 'Above the line'], ['on', '≡', 'On the line, covering it'], ['below', '↓', 'Below the line']
 ];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
@@ -79,10 +97,44 @@ const styleBar = (()=>{
   };
   group('border', STYLE_BAR_BORDERS);
   group('frame', STYLE_BAR_FRAMES);
+  group('edgeLine', STYLE_BAR_EDGE_LINE);
   group('corners', STYLE_BAR_CORNERS);
+  group('ends', STYLE_BAR_ENDS);
   group('turn', STYLE_BAR_TURN);
   group('leader', STYLE_BAR_LEADER);
   group('leaderForm', STYLE_BAR_LEADER_FORM);
+  group('noteSide', STYLE_BAR_NOTE_SIDE);
+  /* The plate's ground. Its INK is the connector's and is not the
+     reader's to set; what it is written on is. Typed, as every colour on
+     the chart is, and blank is the paper. */
+  {
+    const row = group('noteBg', []);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'hex-input';
+    input.placeholder = 'white';
+    input.maxLength = 9;
+    input.spellcheck = false;
+    input.title = 'What the note is written on — blank is the paper';
+    row.appendChild(input);
+    input.addEventListener('mousedown', ev=> ev.stopPropagation());
+    input.addEventListener('keydown', ev=> ev.stopPropagation());
+    input.addEventListener('input', ()=>{
+      const t = styleBarTarget;
+      if(!t || t.kind !== 'note' || readOnlyView) return;
+      const v = input.value.trim();
+      if(v && !readHex(input)) return;
+      input.classList.remove('bad');
+      /* One step of undo for a run of typing, as in every other field. */
+      if(input.dataset.pushed !== '1'){ pushUndo(); input.dataset.pushed = '1'; }
+      const o = EDGE_STYLES.find(s=> s.from === t.from && s.to === t.to);
+      if(!o) return;
+      if(v) o.noteBg = v; else delete o.noteBg;
+      redrawEdges();
+      refreshSaveUI();
+    });
+    input.addEventListener('blur', ()=>{ delete input.dataset.pushed; });
+  }
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -97,8 +149,10 @@ const styleBar = (()=>{
   if(host) host.appendChild(bar);
   return bar;
 })();
-/* What the bar is open on: {kind:'node', id}, {kind:'note', from, to} or
-   {kind:'leader', id} — a callout's leader line, by the callout's id. */
+/* What the bar is open on: {kind:'node', id}, {kind:'note', from, to},
+   {kind:'leader', id} — a callout's leader line, by the callout's id — or
+   {kind:'edge', from, to, x, y}, a connector, with where on the screen the
+   pointer met it, since a line has no corner to stand the bar over. */
 let styleBarTarget = null;
 let styleBarTimer = null;
 
@@ -114,6 +168,12 @@ function openStyleBar(target){
   if(readOnlyView) return;
   if(typeof nodeDragState !== 'undefined' && nodeDragState && nodeDragState.moved) return;
   clearTimeout(styleBarTimer);
+  /* On a line the bar stays where it first came up while the pointer runs
+     along the same line: following it would move the buttons out from
+     under the hand that is going for them. */
+  const t = styleBarTarget;
+  if(target.kind === 'edge' && t && t.kind === 'edge' && t.from === target.from && t.to === target.to &&
+     !styleBar.hidden) return;
   styleBarTarget = target;
   syncStyleBar();
 }
@@ -131,7 +191,7 @@ function closeStyleBar(){
 function syncStyleBar(){
   const t = styleBarTarget;
   const n = styleBarNode();
-  const style = t && t.kind === 'note' ? edgeStyleFor(t.from, t.to) : null;
+  const style = t && (t.kind === 'note' || t.kind === 'edge') ? edgeStyleFor(t.from, t.to) : null;
   const callout = t && t.kind === 'leader' ? nodes.get(t.id) : null;
   if(!t || (t.kind === 'node' && !styleBarWants(n)) || (t.kind === 'note' && !style.note) ||
      (t.kind === 'leader' && !(callout && callout.leader))){
@@ -148,6 +208,33 @@ function syncStyleBar(){
   };
   rows.turn.hidden = !n;
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
+  rows.edgeLine.hidden = rows.ends.hidden = t.kind !== 'edge';
+  rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
+  if(t.kind === 'edge'){
+    rows.border.hidden = rows.frame.hidden = true;
+    rows.corners.hidden = false;
+    light(rows.edgeLine, style.sinusoid ? 'sinusoid' : style.dash);
+    /* A curve and a straight line have no elbows, and a wave is drawn
+       through them; the corners are greyed where they would change
+       nothing. */
+    light(rows.corners, style.square ? '' : 'round',
+          ()=> style.sinusoid || style.routing === 'curve' || style.routing === 'straight');
+    rows.corners.querySelector('button').title = 'Rounded elbows — press again for square ones';
+    /* A lineage feeding an amalgam has no arrowhead of its own: it runs
+       into the shared bar, and the single arrow into the entry belongs to
+       the merge as a whole. Greyed rather than hidden, so the row still
+       explains itself. */
+    const merged = isAmalgamMember(t.from, t.to);
+    rows.ends.querySelectorAll('button').forEach(b=>{
+      b.classList.toggle('on', b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false);
+      b.disabled = merged;
+      b.title = merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
+                       : STYLE_BAR_ENDS.find(e=> e[0] === b.dataset.value)[2];
+    });
+    styleBar.hidden = false;
+    positionStyleBar();
+    return;
+  }
   if(callout){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     light(rows.leader, callout.leader.line || 'solid');
@@ -161,22 +248,18 @@ function syncStyleBar(){
     rows.border.hidden = false;
     rows.frame.hidden = true;
     const shape = n.shape || '';
-    /* The ripple is drawn only where WAVY_BORDER_SHAPES does not refuse it,
-       and a rippled box keeps its rounded corners whatever is chosen — so
-       both buttons are greyed where they would change nothing, rather than
-       left to look as if they had been ignored. */
     const portrait = shape === 'ellipse';
-    /* A portrait ripples too, by a way of its own (isWavyPortrait); its
-       card then ripples with it, and a rippled card has no corners to
-       square, as a rippled box has none. */
-    /* A callout on a shelf has no card, and so no corners; its border
-       style is the shelf's, which is one line — a pattern, not a second
-       rail or a ripple. */
-    const shelf = !!(isCalloutNode(n) && n.leader && n.leader.shelf);
-    light(rows.border, borderStyleOf(n), (v)=> (v === 'wavy' && !portrait && WAVY_BORDER_SHAPES.includes(shape)) ||
-                                               (shelf && (v === 'wavy' || v === 'double')));
-    light(rows.corners, n.square ? 'square' : 'round',
-          ()=> shelf || (portrait ? isWavyPortrait(n) : (isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(shape))));
+    /* A callout on a shelf has no card: its words and its line are all
+       there is, and the line's look is chosen on the line. */
+    if(isCalloutNode(n) && n.leader && n.leader.shelf) rows.border.hidden = rows.corners.hidden = true;
+    /* The ripple is drawn only where WAVY_BORDER_SHAPES does not refuse it
+       — a portrait ripples by a way of its own (isWavyPortrait) — and a
+       rippled box keeps its rounded corners whatever is chosen, so the
+       buttons are greyed where they would change nothing, rather than left
+       to look as if they had been ignored. */
+    light(rows.border, borderStyleOf(n), (v)=> v === 'wavy' && !portrait && WAVY_BORDER_SHAPES.includes(shape));
+    light(rows.corners, n.square ? '' : 'round',
+          ()=> portrait ? isWavyPortrait(n) : (isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(shape)));
     rows.corners.querySelectorAll('button').forEach(b=>{
       const own = STYLE_BAR_CORNERS.find(c=> c[0] === b.dataset.value)[2];
       b.title = portrait ? own + ' on the portrait’s card' : own;
@@ -186,8 +269,16 @@ function syncStyleBar(){
     rows.frame.hidden = false;
     light(rows.frame, style.noteFrame === false ? 'bare' : 'frame');
     /* A note with its frame taken off has no corners left to choose: the
-       buttons are greyed rather than left to look as if they did nothing. */
-    light(rows.corners, style.noteSquare ? 'square' : 'round', ()=> style.noteFrame === false);
+       button is greyed rather than left to look as if it did nothing. */
+    light(rows.corners, style.noteSquare ? '' : 'round', ()=> style.noteFrame === false);
+    light(rows.noteSide, style.notePos || 'above');
+    const bg = rows.noteBg.querySelector('input');
+    if(document.activeElement !== bg){ bg.value = style.noteBg || ''; bg.classList.remove('bad'); }
+  }
+  if(n || t.kind === 'note'){
+    rows.corners.querySelectorAll('button').forEach(b=>{
+      if(!n) b.title = STYLE_BAR_CORNERS[0][2];
+    });
   }
   styleBar.hidden = false;
   positionStyleBar();
@@ -207,6 +298,10 @@ function positionStyleBar(){
     left = sr.left - host.left + (n.x - out) * vs + vx;
     top = sr.top - host.top + (n.y - out) * vs + vy;
     bottom = sr.top - host.top + (n.y + n.h + out) * vs + vy;
+  } else if(t.kind === 'edge'){
+    left = t.x - host.left - 18;
+    top = t.y - host.top - 14;
+    bottom = t.y - host.top + 14;
   } else if(t.kind === 'leader'){
     const line = document.querySelector(`.callout-leader[data-id="${CSS.escape(t.id)}"] .leader-line`);
     if(!line){ closeStyleBar(); return; }
@@ -255,8 +350,8 @@ function applyStyleBar(group, value){
       if(group === 'border'){
         if(value === 'solid') delete opts.border; else opts.border = value;
       } else if(group === 'corners'){
-        // Square is the default, so it is the absence of the flag.
-        if(value === 'square') delete opts.square; else opts.square = false;
+        // A toggle. Square is the default, so it is the absence of the flag.
+        if(opts.square === false) delete opts.square; else opts.square = false;
       } else if(group === 'leader'){
         if(!opts.leader) return;
         // Solid is the absence of the field, as everywhere else.
@@ -269,14 +364,29 @@ function applyStyleBar(group, value){
       }
       putEntry(found.index, found.entry, opts);
     });
+  } else if(t.kind === 'edge'){
+    const kept = edgeStyleFor(t.from, t.to);
+    const change = {};
+    if(group === 'edgeLine'){
+      change.sinusoid = value === 'sinusoid' || undefined;
+      change.dash = value === 'sinusoid' ? 'solid' : value;
+    } else if(group === 'corners'){
+      change.square = !kept.square || undefined;
+    } else if(group === 'ends'){
+      if(value === 'in') change.arrowIn = !kept.arrowIn || undefined;
+      else change.arrow = kept.arrow === false;
+    }
+    applyEdit(()=> setEdgeStyleOverride(t.from, t.to, Object.assign({}, kept, change)));
   } else {
     applyEdit(()=>{
       const o = EDGE_STYLES.find(s=> s.from === t.from && s.to === t.to);
       if(!o) return;
-      if(group === 'frame'){
+      if(group === 'noteSide'){
+        o.notePos = value;
+      } else if(group === 'frame'){
         if(value === 'bare') o.noteFrame = false; else delete o.noteFrame;
       } else if(group === 'corners'){
-        if(value === 'square') o.noteSquare = true; else delete o.noteSquare;
+        if(o.noteSquare) delete o.noteSquare; else o.noteSquare = true;
       }
     });
   }
@@ -298,16 +408,29 @@ function applyStyleBar(group, value){
       openStyleBar({kind:'note', from: note.dataset.from, to: note.dataset.to});
       return;
     }
+    const line = ev.target.closest && ev.target.closest('.edge-hit');
+    if(line){
+      /* Not on a line stepped back behind a selection: it is not the
+         subject, and a click on it lets the selection go (see edgeHit). */
+      if(edgeIsStepBack(line.dataset.from, line.dataset.to)) return;
+      openStyleBar({kind:'edge', from: line.dataset.from, to: line.dataset.to,
+                    x: ev.clientX, y: ev.clientY});
+      return;
+    }
     const g = ev.target.closest && ev.target.closest('.node');
     if(g && g.dataset.id && styleBarWants(nodes.get(g.dataset.id))){
       openStyleBar({kind:'node', id: g.dataset.id});
     }
   };
   const out = (ev)=>{
-    const from = ev.target.closest && ev.target.closest('.node, .edge-note, .leader-line-hit');
+    const from = ev.target.closest && ev.target.closest('.node, .edge-note, .leader-line-hit, .edge-hit, #bendLayer');
     if(!from) return;
     const to = ev.relatedTarget;
     if(to && (from.contains(to) || styleBar.contains(to))) return;
+    /* From a line onto one of its own bend handles, or back, is still the
+       line. */
+    if(to && to.closest && styleBarTarget && styleBarTarget.kind === 'edge' &&
+       (to.closest('#bendLayer') || to.closest('.edge-hit'))) return;
     letStyleBarGo();
   };
   svg.addEventListener('mouseover', over);

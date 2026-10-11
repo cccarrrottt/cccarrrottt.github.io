@@ -460,6 +460,25 @@ document.addEventListener('focusin', ev=>{
     keyboardOnChart = false;
   }
 });
+/* What Delete takes away: the connector whose panel is open, or the
+   entries picked. One function, because a phone's delete button means the
+   same as the key (see touchTools); answers whether there was anything. */
+function deletePicked(){
+  if(readOnlyView) return false;
+  if(edgePopover.classList.contains('open') && currentEdgeStyleTarget){
+    styleDeleteBtn.click();
+    return true;
+  }
+  if(multiSelection.size > 1){
+    deleteNodes(Array.from(multiSelection));
+    return true;
+  }
+  if(selectedId){
+    deleteNode(selectedId);
+    return true;
+  }
+  return false;
+}
 document.addEventListener('keydown', e=>{
   // A modal question owns the keyboard while it is up. Without this,
   // Escape closed the panel behind it and Delete deleted the entry behind
@@ -510,21 +529,8 @@ document.addEventListener('keydown', e=>{
     // hijacked while the user is actually typing (Backspace has to keep
     // erasing text in every field, including these two keys' own textareas).
     if(typingInField()) return;
-    if(edgePopover.classList.contains('open') && currentEdgeStyleTarget){
-      e.preventDefault();
-      styleDeleteBtn.click();
-      return;
-    }
-    if(multiSelection.size > 1){
-      e.preventDefault();
-      deleteNodes(Array.from(multiSelection));
-      return;
-    }
-    if(selectedId){
-      e.preventDefault();
-      deleteNode(selectedId);
-      return;
-    }
+    if(deletePicked()) e.preventDefault();
+    return;
   }
   // ---- clipboard + undo ------------------------------------------------
   // Same guard as Delete/Backspace above: inside any text field these keys

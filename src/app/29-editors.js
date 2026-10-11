@@ -411,68 +411,9 @@ function makeChoiceGroup(id, onChange){
 // Path stays a real dropdown: its two options need words to tell apart,
 // where the others read fine as symbols.
 const styleRoutingSel = document.getElementById('styleRouting');
-styleRoutingSel.addEventListener('change', ()=>{
-  syncCornerChoice();
-  applyLiveEdgeStyle();
-});
+styleRoutingSel.addEventListener('change', ()=> applyLiveEdgeStyle());
 styleRoutingSel.addEventListener('click', ev=> ev.stopPropagation());
-// "Sinusoid (wavy)" is one more option in the Line strip rather than a
-// separate switch — reading it back out into the two underlying fields
-// (dash pattern + independent sinusoid flag) happens via selDashValue().
-const styleDashSel = makeChoiceGroup('styleDash', ()=>{ syncCornerChoice(); applyLiveEdgeStyle(); });
-function selDashValue(){
-  const v = styleDashSel.value;
-  return v==='sinusoid' ? {dash:'solid', sinusoid:true} : {dash:v, sinusoid:false};
-}
-/* Rounded or square elbows. Kept apart from the line strip because it is a
-   different question — a dashed line can turn either way — and greyed for
-   a sinusoid, whose wave is laid along a rounded line whatever this says. */
-const styleCornersSel = makeChoiceGroup('styleCorners', ()=>applyLiveEdgeStyle());
-/* Greys a corner choice that the thing it belongs to will not obey, rather
-   than hiding it: the row still says the setting exists, and why it does
-   nothing here is in its title. */
-function greyChoice(group, off, why){
-  group.root.classList.toggle('disabled', !!off);
-  group.root.querySelectorAll('button').forEach(b=>{
-    b.disabled = !!off;
-    if(!b.dataset.title) b.dataset.title = b.title;
-    b.title = off ? why : b.dataset.title;
-  });
-}
-function syncCornerChoice(){
-  const curve = styleRoutingSel.value === 'curve';
-  greyChoice(styleCornersSel, styleDashSel.value === 'sinusoid' || curve,
-             curve ? 'A curve has no corners to turn'
-                   : 'A wavy line keeps its rounded turns');
-}
-
-/* Arrowheads are two independent toggles, not one either/or: a connector
-   can point at its target, back at its source, at both (a mutual link) or
-   at neither (a plain tie). The pair behaves like two checkboxes drawn as
-   symbol buttons. */
-function makeToggleGroup(id, onChange){
-  const root = document.getElementById(id);
-  const buttons = Array.from(root.querySelectorAll('button'));
-  const group = {
-    get(name){
-      const b = buttons.find(x=>x.dataset.end === name);
-      return !!(b && b.classList.contains('on'));
-    },
-    set(name, on){
-      const b = buttons.find(x=>x.dataset.end === name);
-      if(b) b.classList.toggle('on', !!on);
-    }
-  };
-  buttons.forEach(b=> b.addEventListener('click', ev=>{
-    ev.stopPropagation();
-    b.classList.toggle('on');
-    if(onChange) onChange();
-  }));
-  return group;
-}
-const styleArrowEnds = makeToggleGroup('styleArrowEnds', ()=>applyLiveEdgeStyle());
 const stylePaintMode = makeChoiceGroup('stylePaintMode', ()=>{ syncColorRow(); applyLiveEdgeStyle(); });
-const styleNoteSide = makeChoiceGroup('styleNoteSide', ()=>{ applyLiveEdgeStyle(); });
 {
   const btn = document.getElementById('styleAddCallout');
   if(btn) btn.addEventListener('click', ev=>{
@@ -481,42 +422,6 @@ const styleNoteSide = makeChoiceGroup('styleNoteSide', ()=>{ applyLiveEdgeStyle(
     beginCalloutPick();
   });
 }
-/* Starting a note.
- *
- * A note's words are written on the plate, which is the right place for
- * them and left one thing with no way in: a connector carrying no note has
- * no plate to double-click, so the first note could not be written at all.
- * The button puts an empty one on the middle of the line and opens the
- * field on it — the same two steps a reader would have taken by hand if
- * there had been anything to point at. Written nothing and clicked away,
- * the empty note takes itself out again; that is the editor's own rule for
- * an emptied note and it needs no help here. */
-{
-  const btn = document.getElementById('styleAddNote');
-  if(btn) btn.addEventListener('click', ev=>{
-    ev.stopPropagation();
-    if(readOnlyView || !currentEdgeStyleTarget) return;
-    const {from, to} = currentEdgeStyleTarget;
-    const kept = edgeStyleFor(from, to);
-    if(!kept.note){
-      pushUndo();
-      applyEdit(()=>{
-        setEdgeStyleOverride(from, to, Object.assign({}, kept, {
-          note: '', notePos: kept.notePos || 'above', noteAt: 0.5
-        }));
-      });
-    }
-    /* The plate has to be on the screen before the field can stand on it,
-       and an empty note draws no plate — so it is marked as being started,
-       redrawn, and only then written on. */
-    noteStarting = {from, to};
-    redrawEdges();
-    openEdgeNoteEditor(from, to);
-  });
-}
-/* The note's words are not in this panel any more — they are written on
-   the note itself. What is left here is the ground it is written on. */
-const styleNoteBgInput = document.getElementById('styleNoteBg');
 const styleColorInput = document.getElementById('styleColor');
 const styleColor2Input = document.getElementById('styleColor2');
 const styleColorRow = document.getElementById('styleColorRow');

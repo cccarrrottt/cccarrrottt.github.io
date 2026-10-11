@@ -153,9 +153,19 @@ function positionNodeEditor(){
      callout, it was not folded at all and was set at an entry's size
      rather than a remark's, a field half again as big as the card. */
   const remark = nodeEditorTarget.kind === 'note' || (tn && isCalloutNode(tn));
+  /* …except that a CALLOUT does not fill to its ceiling before it folds.
+     Its card picks a width that balances its lines (see renderNodes), so a
+     short remark of three words can already stand on two lines well under
+     the ceiling — and a field folding only at the ceiling opened as one
+     long line, half as tall and half again as wide as the card under it.
+     So on a callout the fold is the card's own present width: the card is
+     laid out again on every keystroke and the field follows it there. The
+     extra pixel is the hair by which a browser sets a line wider than the
+     drawing measured it, which would otherwise fold the field a word
+     early. */
   const fitW = !remark ? 0
     : nodeEditorTarget.kind === 'note' ? EDGE_NOTE_MAXW
-    : (tn.size ? tn.w : EDGE_NOTE_MAXW) - 2 * textInsetFor(tn);
+    : tn.w - 2 * textInsetFor(tn) + 1;
   const wraps = !remark && !!(tn && (tn.shape || '') === 'ellipse');
   nodeEditor.dataset.wrap = remark ? 'fit' : wraps ? 'on' : 'off';
   /* The field starts as exactly the box it stands on — never bigger.
@@ -178,6 +188,8 @@ function positionNodeEditor(){
   const lineH = parseFloat(rec.surface.dataset.lineH) || 0;
   // Measured upright; turned to match a turned entry only at the end.
   surf.transform = '';
+  surf.setProperty('--ax', '0px');
+  surf.setProperty('--ay', '0px');
   surf.minHeight = '0px';
   surf.height = '';
   surf.padding = '0px';
@@ -266,6 +278,67 @@ function positionNodeEditor(){
   surf.transformOrigin = box.turn ? 'center' : '';
   nodeEditor.style.left = x + 'px';
   nodeEditor.style.top  = y + 'px';
+  alignEditorOnInk();
+}
+/* The last word on where the field stands: on the words it is covering.
+ *
+ * Everything above places the field by the BOX — centred on it, padded out
+ * to it — and that is right only as far as the drawing writes its words in
+ * the middle of its box, which it does not quite: an SVG line stands on a
+ * baseline worked out from the face's own metrics, an HTML line in a line
+ * box, and the two put the same words a little apart. A little in chart
+ * units, which the zoom then multiplies — so the field sat on its entry at
+ * the zoom the chart opens at and slid a few pixels down it as the chart
+ * was brought closer, on an entry, a note and a callout alike.
+ *
+ * So once it is placed, the words in the field are measured against the
+ * words drawn under it and the whole editor is moved by the difference.
+ * Only by a difference smaller than the words themselves: a larger one is
+ * not a misplacement but a drawing that has not caught up with the typing
+ * yet, and the next redraw puts the field back. A turned field is left as
+ * placed — its words run along the other axis. */
+function alignEditorOnInk(){
+  const t = nodeEditorTarget;
+  const rec = richFields.get('nodeEditorText');
+  if(!t || !rec || nodeEditor.hidden) return;
+  const box = nodeEditorBoxFor(t);
+  if(!box || box.turn) return;
+  let drawn = [];
+  if(t.kind === 'note'){
+    const g = arrowLayer.querySelector(
+      `.edge-note[data-from="${cssEscape(t.from)}"][data-to="${cssEscape(t.to)}"]`);
+    if(g) drawn = [...g.querySelectorAll('.edge-note-text')];
+  } else {
+    const n = nodes.get(t.id);
+    if(!n || t.tab != null) return;
+    const g = (n.shape || '') === 'ellipse'
+      ? bioCardLayer.querySelector(`.bio-card-g[data-id="${cssEscape(n.id)}"]`)
+      : qNode(`.node[data-id="${cssEscape(n.id)}"]`);
+    if(g) drawn = [...g.querySelectorAll(':scope > .node-label-text, :scope .node-label-text')];
+  }
+  let l = Infinity, tp = Infinity, r = -Infinity, b = -Infinity;
+  drawn.forEach(e=>{
+    const q = e.getBoundingClientRect();
+    if(!q.width || !q.height) return;
+    l = Math.min(l, q.left); tp = Math.min(tp, q.top);
+    r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+  });
+  if(!(r > l)) return;
+  const range = document.createRange();
+  range.selectNodeContents(rec.surface);
+  const f = range.getBoundingClientRect();
+  if(!f.width || !f.height) return;
+  const dx = (l + r)/2 - (f.left + f.right)/2;
+  const dy = (tp + b)/2 - (f.top + f.bottom)/2;
+  if(Math.abs(dx) > (r - l)/2 || Math.abs(dy) > (b - tp)/2) return;
+  nodeEditor.style.left = (parseFloat(nodeEditor.style.left) + dx).toFixed(2) + 'px';
+  nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(2) + 'px';
+  /* The words move; the frame drawn round them does not. It stands for
+     the box, and the box has not moved — so it is drawn back by the same
+     amount (see the stylesheet). */
+  const surf = rec.surface.style;
+  surf.setProperty('--ax', dx.toFixed(2) + 'px');
+  surf.setProperty('--ay', dy.toFixed(2) + 'px');
 }
 const NODE_EDITOR_MINH = 22;
 /* A phone's browser zooms the whole PAGE in on a field whose type is

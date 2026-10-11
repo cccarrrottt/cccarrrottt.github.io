@@ -330,22 +330,23 @@ function drawCalloutLeaders(from, to, pts, paint){
     const ink = (n.colors && n.colors.length) ? n.colors[0] : (paint || 'var(--line)');
     /* A drafting leader, as on an engineering drawing: no card, the words
        standing on a shelf as wide as they are, and the leader running from
-       the place it points at to the NEAR end of the shelf. The shelf is
-       drawn here with the line rather than with the entry, because the
-       two are one stroke on paper and are dimmed, hidden and recoloured
-       together. Its pattern is the callout's own border's. */
+       the place it points at to the NEAR end of the shelf — or, where the
+       place is under the shelf, straight up to it, square to a level line
+       as the owner drew it. The shelf is drawn here with the line rather
+       than with the entry, because the two are one stroke on paper: it
+       wears the leader's own pattern, and is dimmed, hidden and recoloured
+       with it. */
     if(n.leader.shelf){
       calloutLeaderSides.set(n.id, 'bottom');
       const sy = n.y + n.h;
-      const end = {x: m.x <= cx ? n.x : n.x + n.w, y: sy};
-      const g = el('g', {class:'callout-leader', 'data-id':n.id,
+      const under = m.x >= n.x && m.x <= n.x + n.w;
+      const end = under ? {x: m.x, y: sy} : {x: m.x <= cx ? n.x : n.x + n.w, y: sy};
+      const g = el('g', {class:'callout-leader leader-shelved', 'data-id':n.id,
                          'data-from':from, 'data-to':to}, edgeLayer);
-      const shelf = {class:'leader-shelf', stroke: ink, x1: n.x.toFixed(2), y1: sy.toFixed(2),
-                     x2: (n.x + n.w).toFixed(2), y2: sy.toFixed(2)};
-      const dash = (BORDER_STYLES[borderStyleOf(n)] || BORDER_STYLES.solid).dash;
-      if(dash) shelf['stroke-dasharray'] = dash;
-      el('line', shelf, g);
+      // The leader first, so `.leader-line` in a query is the leader itself.
       drawLeaderLine(g, m, end, ink, n.leader.line);
+      const shelfG = el('g', {class:'leader-shelf'}, g);
+      drawLeaderLine(shelfG, {x: n.x, y: sy}, {x: n.x + n.w, y: sy}, ink, n.leader.line);
       finishLeader(g, n, m, end, ink, pts);
       return;
     }

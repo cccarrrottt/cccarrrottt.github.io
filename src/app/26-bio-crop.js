@@ -298,7 +298,7 @@ function drawOneBioCard(n, already){
    * the plain contrasting ink, exactly as a box's label does. */
   const cardInk = readableOn(cardRings[0] || 'var(--ink)',
                              (n.bg && n.bg.length) ? n.bg[0] : null);
-  const txt = el('text', {x:x+w/2, y:0, 'font-size':fontSize, fill:cardInk,
+  const txt = el('text', {class:'node-label-text', x:x+w/2, y:0, 'font-size':fontSize, fill:cardInk,
     style:`font-family:${fontFamily};`}, g);
   renderNodeText(txt, n.label, y + h/2 - (block.mid || 0), x + w/2 - (block.midX || 0),
                  maxChars, lineH, fontScale, {fontSize, family:fontFamily}, fit);

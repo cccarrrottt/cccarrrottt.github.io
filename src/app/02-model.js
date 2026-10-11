@@ -302,8 +302,12 @@ const CARD_MEDIUM_SCALE = 0.9;
    does not turn one into a poster. */
 const CARD_IMG_MINH = 26, CARD_IMG_MAXH = 200;
 const CARD_PAD_Y = 9;
-// Default box for a free-standing picture before anyone resizes it.
-const IMAGE_DEFAULT_W = 180, IMAGE_DEFAULT_H = 120;
+/* Default box for a free-standing picture before anyone resizes it: the
+   size a character bio starts at. It was 180 by 120 — five times a
+   portrait's width — so a picture put down beside the portraits it was
+   meant to sit among arrived as a poster, and the first thing done with
+   every one was to shrink it. */
+const IMAGE_DEFAULT_W = BIO_SIZE, IMAGE_DEFAULT_H = BIO_SIZE;
 // A loose caption may run much wider than a chart entry before it wraps.
 const TEXTBOX_MAXW = 420;
 // Bounds a text box is allowed to take. MAXW is the old fixed width, so a

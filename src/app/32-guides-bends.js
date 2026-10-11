@@ -37,7 +37,8 @@ const bendLayer = el('g', {id:'bendLayer'}, viewport);
    shortest clear route is not.
 
    So a connector may be given points it has to pass through. They appear
-   as handles while its panel is open — a filled mark on each bend it
+   as handles as soon as the pointer is on the line, and stay while its
+   panel is open — a filled mark on each bend it
    already has, and a hollow one in the middle of every straight run, which
    becomes a new bend the moment it is dragged. A plain drag steps by the
    ruled grid, Ctrl comes off it, and Shift lines the point up with what
@@ -77,11 +78,17 @@ function drawBendHandles(){
   let host = null, target = null;
   try{
     host = bendLayer;
+    paintEdgePick();
     if(readOnlyView) return;
-    target = edgePopover.classList.contains('open') ? currentEdgeStyleTarget : null;
+    target = (edgePopover.classList.contains('open') && currentEdgeStyleTarget) || bendHoverTarget;
   }catch(e){ return; }
   while(host.firstChild) host.removeChild(host.firstChild);
   if(!target) return;
+  /* A straight connector is the one line between its two ends: a point
+     it had to pass through would make it something other than straight,
+     and the router throws such points away for it (see handBends). So it
+     offers none to take hold of. */
+  if(edgeStyleFor(target.from, target.to).routing === 'straight') return;
   /* A lineage feeding a merge is not bent by hand — the merge decides
      where it runs, so a handle here would offer a point that the next
      redraw ignores. See the note in drawAmalgam. */
@@ -123,6 +130,57 @@ function drawBendHandles(){
       refreshSaveUI();
     });
   });
+}
+/* The connector the pointer is on, whose handles show without its panel
+   being open. They used to wait for a click, which meant finding out that
+   a line could be bent only after opening its settings; now they come up
+   as the line is reached, and go a moment after the pointer leaves both
+   the line and them — long enough to cross the gap onto a handle. */
+let bendHoverTarget = null;
+let bendHoverTimer = null;
+const BEND_HOVER_LINGER = 300;
+function showBendsFor(from, to){
+  clearTimeout(bendHoverTimer);
+  if(bendHoverTarget && bendHoverTarget.from === from && bendHoverTarget.to === to) return;
+  bendHoverTarget = {from, to};
+  drawBendHandles();
+}
+function letBendsGo(){
+  clearTimeout(bendHoverTimer);
+  bendHoverTimer = setTimeout(()=>{
+    // A handle in the hand is not let go of because the pointer outran it.
+    if(bendDrag) return letBendsGo();
+    bendHoverTarget = null;
+    drawBendHandles();
+  }, BEND_HOVER_LINGER);
+}
+{
+  const leaves = (ev)=>{
+    const to = ev.relatedTarget;
+    if(to && to.closest && (to.closest('#bendLayer') || to.closest('.edge-hit'))) return;
+    letBendsGo();
+  };
+  svg.addEventListener('mouseover', ev=>{
+    if(readOnlyView || !ev.target.closest) return;
+    const hit = ev.target.closest('.edge-hit');
+    if(hit) showBendsFor(hit.dataset.from, hit.dataset.to);
+    else if(ev.target.closest('#bendLayer')) clearTimeout(bendHoverTimer);
+  });
+  svg.addEventListener('mouseout', ev=>{
+    if(ev.target.closest && (ev.target.closest('.edge-hit') || ev.target.closest('#bendLayer'))) leaves(ev);
+  });
+}
+/* A connector whose panel is open is lit the way a selected entry is —
+   and only it: nothing else on the chart steps back, because opening a
+   line's settings is not a statement that the rest of the chart is beside
+   the point, the way picking an entry is. Repainted with the handles,
+   which are redrawn whenever the connectors are. */
+function paintEdgePick(){
+  const t = edgePopover.classList.contains('open') ? currentEdgeStyleTarget : null;
+  qEdges('.edge-picked').forEach(p=> p.classList.remove('edge-picked'));
+  if(!t) return;
+  const sel = `[data-from="${CSS.escape(t.from)}"][data-to="${CSS.escape(t.to)}"]`;
+  qEdges(`.edge${sel}:not(.dbl-inner), .edge-arrow${sel}`).forEach(p=> p.classList.add('edge-picked'));
 }
 /* What a dragged bend may line itself up with: the OTHER connectors.
  *
