@@ -307,6 +307,7 @@
     transform-box:fill-box;transform-origin:left center;
   }
   .bio-card-g.shown{opacity:1;transform:translateX(0);}
+  .bio-stub-gap{stroke:var(--paper);}
   /* A card steps back with the portrait it belongs to — see
      paintBioCardDim. Written with both classes so it beats `.shown`, which
      is what puts the card at full strength in the first place. */
@@ -868,17 +869,17 @@
     stroke-width:2.2;
   }
   .node-link{cursor:pointer;}
-  .node-link-bg{fill:var(--panel);stroke:var(--accent);stroke-width:0.9;stroke-linejoin:round;}
-  .node-link-arrow{stroke:var(--accent);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
-  .node-link:hover .node-link-bg{fill:var(--accent);}
-  .node-link:hover .node-link-arrow{stroke:var(--accent-ink);}
+  .node-link-bg{fill:var(--paper);stroke:var(--tab-ink,var(--accent));stroke-width:0.9;stroke-linejoin:round;}
+  .node-link-arrow{stroke:var(--tab-ink,var(--accent));stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
+  .node-link:hover .node-link-bg{fill:var(--tab-ink,var(--accent));}
+  .node-link:hover .node-link-arrow{stroke:var(--paper);}
   .lang-chip{cursor:pointer;}
-  .lang-chip-bg{fill:var(--panel);stroke:var(--line);stroke-width:0.75;stroke-linejoin:round;}
+  .lang-chip-bg{fill:var(--paper);stroke:var(--tab-ink,var(--line));stroke-width:0.75;stroke-linejoin:round;}
   .lang-chip-label.emoji{font-family:var(--emoji);}
-  .lang-chip-label{fill:var(--ink-dim,var(--ink));font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:600;pointer-events:none;user-select:none;}
-  .lang-chip:hover .lang-chip-bg{stroke:var(--accent);}
-  .lang-chip.active .lang-chip-bg{fill:var(--accent);stroke:var(--accent);}
-  .lang-chip.active .lang-chip-label{fill:var(--accent-ink,#fff);}
+  .lang-chip-label{fill:var(--tab-ink,var(--ink-dim,var(--ink)));font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:600;pointer-events:none;user-select:none;}
+  .lang-chip:hover .lang-chip-bg{stroke-width:1.1;}
+  .lang-chip.active .lang-chip-bg{fill:var(--tab-ink,var(--accent));stroke:var(--tab-ink,var(--accent));}
+  .lang-chip.active .lang-chip-label{fill:var(--paper);}
 
   .edge{fill:none;pointer-events:none;transition:opacity 120ms ease;}
   /* See silenceEdgeFade: a line that has only just been drawn does not
@@ -1600,6 +1601,21 @@
   }
   .add-fab-styles .node-style-btn{box-shadow:var(--shadow);background:var(--panel);}
 
+  /* Guides for a finger: see 38-touch.js. Off the corner the add button
+     stands in, because on a phone that corner is under the entry sheet the
+     moment an entry is tapped — and tapping an entry is how carrying one
+     begins. */
+  .guide-toggle{
+    display:none;position:absolute;top:10px;right:10px;z-index:25;
+    width:40px;height:40px;border-radius:50%;padding:0;
+    align-items:center;justify-content:center;
+    background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);
+    box-shadow:var(--shadow);cursor:pointer;
+  }
+  .guide-toggle svg{width:22px;height:22px;display:block;}
+  body.touch-input:not(.read-only) .guide-toggle{display:flex;}
+  .guide-toggle[aria-pressed="true"]{color:var(--paper);background:var(--accent);border-color:var(--accent);}
+
   .coord{
     /* Clear of the tabs at the left edge, and of a drawer when one is open. */
     position:absolute;bottom:16px;left:36px;z-index:25;
@@ -1782,8 +1798,10 @@
     display:flex;flex-direction:column;align-items:flex-start;gap:0;
   }
   .node-editor[hidden]{display:none !important;}
+  /* No room above the entry: the toolbar stands under it instead. */
+  .node-editor.bar-under{flex-direction:column-reverse;}
   .node-editor .mini-toolbar{
-    align-self:flex-start;width:max-content;max-width:340px;
+    align-self:flex-start;width:max-content;max-width:min(340px, calc(100vw - 12px));
     background:var(--panel);border:1px solid var(--line);border-radius:7px;
     box-shadow:var(--shadow);
     padding:4px 5px;margin:0 0 4px;

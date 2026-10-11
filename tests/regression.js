@@ -13506,13 +13506,19 @@ async function main(){
                             Math.abs(nt.fw - nt.bw) < 2 && Math.abs(nt.fs - EDGE_NOTE_FS) < 0.05;
     }
 
-    /* ---- a curve: the elbowed route, with its turns swept ---- */
+    /* ---- a curve: the elbowed route, drawn as one sweep through it ---- */
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       workingNodes.push(['cvA','From',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['cvB','To','cvA',null,null,null,{pos:[snapToGrid(X + 260), snapToGrid(Y + 180)]}]);
       workingNodes.push(['cvC','Plain','cvA',null,null,null,{pos:[snapToGrid(X - 260), snapToGrid(Y + 180)]}]);
       EDGE_STYLES.push({from:'cvA', to:'cvB', routing:'curve', dash:'solid', arrow:true});
+      /* The owner's sketch: one entry over another, joined right side to
+         right side. Elbowed, that is a bracket; as a curve it is one bow. */
+      workingNodes.push(['cvU','Upper one',null,null,null,null,{pos:[snapToGrid(X + 700), Y]}]);
+      workingNodes.push(['cvL','Lower one','cvU',null,null,null,{pos:[snapToGrid(X + 700), snapToGrid(Y + 140)]}]);
+      EDGE_STYLES.push({from:'cvU', to:'cvL', routing:'curve', dash:'solid', arrow:true,
+                        fromSide:'right', toSide:'right'});
     });
     await wait(500);
     {
@@ -13521,22 +13527,42 @@ async function main(){
       const plain = drawnRoutes.get(calloutEdgeKey('cvA', 'cvC'));
       const axisAligned = pts.every((p, i)=> !i ||
         Math.abs(p.x - pts[i-1].x) < 0.01 || Math.abs(p.y - pts[i-1].y) < 0.01);
-      /* Each turn drawn as one sweep across its legs: the arc's ends stand
-         far further from the corner than an elbow's six. */
-      const d = (document.querySelector('#edgeLayer path.edge[data-from="cvA"][data-to="cvB"]') || {}).getAttribute?.('d') || '';
-      const nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
-      const qAt = d.indexOf('Q');
-      let reach = 0;
-      if(qAt > 0){
-        const before = (d.slice(0, qAt).match(/-?\d+(\.\d+)?/g) || []).map(Number);
-        const after = (d.slice(qAt + 1).match(/-?\d+(\.\d+)?/g) || []).map(Number);
-        reach = Math.hypot(after[0] - before[before.length - 2], after[1] - before[before.length - 1]);
-      }
-      out.curveAt = JSON.stringify({n: pts.length, plain: plain ? plain.pts.length : null,
-                                    axisAligned, reach: +reach.toFixed(1), numbers: nums.length});
+      const pathOf = (f, t)=> (document.querySelector(
+        `#edgeLayer path.edge[data-from="${f}"][data-to="${t}"]`) || {}).getAttribute?.('d') || '';
+      const drawn = (d)=>{
+        const nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number), out = [];
+        for(let i = 0; i + 1 < nums.length; i += 2) out.push({x: nums[i], y: nums[i+1]});
+        return out;
+      };
+      const d = pathOf('cvA', 'cvB');
+      const line = drawn(d);
+      /* No turn is drawn as an elbow: the drawing passes every corner of
+         the route at a distance an elbow's six-unit round never reaches.
+         A point the route merely passes through on a straight run is not a
+         corner, and the curve runs along it. */
+      let nearest = Infinity;
+      const turns = (i)=> Math.abs((pts[i].x - pts[i-1].x) * (pts[i+1].y - pts[i].y) -
+                                   (pts[i].y - pts[i-1].y) * (pts[i+1].x - pts[i].x)) > 0.01;
+      for(let i = 1; i < pts.length - 1; i++) if(turns(i))
+        line.forEach(q=>{ nearest = Math.min(nearest, Math.hypot(q.x - pts[i].x, q.y - pts[i].y)); });
+      /* The sketch: the bow stays inside the bracket the elbowed route
+         would draw, and arrives at its head at a slant, as drawn. */
+      const recS = drawnRoutes.get(calloutEdgeKey('cvU', 'cvL'));
+      const ptsS = recS ? recS.pts : [];
+      const lineS = drawn(pathOf('cvU', 'cvL'));
+      const routeOut = Math.max(...ptsS.map(p=> p.x)), bowOut = Math.max(...lineS.map(p=> p.x));
+      const heads = ptsS.length ? curveHeads(ptsS) : null;
+      const slant = heads ? Math.abs(((heads.out % 90) + 90) % 90) : 0;
+      out.curvePts = JSON.stringify(pts.map(p=>[+p.x.toFixed(1),+p.y.toFixed(1)]));
+      out.curveAt = JSON.stringify({n: pts.length, plain: plain ? plain.pts.length : null, axisAligned,
+                                    q: d.indexOf('Q'), lines: line.length, nearest: +nearest.toFixed(1),
+                                    routeOut: +routeOut.toFixed(1), bowOut: +bowOut.toFixed(1),
+                                    head: heads && +heads.out.toFixed(1)});
       /* The same points as an elbowed connector — so the same handles —
-         and swept turns between them. */
-      out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && reach > 4 * EDGE_CORNER_R;
+         and drawn through them as one sweep. */
+      out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && d.indexOf('Q') < 0 &&
+                        line.length > 20 && nearest > 4 * EDGE_CORNER_R;
+      out.curveSketch = ptsS.length >= 4 && bowOut < routeOut - 4 && slant > 5 && slant < 85;
       const option = document.querySelector('#styleRouting option[value="curve"]');
       out.curveOffered = !!option;
     }
@@ -13595,11 +13621,158 @@ async function main(){
                         wavy:rR.leaderWavy, only:rR.leaderRowOnlyOnCallouts, solid:rR.leaderSolidIsAbsence}));
   check('a callout and a note are edited in a field their own size, in their own type',
         rR.remarkFieldFits, rR.remarkFieldAt);
-  check('a curve is the elbowed route with its turns swept, and bends at the same handles',
-        rR.curveSmooth && rR.curveOffered, rR.curveAt);
+  check('a curve is one sweep through the elbowed route, and bends at the same handles',
+        rR.curveSmooth && rR.curveOffered, rR.curveAt + rR.curvePts);
+  check('a curve from one entry\'s side to the one under it is a bow inside the bracket, met at a slant',
+        rR.curveSketch, rR.curveAt);
   check('a merge that loses a lineage, by its connector or its entry, goes back to the middle',
         rR.lossRecentres, rR.lossAt);
 
+  });
+
+  /* ---- tabs in the border's ink, a portrait's line in its border's style,
+          and a phone's field on its entry ---- */
+  await scenario("tabs in the border's ink, a portrait's line in its border's style and a phone's field on its entry", async () => {
+  const rT = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const X = snapToGrid(52000), Y = snapToGrid(-3000);
+    applyEdit(()=>{
+      workingNodes.push(['tiA', 'Tabbed', null, null, null, null,
+        {pos:[X, Y], colors:['#20242b', '#2a9d8f'], multiLang:true, link:'https://example.com/',
+         langTabs:[{tag:'JP', text:'ja'}, {tag:'RU', text:'ru'}]}]);
+      workingNodes.push(['tiD', '', null, null, null, 'ellipse', {pos:[X, Y + 300], border:'dashed', bioCard:true}]);
+      workingNodes.push(['tiW', '', null, null, null, 'ellipse', {pos:[X + 400, Y + 300], border:'double', bioCard:true}]);
+    });
+    await wait(400);
+    vs = 2; vx = 400 - X*vs; vy = 300 - Y*vs; applyTransform();
+    await wait(200);
+    /* A tab is in the colour of the border it stands on — the outermost
+       ring — and stands ON it: its foot is no lower than the border's
+       outer edge, so it never crosses into the line. */
+    const n = nodes.get('tiA');
+    const g = document.querySelector('.node[data-id="tiA"]');
+    const R = svg.getBoundingClientRect();
+    const baseY = R.top + vy + tabBaseOf(n).y * vs;
+    const chips = g.querySelector('.lang-chips');
+    const link = g.querySelector('.node-link-bg');
+    const ink = (el)=> el ? (el.closest('[style*="--tab-ink"]') || {style:{getPropertyValue:()=>''}})
+                              .style.getPropertyValue('--tab-ink').trim() : '';
+    const feet = [...g.querySelectorAll('.lang-chip-bg, .node-link-bg')].map(p=> p.getBoundingClientRect().bottom);
+    out.tabAt = JSON.stringify({chipInk: ink(chips), linkInk: ink(link), feet: feet.map(v=> +(v - baseY).toFixed(2))});
+    out.tabInk = ink(chips) === '#2a9d8f' && ink(link) === '#2a9d8f';
+    out.tabOnBorder = feet.length >= 3 && feet.every(b=> b <= baseY + 0.5);
+
+    /* A dashed portrait's stub and card are dashed; a double one's are
+       double, and its stub starts on the outer rail's outer edge rather
+       than between the rails. */
+    const stubOf = (id)=> [...document.querySelectorAll(`.bio-card-g[data-id="${id}"] line.bio-stub`)];
+    const ringsOf = (id)=> [...document.querySelectorAll(`.bio-card-g[data-id="${id}"] rect[stroke]`)];
+    const sD = stubOf('tiD'), cD = ringsOf('tiD');
+    out.bioDashed = sD.length === 1 && !!sD[0].getAttribute('stroke-dasharray') &&
+                    cD.length >= 1 && cD.every(r=> !!r.getAttribute('stroke-dasharray'));
+    const sW = stubOf('tiW'), cW = ringsOf('tiW'), w = nodes.get('tiW');
+    const x1 = sW.length ? +sW[0].getAttribute('x1') : NaN;
+    const outerEdge = w.x + w.w / 2 + w.w / 2 + DOUBLE_LINE_OFF + DOUBLE_LINE_W / 2;
+    const innerEdge = w.x - DOUBLE_LINE_OFF - DOUBLE_LINE_W / 2;
+    out.bioAt = JSON.stringify({dashed: [sD.length, cD.length], double: [sW.length, cW.length],
+                                x1, outerEdge: +outerEdge.toFixed(2), innerEdge: +innerEdge.toFixed(2)});
+    out.bioDouble = sW.length === 2 && sW.some(l=> l.classList.contains('bio-stub-gap')) &&
+                    cW.length === 2 && (Math.abs(x1 - outerEdge) < 0.6 || Math.abs(x1 - innerEdge) < 0.6);
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart();
+    await wait(300);
+    return out;
+  });
+  check('a language tab and the link tab are drawn in the colour of the border they stand on',
+        rT.tabInk, rT.tabAt);
+  check('and stand on the border\'s outer edge, never across its line', rT.tabOnBorder, rT.tabAt);
+  check('a dashed portrait\'s line and card are dashed', rT.bioDashed, rT.bioAt);
+  check('a double portrait\'s line and card are double, the line starting on the outer rail',
+        rT.bioDouble, rT.bioAt);
+
+  /* On a phone the field opens ON its entry, whatever the width of its
+     toolbar, and a finger can ask for the guides. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    const ed = await pp.evaluate(async ()=>{
+      const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+      const X = snapToGrid(52000), Y = snapToGrid(-3000);
+      applyEdit(()=>{
+        workingNodes.push(['phA', 'Wide anchor entry', null, null, null, null, {pos:[X, Y]}]);
+        workingNodes.push(['phB', 'B', null, null, null, null, {pos:[X + 37, Y + 150]}]);
+        workingNodes.push(['phT', 'Right of the middle', null, null, null, null, {pos:[X + 120, Y + 300]}]);
+      });
+      await wait(400);
+      vs = 1; vx = 150 - X; vy = 200 - Y; applyTransform();
+      await wait(200);
+      const meta = document.querySelector('meta[name="viewport"]');
+      const before = meta.getAttribute('content');
+      openNodeEditor('phT');
+      await wait(150);
+      const f = richFields.get('nodeEditorText').surface.getBoundingClientRect();
+      const b = document.querySelector('.node[data-id="phT"] rect').getBoundingClientRect();
+      const bar = document.getElementById('nodeEditorBar').getBoundingClientRect();
+      const held = meta.getAttribute('content');
+      closeNodeEditor(true);
+      const after = meta.getAttribute('content');
+      return {fieldLeft: +(f.left - b.left).toFixed(1), fieldRight: +(f.right - b.right).toFixed(1),
+              bar: [+bar.left.toFixed(1), +bar.right.toFixed(1)], held, before, after};
+    });
+    check('on a phone the in-entry field opens on its entry, its toolbar on the screen',
+          Math.abs(ed.fieldLeft) < 1.5 && ed.fieldRight > -1.5 &&
+          ed.bar[0] >= 5 && ed.bar[1] <= 390 - 5, JSON.stringify(ed));
+    check('and the page is not zoomed onto it while it is open, and may be again once shut',
+          /maximum-scale=1/.test(ed.held) && ed.after === ed.before && !/maximum-scale/.test(ed.before),
+          JSON.stringify(ed));
+    /* The guides button: carried with it lit, an entry is lined up on its
+       neighbour as it is under a held Shift; carried with it dark, not. */
+    const at = await pp.evaluate(()=>{
+      const r = document.querySelector('.node[data-id="phB"] rect').getBoundingClientRect();
+      return [r.left + r.width/2, r.top + r.height/2];
+    });
+    const cdp = await phone.newCDPSession(pp);
+    const carry = async (x0, y0)=>{
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:x0, y:y0}]});
+      for(let i = 1; i <= 10; i++){
+        await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:x0 + i*1.4, y:y0}]});
+        await wait(20);
+      }
+      const shown = await pp.evaluate(()=> document.querySelectorAll('#guideLayer .align-guide').length);
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+      await wait(250);
+      return shown;
+    };
+    const dark = await carry(at[0], at[1]);
+    // Shown once the page has been touched, which it now has.
+    const visible = await pp.evaluate(()=>{
+      const b = document.getElementById('guideToggle'), r = b.getBoundingClientRect();
+      return getComputedStyle(b).display !== 'none' && r.width >= 36 && r.right <= innerWidth;
+    });
+    await pp.tap('#guideToggle');
+    await wait(150);
+    const at2 = await pp.evaluate(()=>{
+      const r = document.querySelector('.node[data-id="phB"] rect').getBoundingClientRect();
+      return [r.left + r.width/2, r.top + r.height/2];
+    });
+    const lit = await carry(at2[0], at2[1]);
+    const pressed = await pp.evaluate(()=> document.getElementById('guideToggle').getAttribute('aria-pressed'));
+    check('on a phone a button stands in for Shift: lit, a carried entry is offered the guides',
+          visible && dark === 0 && lit > 0 && pressed === 'true', JSON.stringify({visible, dark, lit, pressed}));
+  } finally {
+    await phone.close();
+  }
   });
 
   await scenario("nothing threw along the way", async () => {

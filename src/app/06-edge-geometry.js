@@ -369,9 +369,7 @@ function portOnSide(n, side, i, count, ring){
    line. A rippled border's drop is therefore worked out once, where the
    port is, and never again at some new place along the side. */
 function roundedPath(pts, r){
-  /* A curve turns across whole legs, so a point that is not a corner would
-     cut its leg in two and halve the sweep beside it. */
-  if(r >= CURVE_CORNER_R) pts = mergeCollinear(pts);
+  if(r >= CURVE_CORNER_R) return polylinePath(curveThrough(pts, CURVE_STEP));
   if(pts.length<=2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
   const segLen=(a,b)=>Math.hypot(b.x-a.x,b.y-a.y);
   let d = `M${pts[0].x},${pts[0].y}`;
@@ -427,15 +425,86 @@ const EDGE_CORNER_R = 6;
    elbow into a plain right angle. A sinusoid ignores it: its wave is laid
    along a rounded line for the same reason a rippled border's is (see
    hasSquareCorners), and a wave cannot turn a right angle. */
-/* A CURVE is the orthogonal route with its corners taken as far round as
-   they will go. It goes where an elbowed connector goes — round the same
-   entries, through the same corridors, with the same marks to bend it by —
-   and differs only in how it turns: each corner is allowed the whole of
-   the legs either side of it (halves, where two corners share a leg; see
-   roundedPath), so a dog-leg becomes one S and a single turn one sweep.
-   Asked for square corners as well, it is still a curve: the routing is
-   the more specific of the two choices. */
+/* A CURVE is the orthogonal route drawn as one smooth stroke.
+ *
+ * It goes where an elbowed connector goes — round the same entries,
+ * through the same corridors, with the same marks to bend it by — and the
+ * route's corners are not places it turns but places it is DRAWN TOWARDS:
+ * the route is the control polygon of a clamped cubic B-spline, so the
+ * line leaves its entry square, bows out towards the corners without
+ * reaching them, and comes in square to the other. Two entries one above
+ * the other, joined side to side, get the single bow a hand draws; the
+ * first version kept the elbow's straight middle and only rounded its two
+ * corners, which was a bracket, not a curve.
+ *
+ * A clamped spline starts and ends on its first and last points and
+ * leaves along the first and last legs, so the arrowheads, which are set
+ * from the route, sit exactly where the line meets them. Asked for square
+ * corners as well, it is still a curve: the routing is the more specific
+ * of the two choices. */
 const CURVE_CORNER_R = 1e6;
+const CURVE_STEP = 2;
+/* The B-spline over `raw`, as points about `step` apart along it. A route
+   with points in a line would pull the stroke straight there, so those
+   are dropped first; two points are a straight line, three a parabola. */
+function curveThrough(raw, step){
+  const P = mergeCollinear(raw);
+  if(P.length < 3) return P.map(q=> ({x:q.x, y:q.y}));
+  return bsplineOver(P, step);
+}
+function bsplineOver(P, step){
+  const p = Math.min(3, P.length - 1), n = P.length - 1;
+  const span = n - p + 1;
+  const knots = [];
+  for(let i = 0; i <= n + p + 1; i++) knots.push(Math.min(span, Math.max(0, i - p)));
+  let len = 0;
+  for(let i = 1; i < P.length; i++) len += Math.hypot(P[i].x - P[i-1].x, P[i].y - P[i-1].y);
+  const count = Math.max(8, Math.min(800, Math.ceil(len / (step || CURVE_STEP))));
+  const at = (t)=>{
+    let k = p;
+    while(k < n && t >= knots[k + 1]) k++;
+    const d = [];
+    for(let j = 0; j <= p; j++) d.push({x: P[k - p + j].x, y: P[k - p + j].y});
+    for(let r = 1; r <= p; r++){
+      for(let j = p; j >= r; j--){
+        const i = k - p + j;
+        const den = knots[i + p - r + 1] - knots[i];
+        const a = den ? (t - knots[i]) / den : 0;
+        d[j] = {x: (1 - a) * d[j-1].x + a * d[j].x, y: (1 - a) * d[j-1].y + a * d[j].y};
+      }
+    }
+    return d[p];
+  };
+  const out = [];
+  for(let i = 0; i <= count; i++){
+    const t = i === count ? span : span * i / count;
+    out.push(i === count ? {x: P[n].x, y: P[n].y} : at(t));
+  }
+  return out;
+}
+/* A run of points with `a` taken off its start and `b` off its end,
+   measured along it. */
+function cutAlong(pts, a, b){
+  if(pts.length < 2 || (!(a > 0) && !(b > 0))) return pts;
+  const trimStart = (list, by)=>{
+    let left = by;
+    for(let i = 1; i < list.length; i++){
+      const p = list[i-1], q = list[i], len = Math.hypot(q.x - p.x, q.y - p.y);
+      if(len >= left){
+        const t = len ? left / len : 0;
+        return [{x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t}, ...list.slice(i)];
+      }
+      left -= len;
+    }
+    return list.slice(-1);
+  };
+  let out = a > 0 ? trimStart(pts, a) : pts;
+  if(b > 0) out = trimStart(out.slice().reverse(), b).reverse();
+  return out.length > 1 ? out : pts;
+}
+function polylinePath(pts){
+  return pts.map((q, i)=> `${i ? 'L' : 'M'}${+q.x.toFixed(2)},${+q.y.toFixed(2)}`).join(' ');
+}
 function edgeCornerR(style){
   if(style && style.routing === 'curve') return CURVE_CORNER_R;
   return (style && style.square) ? 0 : EDGE_CORNER_R;

@@ -547,10 +547,12 @@ function mergeCollinear(pts){
 function wavyPath(rawPts, trimIn, trimOut, short, cornerR){
   const cutIn = Math.max(0, trimIn || 0), cutOut = Math.max(0, trimOut || 0);
   const pts = mergeCollinear(rawPts);
-  /* A curve's wave follows its sweeping turns; anything else keeps the
-     ordinary elbow, square corners included — see edgeCornerR. */
-  const r = cornerR > EDGE_CORNER_R ? cornerR : EDGE_CORNER_R;
-  const samples = sampleRounded(pts, r, EDGE_WAVE_LEN / WAVE_STEP_DIV);
+  const step = EDGE_WAVE_LEN / WAVE_STEP_DIV;
+  /* A curve's wave runs along the curve itself — see curveThrough —
+     sampled at the same spacing the rounded route is. */
+  const samples = cornerR >= CURVE_CORNER_R
+    ? sampleRounded(curveThrough(pts, step / 2), 0, step)
+    : sampleRounded(pts, EDGE_CORNER_R, step);
   if(samples.length < 3){
     const last = pts[pts.length-1];
     return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;

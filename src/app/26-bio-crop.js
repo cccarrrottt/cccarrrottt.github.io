@@ -209,11 +209,36 @@ function drawOneBioCard(n, already){
    * The overlap is the lesser evil, and at these weights it is invisible:
    * the stub now starts at the centre of the outermost ring's stroke, so
    * whatever the border's width the two always touch. */
+  /* …and it is drawn in the portrait's own border STYLE, as the card is.
+     A dashed portrait with a solid stub and a solid card was three
+     different lines for one object.
+   *
+     A DOUBLE border has two rails, and the stub used to start on the line
+     between them — so it crossed the outer rail and ran into the inner
+     one. It now starts at the outer rail's outer edge and stops at the
+     card's, and is drawn as a double line itself: two rails with the
+     paper between, the same as a double connector. */
+  const borderKey = borderStyleOf(n);
+  const borderDash = (BORDER_STYLES[borderKey] || BORDER_STYLES.solid).dash;
+  const dbl = borderKey === 'double';
   const outerR = n.w/2 + Math.max(0, ((n.colors && n.colors.length) || 1) - 1) * RING_STEP;
-  const rim = n.w/2 - outerR;             // negative: outside the box, by the rings
-  el('line', {x1: flip ? n.x + rim : n.x + n.w - rim, y1: cy,
-              x2: flip ? x + w : x, y2: cy,
-              stroke: n.color, 'stroke-width':1.2}, g);
+  const railOut = dbl ? DOUBLE_LINE_OFF + DOUBLE_LINE_W / 2 : 0;
+  const rim = n.w/2 - outerR - railOut;   // negative: outside the box, by the rings
+  /* The card's rails both stand OUTSIDE its box: it is closed a pixel off
+     its words, and a rail inside that box would sit on them. */
+  const cardRailOut = dbl ? 2 * DOUBLE_LINE_OFF + DOUBLE_LINE_W / 2 : 0;
+  const stub = {x1: flip ? n.x + rim : n.x + n.w - rim, y1: cy,
+                x2: flip ? x + w + cardRailOut : x - cardRailOut, y2: cy};
+  if(dbl){
+    el('line', Object.assign({class:'bio-stub', stroke: n.color,
+                              'stroke-width': DOUBLE_BAND_W}, stub), g);
+    el('line', Object.assign({class:'bio-stub bio-stub-gap',
+                              'stroke-width': DOUBLE_GAP_W}, stub), g);
+  } else {
+    const a = Object.assign({class:'bio-stub', stroke: n.color, 'stroke-width':1.2}, stub);
+    if(borderDash) a['stroke-dasharray'] = borderDash;
+    el('line', a, g);
+  }
   /* The card wears the entry's whole border, not just its first colour.
      A portrait with two or three ring colours drew them all around the
      circle and then a single plain outline around the card it opens, which
@@ -227,12 +252,22 @@ function drawOneBioCard(n, already){
   const cardBg = (n.bg && n.bg.length)
     ? (n.bg.length > 1 ? makeGradient(n.bg, false, nodeDefs) : n.bg[0])
     : null;
+  /* In the portrait's border style too — see the stub above. A double
+     ring is two rails, the inner one where the single line would be and
+     the outer one beyond it carrying the fill; see cardRailOut. */
   cardRings.forEach((c, i)=>{
-    const grow = i*RING_STEP;
-    el('rect', {x:x-grow, y:y-grow, width:w+grow*2, height:h+grow*2,
-                rx: bioCardSquare(n) ? 0 : BIO_CARD_INSET + grow,   // see inkCornerR
-                stroke:c, style: i>0 ? 'fill:none;'
-                                     : `fill:${cardBg || 'var(--panel)'};`}, g);
+    const grow = i*RING_STEP + (dbl ? i * 2 * DOUBLE_LINE_OFF : 0);
+    const offs = dbl ? [2 * DOUBLE_LINE_OFF, 0] : [0];
+    offs.forEach((off, k)=>{
+      const gg = grow + off;
+      const a = {x:x-gg, y:y-gg, width:w+gg*2, height:h+gg*2,
+                 rx: bioCardSquare(n) ? 0 : Math.max(0, BIO_CARD_INSET + gg),   // see inkCornerR
+                 stroke:c, style: (i>0 || k>0) ? 'fill:none;'
+                                               : `fill:${cardBg || 'var(--panel)'};`};
+      if(dbl) a['stroke-width'] = DOUBLE_LINE_W;
+      if(borderDash) a['stroke-dasharray'] = borderDash;
+      el('rect', a, g);
+    });
   });
   /* The card is written in the ENTRY's ink.
    *
