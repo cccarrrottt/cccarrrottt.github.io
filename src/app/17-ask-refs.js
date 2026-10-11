@@ -163,8 +163,8 @@ function buildRefsInto(host){
  * empty shape on its own list. Two lists side by side that are added to
  * in two different ways is one way too many. So the + puts an empty row at
  * the foot of the list, numbered as it will be, with the caret in it: type
- * what it says, Enter to keep it. Nothing typed, Escape, or a click
- * anywhere else, and no reference was made. A link is added afterwards
+ * what it says, then Enter or a click anywhere else to keep it. Nothing
+ * typed, or Escape, and no reference was made. A link is added afterwards
  * with the pencil, which is where it is changed too. */
 let pendingNewRef = false;
 function startNewRefEntry(){
@@ -202,7 +202,8 @@ function buildNewRefRow(num){
     if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
     else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
   });
-  box.addEventListener('blur', ()=> finish(false));
+  // A click anywhere else keeps it, as Enter does; see buildNewTagRow.
+  box.addEventListener('blur', ()=> finish(true));
   box.addEventListener('click', ev=> ev.stopPropagation());
   box.addEventListener('mousedown', ev=> ev.stopPropagation());
   return row;
@@ -477,45 +478,6 @@ async function deleteTagEverywhere(tag, count){
   setLegendStatus('ok', `Deleted “${tag}”.`);
 }
 buildSideTabs();
-/* One eye instead of Show all / Hide all.
- *
- * The two buttons were never both useful: whichever state the chart was
- * in, one of them did nothing. A single control that reads the current
- * state and offers the other one is smaller, and it also SHOWS that state
- * — the crossed-out eye means "everything is hidden", which the old pair
- * could not say at all. */
-function everythingHidden(){
-  return allTags.length > 0 && allTags.every(t=> hiddenTags.has(t));
-}
-function syncLegendEye(){
-  const btn = document.getElementById('legendEye');
-  if(!btn) return;
-  const shut = everythingHidden();
-  btn.classList.toggle('shut', shut);
-  btn.title = shut ? 'Show every tag' : 'Hide every tag';
-}
-/* The Tags +. Two things can be made here — a tag and a category — so it
-   opens a two-item menu; references have their own + and only one thing to
-   make, so that one acts at once. */
-{
-  const menu = document.getElementById('legendAddMenu');
-  menu.addEventListener('click', async ev=>{
-    const b = ev.target.closest('button[data-add]');
-    if(!b) return;
-    ev.stopPropagation();
-    menu.hidden = true;
-    /* Written where it will stand, not in a window of its own — the same
-       gesture that renames a category, for the same reason. */
-    if(b.dataset.add === 'tag') startNewTagEntry();
-    else startNewCategoryEntry();
-  });
-  document.addEventListener('mousedown', ev=>{
-    if(menu.hidden) return;
-    if(menu.contains(ev.target) || ev.target.closest('.plus-mini')) return;
-    menu.hidden = true;
-  });
-}
-
 /* Organize mode. The panel's day job is filtering, so the editing controls
    are folded away until asked for rather than crowding every row with a
    dropdown and a delete button nobody wanted. */

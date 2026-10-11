@@ -142,7 +142,17 @@ function paintSelectionHighlight(id){
        entries it joins are in `related` for exactly this. */
     const aboutMe = isCalloutNode(n) && n.leader &&
       src === n.leader.from && dst === n.leader.to;
-    const lit = src===id || dst===id || aboutMe ||
+    /* …except a joint bead, which belongs to the two lineages it joins.
+       Following the merge, every dot on the bar stayed lit when ONE parent
+       was picked out — dots between two other lineages, on stretches of
+       bar that had themselves stepped back, still at full strength. A
+       joint answers to its own pair; the bead at the junction, which every
+       lineage feeds, still answers to the merge. */
+    const pair = p.dataset.pair ? p.dataset.pair.split('\u0000') : null;
+    const pairLit = pair && (dst===id ||
+      (multiSelection.size > 1 ? pair.some(x=> related.has(x) && multiSelection.has(x))
+                               : pair.includes(id)));
+    const lit = pair ? pairLit : src===id || dst===id || aboutMe ||
       (!src && related.has(dst)) ||
       (multiSelection.size > 1 && related.has(dst) && (!src || related.has(src)));
     p.classList.toggle('lit', lit);

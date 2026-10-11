@@ -164,7 +164,10 @@ function clipOfNode(n){
   /* A copied callout keeps pointing at the same place: it is a comment
      ABOUT that connector, and a copy of it is a second remark on the same
      thing rather than a card pointing at nothing. */
-  if(n.leader) opts.leader = {from: n.leader.from, to: n.leader.to, at: n.leader.at};
+  if(n.leader){
+    opts.leader = {from: n.leader.from, to: n.leader.to, at: n.leader.at};
+    if(n.leader.line) opts.leader.line = n.leader.line;
+  }
   if(typeof n.rot === 'number' && n.rot) opts.rot = n.rot;
   if(typeof n.z === 'number' && n.z) opts.z = n.z;
   return {

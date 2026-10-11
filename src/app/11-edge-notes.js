@@ -227,6 +227,38 @@ function persistLeaderAt(id, at){
   o.leader = Object.assign({}, o.leader, {at: +at.toFixed(4)});
   putEntry(found.index, found.entry, o);
 }
+/* A leader wears a line of its own, chosen apart from its connector's.
+ *
+ * It is the same vocabulary — the five patterns and the wave a connector
+ * is offered — because a reader who has learned what a dotted line means
+ * on this chart should not find the word missing on the one line that
+ * points at a remark. But it is the CALLOUT's choice, kept on its anchor:
+ * a dashed lineage with a plain remark hung on it is an ordinary thing to
+ * want, and so is the reverse.
+ *
+ * Solid is the absence of the field, so every chart written before this
+ * opens exactly as it was. The straight forms stay a <line>, which is what
+ * the rest of the program reads the two ends from; the double is two of
+ * them, the paper one laid down the middle as on a connector; the wave is
+ * the connector's own wavyPath over the two ends, in its short form,
+ * because a leader is usually shorter than two whole waves. The list of
+ * them, LEADER_LINES, is kept by calloutAnchorOf, which reads it first. */
+function drawLeaderLine(g, a, b, ink, line){
+  const ends = {x1:a.x.toFixed(2), y1:a.y.toFixed(2), x2:b.x.toFixed(2), y2:b.y.toFixed(2)};
+  if(line === 'sinusoid'){
+    el('path', {class:'leader-line leader-wavy', d: wavyPath([a, b], 0, 0, true),
+                stroke: ink}, g);
+    return;
+  }
+  if(line === 'double'){
+    el('line', Object.assign({class:'leader-line dbl-outer', stroke: ink}, ends), g);
+    el('line', Object.assign({class:'leader-line dbl-inner'}, ends), g);
+    return;
+  }
+  const attrs = Object.assign({class:'leader-line', stroke: ink}, ends);
+  if(DASH_PATTERNS[line]) attrs['stroke-dasharray'] = DASH_PATTERNS[line];
+  el('line', attrs, g);
+}
 function drawCalloutLeaders(from, to, pts, paint){
   if(pts && pts.length > 1){
     drawnRoutes.set(calloutEdgeKey(from, to),
@@ -310,8 +342,7 @@ function drawCalloutLeaders(from, to, pts, paint){
     const ink = (n.colors && n.colors.length) ? n.colors[0] : (paint || 'var(--line)');
     const g = el('g', {class:'callout-leader', 'data-id':n.id,
                        'data-from':from, 'data-to':to}, edgeLayer);
-    el('line', {class:'leader-line', x1:m.x.toFixed(2), y1:m.y.toFixed(2),
-                x2:edge.x.toFixed(2), y2:edge.y.toFixed(2), stroke:ink}, g);
+    drawLeaderLine(g, m, edge, ink, n.leader.line);
     /* Only the dot actually being carried is drawn lifted. The drag used
        to say so with a class on <body>, which every dot on the chart
        matched — so sliding one anchor swelled all of them, and nothing

@@ -1023,7 +1023,7 @@ async function main(){
      attribute back, which stays true even when an author display rule is
      overriding the UA one and the element is plainly on screen. */
   const hiddenWorks = await page.evaluate(()=>{
-    const probes = ['legendAddMenu','edgeStyleLabel'];
+    const probes = ['refColorRow','edgeStyleLabel'];
     const out = {};
     probes.forEach(id=>{
       const el = document.getElementById(id);
@@ -1176,8 +1176,8 @@ async function main(){
     return {opts, blank: !!strip.querySelector('.swatch-blank'), text: strip.textContent.trim(),
             noPointRow: !document.getElementById('styleLeaderRow')};
   });
-  check('path options read Orthogonal / Straight',
-        JSON.stringify(r6c.opts) === JSON.stringify(['Orthogonal','Straight']), JSON.stringify(r6c.opts));
+  check('path options read Orthogonal / Straight / Curve',
+        JSON.stringify(r6c.opts) === JSON.stringify(['Orthogonal','Straight','Curve']), JSON.stringify(r6c.opts));
   check('an unset border colour draws a blank square, not a word',
         r6c.blank && r6c.text === '', JSON.stringify(r6c));
   check('the leader Point row is gone — the placement starts the pick', r6c.noPointRow);
@@ -1801,8 +1801,27 @@ async function main(){
     await new Promise(r=> setTimeout(r, 250));
     const tagsHead = document.querySelector('#tagsList .legend-section-head');
     const refsHead = document.querySelector('#refsList .legend-section-head');
-    out.tagsHeadEye = !!(tagsHead && /Tags/i.test(tagsHead.textContent) && tagsHead.querySelector('#legendEye'));
-    out.tagsHeadPlus = !!(tagsHead && tagsHead.querySelector('.plus-mini'));
+    /* No eye on the heading — it hid every tag, and so the whole chart —
+       and one button for each thing the heading makes, rather than a +
+       that asked which. */
+    out.tagsHeadEye = !(tagsHead && tagsHead.querySelector('.eye-mini, #legendEye'));
+    out.tagsHeadPlus = !!(tagsHead && tagsHead.querySelector('.plus-mini.add-tag') &&
+                          tagsHead.querySelector('.plus-mini.add-cat') &&
+                          !document.getElementById('legendAddMenu'));
+    if(out.tagsHeadPlus){
+      tagsHead.querySelector('.plus-mini.add-cat').click();
+      await new Promise(r=> setTimeout(r, 150));
+      out.catButtonMakesCat = !!document.querySelector('.legend-group-new .legend-group-name') &&
+                              !document.querySelector('#legendLoose .tag-naming-text');
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+      await new Promise(r=> setTimeout(r, 150));
+      document.querySelector('#tagsList .legend-section-head .plus-mini.add-tag').click();
+      await new Promise(r=> setTimeout(r, 150));
+      out.tagButtonMakesTag = !!document.querySelector('#legendLoose .tag-naming-text') &&
+                              !document.querySelector('.legend-group-new');
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+      await new Promise(r=> setTimeout(r, 150));
+    }
     out.refsHeadPlus = !!(refsHead && /References/i.test(refsHead.textContent) && refsHead.querySelector('.plus-mini'));
     out.noTopEye = !document.querySelector('.legend-actions #legendEye');
     out.colourInList = !!document.querySelector('#refsList > #refColorRow');
@@ -1846,8 +1865,9 @@ async function main(){
   check('and sized from its own text', r10.bigCardW > r10.tinyCardW,
         `${r10.tinyCardW} -> ${r10.bigCardW}`);
   check('a plate note is bordered in ink', r10.plateStroke !== 'none', r10.plateStroke);
-  check('the tags list carries its own eye and its own +',
-        r10.tagsHeadEye && r10.tagsHeadPlus && r10.noTopEye, JSON.stringify(r10));
+  check('the tags list has a button for a tag and one for a category, and no eye that hides it all',
+        r10.tagsHeadEye && r10.tagsHeadPlus && r10.noTopEye &&
+        r10.catButtonMakesCat && r10.tagButtonMakesTag, JSON.stringify(r10));
   check('the references list carries its own +', r10.refsHeadPlus);
   check('and the citation colour sits with the references', r10.colourInList);
 
@@ -6243,7 +6263,9 @@ async function main(){
       await wait(500);
       const to = nodes.get('dgA');
       out.carriedDown = Math.round(to.y - from.y);
-      out.wantDown = Math.round(snapToGrid(120));
+      /* Six steps of twenty SCREEN pixels, so the distance in the chart
+         depends on the zoom the chart's own contents left the view at. */
+      out.wantDown = Math.round(snapToGrid(120 / vs));
       out.carriedSideways = Math.round(to.x - from.x);
       /* And no group is left wearing a follow translation it cannot lose. */
       out.noStuckTransform = ![...document.querySelectorAll('#nodeLayer > g.node')]
@@ -8467,6 +8489,17 @@ async function main(){
         await wait(350);
       }
       out.escapeAborts = !tagExists('never made');
+      // a click anywhere else keeps the name, as Enter does
+      startNewTagEntry();
+      await wait(300);
+      const boxB = document.querySelector('#legendLoose .tag-naming-text');
+      if(boxB){ boxB.textContent = 'kept by a click'; boxB.blur(); await wait(350); }
+      out.blurKeeps = tagExists('kept by a click');
+      startNewCategoryEntry();
+      await wait(300);
+      const cboxB = document.querySelector('.legend-group-new .legend-group-name');
+      if(cboxB){ cboxB.textContent = 'Kept category'; cboxB.blur(); await wait(350); }
+      out.catBlurKeeps = realCategories().some(c=> c.name === 'Kept category');
       // and neither does a name nobody typed
       startNewTagEntry();
       await wait(300);
@@ -8605,6 +8638,8 @@ async function main(){
   check('Escape, or a name nobody typed, makes no tag at all',
         r41.escapeAborts && r41.emptyAborts,
         JSON.stringify({escape:r41.escapeAborts, empty:r41.emptyAborts}));
+  check('a click elsewhere keeps a new tag or category, as Enter does',
+        r41.blurKeeps && r41.catBlurKeeps, JSON.stringify({tag:r41.blurKeeps, cat:r41.catBlurKeeps}));
   check('a category is made the same way, and the bin is not one',
         r41.catNamedInPlace && r41.catMade && r41.binIsNoCategory,
         JSON.stringify({inPlace:r41.catNamedInPlace, made:r41.catMade,
@@ -10793,9 +10828,9 @@ async function main(){
       out.noLangToolbar = !document.querySelector('#editLangTabsField .mini-toolbar');
       out.noLineageHeadings = !document.querySelector('#detailParents h3') &&
                               !document.querySelector('#detailChildren h3');
-      const badge = document.querySelector('.node[data-id="kcA"] .node-link circle');
+      const badge = document.querySelector('.node[data-id="kcA"] .node-link rect');
       const g = document.querySelector('.node[data-id="kcA"]');
-      out.badgeIsChipSized = !!badge && Math.abs(+badge.getAttribute('r') - 5.5) < 0.01;
+      out.badgeIsChipSized = !!badge && Math.abs(+badge.getAttribute('height') - CHIP_TAB_H) < 0.01;
       out.badgeOnTop = !!g && g.lastElementChild && g.lastElementChild.tagName.toLowerCase() === 'a';
     }
 
@@ -10831,7 +10866,7 @@ async function main(){
         JSON.stringify({switched:rK.ownChipSwitches, dim:rK.dimSurvivesTabs}));
   check('the language rows carry no editor, and the lineage lists no headings',
         rK.noLangToolbar && rK.noLineageHeadings);
-  check('the link badge is a chip’s size and clickable all the way round',
+  check('the link badge is a tab the height of a chip, and clickable all the way round',
         rK.badgeIsChipSized && rK.badgeOnTop,
         JSON.stringify({sized:rK.badgeIsChipSized, top:rK.badgeOnTop}));
 
@@ -11001,13 +11036,17 @@ async function main(){
       const badge = document.querySelector('.node[data-id="cdA"] .node-link');
       const tr = badge ? badge.getAttribute('transform') : '';
       const at = (tr.match(/-?[\d.]+/g) || []).map(Number);
+      /* A tab standing on the top border at its right end: wholly above
+         the border's ink, so it can never sit on the words. */
+      const base = tabBaseOf(n);
       out.cardBadgeTopRight = at.length === 2 &&
-        Math.abs(at[0] - (n.x + n.w)) < 0.6 && Math.abs(at[1] - n.y) < 0.6;
+        at[0] + LINK_TAB/2 <= base.right + 0.01 && at[0] > n.x + n.w * 0.5 &&
+        at[1] + LINK_TAB/2 <= base.y + 0.01 && at[1] + LINK_TAB/2 > base.y - 1.5;
       const chip = document.querySelector('.node[data-id="cdA"] .lang-chips .lang-chip');
       const cb = chip ? chip.getBoundingClientRect() : null;
       const box = document.querySelector('.node[data-id="cdA"] rect');
       const bb = box ? box.getBoundingClientRect() : null;
-      out.cardChipsTopLeft = !!(cb && bb) && cb.top < bb.top + bb.height * 0.25 &&
+      out.cardChipsTopLeft = !!(cb && bb) && cb.bottom <= bb.top + 0.5 &&
                              cb.left < bb.left + bb.width * 0.5;
       /* Its ports are spread over the WHOLE side, picture band and all —
          a card is one box, not a box with a lid on it. */
@@ -11367,7 +11406,10 @@ async function main(){
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
     const w0 = clientToWorld(420, 280);
-    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    /* On the grid, so where the entries land does not depend on wherever
+       the chart's own contents have left the view: a box at an odd
+       fraction of a unit lays its words out by a different rounding. */
+    const X = snapToGrid(w0.x), Y = snapToGrid(w0.y);
     deselect();
     const pic = 'data:image/svg+xml;base64,' + btoa(
       '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200">' +
@@ -11396,8 +11438,14 @@ async function main(){
          box is where the ripple's baseline is. */
       const n = nodes.get('wrB');
       const t = document.querySelector('.node[data-id="wrB"] text');
-      const b = t ? t.getBBox() : null;
-      out.clearOfRipple = !!b && (b.x - n.x) >= 2.4 && ((n.x + n.w) - (b.x + b.width)) >= 2.4;
+      /* The INK, which is what the box is laid out from. The text's own
+         box runs to the advance of the last glyph, which overhangs or
+         falls short of its ink by a fraction of a unit depending on
+         where the word happens to start, so the same entry passed or
+         failed by where the chart's contents had left the view. */
+      const b = t ? inkBoxOf(t) : null;
+      const need = POCKET_AMP + NODE_BORDER_W / 2;
+      out.clearOfRipple = !!b && (b.x - n.x) >= need && ((n.x + n.w) - (b.x + b.width)) >= need;
       out.rippleGaps = b ? JSON.stringify([+(b.x - n.x).toFixed(2),
                                            +((n.x + n.w) - (b.x + b.width)).toFixed(2)]) : '';
     }
@@ -12525,6 +12573,23 @@ async function main(){
       box2.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
       await wait(150);
       out.refEscaped = REFS.length === n0 + 1 && !document.querySelector('#refsList .ref-item-new');
+      // A click anywhere else keeps it, as Enter does.
+      plus().click();
+      await wait(120);
+      const box3 = document.querySelector('#refsList .ref-item-new .ref-naming-text');
+      box3.textContent = 'Kept by a click, 1914';
+      box3.blur();
+      await wait(150);
+      out.refBlurKeeps = REFS.length === n0 + 2 && REFS[REFS.length-1].detail === 'Kept by a click, 1914';
+      /* And a search finds a reference by its words, numbers included —
+         not only by the number it is listed under. */
+      refFilterText = '1914'; buildSideTabs(); await wait(120);
+      out.refFoundByText = [...document.querySelectorAll('#refsList .ref-item .ref-detail')]
+        .some(d=> /1914/.test(d.textContent));
+      refFilterText = String(n0 + 1); buildSideTabs(); await wait(120);
+      out.refFoundByNumber = [...document.querySelectorAll('#refsList .ref-item .ref-detail')]
+        .some(d=> d.textContent === 'Marvel UK #1, 1984');
+      refFilterText = ''; buildSideTabs();
       setSideTab(refsPanel, false);
     }
 
@@ -12645,6 +12710,10 @@ async function main(){
   check('the + on References opens an empty row with the caret in it, and no dialog',
         rF.refRowFocused && rF.refRowLast);
   check('Enter makes the reference, Escape makes none', rF.refMade && rF.refEscaped);
+  check('and a click elsewhere keeps it, as Enter does', rF.refBlurKeeps);
+  check('a reference is found by its words as well as by its number',
+        rF.refFoundByText && rF.refFoundByNumber,
+        JSON.stringify({text:rF.refFoundByText, number:rF.refFoundByNumber}));
   check('an empty entry is the size of an empty callout', rF.emptyLikeCallout, JSON.stringify(rF.emptySizes));
   check('a double border is drawn as a double connector is, and grows about its middle',
         rF.doubleEqual && rF.doubleSplit, JSON.stringify({w:rF.doubleWeights, e:rF.doubleEdges}));
@@ -13309,6 +13378,179 @@ async function main(){
         rS.resizeFloored, JSON.stringify(rS.floors));
   check('carrying an entry leaves the routes it has nothing to do with where they were',
         rS.routeHeld, rS.routeHeldAt);
+
+  });
+
+  await scenario("a merge that keeps its middle, a leader with a line of its own, a curve and a field the size of a remark", async () => {
+  const rR = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(430, 260);
+    const X = snapToGrid(w0.x), Y = snapToGrid(w0.y);
+    deselect();
+
+    /* ---- a merge is put back on the middle of its bar with every parent ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['rmA','One',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['rmB','Two',null,null,null,null,{pos:[snapToGrid(X + 200), Y]}]);
+      workingNodes.push(['rmC','Three',null,null,null,null,{pos:[snapToGrid(X + 600), Y]}]);
+      workingNodes.push(['rmM','Merge',['rmA','rmB'],null,null,'amalgam',
+                         {pos:[snapToGrid(X + 100), snapToGrid(Y + 150)]}]);
+    });
+    await wait(400);
+    connectNodes('rmC', 'rmM');
+    await wait(400);
+    {
+      const n = nodes.get('rmM'), bar = amalgamBars.get('rmM');
+      const mid = bar ? (bar.lo + bar.hi) / 2 : NaN;
+      const lowest = nodes.get('rmC').y + nodes.get('rmC').h;
+      out.recentredAt = JSON.stringify({centre: +(n.x + n.w/2).toFixed(2), mid: +mid.toFixed(2),
+                                        top: n.y, parents: lowest});
+      /* On the middle, and near its parents — not thrown far below them. */
+      out.recentred = Math.abs(n.x + n.w/2 - mid) < 0.5 && n.y > lowest && n.y - lowest < 200;
+    }
+
+    /* ---- a column of parents: an upright bar, and no hooks ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      ['A','B','C','D'].forEach((k, i)=>
+        workingNodes.push(['ccP' + k, 'P ' + k, null, null, null, null,
+                           {pos:[X, snapToGrid(Y + i*120)]}]));
+      workingNodes.push(['ccM','Merge',['ccPA','ccPB','ccPC','ccPD'],null,null,'amalgam',
+                         {pos:[snapToGrid(X + 100), snapToGrid(Y + 170)]}]);
+    });
+    await wait(500);
+    {
+      const bar = amalgamBars.get('ccM');
+      /* A hook is a lineage that runs past the bar and turns back to it.
+         Each member leaves its parent rightwards and meets an upright bar,
+         so no x along its path may lie beyond where the bar stands. */
+      const xs = [...document.querySelectorAll('#edgeLayer path.amalgam-member:not(.amalgam-reach)[data-to="ccM"]')]
+        .map(p=> Math.max(...(p.getAttribute('d').match(/-?\d+(\.\d+)?/g) || []).map(Number)
+                             .filter((v, i)=> i % 2 === 0)));
+      const n = nodes.get('ccM');
+      out.columnAt = JSON.stringify({axis: bar && bar.axis, xs: xs.map(v=> +v.toFixed(1)), entry: n.x});
+      out.columnUpright = !!bar && bar.axis === 'y' && xs.length === 4 && xs.every(v=> v < n.x);
+      /* A bead where two lineages join belongs to those two, and steps back
+         with the rest when an entry that is neither is picked. */
+      selectNode('ccPA'); await wait(300);
+      const joints = [...document.querySelectorAll('.amalgam-joint')];
+      const own = joints.filter(c=> (c.dataset.pair || '').split('\u0000').includes('ccPA'));
+      const other = joints.filter(c=> !(c.dataset.pair || '').split('\u0000').includes('ccPA'));
+      out.jointsAt = JSON.stringify({own: own.length, other: other.length});
+      out.jointsDim = own.length > 0 && other.length > 0 &&
+        own.every(c=> !c.classList.contains('dim')) && other.every(c=> c.classList.contains('dim'));
+      deselect(); await wait(200);
+    }
+
+    /* ---- a callout's leader wears a line of its own ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['llA','Up',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['llB','Down','llA',null,null,null,{pos:[X, snapToGrid(Y + 220)]}]);
+      workingNodes.push(['llK','A remark',null,null,null,'callout',
+                         {pos:[snapToGrid(X + 140), snapToGrid(Y + 100)],
+                          leader:{from:'llA', to:'llB', at:0.5, line:'dashed'}}]);
+    });
+    await wait(500);
+    {
+      const line = ()=> document.querySelector('.callout-leader[data-id="llK"] .leader-line');
+      const l = line();
+      out.leaderDashed = !!l && l.getAttribute('stroke-dasharray') === DASH_PATTERNS.dashed;
+      const conn = document.querySelector('#edgeLayer path.edge[data-from="llA"][data-to="llB"]');
+      out.connectorUntouched = !!conn && !conn.getAttribute('stroke-dasharray');
+      openStyleBar({kind:'node', id:'llK'});
+      const row = document.querySelector('#styleBar .style-bar-group[data-group="leader"]');
+      out.leaderRowShown = !!row && !row.hidden;
+      row.querySelector('[data-value="sinusoid"]').click();
+      await wait(400);
+      const kept = entryOpts(workingEntry('llK').entry).leader;
+      out.leaderWavy = kept.line === 'sinusoid' && !!document.querySelector('.callout-leader[data-id="llK"] .leader-wavy');
+      openStyleBar({kind:'node', id:'llA'});
+      out.leaderRowOnlyOnCallouts = document.querySelector('#styleBar .style-bar-group[data-group="leader"]').hidden;
+      openStyleBar({kind:'node', id:'llK'});
+      document.querySelector('#styleBar .style-bar-group[data-group="leader"] [data-value="solid"]').click();
+      await wait(400);
+      out.leaderSolidIsAbsence = !('line' in entryOpts(workingEntry('llK').entry).leader) &&
+        !line().getAttribute('stroke-dasharray');
+      closeStyleBar();
+
+      /* ---- and its words, and a note's, are edited in a field their own size ---- */
+      const fits = async (open)=>{
+        open(); await wait(250);
+        const rec = richFields.get('nodeEditorText');
+        const box = nodeEditorBoxFor(nodeEditorTarget);
+        const f = rec.surface.getBoundingClientRect();
+        const fs = parseFloat(getComputedStyle(rec.surface).fontSize);
+        const r = {fw: +f.width.toFixed(1), bw: +(box.w*vs).toFixed(1), fs: +(fs/vs).toFixed(2)};
+        closeNodeEditor(true); await wait(150);
+        return r;
+      };
+      const k = await fits(()=> openNodeEditor('llK'));
+      applyEdit(()=>{ EDGE_STYLES.push({from:'llA', to:'llB', note:'a note here'}); });
+      await wait(400);
+      const nt = await fits(()=> openEdgeNoteEditor('llA', 'llB'));
+      out.remarkFieldAt = JSON.stringify({callout: k, note: nt});
+      out.remarkFieldFits = Math.abs(k.fw - k.bw) < 2 && Math.abs(k.fs - EDGE_NOTE_FS) < 0.05 &&
+                            Math.abs(nt.fw - nt.bw) < 2 && Math.abs(nt.fs - EDGE_NOTE_FS) < 0.05;
+    }
+
+    /* ---- a curve: square out of one side, square into the other ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['cvA','From',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['cvB','To','cvA',null,null,null,{pos:[snapToGrid(X + 260), snapToGrid(Y + 180)]}]);
+      EDGE_STYLES.push({from:'cvA', to:'cvB', routing:'curve', dash:'solid', arrow:true});
+    });
+    await wait(500);
+    {
+      const rec = drawnRoutes.get(calloutEdgeKey('cvA', 'cvB'));
+      const pts = rec ? rec.pts : [];
+      const turnAt = (i)=>{
+        const a = pts[i-1], b = pts[i], c = pts[i+1];
+        const u = Math.atan2(b.y - a.y, b.x - a.x), v = Math.atan2(c.y - b.y, c.x - b.x);
+        let d = Math.abs(v - u); if(d > Math.PI) d = 2*Math.PI - d;
+        return d;
+      };
+      let sharpest = 0;
+      for(let i = 2; i < pts.length - 2; i++) sharpest = Math.max(sharpest, turnAt(i));
+      const dir = (a, b)=> Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      const n = pts.length;
+      const leaves = n > 4 ? dir(pts[0], pts[1]) : NaN, arrives = n > 4 ? dir(pts[n-2], pts[n-1]) : NaN;
+      out.curveAt = JSON.stringify({n, sharpest: +(sharpest*180/Math.PI).toFixed(1),
+                                    leaves: +leaves.toFixed(1), arrives: +arrives.toFixed(1)});
+      /* Many points, none of them a corner, leaving and arriving square to
+         a side — a sweep, not a polyline with elbows. */
+      const square = (a)=> [0, 90, 180, -90, -180].some(q=> Math.abs(a - q) < 0.5);
+      out.curveSmooth = n > 20 && sharpest < 12 * Math.PI / 180 && square(leaves) && square(arrives);
+      const option = document.querySelector('#styleRouting option[value="curve"]');
+      out.curveOffered = !!option;
+    }
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart();
+    await wait(300);
+    return out;
+  });
+  check('a merge given another parent is put back on the middle of its bar, beside its parents',
+        rR.recentred, rR.recentredAt);
+  check('a bead where two lineages join steps back unless one of the two is picked',
+        rR.jointsDim, rR.jointsAt);
+  check('parents in a column merge across an upright bar, with no lineage hooking past it',
+        rR.columnUpright, rR.columnAt);
+  check('a callout\'s leader wears its own line, chosen on the callout and nowhere else',
+        rR.leaderDashed && rR.connectorUntouched && rR.leaderRowShown && rR.leaderWavy &&
+        rR.leaderRowOnlyOnCallouts && rR.leaderSolidIsAbsence,
+        JSON.stringify({dashed:rR.leaderDashed, conn:rR.connectorUntouched, row:rR.leaderRowShown,
+                        wavy:rR.leaderWavy, only:rR.leaderRowOnlyOnCallouts, solid:rR.leaderSolidIsAbsence}));
+  check('a callout and a note are edited in a field their own size, in their own type',
+        rR.remarkFieldFits, rR.remarkFieldAt);
+  check('a connector can be a curve, leaving and arriving square to its sides',
+        rR.curveSmooth && rR.curveOffered, rR.curveAt);
 
   });
 

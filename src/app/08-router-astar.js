@@ -539,7 +539,12 @@ function mergeCollinear(pts){
    simply not drawing the ones an arrowhead sits on keeps every crest
    exactly where it was — turning a head on hides a ripple, it never
    shifts the pattern. */
-function wavyPath(rawPts, trimIn, trimOut){
+/* `short` lets a run down to one wave ripple. An ordinary connector under
+   two waves is drawn straight, since a single hump on a short link reads as
+   a kink; a lineage's stretch of a merge's bar is another matter — it is a
+   piece of a wavy line, and a straight piece in the middle of one reads as
+   the style not having been applied at all. */
+function wavyPath(rawPts, trimIn, trimOut, short){
   const cutIn = Math.max(0, trimIn || 0), cutOut = Math.max(0, trimOut || 0);
   const pts = mergeCollinear(rawPts);
   const samples = sampleRounded(pts, EDGE_CORNER_R, EDGE_WAVE_LEN / WAVE_STEP_DIV);
@@ -548,7 +553,7 @@ function wavyPath(rawPts, trimIn, trimOut){
     return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
   }
   const total = samples[samples.length-1].s;
-  if(total < EDGE_WAVE_LEN * 2){
+  if(total < EDGE_WAVE_LEN * (short ? 0.75 : 2)){
     const last = pts[pts.length-1];
     return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
   }

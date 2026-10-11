@@ -179,21 +179,21 @@ function sectionHead(title, count){
                    `<span class="legend-group-count">${count}</span>`;
   return head;
 }
-function makePlusButton(title){
+const PLUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                 '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+/* A tag with a + on it, and a folder with a + on it: the two things the
+   Tags heading makes, told apart by what they make. */
+const TAG_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">' +
+  '<path d="M3 12.2V4.5A1.5 1.5 0 0 1 4.5 3h7.7l8.3 8.3-9.2 9.2z"/><circle cx="7.6" cy="7.6" r="1.3"/>' +
+  '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2"/></svg>';
+const CAT_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">' +
+  '<path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h5l2 2.2h9A1.5 1.5 0 0 1 21.5 8.7V13M2.5 6.5V18a1.5 1.5 0 0 0 1.5 1.5h9"/>' +
+  '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2"/></svg>';
+function makePlusButton(title, svg){
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'icon-action plus-mini'; b.title = title;
-  b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
-                '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  b.innerHTML = svg || PLUS_SVG;
   return b;
-}
-// The two-item menu the Tags + opens, parked under whichever heading asked
-// for it. One element, moved, rather than one per rebuild.
-function openTagAddMenu(afterEl){
-  const menu = document.getElementById('legendAddMenu');
-  if(!menu) return;
-  if(!menu.hidden && menu.previousSibling === afterEl){ menu.hidden = true; return; }
-  afterEl.parentNode.insertBefore(menu, afterEl.nextSibling);
-  menu.hidden = false;
 }
 /* The two tabs, rebuilt together because a rebuild of the chart can change
    both — but each into its own list, under its own heading, with its own
@@ -222,7 +222,6 @@ function buildSideTabs(){
   else if(colorRow) colorRow.hidden = true;
   buildRefsInto(refsList);
   refsList.scrollTop = scroll;
-  syncLegendEye();
   if(document.getElementById('keyPanel').classList.contains('open')) buildKeyTab();
 }
 /* ---------------------------------------------------------------------
@@ -451,32 +450,23 @@ function buildLegend(){
   const special = allTags.filter(t=> reserved.has(t));
   if(special.length) groups.push({name: UNGROUPED, tags: special});
 
-  /* The add menu and the citation-colour row are moved INTO this list on
-     every build, so they have to be rescued before it is emptied or they
-     would be destroyed along with it. */
-  const parked = document.getElementById('sideTabs');
-  ['legendAddMenu'].forEach(id=>{
-    const elm = document.getElementById(id);
-    if(elm && parked) parked.appendChild(elm);
-  });
-  const addMenu = document.getElementById('legendAddMenu');
-  if(addMenu) addMenu.hidden = true;
   legendList.innerHTML = '';
   const tagHead = sectionHead('Tags', allTags.length);
-  const globalEye = makeEyeButton(everythingHidden(),
-    everythingHidden() ? 'Show every tag' : 'Hide every tag');
-  globalEye.id = 'legendEye';
-  globalEye.addEventListener('click', ev=>{
-    ev.stopPropagation();
-    if(everythingHidden()) hiddenTags.clear();
-    else allTags.forEach(t=> hiddenTags.add(t));
-    applyVisibility(); buildSideTabs();
-  });
-  tagHead.insertBefore(globalEye, tagHead.firstChild);
+  /* Two buttons, one for each thing that can be made here. The single +
+     opened a two-item menu, which is a click spent asking which of two
+     things was meant when there could have been one button for each. And
+     there is no eye on the heading: hiding every tag at once hid the whole
+     chart, which is one click from an empty page and never what anybody
+     reaching for that corner wanted. */
   if(!readOnlyView){
-    const add = makePlusButton('Add a tag or a category');
-    add.addEventListener('click', ev=>{ ev.stopPropagation(); openTagAddMenu(tagHead); });
-    tagHead.appendChild(add);
+    const addTag = makePlusButton('Add a tag', TAG_ADD_SVG);
+    addTag.classList.add('add-tag');
+    addTag.addEventListener('click', ev=>{ ev.stopPropagation(); startNewTagEntry(); });
+    const addCat = makePlusButton('Add a category', CAT_ADD_SVG);
+    addCat.classList.add('add-cat');
+    addCat.addEventListener('click', ev=>{ ev.stopPropagation(); startNewCategoryEntry(); });
+    tagHead.appendChild(addTag);
+    tagHead.appendChild(addCat);
   }
   legendList.appendChild(tagHead);
   legendList.appendChild(buildTagFilterRow());
@@ -541,8 +531,9 @@ function focusNaming(box){
  * and then appeared somewhere else on the panel, under whichever category
  * happened to be first. It is written into an empty tag shape in the
  * uncategorised block instead, exactly as a category is renamed on its own
- * heading, and carried into a category afterwards if it wants one. Nothing
- * typed, Escape, or a click anywhere else, and no tag was ever made. */
+ * heading, and carried into a category afterwards if it wants one. Enter or
+ * a click anywhere else keeps it; nothing typed, or Escape, and no tag was
+ * ever made. */
 let pendingNewTag = false, pendingNewCat = false;
 function startNewTagEntry(){
   if(readOnlyView) return;
@@ -588,8 +579,10 @@ function buildNewTagRow(){
     if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
     else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
   });
-  // Anywhere else is "never mind", which is what a half-typed name means.
-  box.addEventListener('blur', ()=> finish(false));
+  /* A click anywhere else keeps what was typed, as Enter does: the name is
+     written, and reaching for something else is how a reader says they
+     are done with it. Only Escape is "never mind". */
+  box.addEventListener('blur', ()=> finish(true));
   box.addEventListener('click', ev=> ev.stopPropagation());
   box.addEventListener('mousedown', ev=> ev.stopPropagation());
   return row;
@@ -618,7 +611,7 @@ function buildNewCategoryBlock(){
     if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
     else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
   });
-  box.addEventListener('blur', ()=> finish(false));
+  box.addEventListener('blur', ()=> finish(true));
   box.addEventListener('click', ev=> ev.stopPropagation());
   box.addEventListener('mousedown', ev=> ev.stopPropagation());
   wrap.appendChild(head);
@@ -626,12 +619,17 @@ function buildNewCategoryBlock(){
 }
 /* The references' search, the same box over the other list. A reference
    is found by what it says, by its link, or by its number — "[3]" or a
-   bare 3 — since the number is what the mark in the text shows. */
+   bare 3 — since the number is what the mark in the text shows; a number
+   is looked for in the words as well. */
 let refFilterText = '';
 function refMatchesFilter(r, i){
   if(!refFilterText) return true;
   const q = refFilterText.replace(/^\[|\]$/g, '');
-  if(/^\d+$/.test(q)) return String(i + 1) === q;
+  /* A number finds the reference with that number AND any whose words
+     have it in them: "1914" is far more often a year somebody is looking
+     for than the thousand-and-fourteenth reference, and a search that
+     answered only the second question found nothing at all. */
+  if(/^\d+$/.test(q) && String(i + 1) === q) return true;
   return (refBodyText(r) + ' ' + (r.url || '')).toLowerCase().indexOf(refFilterText) >= 0;
 }
 function buildRefFilterRow(){
