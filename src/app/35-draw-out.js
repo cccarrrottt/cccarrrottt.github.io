@@ -153,11 +153,20 @@ function dropEdgesOnMissingRings(nodeId, rings){
   });
   return doomed.length;
 }
+/* …and every time one is taken away. A lineage leaving shortens the bar
+   from one end, so its middle moves, and the entry left standing over the
+   old middle has its merged arrow leaving from a point that is no longer
+   the middle of anything. The same placement as a lineage arriving; with
+   one lineage left there is no bar, and nothing to centre on. */
+function recentreAfterLoss(found, remaining){
+  if(found.entry[5] === 'amalgam' && remaining.length >= 2) bringAmalgamToItsLineages(found, remaining);
+}
 function deleteEdge(sourceId, targetId){
   const found = workingEntry(targetId);
   if(!found){ setStyleStatus('err', 'That node could not be found.'); return false; }
   applyEdit(()=>{
     const parents = resolveExplicitParents(found.entry).filter(p=>p!==sourceId);
+    recentreAfterLoss(found, parents);
     found.entry[2] = parents.length===0 ? undefined : (parents.length===1 ? parents[0] : parents);
     putEntry(found.index, found.entry, entryOpts(found.entry));
     const idx = EDGE_STYLES.findIndex(s=>s.from===sourceId && s.to===targetId);
@@ -196,6 +205,7 @@ function deleteNodes(ids){
       for(let k=0;k<7;k++) out[k] = (k<it.length ? it[k] : undefined);
       out[2] = remaining.length===0 ? undefined : (remaining.length===1 ? remaining[0] : remaining);
       workingNodes[idx] = out;
+      recentreAfterLoss({entry: out, index: idx}, remaining);
     });
     for(let i=workingNodes.length-1;i>=0;i--){
       if(doomed.has(workingNodes[i][0])) workingNodes.splice(i,1);
@@ -221,6 +231,7 @@ function deleteNode(nodeId){
       for(let k=0;k<7;k++) out[k] = (k<it.length ? it[k] : undefined);
       out[2] = remaining.length===0 ? undefined : (remaining.length===1 ? remaining[0] : remaining);
       workingNodes[idx] = out;
+      recentreAfterLoss({entry: out, index: idx}, remaining);
     });
     workingNodes.splice(workingIndex(nodeId), 1);
     for(let k=EDGE_STYLES.length-1;k>=0;k--){

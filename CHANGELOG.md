@@ -8,6 +8,23 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Second thoughts on the last round (owner's notes)
+
+- **A merge goes back to the middle of its bar when it loses a lineage**,
+  by its connector or by its entry being deleted (`recentreAfterLoss`), as
+  it already did when it gained one.
+- **A curve is the orthogonal route with its turns swept**: it goes where
+  an elbowed connector goes, round the same entries and with the same bend
+  marks, and each corner is drawn across the whole of its legs
+  (`CURVE_CORNER_R` in `edgeCornerR`). The free-standing sweep it was at
+  first, a hundred and forty points with a mark on every one, is gone.
+- **A leader's line style is chosen on the line**: pointing at the leader
+  opens the style bar over it (`.leader-line-hit`, `kind:'leader'`), and the
+  card's bar no longer carries it.
+- **Language chips and the link are tabs in shape**, rounded at the top and
+  open at the foot, standing in the border's outer edge like a folder's
+  (`tabOutline`, `TAB_SINK`).
+
 ### A merge that keeps its middle
 
 - **An amalgam's bar is laid from where the entry and its parents stand.**

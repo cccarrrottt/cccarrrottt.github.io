@@ -360,6 +360,17 @@ function drawCalloutLeaders(from, to, pts, paint){
        at. A separate invisible circle catches the pointer, because a dot
        two and a half pixels across is not something anyone can hit. */
     if(!readOnlyView){
+      /* The leader's own line is a place to point at, too: its look is
+         chosen ON it, where the reader is looking at the line, rather than
+         on the card at the other end of it — see the style bar. Laid down
+         before the dot's handle, so the dot keeps the pointer where the
+         two meet. Wide in screen pixels, for the reason the dot's is. */
+      const lineHit = el('line', {class:'leader-line-hit', 'data-id':n.id,
+                                  x1:m.x.toFixed(2), y1:m.y.toFixed(2),
+                                  x2:edge.x.toFixed(2), y2:edge.y.toFixed(2),
+                                  'stroke-width': Math.max(4, 9 / (currentZoom() || 1))},
+                         leaderHitLayer);
+      lineHit.addEventListener('mousedown', ev=> ev.stopPropagation());
       /* Sized in SCREEN pixels. A radius in chart units is a generous
          target zoomed in and a two-pixel speck zoomed out, which is
          exactly when a reader is most likely to be re-aiming things. */

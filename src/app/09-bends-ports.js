@@ -308,51 +308,11 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
   const pts = sinkEnds(
     bent ? bent
       : style.routing === 'straight' ? [p1,p2]
-      : style.routing === 'curve' ? curvePoints(p1, p2)
       : squareUp(levelSlivers(orthPointsAvoiding(q1,q2,excludeIds,lane)), q1, q2),
     r1, r2);
-  if((style.routing !== 'straight' && style.routing !== 'curve') || hand.length)
-    registerRoutedSegments(pts);
-  const d = style.sinusoid ? wavyPath(pts) : roundedPath(pts, edgeCornerR(style));
+  if(style.routing !== 'straight' || hand.length) registerRoutedSegments(pts);
+  const d = style.sinusoid ? wavyPath(pts, 0, 0, false, edgeCornerR(style)) : roundedPath(pts, edgeCornerR(style));
   return { d, angleDeg: endAngleDeg(pts), pts };
-}
-/* A curve: out of one side and into the other in a single sweep.
- *
- * It leaves each entry square to the side it belongs to, for a short
- * straight run, and bends between the two runs as a cubic whose handles
- * point along those same sides — so it is the arc a hand draws from one
- * box to another, and an arrowhead always lands on a straight stretch
- * pointing into the border rather than on the slant of the bend.
- *
- * It is returned as points, densely, not as a curve command. Everything
- * downstream — the arrowheads, a note or a callout's anchor sliding along
- * it, the wave, the dimming, the hit line — reads a connector as a list of
- * points, and a curve that was only an SVG command would have had to be
- * taught to every one of them. Sampled every few units, with roundedPath
- * softening each joint, the polyline cannot be told from the curve.
- *
- * Like a straight line it goes where it goes: no avoidance, and it is not
- * registered as an obstacle for the elbowed routes either — it has no
- * level or upright runs for them to keep off. */
-const CURVE_LEAD = 14;
-function curvePoints(p1, p2){
-  const n1 = SIDE_NORMAL[p1.side] || {x:0, y:0}, n2 = SIDE_NORMAL[p2.side] || {x:0, y:0};
-  const s1 = {x: p1.x + n1.x * CURVE_LEAD, y: p1.y + n1.y * CURVE_LEAD};
-  const s2 = {x: p2.x + n2.x * CURVE_LEAD, y: p2.y + n2.y * CURVE_LEAD};
-  const span = Math.hypot(s2.x - s1.x, s2.y - s1.y);
-  const k = Math.max(12, Math.min(240, span * 0.5));
-  const c1 = {x: s1.x + n1.x * k, y: s1.y + n1.y * k};
-  const c2 = {x: s2.x + n2.x * k, y: s2.y + n2.y * k};
-  const steps = Math.max(8, Math.min(160, Math.ceil((span + 2 * k) / 4)));
-  const out = [{x:p1.x, y:p1.y}];
-  for(let i = 0; i <= steps; i++){
-    const t = i / steps, u = 1 - t;
-    const a = u*u*u, b = 3*u*u*t, c = 3*u*t*t, d = t*t*t;
-    out.push({x: a*s1.x + b*c1.x + c*c2.x + d*s2.x,
-              y: a*s1.y + b*c1.y + c*c2.y + d*s2.y});
-  }
-  out.push({x:p2.x, y:p2.y});
-  return out;
 }
 // ports is {p1, p2, lane} from resolvePorts(); when absent, fall back to
 // the automatic sides at each side's midpoint.

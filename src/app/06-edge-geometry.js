@@ -369,6 +369,9 @@ function portOnSide(n, side, i, count, ring){
    line. A rippled border's drop is therefore worked out once, where the
    port is, and never again at some new place along the side. */
 function roundedPath(pts, r){
+  /* A curve turns across whole legs, so a point that is not a corner would
+     cut its leg in two and halve the sweep beside it. */
+  if(r >= CURVE_CORNER_R) pts = mergeCollinear(pts);
   if(pts.length<=2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
   const segLen=(a,b)=>Math.hypot(b.x-a.x,b.y-a.y);
   let d = `M${pts[0].x},${pts[0].y}`;
@@ -424,7 +427,19 @@ const EDGE_CORNER_R = 6;
    elbow into a plain right angle. A sinusoid ignores it: its wave is laid
    along a rounded line for the same reason a rippled border's is (see
    hasSquareCorners), and a wave cannot turn a right angle. */
-function edgeCornerR(style){ return (style && style.square) ? 0 : EDGE_CORNER_R; }
+/* A CURVE is the orthogonal route with its corners taken as far round as
+   they will go. It goes where an elbowed connector goes — round the same
+   entries, through the same corridors, with the same marks to bend it by —
+   and differs only in how it turns: each corner is allowed the whole of
+   the legs either side of it (halves, where two corners share a leg; see
+   roundedPath), so a dog-leg becomes one S and a single turn one sweep.
+   Asked for square corners as well, it is still a curve: the routing is
+   the more specific of the two choices. */
+const CURVE_CORNER_R = 1e6;
+function edgeCornerR(style){
+  if(style && style.routing === 'curve') return CURVE_CORNER_R;
+  return (style && style.square) ? 0 : EDGE_CORNER_R;
+}
 
 /* ---------------------------------------------------------------------
    A rectangle whose four sides ripple — the 'pocket reality' archetype,
