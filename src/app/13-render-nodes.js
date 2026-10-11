@@ -7,7 +7,9 @@
    Standing on the border they cover nothing, and they read as what they
    are, handles on the entry rather than marks in its text. A size down
    from what they were, too: a tab only has to be found, not read across
-   the room. LINK_TAB is the link's square, the height of an active chip. */
+   the room. LINK_TAB is the link's square, the height of an active chip.
+ *
+   …and they are tabs in shape as well as in place: see tabOutline. */
 const CHIP_TAB_H = 9;
 const LINK_TAB = CHIP_TAB_H;
 /* Where the tabs stand: the outer edge of the outermost border line, so a
@@ -19,6 +21,21 @@ function tabBaseOf(n){
             : NODE_BORDER_W / 2;
   return {y: n.y - own - out, left: n.x - own, right: n.x + n.w + own};
 }
+/* A tab's outline: rounded at the top, square and OPEN at the foot, so it
+   reads as grown out of the border it stands on — a folder's tab, which
+   is what the owner drew — rather than a chip laid down beside it. The
+   fill closes the shape by itself; the stroke runs up one side, over the
+   top and down the other, and leaves the foot to the border. Centred on
+   its own middle, like the rect it replaces. */
+function tabOutline(w, h, r){
+  const x0 = -w/2, x1 = w/2, y0 = -h/2, y1 = h/2;
+  const k = Math.max(0, Math.min(r, w/2, h));
+  return `M${x0},${y1} L${x0},${y0 + k} Q${x0},${y0} ${x0 + k},${y0} ` +
+         `L${x1 - k},${y0} Q${x1},${y0} ${x1},${y0 + k} L${x1},${y1}`;
+}
+/* How far a tab's foot is sunk into the border, so the two meet with no
+   hairline of paper between them. */
+const TAB_SINK = 0.5;
 /* A resize grip is a dot on the corner: this big to see, and this far out
    to catch the hand — see the grips below for why it is not a square. */
 const RESIZE_DOT_R = 1.9, RESIZE_DOT_HIT = 3.6;
@@ -1161,7 +1178,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     /* The active chip is drawn at full size and the rest a little smaller,
        so which one is showing reads from the shape alone — the colour is
        then a reinforcement rather than the only signal. */
-    const CHIP_H = CHIP_TAB_H, CHIP_GAP = 2, CHIP_FS = 5.2, CHIP_PAD = 3;
+    const CHIP_H = CHIP_TAB_H, CHIP_GAP = 1.2, CHIP_FS = 5.2, CHIP_PAD = 3;
     const CHIP_IDLE = 0.82;             // how much smaller an unselected chip is
     const CHIP_R = 2.5;                 // rounded rectangle, not a pill
     const activeIdxNow = activeLangTab.get(n.id) ?? null;
@@ -1188,13 +1205,13 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const textW = measureText(lbl, {fontSize:fs, family: lbl === DEFAULT_LANG_CHIP ? EMOJI_FAMILY : undefined});
       const chipW = Math.max(hh, textW + CHIP_PAD*k*2);
       const cx = cursorX + chipW/2;
-      // Standing on the border: every chip's foot on the same line.
-      const cy = base.y - 0.3 - hh/2;
+      // Standing on the border: every tab's foot on the same line, in it.
+      const cy = base.y + TAB_SINK - hh/2;
       const chipG = el('g', {class:'lang-chip' + (isActive ? ' active' : ''),
                              transform:`translate(${cx},${cy})`}, chipGroup);
-      el('rect', {x:-chipW/2, y:-hh/2, width:chipW, height:hh, rx:CHIP_R,
-                  class:'lang-chip-bg'}, chipG);
-      const chipLabelEl = el('text', {x:0, y:1.8*k, 'text-anchor':'middle', 'font-size':fs,
+      el('path', {d: tabOutline(chipW, hh, CHIP_R), class:'lang-chip-bg',
+                  'data-w': +chipW.toFixed(2), 'data-h': +hh.toFixed(2), 'data-r': CHIP_R}, chipG);
+      const chipLabelEl = el('text', {x:0, y:2.1*k, 'text-anchor':'middle', 'font-size':fs,
                                       class:'lang-chip-label' + (lbl === DEFAULT_LANG_CHIP ? ' emoji' : '')}, chipG);
       chipLabelEl.textContent = lbl;
       el('title',{},chipG).textContent = idx===0 ? 'Show the default text' : `Show the "${lbl}" text`;
@@ -1367,9 +1384,11 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        tabBaseOf for why it stands on the border rather than over it. */
     const base = tabBaseOf(n);
     const lg = el('g',{class:'node-link',
-      transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y - 0.3 - LINK_TAB/2})`}, linkWrap);
-    el('rect',{x:-LINK_TAB/2, y:-LINK_TAB/2, width:LINK_TAB, height:LINK_TAB, rx:2.5}, lg);
-    el('path',{d:'M-1.6,1.6 L1.6,-1.6 M-0.5,-1.6 L1.6,-1.6 L1.6,0.5', fill:'none'}, lg);
+      transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y + TAB_SINK - LINK_TAB/2})`}, linkWrap);
+    el('path',{d: tabOutline(LINK_TAB, LINK_TAB, 2.5), class:'node-link-bg',
+               'data-w': LINK_TAB, 'data-h': LINK_TAB}, lg);
+    el('path',{d:'M-1.6,1.9 L1.6,-1.3 M-0.5,-1.3 L1.6,-1.3 L1.6,0.8', fill:'none',
+               class:'node-link-arrow'}, lg);
     el('title',{},lg).textContent = 'Open linked page ↗';
     /* And while another entry is open this one's link does not fire: the
        page it would open belongs to a box the reader has stepped away

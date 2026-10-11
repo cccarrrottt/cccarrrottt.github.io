@@ -225,7 +225,7 @@ function redrawEdges(){
     const cutIn = headIn ? headCut(rec.p1) : 0, cutOut = headOut ? headCut(rec.p2) : 0;
     const drawPts = style.sinusoid ? pts
       : trimForHeads(pts, headIn, headOut, rec.p1, rec.p2);
-    const drawD = style.sinusoid ? wavyPath(pts, cutIn, cutOut)
+    const drawD = style.sinusoid ? wavyPath(pts, cutIn, cutOut, false, edgeCornerR(style))
       : drawPts === pts ? d
       : style.routing === 'straight'
         ? `M${drawPts[0].x},${drawPts[0].y} L${drawPts[drawPts.length-1].x},${drawPts[drawPts.length-1].y}`

@@ -39,8 +39,9 @@ const STYLE_BAR_CORNERS = [['square', '┌', 'Square corners'], ['round', '╭',
 const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
 const STYLE_BAR_TURN = [['quarter', '⟳', 'Turn a quarter clockwise']];
 /* A callout's leader, in the connector's own vocabulary — see
-   drawLeaderLine. Shown only on a callout, after a divider, because it is
-   a look of the LINE and not of the card the rest of the bar is about. */
+   drawLeaderLine. The bar opens on the LINE for these, as it opens on a
+   note for a note's: the line is what they change, and asked for on the
+   card at the far end of it they read as a change to the card. */
 const STYLE_BAR_LEADER = [
   ['solid', '──', 'Solid leader line'], ['dashed', '╌╌', 'Dashed leader line'],
   ['dotted', '┈┈', 'Dotted leader line'], ['dashdot', '─·', 'Dash-dotted leader line'],
@@ -89,7 +90,8 @@ const styleBar = (()=>{
   if(host) host.appendChild(bar);
   return bar;
 })();
-/* What the bar is open on: {kind:'node', id} or {kind:'note', from, to}. */
+/* What the bar is open on: {kind:'node', id}, {kind:'note', from, to} or
+   {kind:'leader', id} — a callout's leader line, by the callout's id. */
 let styleBarTarget = null;
 let styleBarTimer = null;
 
@@ -123,7 +125,9 @@ function syncStyleBar(){
   const t = styleBarTarget;
   const n = styleBarNode();
   const style = t && t.kind === 'note' ? edgeStyleFor(t.from, t.to) : null;
-  if(!t || (t.kind === 'node' && !styleBarWants(n)) || (t.kind === 'note' && !style.note)){
+  const callout = t && t.kind === 'leader' ? nodes.get(t.id) : null;
+  if(!t || (t.kind === 'node' && !styleBarWants(n)) || (t.kind === 'note' && !style.note) ||
+     (t.kind === 'leader' && !(callout && callout.leader))){
     closeStyleBar();
     return;
   }
@@ -136,8 +140,15 @@ function syncStyleBar(){
     });
   };
   rows.turn.hidden = !n;
-  rows.leader.hidden = !(n && isCalloutNode(n) && n.leader);
-  if(!rows.leader.hidden) light(rows.leader, n.leader.line || 'solid');
+  rows.leader.hidden = !callout;
+  if(callout){
+    rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
+    light(rows.leader, callout.leader.line || 'solid');
+    styleBar.hidden = false;
+    positionStyleBar();
+    return;
+  }
+  rows.corners.hidden = false;
   if(n){
     rows.border.hidden = false;
     rows.frame.hidden = true;
@@ -178,6 +189,14 @@ function positionStyleBar(){
     left = sr.left - host.left + (n.x - out) * vs + vx;
     top = sr.top - host.top + (n.y - out) * vs + vy;
     bottom = sr.top - host.top + (n.y + n.h + out) * vs + vy;
+  } else if(t.kind === 'leader'){
+    const line = document.querySelector(`.callout-leader[data-id="${CSS.escape(t.id)}"] .leader-line`);
+    if(!line){ closeStyleBar(); return; }
+    const r = line.getBoundingClientRect();
+    left = r.left + r.width/2 - host.left - (styleBar.offsetWidth || 0)/2;
+    // Over the whole of a slanting line, so the bar covers none of it.
+    top = r.top - host.top;
+    bottom = r.bottom - host.top;
   } else {
     const g = document.querySelector(`.edge-note[data-from="${CSS.escape(t.from)}"]` +
                                      `[data-to="${CSS.escape(t.to)}"]`);
@@ -210,7 +229,7 @@ function applyStyleBar(group, value){
     syncStyleBar();
     if(!styleBar.hidden){ styleBar.style.left = left; styleBar.style.top = top; }
     return;
-  } else if(t.kind === 'node'){
+  } else if(t.kind === 'node' || t.kind === 'leader'){
     applyEdit(()=>{
       const found = workingEntry(t.id);
       if(!found) return;
@@ -247,6 +266,11 @@ function applyStyleBar(group, value){
 {
   const over = (ev)=>{
     if(readOnlyView) return;
+    const lead = ev.target.closest && ev.target.closest('.leader-line-hit');
+    if(lead){
+      openStyleBar({kind:'leader', id: lead.dataset.id});
+      return;
+    }
     const note = ev.target.closest && ev.target.closest('.edge-note');
     if(note){
       openStyleBar({kind:'note', from: note.dataset.from, to: note.dataset.to});
@@ -258,7 +282,7 @@ function applyStyleBar(group, value){
     }
   };
   const out = (ev)=>{
-    const from = ev.target.closest && ev.target.closest('.node, .edge-note');
+    const from = ev.target.closest && ev.target.closest('.node, .edge-note, .leader-line-hit');
     if(!from) return;
     const to = ev.relatedTarget;
     if(to && (from.contains(to) || styleBar.contains(to))) return;

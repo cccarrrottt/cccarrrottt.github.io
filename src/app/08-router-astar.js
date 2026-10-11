@@ -544,10 +544,13 @@ function mergeCollinear(pts){
    a kink; a lineage's stretch of a merge's bar is another matter — it is a
    piece of a wavy line, and a straight piece in the middle of one reads as
    the style not having been applied at all. */
-function wavyPath(rawPts, trimIn, trimOut, short){
+function wavyPath(rawPts, trimIn, trimOut, short, cornerR){
   const cutIn = Math.max(0, trimIn || 0), cutOut = Math.max(0, trimOut || 0);
   const pts = mergeCollinear(rawPts);
-  const samples = sampleRounded(pts, EDGE_CORNER_R, EDGE_WAVE_LEN / WAVE_STEP_DIV);
+  /* A curve's wave follows its sweeping turns; anything else keeps the
+     ordinary elbow, square corners included — see edgeCornerR. */
+  const r = cornerR > EDGE_CORNER_R ? cornerR : EDGE_CORNER_R;
+  const samples = sampleRounded(pts, r, EDGE_WAVE_LEN / WAVE_STEP_DIV);
   if(samples.length < 3){
     const last = pts[pts.length-1];
     return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;

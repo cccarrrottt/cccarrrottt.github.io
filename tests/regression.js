@@ -1147,8 +1147,9 @@ async function main(){
     const gap = mark.x - (word.x + word.width);
     // Chips.
     const cs = [...document.querySelectorAll('[data-id="g_b"] .lang-chip')];
-    const rects = cs.map(c=>{ const r = c.querySelector('rect');
-      return {rx:+r.getAttribute('rx'), h:+r.getAttribute('height'), active:c.classList.contains('active')}; });
+    const rects = cs.map(c=>{ const r = c.querySelector('.lang-chip-bg');
+      return {rx:+r.getAttribute('data-r'), h:+r.getAttribute('data-h'),
+              open: !/[Zz]/.test(r.getAttribute('d')), active:c.classList.contains('active')}; });
     /* The default chip is the flag emoji, set in Noto Color Emoji — the
        font is named explicitly because Windows ships no flag glyphs of its
        own and would otherwise draw two boxed letters. */
@@ -1162,8 +1163,8 @@ async function main(){
   });
   check('a citation is flush against the word it cites', Math.abs(r6b.gap) < 0.6, 'gap ' + r6b.gap);
   check('the default language chip is the flag emoji, in Noto Color Emoji', r6b.firstIsFlag);
-  check('chips are rounded rectangles, not pills',
-        r6b.rects.every(r=> r.rx < r.h/2), JSON.stringify(r6b.rects));
+  check('chips are tabs: rounded at the top, not pills, and open at the foot',
+        r6b.rects.every(r=> r.rx < r.h/2 && r.open), JSON.stringify(r6b.rects));
   check('the selected chip is larger than the rest',
         (()=>{ const a = r6b.rects.find(r=> r.active), i = r6b.rects.find(r=> !r.active);
                return !!a && !!i && a.h > i.h; })(), JSON.stringify(r6b.rects));
@@ -10828,9 +10829,9 @@ async function main(){
       out.noLangToolbar = !document.querySelector('#editLangTabsField .mini-toolbar');
       out.noLineageHeadings = !document.querySelector('#detailParents h3') &&
                               !document.querySelector('#detailChildren h3');
-      const badge = document.querySelector('.node[data-id="kcA"] .node-link rect');
+      const badge = document.querySelector('.node[data-id="kcA"] .node-link .node-link-bg');
       const g = document.querySelector('.node[data-id="kcA"]');
-      out.badgeIsChipSized = !!badge && Math.abs(+badge.getAttribute('height') - CHIP_TAB_H) < 0.01;
+      out.badgeIsChipSized = !!badge && Math.abs(+badge.getAttribute('data-h') - CHIP_TAB_H) < 0.01;
       out.badgeOnTop = !!g && g.lastElementChild && g.lastElementChild.tagName.toLowerCase() === 'a';
     }
 
@@ -11036,12 +11037,13 @@ async function main(){
       const badge = document.querySelector('.node[data-id="cdA"] .node-link');
       const tr = badge ? badge.getAttribute('transform') : '';
       const at = (tr.match(/-?[\d.]+/g) || []).map(Number);
-      /* A tab standing on the top border at its right end: wholly above
-         the border's ink, so it can never sit on the words. */
+      /* A tab standing on the top border at its right end, its foot sunk
+         just into the border's outer edge and no further, so it meets the
+         border and can never sit on the words. */
       const base = tabBaseOf(n);
       out.cardBadgeTopRight = at.length === 2 &&
         at[0] + LINK_TAB/2 <= base.right + 0.01 && at[0] > n.x + n.w * 0.5 &&
-        at[1] + LINK_TAB/2 <= base.y + 0.01 && at[1] + LINK_TAB/2 > base.y - 1.5;
+        Math.abs(at[1] + LINK_TAB/2 - (base.y + TAB_SINK)) < 0.01;
       const chip = document.querySelector('.node[data-id="cdA"] .lang-chips .lang-chip');
       const cb = chip ? chip.getBoundingClientRect() : null;
       const box = document.querySelector('.node[data-id="cdA"] rect');
@@ -13462,16 +13464,22 @@ async function main(){
       out.leaderDashed = !!l && l.getAttribute('stroke-dasharray') === DASH_PATTERNS.dashed;
       const conn = document.querySelector('#edgeLayer path.edge[data-from="llA"][data-to="llB"]');
       out.connectorUntouched = !!conn && !conn.getAttribute('stroke-dasharray');
-      openStyleBar({kind:'node', id:'llK'});
+      /* Pointing at the LINE opens the bar on it, with the line's looks
+         and nothing of the card's. */
+      const hitLine = document.querySelector('#leaderHitLayer .leader-line-hit[data-id="llK"]');
+      if(hitLine) hitLine.dispatchEvent(new MouseEvent('mouseover', {bubbles:true}));
+      await wait(50);
       const row = document.querySelector('#styleBar .style-bar-group[data-group="leader"]');
-      out.leaderRowShown = !!row && !row.hidden;
+      const border = document.querySelector('#styleBar .style-bar-group[data-group="border"]');
+      out.leaderRowShown = !!hitLine && !!row && !row.hidden && border.hidden &&
+        !!styleBarTarget && styleBarTarget.kind === 'leader';
       row.querySelector('[data-value="sinusoid"]').click();
       await wait(400);
       const kept = entryOpts(workingEntry('llK').entry).leader;
       out.leaderWavy = kept.line === 'sinusoid' && !!document.querySelector('.callout-leader[data-id="llK"] .leader-wavy');
-      openStyleBar({kind:'node', id:'llA'});
-      out.leaderRowOnlyOnCallouts = document.querySelector('#styleBar .style-bar-group[data-group="leader"]').hidden;
       openStyleBar({kind:'node', id:'llK'});
+      out.leaderRowOnlyOnCallouts = document.querySelector('#styleBar .style-bar-group[data-group="leader"]').hidden;
+      openStyleBar({kind:'leader', id:'llK'});
       document.querySelector('#styleBar .style-bar-group[data-group="leader"] [data-value="solid"]').click();
       await wait(400);
       out.leaderSolidIsAbsence = !('line' in entryOpts(workingEntry('llK').entry).leader) &&
@@ -13498,36 +13506,74 @@ async function main(){
                             Math.abs(nt.fw - nt.bw) < 2 && Math.abs(nt.fs - EDGE_NOTE_FS) < 0.05;
     }
 
-    /* ---- a curve: square out of one side, square into the other ---- */
+    /* ---- a curve: the elbowed route, with its turns swept ---- */
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       workingNodes.push(['cvA','From',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['cvB','To','cvA',null,null,null,{pos:[snapToGrid(X + 260), snapToGrid(Y + 180)]}]);
+      workingNodes.push(['cvC','Plain','cvA',null,null,null,{pos:[snapToGrid(X - 260), snapToGrid(Y + 180)]}]);
       EDGE_STYLES.push({from:'cvA', to:'cvB', routing:'curve', dash:'solid', arrow:true});
     });
     await wait(500);
     {
       const rec = drawnRoutes.get(calloutEdgeKey('cvA', 'cvB'));
       const pts = rec ? rec.pts : [];
-      const turnAt = (i)=>{
-        const a = pts[i-1], b = pts[i], c = pts[i+1];
-        const u = Math.atan2(b.y - a.y, b.x - a.x), v = Math.atan2(c.y - b.y, c.x - b.x);
-        let d = Math.abs(v - u); if(d > Math.PI) d = 2*Math.PI - d;
-        return d;
-      };
-      let sharpest = 0;
-      for(let i = 2; i < pts.length - 2; i++) sharpest = Math.max(sharpest, turnAt(i));
-      const dir = (a, b)=> Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
-      const n = pts.length;
-      const leaves = n > 4 ? dir(pts[0], pts[1]) : NaN, arrives = n > 4 ? dir(pts[n-2], pts[n-1]) : NaN;
-      out.curveAt = JSON.stringify({n, sharpest: +(sharpest*180/Math.PI).toFixed(1),
-                                    leaves: +leaves.toFixed(1), arrives: +arrives.toFixed(1)});
-      /* Many points, none of them a corner, leaving and arriving square to
-         a side — a sweep, not a polyline with elbows. */
-      const square = (a)=> [0, 90, 180, -90, -180].some(q=> Math.abs(a - q) < 0.5);
-      out.curveSmooth = n > 20 && sharpest < 12 * Math.PI / 180 && square(leaves) && square(arrives);
+      const plain = drawnRoutes.get(calloutEdgeKey('cvA', 'cvC'));
+      const axisAligned = pts.every((p, i)=> !i ||
+        Math.abs(p.x - pts[i-1].x) < 0.01 || Math.abs(p.y - pts[i-1].y) < 0.01);
+      /* Each turn drawn as one sweep across its legs: the arc's ends stand
+         far further from the corner than an elbow's six. */
+      const d = (document.querySelector('#edgeLayer path.edge[data-from="cvA"][data-to="cvB"]') || {}).getAttribute?.('d') || '';
+      const nums = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+      const qAt = d.indexOf('Q');
+      let reach = 0;
+      if(qAt > 0){
+        const before = (d.slice(0, qAt).match(/-?\d+(\.\d+)?/g) || []).map(Number);
+        const after = (d.slice(qAt + 1).match(/-?\d+(\.\d+)?/g) || []).map(Number);
+        reach = Math.hypot(after[0] - before[before.length - 2], after[1] - before[before.length - 1]);
+      }
+      out.curveAt = JSON.stringify({n: pts.length, plain: plain ? plain.pts.length : null,
+                                    axisAligned, reach: +reach.toFixed(1), numbers: nums.length});
+      /* The same points as an elbowed connector — so the same handles —
+         and swept turns between them. */
+      out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && reach > 4 * EDGE_CORNER_R;
       const option = document.querySelector('#styleRouting option[value="curve"]');
       out.curveOffered = !!option;
+    }
+
+    /* ---- and a merge that loses a lineage goes back to its middle ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['rdA','One',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['rdB','Two',null,null,null,null,{pos:[snapToGrid(X + 200), Y]}]);
+      workingNodes.push(['rdC','Three',null,null,null,null,{pos:[snapToGrid(X + 600), Y]}]);
+      workingNodes.push(['rdM','Merge',['rdA','rdB','rdC'],null,null,'amalgam',
+                         {pos:[snapToGrid(X + 300), snapToGrid(Y + 150)]}]);
+    });
+    await wait(400);
+    {
+      const centred = ()=>{
+        const n = nodes.get('rdM'), bar = amalgamBars.get('rdM');
+        return bar ? +(n.x + n.w/2 - (bar.lo + bar.hi)/2).toFixed(2) : null;
+      };
+      deleteEdge('rdC', 'rdM');
+      await wait(400);
+      const afterEdge = centred();
+      applyEdit(()=>{
+        const f = workingEntry('rdM');
+        f.entry[2] = ['rdA','rdB','rdC'];
+        putEntry(f.index, f.entry, entryOpts(f.entry));
+        workingNodes.push(['rdD','Four',null,null,null,null,{pos:[snapToGrid(X + 900), Y]}]);
+      });
+      await wait(300);
+      connectNodes('rdD', 'rdM');
+      await wait(300);
+      deleteNode('rdD');
+      await wait(400);
+      const afterEntry = centred();
+      out.lossAt = JSON.stringify({afterEdge, afterEntry});
+      out.lossRecentres = afterEdge !== null && Math.abs(afterEdge) < 0.5 &&
+                          afterEntry !== null && Math.abs(afterEntry) < 0.5;
     }
 
     refill(EDGE_STYLES, beforeStyles);
@@ -13542,15 +13588,17 @@ async function main(){
         rR.jointsDim, rR.jointsAt);
   check('parents in a column merge across an upright bar, with no lineage hooking past it',
         rR.columnUpright, rR.columnAt);
-  check('a callout\'s leader wears its own line, chosen on the callout and nowhere else',
+  check('a callout\'s leader wears its own line, chosen on the line itself and not on the card',
         rR.leaderDashed && rR.connectorUntouched && rR.leaderRowShown && rR.leaderWavy &&
         rR.leaderRowOnlyOnCallouts && rR.leaderSolidIsAbsence,
         JSON.stringify({dashed:rR.leaderDashed, conn:rR.connectorUntouched, row:rR.leaderRowShown,
                         wavy:rR.leaderWavy, only:rR.leaderRowOnlyOnCallouts, solid:rR.leaderSolidIsAbsence}));
   check('a callout and a note are edited in a field their own size, in their own type',
         rR.remarkFieldFits, rR.remarkFieldAt);
-  check('a connector can be a curve, leaving and arriving square to its sides',
+  check('a curve is the elbowed route with its turns swept, and bends at the same handles',
         rR.curveSmooth && rR.curveOffered, rR.curveAt);
+  check('a merge that loses a lineage, by its connector or its entry, goes back to the middle',
+        rR.lossRecentres, rR.lossAt);
 
   });
 

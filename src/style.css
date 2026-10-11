@@ -868,12 +868,12 @@
     stroke-width:2.2;
   }
   .node-link{cursor:pointer;}
-  .node-link rect{fill:var(--panel);stroke:var(--accent);stroke-width:1;}
-  .node-link path{stroke:var(--accent);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
-  .node-link:hover rect{fill:var(--accent);}
-  .node-link:hover path{stroke:var(--accent-ink);}
+  .node-link-bg{fill:var(--panel);stroke:var(--accent);stroke-width:0.9;stroke-linejoin:round;}
+  .node-link-arrow{stroke:var(--accent);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
+  .node-link:hover .node-link-bg{fill:var(--accent);}
+  .node-link:hover .node-link-arrow{stroke:var(--accent-ink);}
   .lang-chip{cursor:pointer;}
-  .lang-chip-bg{fill:var(--panel);stroke:var(--line);stroke-width:0.75;}
+  .lang-chip-bg{fill:var(--panel);stroke:var(--line);stroke-width:0.75;stroke-linejoin:round;}
   .lang-chip-label.emoji{font-family:var(--emoji);}
   .lang-chip-label{fill:var(--ink-dim,var(--ink));font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:600;pointer-events:none;user-select:none;}
   .lang-chip:hover .lang-chip-bg{stroke:var(--accent);}
@@ -2257,6 +2257,7 @@
      something to take hold of. The visible dot is a couple of pixels
      across; what catches the pointer is a circle big enough to hit. */
   .leader-dot-hit{fill:transparent;stroke:none;pointer-events:all;cursor:ew-resize;}
+  .leader-line-hit{stroke:transparent;fill:none;pointer-events:stroke;cursor:pointer;}
   .callout-leader:hover .leader-dot{r:4;}
   /* Under the pointer, and while it is being carried. The handle that
      catches the pointer is four times the dot across, so the dot has to
