@@ -281,14 +281,12 @@
             title="Guides: line up whatever is carried, as Shift does">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
     </button>
-    <!-- And the keys a phone has not got: Delete, Ctrl+C, Ctrl+V, Ctrl+Z,
-         Ctrl+Y. Shown with the guides button, under it; see 38-touch.js. -->
-    <div class="touch-tools" id="touchTools" role="toolbar" aria-label="Edit">
+    <!-- And Ctrl+Z / Ctrl+Y, which a phone has not got: one button in two
+         halves, under the guides button. Cut, copy, paste and delete are on
+         the menu a long press on the selection brings up; see 38-touch.js. -->
+    <div class="touch-tools" id="touchTools" role="group" aria-label="Undo and redo">
       <button type="button" data-act="undo" title="Undo (Ctrl+Z)">↶</button>
       <button type="button" data-act="redo" title="Redo (Ctrl+Y)">↷</button>
-      <button type="button" data-act="copy" title="Copy what is selected (Ctrl+C)">⧉</button>
-      <button type="button" data-act="paste" title="Paste (Ctrl+V)">⎘</button>
-      <button type="button" data-act="delete" class="danger" title="Delete what is selected (Delete)">✕</button>
     </div>
     <div class="add-fab" id="addFab">
       <div class="add-fab-styles" id="addFabStyles" role="menu"></div>

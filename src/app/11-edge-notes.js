@@ -340,13 +340,34 @@ function drawCalloutLeaders(from, to, pts, paint){
       calloutLeaderSides.set(n.id, 'bottom');
       const sy = n.y + n.h;
       const under = m.x >= n.x && m.x <= n.x + n.w;
-      const end = under ? {x: m.x, y: sy} : {x: m.x <= cx ? n.x : n.x + n.w, y: sy};
+      let end = (under && m.y >= sy) ? {x: m.x, y: sy}
+              : {x: m.x <= cx ? n.x : n.x + n.w, y: sy};
+      /* The leader never crosses its own words.
+       *
+       * From a place ABOVE the words, a straight line to an end of the
+       * shelf runs through them whenever the place is over the words, and
+       * grazes their corner when it is only just beside them — the card
+       * the old leader ended at hid that, a shelf has nothing to. So the
+       * shelf is carried out past the words, on the side the place is
+       * nearer, exactly as far as it takes for the line down to it to
+       * clear their top corner by a little, and the leader meets it
+       * there; where the shelf's own end already clears, it stays as it
+       * is. A drawing does the same: the shelf is as long as the leader
+       * needs it to be. */
+      if(m.y < n.y){
+        const gap = 3;
+        const t = (n.y - m.y) / (sy - m.y);
+        end = m.x <= cx
+          ? {x: Math.min(n.x, m.x + (n.x - gap - m.x) / t), y: sy}
+          : {x: Math.max(n.x + n.w, m.x + (n.x + n.w + gap - m.x) / t), y: sy};
+      }
       const g = el('g', {class:'callout-leader leader-shelved', 'data-id':n.id,
                          'data-from':from, 'data-to':to}, edgeLayer);
       // The leader first, so `.leader-line` in a query is the leader itself.
       drawLeaderLine(g, m, end, ink, n.leader.line);
       const shelfG = el('g', {class:'leader-shelf'}, g);
-      drawLeaderLine(shelfG, {x: n.x, y: sy}, {x: n.x + n.w, y: sy}, ink, n.leader.line);
+      drawLeaderLine(shelfG, {x: Math.min(n.x, end.x), y: sy}, {x: Math.max(n.x + n.w, end.x), y: sy},
+                     ink, n.leader.line);
       finishLeader(g, n, m, end, ink, pts);
       return;
     }

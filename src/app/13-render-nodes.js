@@ -1312,46 +1312,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      upward, the way it does in every drawing program, rather than moving
      the whole entry and resizing it away from the pointer.
 
-     But two of the corners are already spoken for on some entries. The
-     link badge sits on the top-right of a plain entry and on the top-left
-     of a card; the language chips run along the top edge from the left.
-     A grip underneath one of those is a grip the reader cannot hit and,
-     worse, one that steals the click from the thing they were aiming at —
-     so a covered corner simply has no grip, and its neighbours still do. */
+     Every corner, whatever stands on the top edge. A link badge and the
+     language chips used to cost an entry the grip under them, on the
+     grounds that a grip there stole the click from the tab; the tabs stand
+     ON the border now, outside the box (see TAB_SINK), and an entry with
+     tabs is exactly the one that most needs to grow upward — losing its
+     top grips meant it could only be resized from below. */
   {
-    const linkTopRight = !!(n.link && safeUrl(n.link) && !isFree);
-    const linkTopLeft  = false;
-    /* How far along the top edge the language chips actually run, or
-       nothing when there are none.
-     *
-       This used to be read as "0 when there are none", and 0 is a
-       perfectly good chart coordinate: every entry sitting at a negative x
-       — which on this chart is most of the left-hand side — compared its
-       own left edge against a reach of zero, decided the chips covered it,
-       and quietly lost its top-left grip. A row of chips that does not
-       exist reaches nowhere, and `null` is how you say that. */
-    const chipL = (typeof n.chipLeft === 'number') ? n.chipLeft : null;
-    const chipR = (typeof n.chipRight === 'number' && n.chipRight > (n.chipLeft ?? 0))
-      ? n.chipRight : null;
-    /* And a corner is only given up where something is genuinely ON it.
-       The grip is a small square tucked inside the corner, so the test is
-       whether the chip row overlaps THAT square — not whether it starts
-       anywhere near the edge. A single chip no longer costs an entry a
-       grip at the other end of a two-hundred-pixel box. */
-    const GRIP = 10;
-    const chipsOver = (cornerX)=>{
-      if(chipL === null || chipR === null) return false;
-      const gx0 = Math.min(cornerX, cornerX + (cornerX === n.x ? GRIP : -GRIP));
-      const gx1 = gx0 + GRIP;
-      return chipR > gx0 && chipL < gx1;
-    };
     const CORNERS = [
-      {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h, blocked:false},
-      {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h, blocked:false},
-      {key:'ne', sx: 1, sy:-1, x: n.x + w, y: n.y,
-       blocked: linkTopRight || chipsOver(n.x + w)},
-      {key:'nw', sx:-1, sy:-1, x: n.x,     y: n.y,
-       blocked: linkTopLeft || chipsOver(n.x)}
+      {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
+      {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
+      {key:'ne', sx: 1, sy:-1, x: n.x + w, y: n.y},
+      {key:'nw', sx:-1, sy:-1, x: n.x,     y: n.y}
     ];
     /* A portrait's grips sit on the corners of the SQUARE it is inscribed
        in, like every other entry's.
@@ -1367,7 +1339,6 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        the whole square, so the ports and the grips stay up as long as the
        pointer is anywhere inside the box, and only go when it leaves it. */
     CORNERS.forEach(c=>{
-      if(c.blocked) return;
       const grip = el('g', {class:'node-resize node-resize-' + c.key,
         'data-corner': c.key,
         transform:`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}, g);

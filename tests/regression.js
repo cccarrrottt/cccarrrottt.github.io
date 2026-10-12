@@ -4605,7 +4605,7 @@ async function main(){
     });
     out.strays = strays;
 
-    /* Four resize grips, and none under something else. */
+    /* Four resize grips, a link tab or not. */
     out.gripsPlain = document.querySelectorAll('[data-id="xa"] .node-resize').length;
     applyEdit(()=>{
       const f = workingNodes.find(t=> t[0]==='xa');
@@ -4613,7 +4613,7 @@ async function main(){
     });
     rebuildChart(); await wait(420);
     out.gripsWithLink = document.querySelectorAll('[data-id="xa"] .node-resize').length;
-    out.gripNeGone = !document.querySelector('[data-id="xa"] .node-resize-ne');
+    out.gripNeKept = !!document.querySelector('[data-id="xa"] .node-resize-ne');
 
     /* A grip on the top-left holds the bottom-right still. */
     applyEdit(()=>{
@@ -4717,9 +4717,11 @@ async function main(){
         r23.strays.length === 0, r23.strays.join(', '));
   check('an entry carries a resize grip at each corner',
         r23.gripsPlain === 4, String(r23.gripsPlain));
-  check('and gives one up where the link badge sits',
-        r23.gripsWithLink === 3 && r23.gripNeGone,
-        JSON.stringify({n:r23.gripsWithLink, gone:r23.gripNeGone}));
+  /* The owner's rule: the tabs stand on the border, outside the box, and
+     an entry with them keeps its top grips. */
+  check('and keeps all four where a link tab stands on its top',
+        r23.gripsWithLink === 4 && r23.gripNeKept,
+        JSON.stringify({n:r23.gripsWithLink, kept:r23.gripNeKept}));
   check('pulling the top-left corner holds the bottom-right still',
         r23.nwHasGrip && r23.nwGrew && r23.nwHeldCorner,
         JSON.stringify({grip:r23.nwHasGrip, grew:r23.nwGrew, held:r23.nwHeldCorner}));
@@ -13939,6 +13941,41 @@ async function main(){
       closeStyleBar();
     }
 
+    /* …and never crosses its own words: from above them, the shelf is
+       carried out past them until the line down to it clears them. */
+    {
+      applyEdit(()=> workingNodes.push(['fvU', 'Under the line, long words', null, null, null, 'callout',
+        {pos:[X + 150, Y + 80], leader:{from:'fvA', to:'fvB', at:0.5, shelf:true}}]));
+      await wait(250);
+      const k = nodes.get('fvU');
+      const line = document.querySelector('.callout-leader[data-id="fvU"] .leader-line');
+      const x1 = +line.getAttribute('x1'), y1 = +line.getAttribute('y1');
+      const x2 = +line.getAttribute('x2'), y2 = +line.getAttribute('y2');
+      // Where the line is as it passes the words' top edge.
+      const xt = x1 + (x2 - x1) * (k.y - y1) / (y2 - y1);
+      const sb = document.querySelector('.callout-leader[data-id="fvU"] .leader-shelf').getBBox();
+      out.clearAt = JSON.stringify({line:[x1, y1, x2, y2], xt, box:[k.x, k.y, k.x + k.w, k.y + k.h], shelf:[sb.x, sb.x + sb.width]});
+      out.clear = y1 < k.y && (xt < k.x || xt > k.x + k.w) && Math.abs(y2 - (k.y + k.h)) < 0.05 &&
+        sb.x <= Math.min(k.x, x2) + 0.5 && sb.x + sb.width >= Math.max(k.x + k.w, x2) - 0.5;
+    }
+
+    /* The style bar over an entry with tabs stands over the tabs. */
+    {
+      applyEdit(()=> workingNodes.push(['fvT', 'With tabs', null, null, null, null,
+        {pos:[X + 700, Y + 300], multiLang:true, langTabs:[{tag:'EN', text:'With tabs'}, {tag:'RU', text:'С вкладками'}],
+         link:'https://example.com/'}]));
+      await wait(250);
+      openStyleBar({kind:'node', id:'fvT'});
+      const bar = styleBar.getBoundingClientRect();
+      const tabs = [...document.querySelectorAll('.node[data-id="fvT"] .lang-chips, .node[data-id="fvT"] .node-link')]
+        .map(t=> t.getBoundingClientRect().top);
+      out.barTabsAt = JSON.stringify({bar: bar.bottom, tabs,
+        grips: document.querySelectorAll('.node[data-id="fvT"] .node-resize').length});
+      out.barOverTabs = tabs.length === 2 && tabs.every(t=> bar.bottom <= t + 0.5) &&
+        document.querySelectorAll('.node[data-id="fvT"] .node-resize').length === 4;
+      closeStyleBar();
+    }
+
     /* A straight connector keeps no bend and offers none. */
     {
       const rec = drawnRoutes.get(calloutEdgeKey('fvC', 'fvD'));
@@ -14081,6 +14118,8 @@ async function main(){
   });
   check('a drafting leader drops square onto a shelf drawn in its own line', rF.shelfDrop && rF.shelfInk, rF.shelfAt);
   check('and a shelf is not offered a border or corners', rF.shelfBar);
+  check('a drafting leader never crosses its own words: the shelf runs out to meet it', rF.clear, rF.clearAt);
+  check('the style bar over an entry stands clear of its tabs', rF.barOverTabs, rF.barTabsAt);
   check('a straight connector keeps no bend and offers none', rF.straight, rF.straightAt);
   check('a picture starts at a portrait\'s size', rF.imageSize, rF.sizesAt);
   check('a card of words alone is no bigger than the same words in a plain box', rF.cardSize, rF.sizesAt);
@@ -14096,7 +14135,9 @@ async function main(){
   check('the in-entry field stands on the words it covers, at any zoom, a callout folded as it is',
         rF.fieldOnWords, rF.fieldAt);
 
-  /* A phone has buttons for the keys it has not got. */
+  /* A phone: undo and redo as one button, cut, copy, paste and delete on
+     the menu a long press on the selection brings up, and a connector's
+     bar where the finger tapped it. */
   const phone = await browser.newContext({viewport:{width:390, height:844},
     deviceScaleFactor:2, isMobile:true, hasTouch:true});
   await phone.route('https://fonts.googleapis.com/**', noFonts);
@@ -14108,33 +14149,87 @@ async function main(){
     await wait(900);
     const at = await pp.evaluate(async ()=>{
       const X = snapToGrid(52000), Y = snapToGrid(-3000);
-      applyEdit(()=> workingNodes.push(['tkA', 'Keys', null, null, null, null, {pos:[X, Y]}]));
+      applyEdit(()=>{
+        workingNodes.push(['tkA', 'Keys', null, null, null, null, {pos:[X, Y]}]);
+        workingNodes.push(['tkB', 'Lock', 'tkA', null, null, null, {pos:[X + 60, Y + 120]}]);
+      });
       await new Promise(r=> setTimeout(r, 300));
-      vs = 1.5; vx = 150 - X*vs; vy = 400 - Y*vs; applyTransform();
+      vs = 1.5; vx = 120 - X*vs; vy = 300 - Y*vs; applyTransform();
       await new Promise(r=> setTimeout(r, 200));
       const r = document.querySelector('.node[data-id="tkA"] rect').getBoundingClientRect();
-      return [r.left + r.width/2, r.top + r.height/2];
+      const e = document.querySelector('.edge-hit[data-from="tkA"][data-to="tkB"]');
+      const pt = e.getPointAtLength(e.getTotalLength() * 0.5), m = e.getScreenCTM();
+      return {a: [r.left + r.width/2, r.top + r.height/2], e: [pt.x*m.a + m.e, pt.y*m.d + m.f]};
     });
-    await pp.touchscreen.tap(at[0], at[1]);
-    await wait(400);
+    const cdp = await phone.newCDPSession(pp);
+    const hold = async (x, y)=>{
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x, y}]});
+      await wait(650);
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+      await wait(300);
+    };
     const state = ()=> pp.evaluate(()=> ({sel: selectedId, n: nodes.size,
-      shown: getComputedStyle(document.getElementById('touchTools')).display !== 'none'}));
-    const tapTool = async (act)=>{
-      const b = await pp.evaluate((a)=>{ const r = document.querySelector(`#touchTools [data-act="${a}"]`).getBoundingClientRect();
-        return [r.left + r.width/2, r.top + r.height/2]; }, act);
+      menu: !document.getElementById('touchMenu').hidden,
+      items: [...document.querySelectorAll('#touchMenu button')].filter(b=> !b.hidden).map(b=> b.dataset.act).join(),
+      tools: [...document.querySelectorAll('#touchTools button')].map(b=> b.dataset.act).join()}));
+    const tapIn = async (sel)=>{
+      const b = await pp.evaluate((q)=>{ const r = document.querySelector(q).getBoundingClientRect();
+        return [r.left + r.width/2, r.top + r.height/2]; }, sel);
       await pp.touchscreen.tap(b[0], b[1]);
       await wait(350);
       return state();
     };
+    await pp.touchscreen.tap(at.a[0], at.a[1]);
+    await wait(400);
     const s0 = await state();
-    await tapTool('copy');
-    const s1 = await tapTool('paste');
-    const s2 = await tapTool('delete');
-    const s3 = await tapTool('undo');
-    const s4 = await tapTool('redo');
-    check('on a phone, buttons copy, paste, delete, undo and redo',
-          s0.shown && s0.sel === 'tkA' && s1.n === s0.n + 1 && s2.n === s0.n && s3.n === s0.n + 1 && s4.n === s0.n,
-          JSON.stringify([s0, s1, s2, s3, s4]));
+    await hold(at.a[0], at.a[1]);
+    const sMenu = await state();
+    await tapIn('#touchMenu [data-act="copy"]');
+    // Somewhere on the chart with nothing on it, clear of the open drawer.
+    const empty = await pp.evaluate(()=>{
+      for(let y = 140; y < 600; y += 20) for(let x = 60; x < 330; x += 20){
+        const e = document.elementFromPoint(x, y);
+        if(e && svg.contains(e) && !e.closest('.node, .edge-hit, .edge-note, .node-aura, #bendLayer')) return [x, y];
+      }
+      return null;
+    });
+    await hold(empty[0], empty[1]);
+    const sCanvas = await state();
+    const sPaste = await tapIn('#touchMenu [data-act="paste"]');
+    await pp.touchscreen.tap(at.a[0], at.a[1]);
+    await wait(400);
+    await hold(at.a[0], at.a[1]);
+    const sDel = await tapIn('#touchMenu [data-act="delete"]');
+    const sUndo = await tapIn('#touchTools [data-act="undo"]');
+    const sRedo = await tapIn('#touchTools [data-act="redo"]');
+    const flow = [s0, sMenu, sCanvas, sPaste, sDel, sUndo, sRedo];
+    check('on a phone undo and redo are one button in two halves', s0.tools === 'undo,redo', s0.tools);
+    check('a long press on the selection brings up cut, copy, paste and delete; on canvas, paste',
+          s0.sel === 'tkA' && sMenu.menu && sMenu.items === 'cut,copy,paste,delete' && sMenu.sel === 'tkA' &&
+          sCanvas.menu && sCanvas.items === 'paste' &&
+          sPaste.n === s0.n + 1 && !sPaste.menu && sDel.n === sPaste.n - 1 && sDel.sel !== 'tkA',
+          JSON.stringify(flow));
+    check('and the undo button takes the delete back, the redo button does it again',
+          sUndo.n === sDel.n + 1 && sRedo.n === sDel.n, JSON.stringify([sDel, sUndo, sRedo]));
+    /* A connector's bar comes up where it was tapped, not in the corner
+       of the page. */
+    // The redo took the entry away again; one more undo brings its connector back.
+    await pp.evaluate(()=>{ undoLastEdit(); deselect(); closeEdgePopover(); });
+    await wait(200);
+    const ep = await pp.evaluate(()=>{
+      const e = document.querySelector('.edge-hit[data-from="tkA"][data-to="tkB"]');
+      const pt = e.getPointAtLength(e.getTotalLength() * 0.5), m = e.getScreenCTM();
+      return [pt.x*m.a + m.e, pt.y*m.d + m.f];
+    });
+    await pp.touchscreen.tap(ep[0], ep[1]);
+    await wait(400);
+    const bar = await pp.evaluate(()=>{
+      const b = document.getElementById('styleBar'), r = b.getBoundingClientRect();
+      return {shown: !b.hidden, kind: styleBarTarget && styleBarTarget.kind, top: r.top, bottom: r.bottom, left: r.left, right: r.right};
+    });
+    check('on a phone a tapped connector gets its bar, next to where it was tapped',
+          bar.shown && bar.kind === 'edge' && Math.abs(bar.bottom - ep[1]) < 60 && bar.top > 0,
+          JSON.stringify({bar, at: ep}));
   } finally {
     await phone.close();
   }

@@ -8,6 +8,24 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Sixth thoughts (owner's notes)
+
+- **A drafting leader never crosses its own words.** From above them, the
+  shelf is carried out past the words on the near side, exactly as far as
+  it takes for the leader down to it to clear their top corner.
+- **An entry with language tabs or a link keeps its top resize grips** —
+  the tabs stand on the border now, outside the box, so nothing covers
+  the corners. The style bar over such an entry stands above its tabs
+  instead of over them.
+- **A connector's bar comes up on a phone**: the tap's synthetic hover
+  carried no position, so the bar went up in the page's top corner under
+  the header.
+- **On a phone, undo and redo are one button in two halves**; cut, copy,
+  paste and delete are on a menu that a long press on the selection
+  brings up, as over selected text (`touchMenu`). A long press on an
+  entry not yet selected still adds it to the selection; on empty canvas
+  the menu offers Paste.
+
 ### Fifth thoughts (owner's notes)
 
 - **A drafting leader's shelf is drawn in the leader's own line**, not in
@@ -41,7 +59,8 @@ Releases before 0.9.0 were not numbered.
   the point clicked; one already there is opened instead. The panel's
   Note row is gone.
 - **A phone has buttons for the keys it has not got**: undo, redo, copy,
-  paste and delete, under the guides button (`touchTools`, `deletePicked`).
+  paste and delete, under the guides button (`touchTools`, `deletePicked`)
+  — reworked in the sixth round.
 
 ### Fourth thoughts (owner's notes)
 
