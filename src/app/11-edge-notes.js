@@ -86,6 +86,9 @@ const EDGE_NOTE_FRAME_W = 0.8;      // .edge-note-plate in the stylesheet
  * the line arrive at the card rather than stop beside it — the same thing
  * an entry's fill does for every connector meeting it. */
 const LEADER_DOT_R = 2.6;
+/* tan 15°: how far off upright a shelf's leader may lean and still be
+   taken for one meant square to it. */
+const SQUARE_LEAN = 0.27;
 function placePendingCallouts(from, to, pts){
   if(!pendingCallouts.size) return;
   let moved = false;
@@ -307,19 +310,27 @@ function drawCalloutLeaders(from, to, pts, paint){
     } else {
       const wx = m.x + off.dx, wy = m.y + off.dy;
       if(Math.abs(wx - n.x) > 0.25 || Math.abs(wy - n.y) > 0.25){
-        nudgeCalloutCard(n.id, wx - n.x, wy - n.y);
-        n.x = wx; n.y = wy;
-        n.pos = {x: wx + (n.growShiftX || 0), y: wy + (n.growShift || 0)};
-        const found = workingEntry(n.id);
-        if(found){
-          const o = entryOpts(found.entry);
-          /* Two decimals, not whole numbers: a followed card is placed by
-             arithmetic rather than by hand, and rounding it to the grid on
-             every frame is exactly how the drift got in. */
-          o.pos = [+(wx + (n.growShiftX || 0)).toFixed(2), +(wy + (n.growShift || 0)).toFixed(2)];
-          putEntry(found.index, found.entry, o);
-        }
+        placeCalloutCard(n, wx, wy);
         calloutOffsets.set(n.id, {dx: off.dx, dy: off.dy, setX: wx, setY: wy});
+      }
+    }
+    /* A drafting leader standing square to its shelf meets it in the
+       MIDDLE: a T, as the owner drew it, not an L off one end. So once
+       the place it marks lies within the shelf's width — the leader drops
+       straight onto it — the words are centred over (or under) that
+       place, and stay centred as the dot slides along. "Square" is
+       judged by eye rather than to the pixel: a leader leaning less than
+       SQUARE_LEAN off upright reads as a botched T, not as a slant, so it
+       is straightened too. Not while the card
+       is in the hand: it goes where it is carried, and is centred when it
+       is let go. */
+    const shelfY = m.y < n.y ? n.y : n.y + n.h;
+    const outside = Math.max(n.x - m.x, m.x - (n.x + n.w), 0);
+    if(n.leader.shelf && !busy && outside <= Math.abs(shelfY - m.y) * SQUARE_LEAN){
+      const wx = m.x - n.w/2;
+      if(Math.abs(wx - n.x) > 0.25){
+        placeCalloutCard(n, wx, n.y);
+        calloutOffsets.set(n.id, {dx: wx - m.x, dy: n.y - m.y, setX: wx, setY: n.y});
       }
     }
     const cx = n.x + n.w/2, cy = n.y + n.h/2;
@@ -337,8 +348,14 @@ function drawCalloutLeaders(from, to, pts, paint){
        wears the leader's own pattern, and is dimmed, hidden and recoloured
        with it. */
     if(n.leader.shelf){
-      calloutLeaderSides.set(n.id, 'bottom');
-      const sy = n.y + n.h;
+      /* The leader never crosses its own words. With the place it marks
+         ABOVE them, a shelf under the words would have the leader come
+         down through them to reach it — so there the words hang UNDER the
+         shelf instead, and the leader meets the shelf from above, as it
+         meets one under the words from below. */
+      const hang = m.y < n.y;
+      calloutLeaderSides.set(n.id, hang ? 'top' : 'bottom');
+      const sy = hang ? n.y : n.y + n.h;
       const under = m.x >= n.x && m.x <= n.x + n.w;
       const end = under ? {x: m.x, y: sy} : {x: m.x <= cx ? n.x : n.x + n.w, y: sy};
       const g = el('g', {class:'callout-leader leader-shelved', 'data-id':n.id,
@@ -367,6 +384,22 @@ function drawCalloutLeaders(from, to, pts, paint){
     drawLeaderLine(g, m, edge, ink, n.leader.line);
     finishLeader(g, n, m, edge, ink, pts);
   });
+}
+/* A callout card put somewhere by arithmetic rather than by hand: drawn
+   there now, and written into its entry. */
+function placeCalloutCard(n, wx, wy){
+  nudgeCalloutCard(n.id, wx - n.x, wy - n.y);
+  n.x = wx; n.y = wy;
+  n.pos = {x: wx + (n.growShiftX || 0), y: wy + (n.growShift || 0)};
+  const found = workingEntry(n.id);
+  if(found){
+    const o = entryOpts(found.entry);
+    /* Two decimals, not whole numbers: a followed card is placed by
+       arithmetic rather than by hand, and rounding it to the grid on
+       every frame is exactly how the drift got in. */
+    o.pos = [+(wx + (n.growShiftX || 0)).toFixed(2), +(wy + (n.growShift || 0)).toFixed(2)];
+    putEntry(found.index, found.entry, o);
+  }
 }
 /* The anchor's dot and the two invisible handles over the line and the
    dot, the same for a leader to a card and one to a shelf. */

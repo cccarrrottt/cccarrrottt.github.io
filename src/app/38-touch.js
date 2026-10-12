@@ -71,25 +71,18 @@ if(guideToggle) guideToggle.addEventListener('click', ()=>{
   touchGuides = !touchGuides;
   guideToggle.setAttribute('aria-pressed', touchGuides ? 'true' : 'false');
 });
-/* The keys a phone has not got. Delete, copy, paste, undo and redo were
-   keys and nothing else — the panels' own Delete buttons aside — so on a
-   phone an entry once made could not be taken away, nor copied, nor an
-   edit taken back. Each button does exactly what its key does. Greyed when
-   it would do nothing, which is asked again after every touch. */
+/* Undo and redo, which a phone has not got as keys: one button in two
+   halves. Greyed when there is nothing to step to, asked again after
+   every touch. */
 const touchTools = document.getElementById('touchTools');
 function syncTouchTools(){
   if(!touchTools) return;
-  const picked = !!selectedId || multiSelection.size > 0 ||
-                 (edgePopover.classList.contains('open') && !!currentEdgeStyleTarget);
   const set = (act, on)=>{
     const b = touchTools.querySelector(`[data-act="${act}"]`);
     if(b) b.disabled = !on;
   };
   set('undo', undoStack.length > 0);
   set('redo', redoStack.length > 0);
-  set('copy', !!selectedId);
-  set('paste', true);
-  set('delete', picked);
 }
 if(touchTools){
   touchTools.addEventListener('mousedown', ev=> ev.stopPropagation());
@@ -97,16 +90,78 @@ if(touchTools){
     ev.stopPropagation();
     const b = ev.target.closest('button');
     if(!b || b.disabled || readOnlyView) return;
+    if(b.dataset.act === 'undo') undoLastEdit(); else redoLastEdit();
+    syncTouchTools();
+  });
+  document.addEventListener('touchend', ()=> setTimeout(syncTouchTools, 0), {passive: true});
+  syncTouchTools();
+}
+/* Cut, copy, paste and delete, as a phone offers them over selected text:
+ * a long press on what is selected brings up a row of them above the
+ * finger. A long press on an entry that is NOT selected still adds it to
+ * the selection, as a held tap always has (it stands for Ctrl) — so
+ * picking several and then holding one of them is the whole gesture. On
+ * empty canvas the row offers only Paste. Any other touch puts it away. */
+const touchMenu = (()=>{
+  const m = document.createElement('div');
+  m.className = 'touch-menu';
+  m.id = 'touchMenu';
+  m.hidden = true;
+  m.setAttribute('role', 'menu');
+  [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['delete', 'Delete']].forEach(([act, label])=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.act = act;
+    b.textContent = label;
+    if(act === 'delete') b.className = 'danger';
+    m.appendChild(b);
+  });
+  m.addEventListener('mousedown', ev=> ev.stopPropagation());
+  m.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const b = ev.target.closest('button');
+    if(!b) return;
+    closeTouchMenu();
+    if(readOnlyView) return;
     const act = b.dataset.act;
-    if(act === 'undo') undoLastEdit();
-    else if(act === 'redo') redoLastEdit();
+    if(act === 'cut') cutSelectedNode();
     else if(act === 'copy') copySelectedNode();
     else if(act === 'paste') pasteClipboardNode();
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
-  document.addEventListener('touchend', ()=> setTimeout(syncTouchTools, 0), {passive: true});
-  syncTouchTools();
+  const host = document.querySelector('.main');
+  if(host) host.appendChild(m);
+  return m;
+})();
+function openTouchMenu(x, y, onSelection){
+  touchMenu.querySelectorAll('button').forEach(b=>{
+    b.hidden = !onSelection && b.dataset.act !== 'paste';
+  });
+  touchMenu.hidden = false;
+  const host = document.querySelector('.main').getBoundingClientRect();
+  const w = touchMenu.offsetWidth, h = touchMenu.offsetHeight;
+  // Above the finger, clear of it; under it where there is no room above.
+  let top = y - host.top - h - 28;
+  if(top < 4) top = y - host.top + 28;
+  touchMenu.style.left = Math.max(4, Math.min(x - host.left - w/2, host.width - w - 4)) + 'px';
+  touchMenu.style.top = top + 'px';
+}
+function closeTouchMenu(){ touchMenu.hidden = true; }
+document.addEventListener('touchstart', ev=>{
+  if(!touchMenu.hidden && !touchMenu.contains(ev.target)) closeTouchMenu();
+}, {passive: true, capture: true});
+/* Whether a held tap here asks for the menu, and which one: on an entry
+   that is part of the selection, the whole menu; on empty canvas, Paste. */
+function touchMenuFor(st){
+  if(readOnlyView || !st.held) return null;
+  const g = st.target.closest && st.target.closest('.node');
+  if(g){
+    const id = g.dataset.id;
+    return (id && (selectedId === id || multiSelection.has(id))) ? 'selection' : null;
+  }
+  const thing = '.edge-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
+  return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
 function touchCarryMods(st){
   return st.mods || (touchGuides ? {shift: true} : null);
@@ -141,11 +196,12 @@ function touchMouse(type, target, x, y, mods, detail){
    entries listen for mouseenter on themselves — and over and out are sent
    too, to the innermost element, because the style bar listens on the
    layer for those, which bubble. */
-function touchHoverAt(el){
+function touchHoverAt(el, x, y){
   const prev = touchHoverChain[0] || null;
   if(prev !== el){
     if(prev && prev.isConnected) prev.dispatchEvent(new MouseEvent('mouseout', {bubbles:true, view:window, relatedTarget: el}));
-    if(el) el.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, view:window, relatedTarget: prev}));
+    if(el) el.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, view:window, relatedTarget: prev,
+                                                         clientX: x || 0, clientY: y || 0}));
   }
   const chain = [];
   for(let n = el; n && n.nodeType === 1; n = n.parentNode) chain.push(n);
@@ -180,7 +236,7 @@ function touchClickTarget(a, b){
 function touchPress(st, mods){
   st.mods = mods || null;
   st.pressed = true;
-  touchHoverAt(st.target);
+  touchHoverAt(st.target, st.x0, st.y0);
   const free = touchMouse('mousedown', st.target, st.x0, st.y0, st.mods, 1);
   /* A real press moves the focus to what was pressed — off a field in a
      panel, which is how a field learns it is done with. The touch that
@@ -336,7 +392,7 @@ function touchMoved(ev){
   }
   ev.preventDefault();
   const under = touchTargetAt(st.x, st.y);
-  touchHoverAt(under);
+  touchHoverAt(under, st.x, st.y);
   touchMouse('mousemove', under, st.x, st.y, touchCarryMods(st));
 }
 
@@ -367,6 +423,13 @@ function touchFinish(ev, cancelled){
     return;
   }
   if(cancelled) return;
+  /* A held tap on the selection, or on empty canvas: the menu. */
+  const menu = touchMenuFor(st);
+  if(menu){
+    touchLastTap = null;
+    openTouchMenu(st.x0, st.y0, menu === 'selection');
+    return;
+  }
   /* A tap — or a held tap, which is a Ctrl-click. The whole press is sent
      now, and a second tap close behind the first is a double click. */
   const mods = touchModsFor(st);
@@ -389,8 +452,14 @@ function touchFinish(ev, cancelled){
      which a press puts away and nothing but arriving again brings back.
      Under a mouse arriving again is free; a finger can only tap again,
      which would put it away again. So a tap ends by arriving once more. */
+  /* Arriving AT the place it was tapped. It was sent with no place at
+     all, which is (0, 0): harmless for an entry, whose bar stands over
+     the entry, but a connector's bar stands where the pointer met the
+     line — so on a phone it went up in the top corner of the page, under
+     the header, and the connector looked as if it had no bar at all. */
   const rest = touchHoverChain[0];
-  if(rest && rest.isConnected) rest.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, view:window, relatedTarget: null}));
+  if(rest && rest.isConnected) rest.dispatchEvent(new MouseEvent('mouseover',
+    {bubbles:true, view:window, relatedTarget: null, clientX: st.x0, clientY: st.y0}));
 }
 const touchEnded = ev=> touchFinish(ev, false);
 const touchCancelled = ev=> touchFinish(ev, true);

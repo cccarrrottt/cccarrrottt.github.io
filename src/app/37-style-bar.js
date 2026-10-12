@@ -297,6 +297,13 @@ function positionStyleBar(){
     const out = (ringCountOf(n) - 1) * ringStepFor(n) + (isWavyBorder(n) ? POCKET_AMP : 0);
     left = sr.left - host.left + (n.x - out) * vs + vx;
     top = sr.top - host.top + (n.y - out) * vs + vy;
+    /* Clear of the tabs standing on its top edge as well: over them, the
+       bar hid the very language tabs and link a reader had come to press. */
+    const g = qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
+    if(g) g.querySelectorAll('.lang-chips, .node-link').forEach(t=>{
+      const r = t.getBoundingClientRect();
+      if(r.height) top = Math.min(top, r.top - host.top);
+    });
     bottom = sr.top - host.top + (n.y + n.h + out) * vs + vy;
   } else if(t.kind === 'edge'){
     left = t.x - host.left - 18;
