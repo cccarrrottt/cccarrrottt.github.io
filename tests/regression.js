@@ -13941,6 +13941,35 @@ async function main(){
       closeStyleBar();
     }
 
+    /* …and square to its shelf it meets it in the MIDDLE, a T, as the
+       owner drew it: the words are centred on the place they mark. One
+       leaning a hair off upright is the same T, badly dropped, and is
+       straightened; one leaning plainly is a slant and keeps the end. */
+    {
+      const k = nodes.get('fvS');
+      const x2 = +document.querySelector('.callout-leader[data-id="fvS"] .leader-line').getAttribute('x2');
+      out.shelfT = Math.abs(k.x + k.w/2 - x2) < 0.05;
+      applyEdit(()=>{
+        // The anchor is near X+216: fvN's span stops some pixels
+        // just short of it, fvL's well short.
+        workingNodes.push(['fvN', 'Nearly', null, null, null, 'callout',
+          {pos:[X + 180, Y + 140], leader:{from:'fvA', to:'fvB', at:0.5, shelf:true}}]);
+        workingNodes.push(['fvL', 'Leaning', null, null, null, 'callout',
+          {pos:[X + 20, Y - 60], leader:{from:'fvA', to:'fvB', at:0.5, shelf:true}}]);
+      });
+      await wait(300);
+      const geo = id=>{ const l = document.querySelector(`.callout-leader[data-id="${id}"] .leader-line`);
+        const n = nodes.get(id); return {x1: +l.getAttribute('x1'), x2: +l.getAttribute('x2'), box:[n.x, n.x + n.w]}; };
+      const nN = geo('fvN'), nL = geo('fvL');
+      const kept = entryOpts(workingNodes.find(e=> e[0] === 'fvN')).pos;
+      out.shelfTnear = JSON.stringify({nN, nL, kept});
+      out.shelfTnearOk = Math.abs(nN.x1 - nN.x2) < 0.05 && Math.abs((nN.box[0] + nN.box[1])/2 - nN.x2) < 0.05 &&
+        Math.abs(kept[0] - nodes.get('fvN').pos.x) < 0.01 &&
+        Math.abs(nL.x1 - nL.x2) > 20 && Math.abs(nL.x2 - nL.box[1]) < 0.05;
+      applyEdit(()=>{ workingNodes = workingNodes.filter(e=> e[0] !== 'fvN' && e[0] !== 'fvL'); });
+      await wait(200);
+    }
+
     /* …and never crosses its own words: with the place it marks above
        them, the words hang under the shelf and the leader meets it from
        above. */
@@ -14115,6 +14144,8 @@ async function main(){
     return out;
   });
   check('a drafting leader drops square onto a shelf drawn in its own line', rF.shelfDrop && rF.shelfInk, rF.shelfAt);
+  check('a drafting leader square to its shelf meets it in the middle, a T', rF.shelfT, rF.shelfAt);
+  check('and one a hair off upright is straightened into the T, one plainly leaning keeps its end', rF.shelfTnearOk, rF.shelfTnear);
   check('and a shelf is not offered a border or corners', rF.shelfBar);
   check('a drafting leader never crosses its own words: below their connector they hang under the shelf', rF.clear, rF.clearAt);
   check('the style bar over an entry stands clear of its tabs', rF.barOverTabs, rF.barTabsAt);

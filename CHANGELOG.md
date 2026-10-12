@@ -13,6 +13,10 @@ Releases before 0.9.0 were not numbered.
 - **A drafting leader never crosses its own words.** Where the place it
   marks is above them — a remark below its connector — the words hang
   under the shelf, and the leader meets the shelf from above.
+- **A leader square to its shelf meets it in the middle, a T**, as the
+  owner drew it, not an L off one end: when the place it marks is within
+  the shelf's width, the words are centred on it and follow it along.
+  A leader leaning less than 15° off upright counts as square too.
 - **An entry with language tabs or a link keeps its top resize grips** —
   the tabs stand on the border now, outside the box, so nothing covers
   the corners. The style bar over such an entry stands above its tabs
