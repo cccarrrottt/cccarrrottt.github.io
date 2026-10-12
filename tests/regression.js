@@ -13941,22 +13941,20 @@ async function main(){
       closeStyleBar();
     }
 
-    /* …and never crosses its own words: from above them, the shelf is
-       carried out past them until the line down to it clears them. */
+    /* …and never crosses its own words: with the place it marks above
+       them, the words hang under the shelf and the leader meets it from
+       above. */
     {
       applyEdit(()=> workingNodes.push(['fvU', 'Under the line, long words', null, null, null, 'callout',
         {pos:[X + 150, Y + 80], leader:{from:'fvA', to:'fvB', at:0.5, shelf:true}}]));
       await wait(250);
       const k = nodes.get('fvU');
       const line = document.querySelector('.callout-leader[data-id="fvU"] .leader-line');
-      const x1 = +line.getAttribute('x1'), y1 = +line.getAttribute('y1');
-      const x2 = +line.getAttribute('x2'), y2 = +line.getAttribute('y2');
-      // Where the line is as it passes the words' top edge.
-      const xt = x1 + (x2 - x1) * (k.y - y1) / (y2 - y1);
+      const y1 = +line.getAttribute('y1'), y2 = +line.getAttribute('y2');
       const sb = document.querySelector('.callout-leader[data-id="fvU"] .leader-shelf').getBBox();
-      out.clearAt = JSON.stringify({line:[x1, y1, x2, y2], xt, box:[k.x, k.y, k.x + k.w, k.y + k.h], shelf:[sb.x, sb.x + sb.width]});
-      out.clear = y1 < k.y && (xt < k.x || xt > k.x + k.w) && Math.abs(y2 - (k.y + k.h)) < 0.05 &&
-        sb.x <= Math.min(k.x, x2) + 0.5 && sb.x + sb.width >= Math.max(k.x + k.w, x2) - 0.5;
+      out.clearAt = JSON.stringify({y1, y2, box:[k.x, k.y, k.x + k.w, k.y + k.h], shelf:[sb.x, sb.x + sb.width, sb.y]});
+      out.clear = y1 < k.y && Math.abs(y2 - k.y) < 0.05 && Math.abs(sb.y + sb.height/2 - k.y) < 0.05 &&
+        Math.abs(sb.x - k.x) < 0.5 && Math.abs(sb.x + sb.width - k.x - k.w) < 0.5;
     }
 
     /* The style bar over an entry with tabs stands over the tabs. */
@@ -14118,7 +14116,7 @@ async function main(){
   });
   check('a drafting leader drops square onto a shelf drawn in its own line', rF.shelfDrop && rF.shelfInk, rF.shelfAt);
   check('and a shelf is not offered a border or corners', rF.shelfBar);
-  check('a drafting leader never crosses its own words: the shelf runs out to meet it', rF.clear, rF.clearAt);
+  check('a drafting leader never crosses its own words: below their connector they hang under the shelf', rF.clear, rF.clearAt);
   check('the style bar over an entry stands clear of its tabs', rF.barOverTabs, rF.barTabsAt);
   check('a straight connector keeps no bend and offers none', rF.straight, rF.straightAt);
   check('a picture starts at a portrait\'s size', rF.imageSize, rF.sizesAt);

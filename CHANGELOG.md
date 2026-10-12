@@ -10,9 +10,9 @@ Releases before 0.9.0 were not numbered.
 
 ### Sixth thoughts (owner's notes)
 
-- **A drafting leader never crosses its own words.** From above them, the
-  shelf is carried out past the words on the near side, exactly as far as
-  it takes for the leader down to it to clear their top corner.
+- **A drafting leader never crosses its own words.** Where the place it
+  marks is above them — a remark below its connector — the words hang
+  under the shelf, and the leader meets the shelf from above.
 - **An entry with language tabs or a link keeps its top resize grips** —
   the tabs stand on the border now, outside the box, so nothing covers
   the corners. The style bar over such an entry stands above its tabs
