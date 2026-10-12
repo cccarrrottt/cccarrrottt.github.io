@@ -60,6 +60,12 @@ function edgeHit(d, from, to){
     }
     openEdgeStylePopover(from, to, ev);
   });
+  hit.addEventListener('dblclick', ev=>{
+    ev.stopPropagation();
+    ev.preventDefault();
+    if(edgeIsStepBack(from, to)) return;
+    startEdgeNote(from, to, ev);
+  });
   return hit;
 }
 function edgeIsStepBack(from, to){

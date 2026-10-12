@@ -342,7 +342,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      a card is not a margin anyone would want. */
   /* …and a caption closes on its words exactly as an entry does: the
      frame it shows when pointed at stands the same pixel off them. */
-  const closesOnInk = !isBio && !isImage && !isCard;
+  /* A card that is a heading and nothing else (see below) is drawn the
+     way an entry is, so it closes on its words the way an entry does. */
+  const cardBare = isCard && !n.image && !String(n.note || '').trim() && !String(n.medium || '').trim();
+  const closesOnInk = !isBio && !isImage && (!isCard || cardBare);
   const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
      inkCornerR. A card and a picture keep the old one. */
@@ -393,9 +396,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      never folded, so without this a long heading was clipped in a box
      that had room to spare on the chart. Between the card's own two
      bounds, and no further. */
+  /* …and the minimum is for a card that has something besides its
+     heading to hold. A card that is a heading and nothing else used to be
+     widened to the minimum all the same, and deepened to a band of its
+     own, so turning an entry into a card made it nearly twice the size
+     while showing exactly the same words: the layout is a way of drawing
+     what an entry has, and adds no room for what it has not. */
   if(isCard && !manual){
-    const want = maxInkW > 0 ? Math.ceil(maxInkW) + inkPad*2 : CARD_MINW;
-    n.w = w = Math.max(CARD_MINW, Math.min(CARD_MAXW, want));
+    if(cardBare) n.w = w = maxInkW > 0 ? Math.min(CARD_MAXW, round2(maxInkW + inkPad*2)) : GRID;
+    else {
+      const want = maxInkW > 0 ? Math.ceil(maxInkW) + inkPad*2 : CARD_MINW;
+      n.w = w = Math.max(CARD_MINW, Math.min(CARD_MAXW, want));
+    }
   }
   /* Whether what is about to be drawn is wider than what will hold it.
      Only then is the text clipped — a clip path on every entry would cost
@@ -416,7 +428,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const cardBody = isCard ? String(n.note || '').trim() : '';
   const cardBodyFit = { maxWidth: w - 14, fontSize: cardBodyFS, family: fontFamily };
   const cardBodyChars = Math.max(8, Math.round((w - 14) / (cardBodyFS*0.55)));
-  const cardHeadH = isCard ? Math.max(22, CARD_PAD_Y + maxTotalH) : 0;
+  const cardHeadH = !isCard ? 0
+    : cardBare ? (maxInkW > 0 ? round2(maxTotalH + inkPad*2) : GRID)
+    : Math.max(22, CARD_PAD_Y + maxTotalH);
   /* The picture band, which a card without a picture does not have — and
      which is as deep as the picture needs rather than a fixed slab. A
      fixed band can only be honoured by cropping, and cropping a picture
@@ -1149,7 +1163,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   // font-family must be an inline style, not a plain attribute — the
   // .node text{font-family:'IBM Plex Sans',...} stylesheet rule beats a
   // presentation attribute but loses to inline style.
-  const txt = el('text',{x:centerX, y:0, 'font-size':fontSize, fill:textFill,
+  const txt = el('text',{class:'node-label-text', x:centerX, y:0, 'font-size':fontSize, fill:textFill,
     style:`font-family:${fontFamily};`}, g);
   /* A line too long for its box is cut off at the border rather than run
      out over the chart. The window is the box less its own padding, so the

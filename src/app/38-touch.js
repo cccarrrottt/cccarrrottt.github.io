@@ -71,6 +71,43 @@ if(guideToggle) guideToggle.addEventListener('click', ()=>{
   touchGuides = !touchGuides;
   guideToggle.setAttribute('aria-pressed', touchGuides ? 'true' : 'false');
 });
+/* The keys a phone has not got. Delete, copy, paste, undo and redo were
+   keys and nothing else — the panels' own Delete buttons aside — so on a
+   phone an entry once made could not be taken away, nor copied, nor an
+   edit taken back. Each button does exactly what its key does. Greyed when
+   it would do nothing, which is asked again after every touch. */
+const touchTools = document.getElementById('touchTools');
+function syncTouchTools(){
+  if(!touchTools) return;
+  const picked = !!selectedId || multiSelection.size > 0 ||
+                 (edgePopover.classList.contains('open') && !!currentEdgeStyleTarget);
+  const set = (act, on)=>{
+    const b = touchTools.querySelector(`[data-act="${act}"]`);
+    if(b) b.disabled = !on;
+  };
+  set('undo', undoStack.length > 0);
+  set('redo', redoStack.length > 0);
+  set('copy', !!selectedId);
+  set('paste', true);
+  set('delete', picked);
+}
+if(touchTools){
+  touchTools.addEventListener('mousedown', ev=> ev.stopPropagation());
+  touchTools.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const b = ev.target.closest('button');
+    if(!b || b.disabled || readOnlyView) return;
+    const act = b.dataset.act;
+    if(act === 'undo') undoLastEdit();
+    else if(act === 'redo') redoLastEdit();
+    else if(act === 'copy') copySelectedNode();
+    else if(act === 'paste') pasteClipboardNode();
+    else if(act === 'delete') deletePicked();
+    syncTouchTools();
+  });
+  document.addEventListener('touchend', ()=> setTimeout(syncTouchTools, 0), {passive: true});
+  syncTouchTools();
+}
 function touchCarryMods(st){
   return st.mods || (touchGuides ? {shift: true} : null);
 }

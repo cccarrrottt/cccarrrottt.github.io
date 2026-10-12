@@ -209,28 +209,14 @@ function openEdgeStylePopover(from, to, evt){
   edgeStyleLabelEl.textContent = (a ? stripMarkup(a.label) : from) + ' → ' + (b ? stripMarkup(b.label) : to);
   edgeStyleLabelEl.title = edgeStyleLabelEl.textContent;
   styleRoutingSel.value = style.routing;
-  styleDashSel.value = style.sinusoid ? 'sinusoid' : style.dash;
-  styleCornersSel.value = style.square ? 'square' : 'round';
-  syncCornerChoice();
-  styleArrowEnds.set('in', !!style.arrowIn);
-  styleArrowEnds.set('out', style.arrow !== false);
-  /* A lineage feeding an amalgam has no arrowhead of its own: it runs into
-     the shared bar, and the single arrow into the entry belongs to the
-     merge as a whole. The toggles are greyed rather than hidden so the row
-     still explains itself. */
+  /* A lineage feeding an amalgam runs into the shared bar: its colour
+     names which lineage it is, and the bar decides where it runs. */
   const mergedEdge = isAmalgamMember(from, to);
-  document.getElementById('styleArrowEnds').classList.toggle('disabled', mergedEdge);
-  document.querySelectorAll('#styleArrowEnds button').forEach(btn=>{
-    btn.disabled = mergedEdge;
-    btn.title = mergedEdge
-      ? 'Set by the amalgam: merged lineages share one arrow into the entry'
-      : (btn.dataset.end === 'in' ? 'Arrowhead at the start (in)' : 'Arrowhead at the end (out)');
-  });
   /* And it cannot be painted with a gradient. Its colour is what says
      WHICH lineage this stretch of the bar belongs to — a sweep between two
      colours says it belongs to two, which is the one thing the bar exists
      to tell apart. The button is greyed rather than hidden, like the
-     arrowheads above it, so the row still explains itself. */
+     route button beside the path, so the row still explains itself. */
   const gradBtn = document.querySelector('#stylePaintMode button[data-value="gradient"]');
   if(gradBtn){
     gradBtn.disabled = mergedEdge;
@@ -239,19 +225,18 @@ function openEdgeStylePopover(from, to, evt){
       ? 'Not on a merged lineage: its colour names which lineage it is'
       : 'Gradient along the connector';
   }
-  /* And it is not bent by hand either, so the row that offers to
-     straighten it is greyed with the rest — the handles on the line are
-     already gone (see drawBendHandles). */
+  /* And it is not bent by hand either, so ⟳ beside the path is greyed —
+     the handles on the line are already gone (see drawBendHandles). Only
+     the button: the path beside it still applies. */
   {
     const clearBtn = document.getElementById('styleBendsClear');
-    const row = clearBtn && clearBtn.closest('.style-row');
     if(clearBtn){
       clearBtn.disabled = mergedEdge;
+      clearBtn.classList.toggle('disabled', mergedEdge);
       clearBtn.title = mergedEdge
         ? 'Set by the amalgam: a merged lineage runs where the bar puts it'
-        : 'Straighten this connector — take every bend out';
+        : 'Route it again — take every bend set by hand out';
     }
-    if(row) row.classList.toggle('disabled', mergedEdge);
   }
   if(mergedEdge && style.gradient){
     // Data can carry one even though the control cannot set it.
@@ -260,8 +245,6 @@ function openEdgeStylePopover(from, to, evt){
   stylePaintMode.value = style.gradient ? 'gradient' : (style.color ? 'solid' : 'default');
   styleColorInput.value = (style.gradient ? style.gradient[0] : style.color) || currentEdgeNaturalColor;
   styleColor2Input.value = style.gradient ? style.gradient[1] : '';
-  styleNoteSide.value = style.notePos || 'above';
-  if(styleNoteBgInput) styleNoteBgInput.value = style.noteBg || '';
   syncColorRow();
   clearStyleStatus();
   edgePopover.classList.add('open');
@@ -314,20 +297,20 @@ function applyLiveEdgeStyle(){
     pushUndo();
     edgeEditUndoPushed = true;
   }
-  const { dash, sinusoid } = selDashValue();
   const paint = currentPaint();
   // Sides and rings are set by dragging between border bands, not here —
   // carried through untouched so styling an edge never moves its ends.
   const kept = edgeStyleFor(currentEdgeStyleTarget.from, currentEdgeStyleTarget.to);
   setEdgeStyleOverride(currentEdgeStyleTarget.from, currentEdgeStyleTarget.to, {
-    routing: styleRoutingSel.value, dash,
-    arrow: styleArrowEnds.get('out'), arrowIn: styleArrowEnds.get('in') || undefined,
-    sinusoid,
-    square: styleCornersSel.value === 'square' || undefined,
+    routing: styleRoutingSel.value,
+    /* The line, its corners and its ends are set from the hover bar on the
+       connector itself (see the style bar), the note's side and backing
+       from the note's own bar — all carried through untouched here. */
+    dash: kept.dash, sinusoid: kept.sinusoid || undefined,
+    arrow: kept.arrow, arrowIn: kept.arrowIn || undefined,
+    square: kept.square || undefined,
     note: noteFromForm(),
-    // Only meaningful alongside a note; without one it would be a stored
-    // setting that changes nothing.
-    notePos: noteFromForm() ? styleNoteSide.value : undefined,
+    notePos: noteFromForm() ? (kept.notePos || 'above') : undefined,
     /* Where along the line the note rides. Placed on the DRAWING by
        dragging the plate, exactly as the bends are, so it is carried
        through untouched here — rebuilding the style from the form used to
@@ -335,7 +318,7 @@ function applyLiveEdgeStyle(){
        middle the moment its connector's colour was changed. */
     noteAt: (typeof kept.noteAt === 'number' && kept.noteAt !== 0.5) ? kept.noteAt : undefined,
     noteSnap: kept.noteSnap || undefined,
-    noteBg: (styleNoteBgInput && readHex(styleNoteBgInput)) || undefined,
+    noteBg: kept.noteBg || undefined,
     // Set on the note itself, from its hover bar — carried through here.
     noteFrame: kept.noteFrame === false ? false : undefined,
     noteSquare: kept.noteSquare || undefined,
@@ -371,6 +354,41 @@ function applyLiveEdgeStyle(){
   applyVisibility();
   refreshSaveUI();
 }
+/* A note is written by double-clicking the connector: the words of one it
+   already has, or a first one, put where the line was double-clicked.
+ *
+ * It used to take a button in the connector's panel, and the panel is not
+ * where a line is looked at. The empty note is written straight into the
+ * overrides rather than through setEdgeStyleOverride, which would see a
+ * style with no words and nothing else and drop it as a default — taking
+ * the place it was asked for with it. An empty note that is never written
+ * is taken out again on commit, like any emptied note. */
+function startEdgeNote(from, to, ev){
+  if(readOnlyView) return;
+  const kept = edgeStyleFor(from, to);
+  if(kept.note){
+    openEdgeNoteEditor(from, to);
+    return;
+  }
+  let at = 0.5;
+  const rec = drawnRoutes.get(calloutEdgeKey(from, to));
+  if(ev && rec && rec.pts && rec.pts.length > 1){
+    const p = clientToWorld(ev.clientX, ev.clientY);
+    at = Math.max(0, Math.min(1, fractionNearest(rec.pts, p.x, p.y)));
+  }
+  applyEdit(()=>{
+    const i = EDGE_STYLES.findIndex(s=> s.from === from && s.to === to);
+    const raw = i >= 0 ? EDGE_STYLES[i] : {from, to};
+    const next = Object.assign({}, raw, {note: '', notePos: raw.notePos || 'above', noteAt: at});
+    if(i >= 0) EDGE_STYLES[i] = next; else EDGE_STYLES.push(next);
+  });
+  /* The plate has to be on the screen before the field can stand on it,
+     and an empty note draws no plate — so it is marked as being started,
+     redrawn, and only then written on. */
+  noteStarting = {from, to};
+  redrawEdges();
+  openEdgeNoteEditor(from, to);
+}
 // Whether any callout card hangs off this connector — see applyLiveEdgeStyle.
 function connectorHasCallout(from, to){
   let found = false;
@@ -384,10 +402,6 @@ function connectorHasCallout(from, to){
   input.addEventListener('input', ()=>{ syncColorRow(); applyLiveEdgeStyle(); });
   input.addEventListener('click', ev=> ev.stopPropagation());
 });
-if(styleNoteBgInput){
-  styleNoteBgInput.addEventListener('input', ()=> applyLiveEdgeStyle());
-  styleNoteBgInput.addEventListener('click', ev=> ev.stopPropagation());
-}
 {
   const clear = document.getElementById('styleBendsClear');
   if(clear) clear.addEventListener('click', ev=>{

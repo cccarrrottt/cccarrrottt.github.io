@@ -8,6 +8,41 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Fifth thoughts (owner's notes)
+
+- **A drafting leader's shelf is drawn in the leader's own line**, not in
+  the card's border style; the card's border and corners are no longer
+  offered on it. Pointed at or picked, it shows the caption's plain frame,
+  not the band of ticks the pointer-catching ring used to draw. Where the
+  point it marks lies under the shelf, the leader drops straight down onto
+  it, as on a drawing.
+- **A straight connector has no hand bends**: the router ignores any it
+  carries, and no handles are offered on it.
+- **A picture starts at a portrait's size** (`IMAGE_DEFAULT_W/H` are
+  `BIO_SIZE`), not as a 180×120 poster.
+- **A card of words alone is the size of the same words in a plain box**:
+  the card minimum and its heading band are for cards with a picture, a
+  medium or a note to hold.
+- **The in-entry field stands on the drawn words** (`alignEditorOnInk`):
+  after it is placed by the box, its words are measured against the words
+  under it and the field moved by the difference, while the frame stays on
+  the box. It slid down the entry as the chart was zoomed in, on entries,
+  notes and callouts alike. A callout's field now folds at the card's own
+  width, not at the ceiling, so it no longer opens as one long line.
+- **One button for corners**: lit rounded, dark square.
+- **A connector is styled where it is.** Its pattern, elbows and
+  arrowheads are on the bar that comes up on the line (`kind:'edge'`); a
+  note's side and backing are on the note's own bar. The panel keeps the
+  route, with ⟳ beside it to hand the route back to the pathfinder, and
+  the paint. A connector's bends show as soon as the pointer is on it. A
+  clicked connector is lit like a selected entry (`paintEdgePick`) and
+  nothing else steps back.
+- **A note is written by double-clicking the line** (`startEdgeNote`), at
+  the point clicked; one already there is opened instead. The panel's
+  Note row is gone.
+- **A phone has buttons for the keys it has not got**: undo, redo, copy,
+  paste and delete, under the guides button (`touchTools`, `deletePicked`).
+
 ### Fourth thoughts (owner's notes)
 
 - **A portrait can ripple** (`isWavyPortrait`, `rippledCirclePath`): the

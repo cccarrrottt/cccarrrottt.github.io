@@ -3190,7 +3190,10 @@ async function main(){
     await new Promise(r=> setTimeout(r, 300));
     openEdgeStylePopover('la','lb',{clientX:400, clientY:300, stopPropagation(){}});
     await new Promise(r=> setTimeout(r, 250));
-    document.querySelector('#styleDash [data-value="dotted"]').click();
+    // The line is restyled from the bar on the connector itself.
+    openStyleBar({kind:'edge', from:'la', to:'lb', x:400, y:300});
+    document.querySelector('#styleBar [data-group="edgeLine"] [data-value="dotted"]').click();
+    closeStyleBar();
     await new Promise(r=> setTimeout(r, 300));
     const kc = nodes.get('lc');
     out.emptyLeaderKept = !!kc && Math.abs(kc.leader.at - 0.45) < 0.01 &&
@@ -4364,7 +4367,7 @@ async function main(){
 
     /* The double line style. Two stacked strokes with the same ends, the
        narrower one in the paper colour — and the picker offers it. */
-    out.doubleOffered = !!document.querySelector('#styleDash button[data-value="double"]');
+    out.doubleOffered = !!document.querySelector('#styleBar [data-group="edgeLine"] button[data-value="double"]');
     applyEdit(()=>{
       workingNodes.push(['dbA','A',null,null,null,null,{pos:[64000,-1200]}]);
       workingNodes.push(['dbB','B','dbA',null,null,null,{pos:[64000,-1000]}]);
@@ -9130,9 +9133,14 @@ async function main(){
     });
     rebuildChart(); await wait(350);
     flyToNode('s64a'); await wait(400);
-    openEdgeStylePopover('s64a','s64b'); await wait(250);
-    out.addNoteBtn = !!document.getElementById('styleAddNote');
-    document.getElementById('styleAddNote').click();
+    /* Started by double-clicking the line — the panel's button is gone. */
+    out.addNoteBtn = !document.getElementById('styleAddNote');
+    {
+      const hit = document.querySelector('.edge-hit[data-from="s64a"][data-to="s64b"]');
+      const len = hit.getTotalLength(), pt = hit.getPointAtLength(len/2), m = hit.getScreenCTM();
+      hit.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true,
+        clientX: pt.x*m.a + m.e, clientY: pt.y*m.d + m.f}));
+    }
     await wait(400);
     out.emptyPlateDrawn = !!document.querySelector('.edge-note[data-from="s64a"] .edge-note-plate');
     out.noteEditorOpened = !!(nodeEditorTarget && nodeEditorTarget.kind === 'note' &&
@@ -9266,7 +9274,7 @@ async function main(){
   check('every echo a hub sends out covers the same ground',
         r44.echoesAgree && r44.echoesGrow && r44.echoCount > 1,
         JSON.stringify({rings:r44.echoCount, spans:r44.echoSpans}));
-  check('a note is started from the panel and written on its own plate',
+  check('a note is started by double-clicking its line and written on its own plate',
         r44.addNoteBtn && r44.emptyPlateDrawn && r44.noteEditorOpened &&
         r44.noteWritten === 'a remark',
         JSON.stringify({btn:r44.addNoteBtn, plate:r44.emptyPlateDrawn,
@@ -11675,9 +11683,10 @@ async function main(){
       openStyleBar({kind:'node', id:'sqB'});
       out.barShown = !bar.hidden &&
         !bar.querySelector('[data-group="border"]').hidden && bar.querySelector('[data-group="frame"]').hidden;
-      press('corners', 'square');
+      press('corners', 'round');
       await wait(150);
-      // Square is the default, so choosing it takes the flag away.
+      /* One button: lit is rounded, and pressing it lit makes it square —
+         which is the default, so the flag goes away. */
       out.panelWrites = !('square' in entryOpts(workingEntry('sqB').entry)) && rx('sqB').every(v=> v === 0);
       press('border', 'wavy');
       await wait(150);
@@ -11685,7 +11694,7 @@ async function main(){
         [...bar.querySelectorAll('[data-group="corners"] button')].every(b=> b.disabled);
       // A callout chooses its own, pinned or not.
       openStyleBar({kind:'node', id:'sqK'});
-      press('corners', 'square');
+      press('corners', 'round');
       await wait(150);
       out.calloutSquares = rx('sqK').length > 0 && rx('sqK').every(v=> v === 0) &&
         !edgeStyleFor('sqA', 'sqB').noteSquare;
@@ -11696,7 +11705,7 @@ async function main(){
       /* Corners first: with the frame off there are none to choose, and
          the buttons are greyed (the owner's rule) — the square ones are
          kept for when the frame comes back. */
-      press('corners', 'square');
+      press('corners', 'round');
       press('frame', 'bare');
       await wait(150);
       out.noteBare = !!plate() && plate().classList.contains('bare') && !plate().style.stroke &&
@@ -13177,8 +13186,12 @@ async function main(){
         /* A turned field hangs sideways, since its own up is the page's
            left. */
         const side = /rotate\((90|270)deg\)/.test(surf.style.transform || '');
+        /* …and drawn back by however far the words were moved onto the
+           drawn ones (see alignEditorOnInk), which a turned field is not. */
+        const ax = parseFloat(surf.style.getPropertyValue('--ax')) || 0;
+        const ay = parseFloat(surf.style.getPropertyValue('--ay')) || 0;
         const f = side ? {width: r0.width - 2*hg, height: r0.height, left: r0.left + hg, top: r0.top}
-                       : {width: r0.width, height: r0.height - 2*hg, left: r0.left, top: r0.top + hg};
+                       : {width: r0.width, height: r0.height - 2*hg, left: r0.left - ax, top: r0.top + hg - ay};
         const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
         if(f.width > b.width + 0.6 || f.height > b.height + 0.6 ||
            f.left < b.left - 0.6 || f.top < b.top - 0.6) sizes.push([z, id, f.width, f.height, b.width, b.height].join(' '));
@@ -13751,7 +13764,8 @@ async function main(){
       const framed = corners();
       closeStyleBar();
       out.noteCornersAt = JSON.stringify({bare, framed});
-      out.noteCorners = bare.length === 2 && bare.every(Boolean) && framed.every(v=> !v);
+      // One button now: lit rounded, dark square.
+      out.noteCorners = bare.length === 1 && bare.every(Boolean) && framed.every(v=> !v);
     }
 
     /* A drafting leader: the words on a shelf, the leader to its near end. */
@@ -13774,8 +13788,9 @@ async function main(){
       out.shelfAt = JSON.stringify({saved: workingEntry('tiS') && entryOpts(workingEntry('tiS').entry).leader,
                                     shelf: !!shelf, end: [x2, y2], box: [k.x, k.x + k.w, sy],
                                     lit: lit && lit.dataset.value, stroke: box && getComputedStyle(box).stroke});
-      out.shelf = !!shelf && Math.abs(+shelf.getAttribute('y1') - sy) < 0.05 &&
-                  Math.abs(y2 - sy) < 0.05 && (Math.abs(x2 - k.x) < 0.05 || Math.abs(x2 - k.x - k.w) < 0.05) &&
+      const sb = shelf && shelf.getBBox();
+      out.shelf = !!shelf && Math.abs(sb.y + sb.height/2 - sy) < 0.05 &&
+                  Math.abs(y2 - sy) < 0.05 && x2 > k.x - 0.05 && x2 < k.x + k.w + 0.05 &&
                   !!lit && lit.dataset.value === 'shelf' && entryOpts(workingEntry('tiS').entry).leader.shelf === true;
       closeStyleBar();
     }
@@ -13873,6 +13888,253 @@ async function main(){
     const pressed = await pp.evaluate(()=> document.getElementById('guideToggle').getAttribute('aria-pressed'));
     check('on a phone a button stands in for Shift: lit, a carried entry is offered the guides',
           visible && dark === 0 && lit > 0 && pressed === 'true', JSON.stringify({visible, dark, lit, pressed}));
+  } finally {
+    await phone.close();
+  }
+  });
+
+  /* ---- the owner's fifth round: a connector styled where it is, a card no
+       bigger than its words, a field on its words and a phone's keys ---- */
+  await scenario("a connector styled where it is, a card no bigger than its words, and a phone's keys", async () => {
+  const rF = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const out = {};
+    const X = snapToGrid(70000), Y = snapToGrid(-9000);
+    applyEdit(()=>{
+      workingNodes.push(['fvA', 'Source', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['fvB', 'Target', 'fvA', null, null, null, {pos:[X + 400, Y]}]);
+      workingNodes.push(['fvS', 'On a shelf', null, null, null, 'callout',
+        {pos:[X + 190, Y - 80], leader:{from:'fvA', to:'fvB', at:0.5, shelf:true, line:'dashed'}}]);
+      workingNodes.push(['fvC', 'Straight', null, null, null, null, {pos:[X, Y + 300]}]);
+      workingNodes.push(['fvD', 'Line', 'fvC', null, null, null, {pos:[X + 300, Y + 460]}]);
+      workingNodes.push(['fvI', '', null, null, null, 'image', {pos:[X + 600, Y]}]);
+      workingNodes.push(['fvP', 'Plain words', null, null, null, null, {pos:[X, Y + 700]}]);
+      workingNodes.push(['fvK', 'Plain words', null, null, null, null, {pos:[X + 300, Y + 700], card:true}]);
+    });
+    refill(EDGE_STYLES, beforeStyles.concat([
+      {from:'fvC', to:'fvD', routing:'straight', bends:[[X + 40, Y + 420]]}]));
+    rebuildChart();
+    await wait(350);
+    vs = 1.5; vx = 300 - X*vs; vy = 400 - Y*vs; applyTransform();
+    await wait(200);
+
+    /* The shelf: drawn in the leader's own line, and the leader dropped
+       square onto it from a horizontal connector. */
+    {
+      const k = nodes.get('fvS');
+      const line = document.querySelector('.callout-leader[data-id="fvS"] .leader-line');
+      const shelf = document.querySelector('.callout-leader[data-id="fvS"] .leader-shelf .leader-line, .callout-leader[data-id="fvS"] .leader-shelf line, .callout-leader[data-id="fvS"] .leader-shelf path');
+      const x1 = +line.getAttribute('x1'), x2 = +line.getAttribute('x2'), y2 = +line.getAttribute('y2');
+      out.shelfAt = JSON.stringify({x1, x2, y2, box:[k.x, k.x + k.w, k.y + k.h],
+        dash: [line.getAttribute('stroke-dasharray'), shelf && shelf.getAttribute('stroke-dasharray')]});
+      out.shelfDrop = Math.abs(x1 - x2) < 0.05 && Math.abs(y2 - (k.y + k.h)) < 0.05 && x2 > k.x && x2 < k.x + k.w;
+      out.shelfInk = !!shelf && !!line.getAttribute('stroke-dasharray') &&
+        shelf.getAttribute('stroke-dasharray') === line.getAttribute('stroke-dasharray');
+      // Its border and corners are not offered: it has none.
+      openStyleBar({kind:'node', id:'fvS'});
+      out.shelfBar = styleBar.querySelector('[data-group="border"]').hidden &&
+        styleBar.querySelector('[data-group="corners"]').hidden;
+      closeStyleBar();
+    }
+
+    /* A straight connector keeps no bend and offers none. */
+    {
+      const rec = drawnRoutes.get(calloutEdgeKey('fvC', 'fvD'));
+      openEdgeStylePopover('fvC', 'fvD', {clientX:500, clientY:400, stopPropagation(){}});
+      await wait(150);
+      out.straightAt = JSON.stringify({pts: rec && rec.pts.length, handles: bendLayer.childNodes.length});
+      out.straight = !!rec && rec.pts.length === 2 && bendLayer.childNodes.length === 0;
+      closeEdgePopover();
+    }
+
+    /* A picture starts at a portrait's size; a card of words alone is the
+       size of the same words in a plain box. */
+    {
+      const i = nodes.get('fvI'), p = nodes.get('fvP'), c = nodes.get('fvK');
+      out.sizesAt = JSON.stringify({image:[i.w, i.h], plain:[p.w, p.h], card:[c.w, c.h], bio: BIO_SIZE});
+      out.imageSize = i.w === BIO_SIZE && i.h === BIO_SIZE;
+      out.cardSize = Math.abs(c.w - p.w) < 0.05 && Math.abs(c.h - p.h) < 0.05;
+    }
+
+    /* The connector's panel holds the route and the paint; the line, its
+       corners and its ends are on the bar that comes up on the line. */
+    {
+      const pop = document.getElementById('edgePopover');
+      out.panelLean = !document.getElementById('styleDash') && !document.getElementById('styleCorners') &&
+        !document.getElementById('styleArrowEnds') && !document.getElementById('styleNoteSide') &&
+        !document.getElementById('styleAddNote') &&
+        document.getElementById('styleBendsClear').closest('.style-row') ===
+          document.getElementById('styleRouting').closest('.style-row') && !!pop;
+      const hit = document.querySelector('.edge-hit[data-from="fvA"][data-to="fvB"]');
+      const r = hit.getBoundingClientRect();
+      hit.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, clientX:r.left + 30, clientY:r.top + r.height/2}));
+      await wait(100);
+      const groups = [...styleBar.querySelectorAll('.style-bar-group:not([hidden])')].map(g=> g.dataset.group);
+      out.handlesOnHover = bendLayer.childNodes.length > 0;
+      const press = (group, value)=> styleBar.querySelector(
+        `.style-bar-group[data-group="${group}"] button[data-value="${value}"]`).click();
+      press('edgeLine', 'dotted');
+      press('ends', 'in');
+      press('corners', 'round');
+      await wait(150);
+      const st = edgeStyleFor('fvA', 'fvB');
+      out.edgeBarAt = JSON.stringify({groups, dash: st.dash, arrowIn: st.arrowIn, square: st.square});
+      out.edgeBar = groups.join() === 'edgeLine,corners,ends' && st.dash === 'dotted' &&
+        st.arrowIn === true && st.square === true && !styleBar.hidden;
+      closeStyleBar();
+      // The line was drawn again by the presses; it is the new one the pointer leaves.
+      document.querySelector('.edge-hit[data-from="fvA"][data-to="fvB"]')
+        .dispatchEvent(new MouseEvent('mouseout', {bubbles:true, relatedTarget: document.body}));
+      await wait(450);
+      out.handlesGo = bendLayer.childNodes.length === 0;
+      // A curve has no elbows to square.
+      applyEdit(()=> setEdgeStyleOverride('fvA', 'fvB', Object.assign({}, edgeStyleFor('fvA', 'fvB'), {routing:'curve'})));
+      openStyleBar({kind:'edge', from:'fvA', to:'fvB', x:300, y:300});
+      out.curveGreys = !!styleBar.querySelector('[data-group="corners"] button').disabled;
+      closeStyleBar();
+    }
+
+    /* Clicked, it is lit like a selected entry and nothing steps back. */
+    {
+      const hit = document.querySelector('.edge-hit[data-from="fvA"][data-to="fvB"]');
+      const r = hit.getBoundingClientRect();
+      hit.dispatchEvent(new MouseEvent('click', {bubbles:true, clientX:r.left + 30, clientY:r.top + r.height/2}));
+      await wait(150);
+      const picked = [...document.querySelectorAll('.edge-picked')];
+      out.pickAt = JSON.stringify({picked: picked.length, dim: document.querySelectorAll('.dim').length,
+        filter: picked[0] && getComputedStyle(picked[0]).filter});
+      out.picked = picked.length > 0 && picked.every(p=> p.dataset.from === 'fvA' && p.dataset.to === 'fvB') &&
+        document.querySelectorAll('.dim').length === 0 && /drop-shadow/.test(getComputedStyle(picked[0]).filter);
+      closeEdgePopover();
+      await wait(100);
+      out.unpicked = document.querySelectorAll('.edge-picked').length === 0;
+    }
+
+    /* A note: double-click the line. One already there is opened instead,
+       and its side is chosen on its own bar. */
+    {
+      const hit = document.querySelector('.edge-hit[data-from="fvA"][data-to="fvB"]');
+      const len = hit.getTotalLength(), pt = hit.getPointAtLength(len * 0.25), m = hit.getScreenCTM();
+      hit.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true,
+        clientX: pt.x*m.a + m.e, clientY: pt.y*m.d + m.f}));
+      await wait(200);
+      const opened = !!(nodeEditorTarget && nodeEditorTarget.kind === 'note' && nodeEditorTarget.from === 'fvA');
+      const rec = richFields.get('nodeEditorText');
+      rec.surface.textContent = 'first words';
+      rec.surface.dispatchEvent(new Event('input', {bubbles:true}));
+      await wait(150);
+      closeNodeEditor(); await wait(250);
+      const st = edgeStyleFor('fvA', 'fvB');
+      const again = document.querySelector('.edge-hit[data-from="fvA"][data-to="fvB"]');
+      again.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:10, clientY:10}));
+      await wait(200);
+      const reopened = !!(nodeEditorTarget && nodeEditorTarget.kind === 'note') &&
+        richFields.get('nodeEditorText').surface.textContent === 'first words';
+      closeNodeEditor(true); await wait(150);
+      openStyleBar({kind:'note', from:'fvA', to:'fvB'});
+      styleBar.querySelector('[data-group="noteSide"] button[data-value="below"]').click();
+      await wait(150);
+      out.noteAt = JSON.stringify({opened, text: st.note, at: st.noteAt, reopened, pos: edgeStyleFor('fvA', 'fvB').notePos});
+      out.noteByDbl = opened && st.note === 'first words' && Math.abs(st.noteAt - 0.25) < 0.08 && reopened &&
+        edgeStyleFor('fvA', 'fvB').notePos === 'below';
+      closeStyleBar();
+    }
+
+    /* The field stands on the words, close up as well as far off. */
+    {
+      const at = (sel)=>{
+        let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+        document.querySelectorAll(sel).forEach(e=>{ const q = e.getBoundingClientRect();
+          l = Math.min(l, q.left); t = Math.min(t, q.top); r = Math.max(r, q.right); b = Math.max(b, q.bottom); });
+        return {cx:(l + r)/2, cy:(t + b)/2, h: b - t};
+      };
+      const fieldAt = ()=>{
+        const rg = document.createRange(); rg.selectNodeContents(richFields.get('nodeEditorText').surface);
+        const q = rg.getBoundingClientRect(); return {cx: q.left + q.width/2, cy: q.top + q.height/2, h: q.height};
+      };
+      applyEdit(()=> workingNodes.push(['fvW', 'Callout words here', null, null, null, 'callout',
+        {pos:[X + 120, Y + 100], leader:{from:'fvA', to:'fvB', at:0.7}}]));
+      await wait(250);
+      const res = [];
+      for(const z of [1, 2.5]){
+        vs = z; vx = 300 - X*vs; vy = 400 - Y*vs; applyTransform(); await wait(150);
+        for(const id of ['fvA', 'fvW']){
+          const d = at(`.node[data-id="${id}"] .node-label-text`);
+          openNodeEditor(id); await wait(150);
+          const f = fieldAt();
+          res.push({z, id, dx: +(f.cx - d.cx).toFixed(2), dy: +(f.cy - d.cy).toFixed(2), dh: +(f.h - d.h).toFixed(2)});
+          closeNodeEditor(true); await wait(80);
+        }
+      }
+      out.fieldAt = JSON.stringify(res);
+      out.fieldOnWords = res.every(v=> Math.abs(v.dx) < 1.5 && Math.abs(v.dy) < 1.5) &&
+        res.filter(v=> v.id === 'fvW').every(v=> Math.abs(v.dh) < 4 * v.z);
+    }
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart();
+    await wait(300);
+    return out;
+  });
+  check('a drafting leader drops square onto a shelf drawn in its own line', rF.shelfDrop && rF.shelfInk, rF.shelfAt);
+  check('and a shelf is not offered a border or corners', rF.shelfBar);
+  check('a straight connector keeps no bend and offers none', rF.straight, rF.straightAt);
+  check('a picture starts at a portrait\'s size', rF.imageSize, rF.sizesAt);
+  check('a card of words alone is no bigger than the same words in a plain box', rF.cardSize, rF.sizesAt);
+  check('a connector\'s panel holds its route and paint, with ⟳ beside the route', rF.panelLean);
+  check('the bar on a connector sets its line, its corners and its ends', rF.edgeBar, rF.edgeBarAt);
+  check('and a curve\'s corners are greyed there', rF.curveGreys);
+  check('a connector\'s bends show as the pointer reaches it, and go after it leaves',
+        rF.handlesOnHover && rF.handlesGo, JSON.stringify({on: rF.handlesOnHover, go: rF.handlesGo}));
+  check('a clicked connector is lit like a selected entry, and nothing else steps back',
+        rF.picked && rF.unpicked, rF.pickAt);
+  check('double-clicking a connector writes a note where it was clicked, or opens the one it has',
+        rF.noteByDbl, rF.noteAt);
+  check('the in-entry field stands on the words it covers, at any zoom, a callout folded as it is',
+        rF.fieldOnWords, rF.fieldAt);
+
+  /* A phone has buttons for the keys it has not got. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    const at = await pp.evaluate(async ()=>{
+      const X = snapToGrid(52000), Y = snapToGrid(-3000);
+      applyEdit(()=> workingNodes.push(['tkA', 'Keys', null, null, null, null, {pos:[X, Y]}]));
+      await new Promise(r=> setTimeout(r, 300));
+      vs = 1.5; vx = 150 - X*vs; vy = 400 - Y*vs; applyTransform();
+      await new Promise(r=> setTimeout(r, 200));
+      const r = document.querySelector('.node[data-id="tkA"] rect').getBoundingClientRect();
+      return [r.left + r.width/2, r.top + r.height/2];
+    });
+    await pp.touchscreen.tap(at[0], at[1]);
+    await wait(400);
+    const state = ()=> pp.evaluate(()=> ({sel: selectedId, n: nodes.size,
+      shown: getComputedStyle(document.getElementById('touchTools')).display !== 'none'}));
+    const tapTool = async (act)=>{
+      const b = await pp.evaluate((a)=>{ const r = document.querySelector(`#touchTools [data-act="${a}"]`).getBoundingClientRect();
+        return [r.left + r.width/2, r.top + r.height/2]; }, act);
+      await pp.touchscreen.tap(b[0], b[1]);
+      await wait(350);
+      return state();
+    };
+    const s0 = await state();
+    await tapTool('copy');
+    const s1 = await tapTool('paste');
+    const s2 = await tapTool('delete');
+    const s3 = await tapTool('undo');
+    const s4 = await tapTool('redo');
+    check('on a phone, buttons copy, paste, delete, undo and redo',
+          s0.shown && s0.sel === 'tkA' && s1.n === s0.n + 1 && s2.n === s0.n && s3.n === s0.n + 1 && s4.n === s0.n,
+          JSON.stringify([s0, s1, s2, s3, s4]));
   } finally {
     await phone.close();
   }

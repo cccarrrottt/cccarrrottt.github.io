@@ -281,6 +281,15 @@
             title="Guides: line up whatever is carried, as Shift does">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
     </button>
+    <!-- And the keys a phone has not got: Delete, Ctrl+C, Ctrl+V, Ctrl+Z,
+         Ctrl+Y. Shown with the guides button, under it; see 38-touch.js. -->
+    <div class="touch-tools" id="touchTools" role="toolbar" aria-label="Edit">
+      <button type="button" data-act="undo" title="Undo (Ctrl+Z)">↶</button>
+      <button type="button" data-act="redo" title="Redo (Ctrl+Y)">↷</button>
+      <button type="button" data-act="copy" title="Copy what is selected (Ctrl+C)">⧉</button>
+      <button type="button" data-act="paste" title="Paste (Ctrl+V)">⎘</button>
+      <button type="button" data-act="delete" class="danger" title="Delete what is selected (Delete)">✕</button>
+    </div>
     <div class="add-fab" id="addFab">
       <div class="add-fab-styles" id="addFabStyles" role="menu"></div>
       <button type="button" class="add-fab-btn" id="addFabBtn" aria-haspopup="menu"
@@ -534,6 +543,10 @@
       </div>
       <div class="editor-status" id="styleStatus"></div>
 
+      <!-- The route: its kind, and ⟳ beside it, which hands the route back
+           to the pathfinder by taking out every bend set by hand. The line's
+           pattern, its corners and its arrowheads are chosen on the line
+           itself, from the bar that comes up as the pointer reaches it. -->
       <div class="style-row">
         <span class="style-row-label">Path</span>
         <select id="styleRouting" class="style-select">
@@ -541,34 +554,7 @@
           <option value="straight">Straight</option>
           <option value="curve">Curve</option>
         </select>
-      </div>
-
-      <div class="style-row">
-        <span class="style-row-label">Line</span>
-        <div class="style-choice" id="styleDash">
-          <button type="button" data-value="solid" title="Solid">──</button>
-          <button type="button" data-value="dashed" title="Dashed">╌╌</button>
-          <button type="button" data-value="dotted" title="Dotted">┈┈</button>
-          <button type="button" data-value="dashdot" title="Dash-dotted">─·</button>
-          <button type="button" data-value="double" title="Double">═</button>
-          <button type="button" data-value="sinusoid" title="Sinusoid (wavy)">∿</button>
-        </div>
-      </div>
-
-      <div class="style-row">
-        <span class="style-row-label">Corners</span>
-        <div class="style-choice" id="styleCorners">
-          <button type="button" data-value="round" title="Rounded elbows">╭</button>
-          <button type="button" data-value="square" title="Square elbows">┌</button>
-        </div>
-      </div>
-
-      <div class="style-row">
-        <span class="style-row-label">Ends</span>
-        <div class="style-choice" id="styleArrowEnds">
-          <button type="button" data-end="in" title="Arrowhead at the start (in)">◄</button>
-          <button type="button" data-end="out" title="Arrowhead at the end (out)">►</button>
-        </div>
+        <button type="button" class="editor-btn style-reroute" id="styleBendsClear" title="Route it again — take every bend set by hand out">⟳</button>
       </div>
 
       <div class="style-row">
@@ -586,38 +572,11 @@
         <span class="hex-preview" id="styleColorPreview"></span>
       </div>
 
-      <div class="style-row">
-        <span class="style-row-label">Note</span>
-        <!-- The way a note is STARTED.
-             Its words are written on the plate, by double-clicking it — which
-             leaves nothing to double-click on a connector that has no note
-             yet, and so no way to write a first one at all. This puts an
-             empty plate on the middle of the line with the caret in it; drag
-             the plate afterwards to slide it along. -->
-        <button type="button" class="style-callout-add" id="styleAddNote" title="Put a note on the middle of this connector and start writing it">≡ Add a note</button>
-        <div class="style-choice" id="styleNoteSide">
-          <button type="button" data-value="above" title="Above the line">↑</button>
-          <button type="button" data-value="on" title="On the line, covering it">≡</button>
-          <button type="button" data-value="below" title="Below the line">↓</button>
-        </div>
-        <!-- The plate's ground. Its INK is the connector's and is not the
-             reader's to set; what it is written on is. -->
-        <input type="text" id="styleNoteBg" class="hex-input" placeholder="white" maxlength="9" spellcheck="false" title="The note plate's background — blank is the paper">
-      </div>
-      <div class="style-row">
-        <span class="style-row-label">Bends</span>
-        <button type="button" class="editor-btn" id="styleBendsClear" title="Straighten this connector — take every bend out">Straighten</button>
-      </div>
-      <p class="style-row-note">Drag the marks on the line. <b>Shift</b> lines one up with other connectors; double-click takes one out.</p>
+      <p class="style-row-note">Drag the marks on the line to bend it. <b>Shift</b> lines one up with other connectors; double-click takes one out. Double-click the line itself to write a note on it.</p>
       <div class="style-row">
         <span class="style-row-label">Callout</span>
         <button type="button" class="style-callout-add" id="styleAddCallout" title="Add a comment card pointing at this connector — click the connector where it should attach, then click where the card should stand">⌐ Add a callout</button>
       </div>
-      <!-- The note's WORDS are written on the note, by double-clicking the
-           plate on the drawing. What stays here is everything about it
-           that is not the words: where it rides, what it is written on,
-           and whether it becomes a callout instead. -->
-      <p class="style-row-note">Double-click the note to write it; drag it to slide it along the line. <b>Shift</b> offers the ends, the quarters and the middle.</p>
 
       <div class="edge-popover-actions">
         <button class="editor-btn danger" id="styleDelete">Delete</button>

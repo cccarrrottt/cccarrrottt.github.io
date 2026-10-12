@@ -9,6 +9,10 @@
    placed by hand is the answer, not a suggestion.
    ------------------------------------------------------------------ */
 function handBends(style){
+  /* A straight connector is one line from port to port; a hand bend would
+     turn it into an elbowed one by the back door, so it has none — and a
+     list kept from when it was elbowed waits, unused, for it to be again. */
+  if(style && style.routing === 'straight') return [];
   const list = (style && Array.isArray(style.bends)) ? style.bends : null;
   if(!list || !list.length) return [];
   return list
