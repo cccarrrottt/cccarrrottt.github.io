@@ -143,13 +143,49 @@ function amalgamGeometry(list, ports){
     if(gapX > 0 && gapY > 0) k = spreadX >= spreadY ? 'y' : 'x';
     else if(gapX > 0) k = 'x';
     else if(gapY > 0) k = 'y';
+    /* …and never a bar the lineages would have to reach THROUGH one
+       another. A bar runs across the axis it is laid on, and each lineage
+       drops onto it straight from its own entry — which only works while
+       the entries stand side by side along the bar. Lined up the other
+       way, one behind another towards it (a row with the amalgam level
+       at its end, a column with it straight below), every lineage but the
+       nearest had to go round the ones in front of it, and they knotted
+       round each other to get there. Laid along the row instead, the bar
+       takes each one straight down, and the merged arrow goes from it to
+       wherever the entry stands.
+       The same question settles an entry standing in among its lineages
+       on both axes, where there is no clear side to go by and the vote
+       used to decide alone: it still does, unless what it chose is a bar
+       the lineages are queued up behind. */
+    const queued = (kk)=>{
+      const lo = kk === 'x' ? 'y' : 'x', len = kk === 'x' ? 'h' : 'w';
+      const iv = pnodes.map(p=> [p[lo], p[lo] + p[len]]).sort((u, v)=> u[0] - v[0]);
+      return iv.some((u, i)=> i && u[0] < iv[i-1][1]);
+    };
+    if(!k && gapX <= 0 && gapY <= 0){
+      const kv = sideIsVertical(side) ? 'y' : 'x';
+      if(queued(kv) && !queued(kv === 'x' ? 'y' : 'x')) k = kv === 'x' ? 'y' : 'x';
+    } else if(k && queued(k) && !queued(k === 'x' ? 'y' : 'x')) k = k === 'x' ? 'y' : 'x';
     if(k){
       const sp = k === 'x' ? sx : sy, len = k === 'x' ? 'w' : 'h';
       const centre = b[k] + b[len]/2;
       const after = centre >= sp.mid;
       const at = after ? sp.hi + AMALGAM_LEAD : sp.lo - AMALGAM_LEAD;
-      side = k === 'x' ? (centre >= at ? 'left' : 'right')
-                       : (centre >= at ? 'top' : 'bottom');
+      /* Short of its resting place, the entry is across the bar's line
+         from where it normally stands, and the bar is laid beyond it —
+         which is what lets an entry be put on either side of its own bar.
+         But only where the lineages can get past it: a lineage straight
+         behind the entry would have to go round it to reach a bar on the
+         far side, and its landing would be exactly where the merged arrow
+         turns back into the entry. There the bar stays on the lineages'
+         side and gives way to the entry as it would to one carried up
+         under them. */
+      const o = k === 'x' ? 'y' : 'x', olen = k === 'x' ? 'h' : 'w';
+      const behind = pnodes.some(p=> p[o] < b[o] + b[olen] && p[o] + p[olen] > b[o]);
+      const past = after ? centre >= at : centre < at;
+      const facing = behind ? after : (past === after);
+      side = k === 'x' ? (facing ? 'left' : 'right')
+                       : (facing ? 'top' : 'bottom');
       resting = {at, k, towards: (SIDE_NORMAL[side][k] < 0) === after};
     }
   }
@@ -314,6 +350,74 @@ function spreadLandings(wanted, pinned, pitch){
     if(!merged) break;
   }
   return [].concat(...placed);
+}
+/* The merged arrow's path, from where it leaves the bar to the port it
+ * enters by — square, like every other connector on the chart.
+ *
+ * It used to be one straight line from the junction to the middle of the
+ * entry's facing side, which is right only while the entry stands in
+ * front of the bar. Put it anywhere else — off past the end of the bar,
+ * or level with its own lineages — and that line ran across the chart at
+ * whatever angle the two points made: the one slanted line in a drawing
+ * of right angles. The owner's rule is that a merge has none.
+ *
+ * So, in order:
+ *  - the entry stands in front of the junction: straight across, into
+ *    the facing side at the junction's own place along it;
+ *  - the entry is out past the end of the bar, on the far side of it from
+ *    the lineages: straight on from the bar to the entry's level, and one
+ *    turn into the side of it that faces back;
+ *  - it is on the lineages' own side of the bar: along the bar's line
+ *    past its end, and one turn into the side that faces the bar, the
+ *    lineages being in the way of anything else;
+ *  - and wherever a single turn has no room, two, through the middle of
+ *    the gap. */
+function amalgamStem(geo, from, pnodes){
+  const {b, side, nrm, ux, uy, ring} = geo;
+  const R = EDGE_CORNER_R, M = R + 2;
+  const along = q=> q.x*ux + q.y*uy, perp = q=> q.x*nrm.x + q.y*nrm.y;
+  const pt = (a, p)=> ({x: ux*a + nrm.x*p, y: uy*a + nrm.y*p});
+  const corners = [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]].map(([x, y])=> ({x, y}));
+  const aLo = Math.min(...corners.map(along)), aHi = Math.max(...corners.map(along));
+  const pLo = Math.min(...corners.map(perp)), pHi = Math.max(...corners.map(perp));
+  const jA = along(from), jP = perp(from);
+  const cA = (aLo + aHi)/2, cP = (pLo + pHi)/2;
+  // A port at a given place along a given side.
+  const portAt = (s, coord)=>{
+    const lo = sideIsVertical(s) ? b.x : b.y, len = sideIsVertical(s) ? b.w : b.h;
+    const t = Math.max(0.05, Math.min(0.95, (coord - lo) / len));
+    return portOnSide(b, s, 2*t - 1, 1, ring);
+  };
+  const toward = (dir)=> ux ? (dir > 0 ? 'left' : 'right') : (dir > 0 ? 'top' : 'bottom');
+  // In front of the junction: one straight run.
+  if(jA >= aLo + M && jA <= aHi - M && jP > pHi){
+    const port = portAt(side, ux ? from.x : from.y);
+    return {pts: [from, {x: port.x, y: port.y}], port};
+  }
+  const dir = cA >= jA ? 1 : -1;
+  const lineagesBeyond = pnodes.length &&
+    pnodes.reduce((t, p)=> t + perp({x: p.x + p.w/2, y: p.y + p.h/2}), 0) / pnodes.length > jP;
+  // Level with the bar: straight along its line into the near side.
+  if(jP >= pLo + M && jP <= pHi - M && (dir > 0 ? jA < aLo : jA > aHi)){
+    const port = portAt(toward(dir), ux ? from.y : from.x);
+    return {pts: [from, {x: port.x, y: port.y}], port};
+  }
+  const clear = dir > 0 ? jA <= aLo - 2*R : jA >= aHi + 2*R;
+  if(lineagesBeyond && clear && Math.abs(jP - cP) >= 2*R){
+    // Straight on from the bar to the entry's level, then in by its side.
+    const port = portOnSide(b, toward(dir), 0, 1, ring);
+    return {pts: [from, pt(jA, perp(port)), {x: port.x, y: port.y}], port};
+  }
+  if(!lineagesBeyond && Math.abs(jP - pHi) >= 2*R && jP > pHi){
+    // Along the bar's line past its end, then in by the facing side.
+    const port = geo.port;
+    return {pts: [from, pt(along(port), jP), {x: port.x, y: port.y}], port};
+  }
+  // Two turns, through the middle of the gap, into the facing side.
+  const port = portAt(side, ux ? Math.max(aLo + M, Math.min(aHi - M, from.x))
+                               : Math.max(aLo + M, Math.min(aHi - M, from.y)));
+  const mid = (jP + perp(port)) / 2;
+  return {pts: [from, pt(jA, mid), pt(along(port), mid), {x: port.x, y: port.y}], port};
 }
 function drawAmalgam(list, ports){
   const geo = amalgamGeometry(list, ports);
@@ -763,14 +867,17 @@ function drawAmalgam(list, ports){
   const colors = allMembers.map(amalgamMemberColor);
   // It leaves from a point ON the bar, so the bar and the arrow are one
   // continuous shape rather than a line crossing another line.
-  const outPts = [dimple, {x:port.x, y:port.y}];
-  const paint = makeEdgeGradient(colors, outPts);
-  const tip = arrowTrimmed(dimple, {x:port.x, y:port.y});
+  const stem = amalgamStem(geo, dimple, allMembers.map(e=> nodes.get(e.from)).filter(Boolean));
+  const head = stem.port, last = stem.pts[stem.pts.length - 2];
+  const paint = makeEdgeGradient(colors, stem.pts);
+  const tip = arrowTrimmed(last, {x:head.x, y:head.y});
+  const shaft = stem.pts.slice(0, -1).concat([tip]);
   el('path', {class:'edge struct amalgam-out',
-              d:`M${dimple.x.toFixed(2)},${dimple.y.toFixed(2)} L${tip.x.toFixed(2)},${tip.y.toFixed(2)}`,
+              d: shaft.length > 2 ? roundedPath(shaft, EDGE_CORNER_R)
+                 : `M${dimple.x.toFixed(2)},${dimple.y.toFixed(2)} L${tip.x.toFixed(2)},${tip.y.toFixed(2)}`,
               stroke:paint, 'data-from':'', 'data-to':b.id}, edgeLayer);
-  drawRingCap(port, paint, null, '', b.id);
-  drawAmalgamArrow(port, dimple.x, dimple.y, ring, paint, b.id);
+  drawRingCap(head, paint, null, '', b.id);
+  drawAmalgamArrow(head, last.x, last.y, ring, paint, b.id);
 
   /* The bead over the junction.
    *

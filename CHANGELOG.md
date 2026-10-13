@@ -8,6 +8,31 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Seventh thoughts (owner's notes)
+
+Every placement of a merge's entry against its lineages was swept and
+drawn — rows, columns, diagonals, staircases, the entry on each side, in
+between and squeezed close — and three kinds drew wrong:
+
+- **Lineages lined up towards their merge no longer knot round each
+  other.** A row with the amalgam level at its end, or a column with it
+  straight below, used to get a bar the far lineages could only reach by
+  going round the near ones. The bar is laid along the row now, each
+  lineage drops straight onto it, and the merged arrow runs to the entry.
+- **An entry standing in among its lineages** (between two in a row or a
+  column) gets a bar beside them, which each reaches straight, instead of
+  the lines looping over the entry.
+- **A lineage no longer runs through its own amalgam.** An entry just
+  short of the bar's resting place, straight under one lineage, had the
+  bar laid beyond it, so that lineage went through the entry to reach it.
+  The bar stays on the lineages' side there.
+- **A merged arrow has no slant.** It was one straight line from the bar
+  to the middle of the entry's facing side, so an entry anywhere but in
+  front of the bar was reached at whatever angle the two points made. It
+  now runs square: straight across when the entry is in front of it, one
+  turn when the entry is off past the end of the bar, two where one has
+  no room.
+
 ### Sixth thoughts (owner's notes)
 
 - **A drafting leader never crosses its own words.** Where the place it
