@@ -14264,7 +14264,7 @@ async function main(){
   }
   });
 
-  await scenario("a merge that never makes its lineages queue or go round its entry", async () => {
+  await scenario("a merge that never makes its lineages queue or go round its entry, nor its arrow slant", async () => {
   /* Every placement of a merge's entry against its lineages was swept
      (the owner asked for all of them); these are the ones that drew
      wrong. Lined up towards the bar, the lineages had to reach it
@@ -14274,7 +14274,7 @@ async function main(){
      run through it. What is checked is what a reader sees as wrong:
      a lineage through an entry or going round one, two lineages crossing,
      the merged arrow crossing a lineage. */
-  const rM = await page.evaluate(async ()=>{
+  const rMs = await page.evaluate(async ()=>{
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -14287,8 +14287,13 @@ async function main(){
       inRow:      {parents: [[0, 0], [260, 0]],           am: [120, 0]},
       inRow3:     {parents: [[0, 0], [240, 0], [480, 0]], am: [120, 0]},
       inColumn:   {parents: [[0, 0], [0, 180]],           am: [10, 90]},
-      corner:     {parents: [[0, 0], [260, 180]],         am: [0, 200]}
+      corner:     {parents: [[0, 0], [260, 180]],         am: [0, 200]},
+      offRight:   {parents: [[0, 0], [260, 0]],           am: [560, 220]},
+      offLeft:    {parents: [[0, 0], [260, 0]],           am: [-220, 200]},
+      offUp:      {parents: [[0, 0], [260, 0]],           am: [560, -240]},
+      columnOff:  {parents: [[0, 0], [0, 180]],           am: [300, 320]}
     };
+    const slanted = {};
     const res = {};
     const segs = pts=> pts.slice(1).map((q, i)=> [pts[i], q]);
     const cross = (p1, p2, p3, p4)=>{
@@ -14325,19 +14330,26 @@ async function main(){
       for(let i = 0; i < mem.length; i++) for(let j = i + 1; j < mem.length; j++)
         if(segs(mem[i].pts).some(a=> segs(mem[j].pts).some(b=> cross(a[0], a[1], b[0], b[1])))) bad.push(mem[i].from + ' crosses ' + mem[j].from);
       mem.forEach(m=>{ if(segs(m.pts).some(a=> segs(arrow).some(b=> cross(a[0], a[1], b[0], b[1])))) bad.push('arrow crosses ' + m.from); });
+      // The merged arrow is square: no stretch of it runs at a slant,
+      // beyond the few points its rounded corners take.
+      slanted[name] = segs(arrow).filter(([a, b])=> Math.abs(b.x - a.x) > 0.2 && Math.abs(b.y - a.y) > 0.2).length;
       res[name] = bad;
     }
     refill(EDGE_STYLES, beforeStyles);
     applyEdit(()=>{ workingNodes = beforeNodes; });
     rebuildChart();
     await wait(250);
-    return res;
+    return {res, slanted};
   });
+  const rM = rMs.res, slanted = rMs.slanted;
   check('lineages lined up towards their merge drop onto a bar laid along them, not through one another',
         ['rowLevel', 'rowLevel3', 'columnBelow', 'columnAbove'].every(k=> !rM[k].length), JSON.stringify(rM));
   check('an entry standing in among its lineages gets a bar they can each reach straight',
         ['inRow', 'inRow3', 'inColumn'].every(k=> !rM[k].length), JSON.stringify(rM));
   check('a bar is not laid beyond an entry that a lineage stands straight behind', !rM.corner.length, JSON.stringify(rM.corner));
+  check('a merged arrow has no slant: wherever its entry stands, it runs square and turns',
+        Object.values(slanted).every(v=> v <= 14) && ['offRight', 'offLeft', 'offUp', 'columnOff'].every(k=> !rM[k].length),
+        JSON.stringify({slanted, off: ['offRight', 'offLeft', 'offUp', 'columnOff'].map(k=> rM[k])}));
   });
 
   await scenario("nothing threw along the way", async () => {

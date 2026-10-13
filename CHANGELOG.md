@@ -26,6 +26,12 @@ between and squeezed close — and three kinds drew wrong:
   short of the bar's resting place, straight under one lineage, had the
   bar laid beyond it, so that lineage went through the entry to reach it.
   The bar stays on the lineages' side there.
+- **A merged arrow has no slant.** It was one straight line from the bar
+  to the middle of the entry's facing side, so an entry anywhere but in
+  front of the bar was reached at whatever angle the two points made. It
+  now runs square: straight across when the entry is in front of it, one
+  turn when the entry is off past the end of the bar, two where one has
+  no room.
 
 ### Sixth thoughts (owner's notes)
 
