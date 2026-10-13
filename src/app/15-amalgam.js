@@ -143,13 +143,49 @@ function amalgamGeometry(list, ports){
     if(gapX > 0 && gapY > 0) k = spreadX >= spreadY ? 'y' : 'x';
     else if(gapX > 0) k = 'x';
     else if(gapY > 0) k = 'y';
+    /* …and never a bar the lineages would have to reach THROUGH one
+       another. A bar runs across the axis it is laid on, and each lineage
+       drops onto it straight from its own entry — which only works while
+       the entries stand side by side along the bar. Lined up the other
+       way, one behind another towards it (a row with the amalgam level
+       at its end, a column with it straight below), every lineage but the
+       nearest had to go round the ones in front of it, and they knotted
+       round each other to get there. Laid along the row instead, the bar
+       takes each one straight down, and the merged arrow goes from it to
+       wherever the entry stands.
+       The same question settles an entry standing in among its lineages
+       on both axes, where there is no clear side to go by and the vote
+       used to decide alone: it still does, unless what it chose is a bar
+       the lineages are queued up behind. */
+    const queued = (kk)=>{
+      const lo = kk === 'x' ? 'y' : 'x', len = kk === 'x' ? 'h' : 'w';
+      const iv = pnodes.map(p=> [p[lo], p[lo] + p[len]]).sort((u, v)=> u[0] - v[0]);
+      return iv.some((u, i)=> i && u[0] < iv[i-1][1]);
+    };
+    if(!k && gapX <= 0 && gapY <= 0){
+      const kv = sideIsVertical(side) ? 'y' : 'x';
+      if(queued(kv) && !queued(kv === 'x' ? 'y' : 'x')) k = kv === 'x' ? 'y' : 'x';
+    } else if(k && queued(k) && !queued(k === 'x' ? 'y' : 'x')) k = k === 'x' ? 'y' : 'x';
     if(k){
       const sp = k === 'x' ? sx : sy, len = k === 'x' ? 'w' : 'h';
       const centre = b[k] + b[len]/2;
       const after = centre >= sp.mid;
       const at = after ? sp.hi + AMALGAM_LEAD : sp.lo - AMALGAM_LEAD;
-      side = k === 'x' ? (centre >= at ? 'left' : 'right')
-                       : (centre >= at ? 'top' : 'bottom');
+      /* Short of its resting place, the entry is across the bar's line
+         from where it normally stands, and the bar is laid beyond it —
+         which is what lets an entry be put on either side of its own bar.
+         But only where the lineages can get past it: a lineage straight
+         behind the entry would have to go round it to reach a bar on the
+         far side, and its landing would be exactly where the merged arrow
+         turns back into the entry. There the bar stays on the lineages'
+         side and gives way to the entry as it would to one carried up
+         under them. */
+      const o = k === 'x' ? 'y' : 'x', olen = k === 'x' ? 'h' : 'w';
+      const behind = pnodes.some(p=> p[o] < b[o] + b[olen] && p[o] + p[olen] > b[o]);
+      const past = after ? centre >= at : centre < at;
+      const facing = behind ? after : (past === after);
+      side = k === 'x' ? (facing ? 'left' : 'right')
+                       : (facing ? 'top' : 'bottom');
       resting = {at, k, towards: (SIDE_NORMAL[side][k] < 0) === after};
     }
   }

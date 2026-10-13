@@ -14264,6 +14264,82 @@ async function main(){
   }
   });
 
+  await scenario("a merge that never makes its lineages queue or go round its entry", async () => {
+  /* Every placement of a merge's entry against its lineages was swept
+     (the owner asked for all of them); these are the ones that drew
+     wrong. Lined up towards the bar, the lineages had to reach it
+     through one another and knotted; an entry standing in among them on
+     both axes left the vote to lay the bar across them; an entry just
+     short of its resting bar, straight under a lineage, had that lineage
+     run through it. What is checked is what a reader sees as wrong:
+     a lineage through an entry or going round one, two lineages crossing,
+     the merged arrow crossing a lineage. */
+  const rM = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const X = snapToGrid(90000), Y = snapToGrid(-9000);
+    const cases = {
+      rowLevel:   {parents: [[0, 0], [260, 0]],           am: [560, 0]},
+      rowLevel3:  {parents: [[0, 0], [240, 0], [480, 0]], am: [760, 0]},
+      columnBelow:{parents: [[0, 0], [0, 180]],           am: [0, 400]},
+      columnAbove:{parents: [[0, 0], [0, 180]],           am: [0, -220]},
+      inRow:      {parents: [[0, 0], [260, 0]],           am: [120, 0]},
+      inRow3:     {parents: [[0, 0], [240, 0], [480, 0]], am: [120, 0]},
+      inColumn:   {parents: [[0, 0], [0, 180]],           am: [10, 90]},
+      corner:     {parents: [[0, 0], [260, 180]],         am: [0, 200]}
+    };
+    const res = {};
+    const segs = pts=> pts.slice(1).map((q, i)=> [pts[i], q]);
+    const cross = (p1, p2, p3, p4)=>{
+      const d = (p2.x-p1.x)*(p4.y-p3.y) - (p2.y-p1.y)*(p4.x-p3.x); if(Math.abs(d) < 1e-9) return false;
+      const u = ((p3.x-p1.x)*(p4.y-p3.y) - (p3.y-p1.y)*(p4.x-p3.x)) / d, v = ((p3.x-p1.x)*(p2.y-p1.y) - (p3.y-p1.y)*(p2.x-p1.x)) / d;
+      return u > 0 && u < 1 && v > 0 && v < 1; };
+    const sample = p=>{ const L = p.getTotalLength(), out = [];
+      for(let d = 0; d <= L; d += 2){ const q = p.getPointAtLength(d); out.push({x:q.x, y:q.y}); }
+      const q = p.getPointAtLength(L); out.push({x:q.x, y:q.y}); return out; };
+    for(const [name, c] of Object.entries(cases)){
+      const ids = c.parents.map((_, i)=> 'mq' + i);
+      applyEdit(()=>{
+        workingNodes = beforeNodes.slice(); refill(EDGE_STYLES, beforeStyles);
+        c.parents.forEach(([dx, dy], i)=> workingNodes.push([ids[i], 'Parent ' + i, null, null, null, null, {pos:[X + dx, Y + dy]}]));
+        workingNodes.push(['mqA', 'Amalgam', ids, null, null, 'amalgam', {pos:[X + c.am[0], Y + c.am[1]]}]);
+      });
+      await wait(250);
+      const boxes = [...ids, 'mqA'].map(id=> nodes.get(id));
+      const mem = [...document.querySelectorAll('.amalgam-member[data-to="mqA"]')].map(p=> ({from: p.getAttribute('data-from'), pts: sample(p)}));
+      const out = document.querySelector('.amalgam-out[data-to="mqA"]');
+      const arrow = out ? sample(out) : [];
+      const inside = (q, n)=> q.x > n.x + 2 && q.x < n.x + n.w - 2 && q.y > n.y + 2 && q.y < n.y + n.h - 2;
+      const bad = [];
+      if(mem.length !== ids.length || !out) bad.push('not merged');
+      mem.forEach(m=> boxes.forEach(n=>{
+        if(m.pts.filter((q, i)=> i > 2 && i < m.pts.length - 3 && inside(q, n)).length > 1) bad.push(m.from + ' through ' + n.id);
+      }));
+      // Going round something: a line longer than the walk between its ends.
+      mem.forEach(m=>{
+        const L = segs(m.pts).reduce((t, [a, b])=> t + Math.hypot(b.x - a.x, b.y - a.y), 0);
+        const a = m.pts[0], z = m.pts[m.pts.length - 1];
+        if(L > Math.abs(a.x - z.x) + Math.abs(a.y - z.y) + 40) bad.push(m.from + ' goes round');
+      });
+      for(let i = 0; i < mem.length; i++) for(let j = i + 1; j < mem.length; j++)
+        if(segs(mem[i].pts).some(a=> segs(mem[j].pts).some(b=> cross(a[0], a[1], b[0], b[1])))) bad.push(mem[i].from + ' crosses ' + mem[j].from);
+      mem.forEach(m=>{ if(segs(m.pts).some(a=> segs(arrow).some(b=> cross(a[0], a[1], b[0], b[1])))) bad.push('arrow crosses ' + m.from); });
+      res[name] = bad;
+    }
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart();
+    await wait(250);
+    return res;
+  });
+  check('lineages lined up towards their merge drop onto a bar laid along them, not through one another',
+        ['rowLevel', 'rowLevel3', 'columnBelow', 'columnAbove'].every(k=> !rM[k].length), JSON.stringify(rM));
+  check('an entry standing in among its lineages gets a bar they can each reach straight',
+        ['inRow', 'inRow3', 'inColumn'].every(k=> !rM[k].length), JSON.stringify(rM));
+  check('a bar is not laid beyond an entry that a lineage stands straight behind', !rM.corner.length, JSON.stringify(rM.corner));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
