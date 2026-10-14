@@ -56,7 +56,9 @@ function paintSelectionHighlight(id){
     qNodes('.node').forEach(g=>{
       g.classList.toggle('selected', g.dataset.id === id);
       g.classList.remove('dim');
+      g.classList.remove('lit');
     });
+    document.body.classList.remove('multi-picked');
     auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
     fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
     qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
@@ -64,9 +66,22 @@ function paintSelectionHighlight(id){
     syncTagLiveliness();
     return;
   }
+  /* A multi-selection is a set of equals.
+   *
+     It used to be the primary's lineage with the rest of the set added on
+     top: the one entry the drawer describes kept its parents and children
+     lit and every connector it had, wherever they went, while the eleven
+     others beside it lit only what ran between picked entries. So one
+     member of the set looked more picked than the rest, by its glow and by
+     the half of the chart it brought along. With more than one entry
+     picked, what is lit is the set, and what runs between its members. */
+  const multi = multiSelection.size > 1;
+  try{ document.body.classList.toggle('multi-picked', multi); }catch(e){}
   const related = new Set([id]);
-  n.parents.forEach(p=>related.add(p));
-  n.children.forEach(c=>related.add(c));
+  if(!multi){
+    n.parents.forEach(p=>related.add(p));
+    n.children.forEach(c=>related.add(c));
+  }
   /* A callout is part of the connector it points at.
    *
      Selecting an entry lights the lines that reach it and steps everything
@@ -76,8 +91,8 @@ function paintSelectionHighlight(id){
      lit takes its callouts with it. */
   nodes.forEach(c=>{
     if(!isCalloutNode(c) || !c.leader) return;
-    if(c.leader.from === id || c.leader.to === id ||
-       (multiSelection.size > 1 && (related.has(c.leader.from) || related.has(c.leader.to)))){
+    if(multi ? multiSelection.has(c.leader.from) && multiSelection.has(c.leader.to)
+             : c.leader.from === id || c.leader.to === id){
       related.add(c.id);
     }
   });
@@ -85,20 +100,34 @@ function paintSelectionHighlight(id){
      connector it is a remark about, since that is the only thing on the
      chart it is related to. Without this, clicking a callout faded out
      everything the reader had clicked it to look at. */
-  if(isCalloutNode(n) && n.leader){
+  if(!multi && isCalloutNode(n) && n.leader){
     related.add(n.leader.from);
     related.add(n.leader.to);
   }
+  /* In a set, a picked callout lights the connector it is about, as one
+     picked on its own does — every picked callout, not only the primary. */
+  const pickedAbout = new Set();
+  multiSelection.forEach(x=>{
+    const c = nodes.get(x);
+    if(c && isCalloutNode(c) && c.leader) pickedAbout.add(c.leader.from + '\u0000' + c.leader.to);
+  });
   /* Everything in a multi-selection counts as related. Dimming is about
      the ONE entry being looked at; when a dozen have been picked out with
      a lasso, dimming eleven of them and lighting the twelfth's neighbours
      put the selection highlight underneath the dim wash, and only a few of
      the picked entries looked picked at all. */
-  if(multiSelection.size > 1) multiSelection.forEach(x=> related.add(x));
+  if(multi) multiSelection.forEach(x=> related.add(x));
 
+  /* A callout on a connector the set lights is lit with it — a remark
+     about the very line between two picked entries is part of what was
+     picked out, and stepping it back with the rest of the chart left the
+     line glowing and its explanation grey. */
   qNodes('.node').forEach(g=>{
-    g.classList.toggle('selected', g.dataset.id===id);
-    g.classList.toggle('dim', !related.has(g.dataset.id));
+    const gid = g.dataset.id;
+    g.classList.toggle('selected', gid===id);
+    g.classList.toggle('dim', !related.has(gid));
+    g.classList.toggle('lit', multi && related.has(gid) && !multiSelection.has(gid) &&
+      g.classList.contains('node-callout'));
   });
   auraLayer.querySelectorAll('.node-aura').forEach(g=>{
     g.classList.toggle('dim', !related.has(g.dataset.id));
@@ -149,12 +178,13 @@ function paintSelectionHighlight(id){
        joint answers to its own pair; the bead at the junction, which every
        lineage feeds, still answers to the merge. */
     const pair = p.dataset.pair ? p.dataset.pair.split('\u0000') : null;
-    const pairLit = pair && (dst===id ||
-      (multiSelection.size > 1 ? pair.some(x=> related.has(x) && multiSelection.has(x))
-                               : pair.includes(id)));
-    const lit = pair ? pairLit : src===id || dst===id || aboutMe ||
-      (!src && related.has(dst)) ||
-      (multiSelection.size > 1 && related.has(dst) && (!src || related.has(src)));
+    const pairLit = pair && (multi
+      ? multiSelection.has(dst) || pair.some(x=> multiSelection.has(x))
+      : dst===id || pair.includes(id));
+    const lit = pair ? pairLit
+      : multi ? (src ? related.has(src) && related.has(dst) : related.has(dst)) ||
+                pickedAbout.has(src + '\u0000' + dst)
+      : src===id || dst===id || aboutMe || (!src && related.has(dst));
     p.classList.toggle('lit', lit);
     p.classList.toggle('dim', !lit);
   });
@@ -181,6 +211,11 @@ function toggleInSelection(id){
     if(selectedId === id){
       const next = multiSelection.values().next().value;
       if(next) selectNode(next); else deselect();
+    } else if(selectedId){
+      /* What is lit is the set, so the set shrinking is a repaint — the
+         one let go of kept its connectors lit, and a set down to one
+         stayed a set until something else was clicked. */
+      paintSelectionHighlight(selectedId);
     }
   } else {
     multiSelection.add(id);
@@ -315,7 +350,8 @@ function deselect(){
   closeCardImageEdit();
   multiSelection.clear();
   qNodes('.node.multi').forEach(g=>g.classList.remove('multi'));
-  qNodes('.node').forEach(g=>{ g.classList.remove('selected'); g.classList.remove('dim'); });
+  qNodes('.node').forEach(g=>{ g.classList.remove('selected'); g.classList.remove('dim'); g.classList.remove('lit'); });
+  document.body.classList.remove('multi-picked');
   auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
   fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
   qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });

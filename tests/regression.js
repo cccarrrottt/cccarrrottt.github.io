@@ -2978,8 +2978,15 @@ async function main(){
     out.strippedText = workingNodes.find(x=> x[0]==='fm')[1];
     // …and the border reset puts the outline back to the default ink.
     document.getElementById('editColorsReset').click();
-    await new Promise(r=> setTimeout(r, 1100));
-    out.borderReset = !nodes.get('fm').colors && nodes.get('fm').color === DEFAULT_NODE_COLOR;
+    /* Long enough for the box to refill itself with the default (700 ms)
+       and for that refill's own commit to land (480 ms more). It used to
+       be read at 1100, between the two, and the late commit — writing the
+       default back as the entry's own colour — only showed on a machine
+       slow enough to be read after it. */
+    await new Promise(r=> setTimeout(r, 1600));
+    out.borderReset = !nodes.get('fm').colors && nodes.get('fm').color === DEFAULT_NODE_COLOR &&
+      !entryOpts(workingNodes.find(x=> x[0]==='fm')).colors &&
+      document.getElementById('editColorsReset').disabled;
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -3014,7 +3021,7 @@ async function main(){
      not a licence to delete it. */
   check('the reset button clears every kind of formatting',
         r15.strippedText === 'red bold big [[base|anno]]', r15.strippedText);
-  check('and the border colours have a reset of their own', r15.borderReset);
+  check('and the border colours have a reset of their own, which does not undo itself a moment later', r15.borderReset);
   check('the type pickers report the size and face actually in use',
         r15.sizeShown === String(r15.nodeFsHere) && r15.faceShown === 'arial',
         JSON.stringify({size:r15.sizeShown, face:r15.faceShown}));
@@ -9993,6 +10000,16 @@ async function main(){
       exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(shown),
       importRefused: !shown('fileImport') || readOnlyView
     };
+    /* Nothing that offers to change the chart: no ✕ on a tag, and a click
+       on a connector opens no settings for it. */
+    document.getElementById('tagsTab').click();
+    await new Promise(res => setTimeout(res, 200));
+    out.tagRows = document.querySelectorAll('#tagsList .legend-item, .legend-item').length;
+    out.tagDeletes = [...document.querySelectorAll('.legend-tag-del')].filter(b => getComputedStyle(b).display !== 'none').length;
+    const hit = document.querySelector('.edge-hit');
+    if(hit) hit.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    out.edgeClicked = !!hit;
+    out.edgePanel = document.getElementById('edgePopover').classList.contains('open');
     const was = workingNodes[0][1];
     applyEdit(() => { workingNodes[0][1] = 'A VISITOR WROTE THIS'; });
     out.editRefused = workingNodes[0][1] === was;
@@ -10004,6 +10021,9 @@ async function main(){
   check('and on the site it is a reader on the first frame',
         r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
   check('it draws the chart', r.drew > 0, `${r.drew} nodes`);
+  check('a reader is offered no ✕ on a tag and no settings for a clicked connector',
+        r.tagRows > 0 && r.tagDeletes === 0 && r.edgeClicked && !r.edgePanel,
+        JSON.stringify({rows: r.tagRows, dels: r.tagDeletes, clicked: r.edgeClicked, panel: r.edgePanel}));
   check('a chart left in this browser by the old editable site is not shown', !r.oldEditShown);
   check('it offers no Save', r.saveHidden);
   check('but it does offer the owner a way in', r.signIn === 'Owner sign-in', r.signIn);
@@ -14352,6 +14372,82 @@ async function main(){
         JSON.stringify({slanted, off: ['offRight', 'offLeft', 'offUp', 'columnOff'].map(k=> rM[k])}));
   });
 
+  await scenario("a picked set lit evenly with what runs between it, and an open entry that stays lit", async () => {
+  /* The owner picked a row of entries and saw one of them glow louder than
+     the rest, with the lines between them and the remarks on those lines
+     looking exactly as they do unpicked. And on a phone an open entry did
+     not glow at all until the map was moved — the finger's hover put the
+     glow out — and then let go of the entry when the finger came up. */
+  const rSel = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const X = snapToGrid(30000), Y = snapToGrid(30000);
+    applyEdit(()=>{
+      workingNodes.push(['hsA','Alpha',null,null,null,null,{pos:[X,Y]}]);
+      workingNodes.push(['hsB','Beta','hsA',null,null,null,{pos:[X+260,Y]}]);
+      workingNodes.push(['hsC','Gamma','hsB',null,null,null,{pos:[X+520,Y]}]);
+      workingNodes.push(['hsD','Delta','hsC',null,null,null,{pos:[X+520,Y+200]}]);
+      workingNodes.push(['hsP','Parent',null,null,null,null,{pos:[X,Y-200]}]);
+      workingNodes.push(['hsK','Remark',null,null,null,'callout',{pos:[X+100,Y-90], leader:{from:'hsA',to:'hsB',at:0.5}}]);
+      const a = workingNodes.find(t=> t[0]==='hsA'); a[2] = 'hsP';
+    });
+    refill(EDGE_STYLES, EDGE_STYLES.concat([{from:'hsB', to:'hsC', note:'on the line', noteAt:0.5}]));
+    rebuildChart();
+    await wait(350);
+    vs = 1; vx = 400 - X; vy = 450 - Y; applyTransform();
+    setSelection(['hsA','hsB','hsC'], 'hsA');
+    await wait(250);
+    const border = id=> qNode(`.node[data-id="${id}"] > rect:not(.node-hover-pad):not(.node-hover-solid)`);
+    const look = id=>{ const s = getComputedStyle(border(id)); return s.filter + '|' + s.stroke + '|' + s.strokeWidth; };
+    const glows = e=> getComputedStyle(e).filter.includes('drop-shadow');
+    const out = {};
+    out.looks = ['hsA','hsB','hsC'].map(look);
+    out.lines = ['hsA','hsB'].map(to=> [...document.querySelectorAll(`#edgeLayer path.edge.struct[data-to="${to === 'hsA' ? 'hsB' : 'hsC'}"]`)].every(glows));
+    out.note = [...document.querySelectorAll('.edge-note[data-from="hsB"][data-to="hsC"]')].map(glows);
+    out.leader = [...document.querySelectorAll('.callout-leader[data-id="hsK"]')].map(glows);
+    out.callout = glows(border('hsK'));
+    /* The primary's own lineage is not brought along: its parent is not
+       in the set, and lit it would make the primary the odd one out. */
+    out.parentDim = qNode('.node[data-id="hsP"]').classList.contains('dim');
+    out.parentLineDim = [...document.querySelectorAll('#edgeLayer path.edge.struct[data-from="hsP"]')].every(p=> p.classList.contains('dim'));
+    out.outsideLineDim = [...document.querySelectorAll('#edgeLayer path.edge.struct[data-from="hsC"][data-to="hsD"]')].every(p=> p.classList.contains('dim'));
+    /* Let one go and it goes out with its lines. */
+    toggleInSelection('hsC');
+    await wait(120);
+    out.droppedLine = [...document.querySelectorAll('#edgeLayer path.edge.struct[data-from="hsB"][data-to="hsC"]')].every(p=> p.classList.contains('dim'));
+    out.droppedNode = qNode('.node[data-id="hsC"]').classList.contains('dim');
+    selectNode('hsB');
+    await wait(200);
+    const r = qNode('.node[data-id="hsB"]').getBoundingClientRect();
+    out.at = {x: r.x + r.width/2, y: r.y + r.height/2};
+    return out;
+  });
+  check('every entry of a picked set wears the same mark, the primary no louder', new Set(rSel.looks).size === 1 && rSel.looks[0].includes('drop-shadow'), JSON.stringify(rSel.looks));
+  check('the connectors between picked entries glow with them', rSel.lines.every(Boolean), JSON.stringify(rSel.lines));
+  check('so does a note on one of those connectors, and a callout and its leader', rSel.note.length && rSel.note.every(Boolean) && rSel.leader.length && rSel.leader.every(Boolean) && rSel.callout, JSON.stringify(rSel));
+  check('and the primary brings no lineage of its own into the set', rSel.parentDim && rSel.parentLineDim && rSel.outsideLineDim, JSON.stringify(rSel));
+  check('an entry let go of the set goes out with its connectors', rSel.droppedLine && rSel.droppedNode, JSON.stringify(rSel));
+  await page.mouse.move(rSel.at.x, rSel.at.y);
+  await wait(150);
+  const hovered = await page.evaluate(()=> getComputedStyle(qNode('.node[data-id="hsB"] > rect:not(.node-hover-pad):not(.node-hover-solid)')).filter);
+  check('the open entry keeps its glow under the pointer — on a phone, the finger that opened it', hovered.includes('drop-shadow'), hovered);
+  await page.mouse.move(250, 820);
+  await page.mouse.down();
+  for(let i = 1; i <= 6; i++){ await page.mouse.move(250 + i * 12, 820 + i * 6); await wait(16); }
+  await page.mouse.up();
+  await wait(200);
+  const afterPan = await page.evaluate(()=> selectedId);
+  eq('moving the map leaves the open entry open', afterPan, 'hsB');
+  await page.mouse.click(250, 820);
+  await wait(200);
+  eq('and a click on empty paper still lets it go', await page.evaluate(()=> selectedId), null);
+  await page.evaluate(async ()=>{
+    deselect();
+    EDGE_STYLES.splice(0, EDGE_STYLES.length, ...EDGE_STYLES.filter(s=> s.from !== 'hsB'));
+    applyEdit(()=>{ workingNodes = workingNodes.filter(t=> !String(t[0]).startsWith('hs')); });
+    rebuildChart();
+    await new Promise(r=> setTimeout(r, 250));
+  });
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

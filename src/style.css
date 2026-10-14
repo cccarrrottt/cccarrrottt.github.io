@@ -258,7 +258,12 @@
   body.read-only #detailEditToggle,
   body.read-only .detail-note-btn,
   body.read-only .node-handles,
-  body.read-only #saveState{display:none !important;}
+  body.read-only #saveState,
+  /* Drawn before the page learns it is read-only (on claude.ai that
+     answer comes late), the ✕ on a tag would otherwise stay up until the
+     panel is next built. */
+  body.read-only .legend-tag-del,
+  body.read-only #edgePopover{display:none !important;}
   body.read-only .node{cursor:pointer;}
   /* ---------- Character-bio circle + its card ---------- */
   /* Direct children only: a bio group also contains the side handles and
@@ -739,7 +744,17 @@
 
   .align-line{stroke:var(--grid);fill:none;opacity:0.75;}
   .align-line-major{stroke:var(--ink-faint);opacity:0.45;}
-  .node.hover > rect, .node.hover > polygon, .node.hover > ellipse, .node-bio.hover > circle, .node.hover > path{
+  /* Not on a picked entry. This rule comes later than the selection's
+     glow and weighs the same, so pointing at the open entry swapped its
+     glow for a faint brightening — and a finger is always pointing at
+     what it last tapped, so on a phone the entry just opened showed no
+     selection at all, and lit up only when a press elsewhere (a pan of
+     the map) moved the finger's hover off it. */
+  .node.hover:not(.selected):not(.multi):not(.lit) > rect,
+  .node.hover:not(.selected):not(.multi):not(.lit) > polygon,
+  .node.hover:not(.selected):not(.multi):not(.lit) > ellipse,
+  .node-bio.hover:not(.selected):not(.multi) > circle,
+  .node.hover:not(.selected):not(.multi):not(.lit) > path{
     filter:brightness(1.06);
   }
   .node{cursor:grab;}
@@ -854,10 +869,35 @@
     stroke-dasharray:4 3;
     pointer-events:none;
   }
-  /* Every node in a multi-selection beyond the primary one. */
+  /* Every entry in a multi-selection, the primary one included, wears the
+     same mark a single selection does — and nothing on top of it.
+   *
+     The others used to be repainted in the accent at a heavier weight,
+     and the primary, which carries both classes, got that AND the
+     selection's glow: one entry in every set visibly more picked than the
+     rest, for a difference — which one the drawer describes — that the
+     drawing has no business showing. A callout on a connector between two
+     of them is lit with the same mark (see paintSelectionHighlight). */
   .node.multi > rect, .node.multi > polygon, .node.multi > ellipse,
-  .node.multi > path, .node-bio.multi > circle{
-    stroke:var(--accent);stroke-width:2.4;
+  .node.multi > path, .node-bio.multi > circle, .node-bio.multi > .bio-ring,
+  .node-callout.lit > rect{
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
+  }
+  .node.multi > rect.local-sheet, .node.multi > path.local-sheet,
+  .node.multi > rect.hub-echo,
+  .node.multi > rect.border-inner, .node.multi > path.border-inner,
+  .node.multi > circle.border-inner,
+  .node.lit > .node-hover-pad{filter:none;}
+  /* …and the connectors between them, their arrowheads, their notes and
+     the leaders of their callouts, lit the way a connector with its panel
+     open is. Lit alone was a heavier line in the connector's own colour,
+     which beside a row of glowing entries read as no highlight at all. */
+  body.multi-picked .edge.lit:not(.dbl-inner):not(.edge-hit),
+  body.multi-picked .edge-arrow.lit, body.multi-picked .amalgam-bead.lit,
+  body.multi-picked .callout-leader.lit, body.multi-picked .edge-note.lit{
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
   .connector-rubber{
     fill:none;stroke:var(--accent);stroke-width:1.8;stroke-dasharray:5 4;
@@ -2345,7 +2385,9 @@
   .node-callout.callout-shelf > rect:not(.node-hover-pad){stroke:transparent !important;fill:transparent !important;
     stroke-width:1 !important;stroke-dasharray:3 3;filter:none !important;}
   .node-callout.callout-shelf:hover > rect:not(.node-hover-pad){stroke:var(--ink-faint) !important;}
-  .node-callout.callout-shelf.selected > rect:not(.node-hover-pad){stroke:var(--accent) !important;stroke-dasharray:none;}
+  .node-callout.callout-shelf.selected > rect:not(.node-hover-pad),
+  .node-callout.callout-shelf.multi > rect:not(.node-hover-pad),
+  .node-callout.callout-shelf.lit > rect:not(.node-hover-pad){stroke:var(--accent) !important;stroke-dasharray:none;}
   /* …and without the grey bands an entry shows along its sides for drawing
      a connector out of it, which on a box with no border were the frame's
      most visible part. They come up under the finger or pointer that is

@@ -8,6 +8,34 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Eighth thoughts (owner's notes)
+
+- **A reader is offered nothing that changes the chart.** In the
+  read-only view each tag still carried its ✕, and a click on a
+  connector still opened its settings panel. Both are gone there now;
+  the eyes, the search and the file menu's export stay.
+- **Resetting an entry's border colours no longer undoes itself.** The
+  colour box refills with the default a moment after it is emptied, and
+  that refill was committed like typing: the entry ended up wearing the
+  default as a colour of its own, and the reset button lit up again. The
+  colour an entry is only drawn in is now read back as no change. (The
+  suite's check read the result between the two, so it went red only on
+  a machine slow enough to be read after the second.)
+- **A picked set is lit evenly, with everything between its members.**
+  The entry the drawer describes used to glow on top of the mark the
+  others wore, and brought its own parents and children along lit; now
+  every picked entry wears the same glow, and nothing outside the set is
+  lit. The connectors running between picked entries glow with them, and
+  so do their notes, their callouts and the callouts' leaders. Letting
+  one entry go of the set now puts it out at once, connectors included.
+- **An open entry keeps its glow under the pointer.** Pointing at the
+  selected entry swapped its glow for the faint hover brightening — and
+  a finger always "points at" what it just tapped, so on a phone an
+  opened entry showed no selection until the map was moved.
+- **Moving the map no longer closes the open entry.** The release of a
+  pan was read as a click on empty paper; only a click that stayed put
+  is one now.
+
 ### Seventh thoughts (owner's notes)
 
 Every placement of a merge's entry against its lineages was swept and

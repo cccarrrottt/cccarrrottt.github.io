@@ -461,6 +461,7 @@ function removeCategory(name){
 }
 
 async function deleteTagEverywhere(tag, count){
+  if(readOnlyView) return;
   if(count && !await askConfirm('Delete this tag?',
       `It is on ${count} ${count===1?'entry':'entries'}, and will be removed from ${count===1?'it':'them'}.`)) return;
   applyEdit(()=>{

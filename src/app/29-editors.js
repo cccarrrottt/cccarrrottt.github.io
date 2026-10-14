@@ -185,6 +185,18 @@ function commitNodeEdit(){
       }
     }
   }
+  /* The field shows the colour an entry with none of its own is DRAWN in,
+     because a blank box gave nothing to nudge — so reading it back is not
+     the same as the entry asking for that colour. Written back as it
+     stands, the default became a colour of the entry's own on the next
+     commit of anything else on the form, and on the reset button's own:
+     the box refills itself a moment after being emptied, and that refill
+     is an input like any other. The entry ended up wearing the default
+     by name, and the reset had undone itself. Unchanged is unchanged. */
+  if(!(kept0 && kept0.colors && kept0.colors.length) && newColors.length === 1 &&
+     newColors[0].toLowerCase() === ((kept0 && kept0.color) || DEFAULT_NODE_COLOR).toLowerCase()){
+    newColors = [];
+  }
   const bgRaw = editBgInput.value.trim();
   let newBg = [];
   if(bgRaw){
