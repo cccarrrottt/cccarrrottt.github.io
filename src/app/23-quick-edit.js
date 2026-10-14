@@ -165,7 +165,15 @@ const editColorsInput = document.getElementById('editColorsInput');
      that it had done so. */
   function syncColorsResetState(){
     if(!reset) return;
-    reset.disabled = !editColorsInput.value.trim();
+    /* …and that includes an entry whose box is only showing the colour
+       it is drawn in: the field refills itself with that a moment after
+       it is emptied, and the button lit up again as though the reset had
+       not happened. */
+    const v = editColorsInput.value.trim().toLowerCase();
+    const n = selectedId && nodes.get(selectedId);
+    const inherited = n && !(n.colors && n.colors.length) &&
+                      v === ((n.color || DEFAULT_NODE_COLOR) + '').toLowerCase();
+    reset.disabled = !v || !!inherited;
     reset.title = reset.disabled
       ? 'These borders are already the default'
       : 'Back to the default outline';
@@ -173,7 +181,7 @@ const editColorsInput = document.getElementById('editColorsInput');
   if(reset){
     reset.addEventListener('click', ev=>{
       ev.stopPropagation();
-      if(!editColorsInput.value.trim()) return;
+      if(reset.disabled || !editColorsInput.value.trim()) return;
       editColorsInput.value = '';
       editColorsInput.dispatchEvent(new Event('input', {bubbles:true}));
       if(typeof paintEditSwatches === 'function') paintEditSwatches();

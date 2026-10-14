@@ -833,8 +833,11 @@ function buildTagRow(tag, catName){
   });
   row.insertBefore(eye, row.firstChild);
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
-     with no tags at all show up — so it cannot be filed or deleted. */
-  if(tag !== UNTAGGED){
+     with no tags at all show up — so it cannot be filed or deleted. Nor
+     can anything by a reader: the ✕ on a category was already kept from
+     them, and the one on a tag was left offering to delete a tag from
+     every entry on a chart they cannot change. */
+  if(tag !== UNTAGGED && !readOnlyView){
     const del = document.createElement('button');
     del.type = 'button'; del.className = 'legend-tag-del';
     del.textContent = '\u2715';

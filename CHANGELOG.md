@@ -8,6 +8,20 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased — "A pixel round the words"
 
+### Eighth thoughts (owner's notes)
+
+- **A reader is offered nothing that changes the chart.** In the
+  read-only view each tag still carried its ✕, and a click on a
+  connector still opened its settings panel. Both are gone there now;
+  the eyes, the search and the file menu's export stay.
+- **Resetting an entry's border colours no longer undoes itself.** The
+  colour box refills with the default a moment after it is emptied, and
+  that refill was committed like typing: the entry ended up wearing the
+  default as a colour of its own, and the reset button lit up again. The
+  colour an entry is only drawn in is now read back as no change. (The
+  suite's check read the result between the two, so it went red only on
+  a machine slow enough to be read after the second.)
+
 ### Seventh thoughts (owner's notes)
 
 Every placement of a merge's entry against its lineages was swept and

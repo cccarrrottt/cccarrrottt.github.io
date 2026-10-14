@@ -2978,8 +2978,15 @@ async function main(){
     out.strippedText = workingNodes.find(x=> x[0]==='fm')[1];
     // …and the border reset puts the outline back to the default ink.
     document.getElementById('editColorsReset').click();
-    await new Promise(r=> setTimeout(r, 1100));
-    out.borderReset = !nodes.get('fm').colors && nodes.get('fm').color === DEFAULT_NODE_COLOR;
+    /* Long enough for the box to refill itself with the default (700 ms)
+       and for that refill's own commit to land (480 ms more). It used to
+       be read at 1100, between the two, and the late commit — writing the
+       default back as the entry's own colour — only showed on a machine
+       slow enough to be read after it. */
+    await new Promise(r=> setTimeout(r, 1600));
+    out.borderReset = !nodes.get('fm').colors && nodes.get('fm').color === DEFAULT_NODE_COLOR &&
+      !entryOpts(workingNodes.find(x=> x[0]==='fm')).colors &&
+      document.getElementById('editColorsReset').disabled;
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -3014,7 +3021,7 @@ async function main(){
      not a licence to delete it. */
   check('the reset button clears every kind of formatting',
         r15.strippedText === 'red bold big [[base|anno]]', r15.strippedText);
-  check('and the border colours have a reset of their own', r15.borderReset);
+  check('and the border colours have a reset of their own, which does not undo itself a moment later', r15.borderReset);
   check('the type pickers report the size and face actually in use',
         r15.sizeShown === String(r15.nodeFsHere) && r15.faceShown === 'arial',
         JSON.stringify({size:r15.sizeShown, face:r15.faceShown}));
@@ -9993,6 +10000,16 @@ async function main(){
       exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(shown),
       importRefused: !shown('fileImport') || readOnlyView
     };
+    /* Nothing that offers to change the chart: no ✕ on a tag, and a click
+       on a connector opens no settings for it. */
+    document.getElementById('tagsTab').click();
+    await new Promise(res => setTimeout(res, 200));
+    out.tagRows = document.querySelectorAll('#tagsList .legend-item, .legend-item').length;
+    out.tagDeletes = [...document.querySelectorAll('.legend-tag-del')].filter(b => getComputedStyle(b).display !== 'none').length;
+    const hit = document.querySelector('.edge-hit');
+    if(hit) hit.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    out.edgeClicked = !!hit;
+    out.edgePanel = document.getElementById('edgePopover').classList.contains('open');
     const was = workingNodes[0][1];
     applyEdit(() => { workingNodes[0][1] = 'A VISITOR WROTE THIS'; });
     out.editRefused = workingNodes[0][1] === was;
@@ -10004,6 +10021,9 @@ async function main(){
   check('and on the site it is a reader on the first frame',
         r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
   check('it draws the chart', r.drew > 0, `${r.drew} nodes`);
+  check('a reader is offered no ✕ on a tag and no settings for a clicked connector',
+        r.tagRows > 0 && r.tagDeletes === 0 && r.edgeClicked && !r.edgePanel,
+        JSON.stringify({rows: r.tagRows, dels: r.tagDeletes, clicked: r.edgeClicked, panel: r.edgePanel}));
   check('a chart left in this browser by the old editable site is not shown', !r.oldEditShown);
   check('it offers no Save', r.saveHidden);
   check('but it does offer the owner a way in', r.signIn === 'Owner sign-in', r.signIn);

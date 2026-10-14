@@ -258,7 +258,12 @@
   body.read-only #detailEditToggle,
   body.read-only .detail-note-btn,
   body.read-only .node-handles,
-  body.read-only #saveState{display:none !important;}
+  body.read-only #saveState,
+  /* Drawn before the page learns it is read-only (on claude.ai that
+     answer comes late), the ✕ on a tag would otherwise stay up until the
+     panel is next built. */
+  body.read-only .legend-tag-del,
+  body.read-only #edgePopover{display:none !important;}
   body.read-only .node{cursor:pointer;}
   /* ---------- Character-bio circle + its card ---------- */
   /* Direct children only: a bio group also contains the side handles and

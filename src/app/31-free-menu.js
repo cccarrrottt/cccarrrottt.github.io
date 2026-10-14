@@ -195,6 +195,11 @@ const ROT_SNAP = 45;
 let currentEdgeNaturalColor = '#20242b'; // this edge's color with no override — what "Default" resets to
 
 function openEdgeStylePopover(from, to, evt){
+  /* A reader gets no settings for a line, as they get no style bar over
+     one: the panel is nothing but controls for changing it. The click
+     still did open it — the only control on the chart a reader could
+     reach that offered an edit. */
+  if(readOnlyView) return;
   // Moving to a different connector starts a fresh editing session, so the
   // next change to it is its own step of undo rather than joining the
   // previous connector's.
