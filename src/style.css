@@ -263,6 +263,8 @@
      answer comes late), the ✕ on a tag would otherwise stay up until the
      panel is next built. */
   body.read-only .legend-tag-del,
+  body.read-only #sideTabs .plus-mini,
+  body.read-only #refColorRow, body.read-only .ref-tools,
   body.read-only #edgePopover{display:none !important;}
   body.read-only .node{cursor:pointer;}
   /* ---------- Character-bio circle + its card ---------- */

@@ -35,6 +35,11 @@ Releases before 0.9.0 were not numbered.
 - **Moving the map no longer closes the open entry.** The release of a
   pan was read as a click on empty paper; only a click that stayed put
   is one now.
+- **A reader on claude.ai is offered no + for a tag, a category or a
+  reference** — nor a reference's ✎ and ✕, nor the citation colour. The
+  host says who may write after the first draw, and the side tabs had
+  already been built for an editor; the page now draws again when it
+  learns it is read-only, as it does on the way back.
 
 ### Seventh thoughts (owner's notes)
 

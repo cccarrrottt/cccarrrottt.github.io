@@ -14448,6 +14448,41 @@ async function main(){
     await new Promise(r=> setTimeout(r, 250));
   });
   });
+  await scenario("a page told late that it is read-only", async () => {
+  /* On claude.ai the host answers "may this viewer write?" after the
+     first draw, so everything left out by asking readOnlyView while it
+     was built had already been built for an editor. The owner found the
+     side tabs' + buttons there: a tag, a category, a reference. */
+  const late = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, true));
+    const shown = sel=> [...document.querySelectorAll(sel)].filter(e=>{
+      const s = getComputedStyle(e); return s.display !== 'none' && e.getBoundingClientRect().width > 0; }).length;
+    const ask = ()=> ({plus: shown('#sideTabs .plus-mini'), refTools: shown('#sideTabs .ref-tools button'),
+                       refColour: shown('#refColorRow'), tagDel: shown('.legend-tag-del')});
+    const before = ask();
+    markReadOnly(false);
+    await wait(250);
+    const after = ask();
+    /* And refused, not only hidden: a stale button or a key path still
+       reaches the functions. */
+    const refsBefore = REFS.length;
+    startNewTagEntry(); startNewCategoryEntry(); startNewRefEntry();
+    const pending = pendingNewTag || pendingNewCat || pendingNewRef;
+    if(REFS.length) await deleteRef(REFS[0].key);
+    const refsAfter = REFS.length;
+    markEditable();
+    await wait(250);
+    const back = ask();
+    document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, false));
+    return {before, after, back, pending, refsBefore, refsAfter};
+  });
+  check('an editor has the + buttons to begin with', late.before.plus === 3 && late.before.refColour === 1, JSON.stringify(late.before));
+  check('a page told late that it is read-only offers no + for a tag, a category or a reference, nor a reference\'s ✎ ✕ or the citation colour',
+        late.after.plus === 0 && late.after.refTools === 0 && late.after.refColour === 0 && late.after.tagDel === 0, JSON.stringify(late.after));
+  check('and the functions behind them refuse a reader', !late.pending && late.refsBefore === late.refsAfter, JSON.stringify(late));
+  check('the way back gives them back', late.back.plus === 3 && late.back.refColour === 1, JSON.stringify(late.back));
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
