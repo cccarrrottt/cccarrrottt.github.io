@@ -300,7 +300,23 @@ window.addEventListener('mousemove', e=>{
   vy = dragStart.vy + (e.clientY-dragStart.y);
   applyTransform();
 });
-window.addEventListener('mouseup', ()=>{ dragging=false; svg.classList.remove('grabbing'); });
+/* A pan is not a click on empty canvas.
+ *
+   The press and the release of a pan both land on the canvas, so the
+   browser follows them with a click there — and a click on empty canvas
+   lets go of the selection. So moving the map to look round an open entry
+   closed it the moment the finger or the button came up: the entry stayed
+   lit for exactly as long as the press lasted, and went out on release.
+   Only a press that stayed put is the click that means "nothing". */
+const PAN_CLICK_SLOP = 4;
+window.addEventListener('mouseup', e=>{
+  if(dragging && dragStart &&
+     Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > PAN_CLICK_SLOP){
+    suppressCanvasClick = true;
+    setTimeout(()=>{ suppressCanvasClick = false; }, 0);
+  }
+  dragging=false; dragStart=null; svg.classList.remove('grabbing');
+});
 
 svg.addEventListener('wheel', e=>{
   e.preventDefault();
