@@ -14656,6 +14656,55 @@ async function main(){
   check('a double click on a stretch of the bar opens that lineage', r.stretchOpens);
   check('straight lineages keep the bar', r.straightKeepsBar, String(r.straightJoints));
   });
+  await scenario("seen from far away: patches by tag, then by category", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const beforeNodes = workingNodes.slice(), beforeCats = JSON.parse(JSON.stringify(TAG_CATS));
+    const beforeSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const keep = {vs, vx, vy};
+    const out = {};
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      [['Work A', 0, 0], ['Work B', 900, 0], ['Work C', 0, 1600]].forEach(([t, ox, oy], w)=>{
+        for(let k = 0; k < 6; k++) workingNodes.push(['ld' + w + k, t + ' ' + k, null, null, null, null,
+          {pos:[ox + (k % 3) * 170, oy + Math.floor(k / 3) * 90], tags:[t]}]);
+      });
+      SETTINGS.tagColors = {'Work A': '#3a6fd8', 'Work B': '#2f6fb5', 'Work C': '#d84a3a'};
+      refill(TAG_CATS, [{name:'Franchise', tags:['Work A', 'Work B']}]);
+    });
+    await wait(300);
+    const h = lodEntryHeight();
+    vs = 12 / h; applyTransform(); await wait(100);
+    out.near = lodLevel === 0 && !document.body.classList.contains('lod');
+    vs = (LOD_TAG_PX - 1) / h; applyTransform(); await wait(100);
+    const patches = ()=> [...document.querySelectorAll('#lodLayer .lod-patch')].map(g=> g.dataset.key).sort();
+    out.tagPatches = JSON.stringify(patches());
+    out.byTag = lodLevel === 1 && out.tagPatches === JSON.stringify(['Work A', 'Work B', 'Work C']) &&
+                getComputedStyle(nodeLayer).display === 'none';
+    out.tagColour = document.querySelector('.lod-patch[data-key="Work A"] polygon').getAttribute('fill') === '#3a6fd8';
+    vs = (LOD_CAT_PX - 0.5) / h; applyTransform(); await wait(100);
+    out.catPatches = JSON.stringify(patches());
+    out.byCat = lodLevel === 2 && out.catPatches === JSON.stringify(['Work C', 'cat:Franchise']);
+    // A click on a patch goes in to where its entries can be read.
+    document.querySelector('.lod-patch[data-key="cat:Franchise"] polygon')
+      .dispatchEvent(new MouseEvent('click', {bubbles:true}));
+    await wait(100);
+    out.zoomedIn = lodLevel === 0 && getComputedStyle(nodeLayer).display !== 'none';
+    applyEdit(()=>{
+      workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+      refill(TAG_CATS, beforeCats);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+      Object.assign(SETTINGS, beforeSettings);
+    });
+    vs = keep.vs; vx = keep.vx; vy = keep.vy; applyTransform();
+    await wait(200);
+    return out;
+  });
+  check('close in, the entries are drawn as themselves', r.near);
+  check('far out, a patch for each cluster of a tag, in the tag\'s colour', r.byTag && r.tagColour, r.tagPatches);
+  check('further out, one patch for each category', r.byCat, r.catPatches);
+  check('a click on a patch zooms in until its entries can be read', r.zoomedIn);
+  });
   await scenario("a page told late that it is read-only", async () => {
   /* On claude.ai the host answers "may this viewer write?" after the
      first draw, so everything left out by asking readOnlyView while it

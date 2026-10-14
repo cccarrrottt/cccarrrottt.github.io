@@ -128,6 +128,7 @@ APP_PARTS = [
     '36-site-owner.js',
     '37-style-bar.js',
     '38-touch.js',
+    '39-lod.js',
 ]
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'

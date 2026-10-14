@@ -988,6 +988,21 @@
   /* A merge's bar, to take hold of: a click picks it out, a carry moves it
      along the merged arrow (see drawBarGrip). The cursor says which way it
      will go; picked out, the bar wears the glow a picked connector does. */
+  /* Seen from far away (see 39-lod.js): the entries and everything hung
+     on them give way to patches of their tags' colours. Not displayed is
+     not laid out or painted, which is the point of it. */
+  body.lod #fanLayer, body.lod #auraLayer, body.lod #backLayer, body.lod #edgeLayer,
+  body.lod #leaderHitLayer, body.lod #nodeLayer, body.lod #arrowLayer, body.lod #frontLayer,
+  body.lod #bioCardLayer, body.lod #bendLayer{display:none;}
+  #lodLayer{display:none;}
+  body.lod #lodLayer{display:inline;}
+  .lod-patch{opacity:0.5;cursor:zoom-in;}
+  .lod-patch:hover{opacity:0.68;}
+  .lod-label{
+    fill:var(--ink);stroke:var(--paper);paint-order:stroke;stroke-linejoin:round;
+    font-family:'IBM Plex Sans',Arial,sans-serif;font-weight:600;text-anchor:middle;
+    dominant-baseline:central;pointer-events:none;
+  }
   .amalgam-bar-hit{fill:none;stroke:transparent;stroke-width:14px;pointer-events:stroke;cursor:pointer;}
   .amalgam-bar-hit.across-y{cursor:ns-resize;}
   .amalgam-bar-hit.across-x{cursor:ew-resize;}

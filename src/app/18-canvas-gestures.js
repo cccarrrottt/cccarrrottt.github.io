@@ -133,6 +133,8 @@ function resumeAnimation(elm, period, since, stagger){
 }
 function applyVisibility(){
   syncTagLiveliness();
+  // What is shown has changed, so the patches drawn for it are stale.
+  markLodStale();
   qNodes('.node').forEach(g=>{
     const n = nodes.get(g.dataset.id);
     g.style.display = (n && nodeHidden(n)) ? 'none' : '';
@@ -193,6 +195,8 @@ function applyTransform(){
   // re-anchored whenever the drawing moves under it.
   positionBioCard();
   positionSwapButton();
+  // Far enough out, the entries give way to patches; see syncLod.
+  syncLod();
   /* The in-node field stands on its entry, so it moves with the drawing.
      Its type is scaled by the zoom as well, which is what keeps what is
      being typed the same size as what it will be. */
