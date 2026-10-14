@@ -92,7 +92,7 @@ function drawBendHandles(){
   /* A lineage feeding a merge is not bent by hand — the merge decides
      where it runs, so a handle here would offer a point that the next
      redraw ignores. See the note in drawAmalgam. */
-  if(isAmalgamMember(target.from, target.to)) return;
+  if(isMergePart(target.from, target.to)) return;
   const rec = drawnRoutes.get(calloutEdgeKey(target.from, target.to));
   if(!rec || !rec.pts || rec.pts.length < 2) return;
   const bends = bendListOf(target.from, target.to);
@@ -367,7 +367,7 @@ function pruneHandBends(pairs){
     const k = calloutEdgeKey(pr.from, pr.to);
     if(seen.has(k)) return false;
     seen.add(k);
-    return bendListOf(pr.from, pr.to).length > 0 && !isAmalgamMember(pr.from, pr.to);
+    return bendListOf(pr.from, pr.to).length > 0 && !isMergePart(pr.from, pr.to);
   });
   if(!todo.length) return false;
   let changed = false;

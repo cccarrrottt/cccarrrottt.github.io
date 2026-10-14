@@ -97,6 +97,11 @@ function validateNodes(val){
  * and no sequence of characters a reader can type can close the element
  * any more. (This comment cannot contain the tag it is about, for exactly
  * the reason it describes.) */
+/* What an entry's border is drawn in, as the colours field writes it:
+   its own colours, its tags', or the default ink. */
+function drawnColorText(n){
+  return (n.colors && n.colors.length) ? n.colors.join(', ') : (n.color || DEFAULT_NODE_COLOR);
+}
 function jsStr(s){
   return "'" + String(s)
     .replace(/\\/g,'\\\\')
@@ -171,8 +176,8 @@ const editColorsInput = document.getElementById('editColorsInput');
        not happened. */
     const v = editColorsInput.value.trim().toLowerCase();
     const n = selectedId && nodes.get(selectedId);
-    const inherited = n && !(n.colors && n.colors.length) &&
-                      v === ((n.color || DEFAULT_NODE_COLOR) + '').toLowerCase();
+    const inherited = n && !(n.ownColors && n.ownColors.length) &&
+                      v === drawnColorText(n).toLowerCase();
     reset.disabled = !v || !!inherited;
     reset.title = reset.disabled
       ? 'These borders are already the default'
@@ -462,9 +467,7 @@ detailEditToggle.onclick = (ev)=>{
        what the default was and gave them nothing to edit — the commonest
        thing you want to do here is nudge the current colour, and you
        cannot nudge a blank. */
-    editColorsInput.value = (n.colors && n.colors.length)
-      ? n.colors.join(', ')
-      : (n.color || DEFAULT_NODE_COLOR);
+    editColorsInput.value = drawnColorText(n);
     if(paintEditSwatches) paintEditSwatches();
     /* Empty means "on the paper", which is a real answer rather than a
        missing one — so unlike the border field this one is left blank when

@@ -193,8 +193,10 @@ function commitNodeEdit(){
      the box refills itself a moment after being emptied, and that refill
      is an input like any other. The entry ended up wearing the default
      by name, and the reset had undone itself. Unchanged is unchanged. */
-  if(!(kept0 && kept0.colors && kept0.colors.length) && newColors.length === 1 &&
-     newColors[0].toLowerCase() === ((kept0 && kept0.color) || DEFAULT_NODE_COLOR).toLowerCase()){
+  /* …and the same for colours an entry wears from its tags: shown in the
+     box, they are not the entry's to keep. */
+  if(kept0 && !(kept0.ownColors && kept0.ownColors.length) &&
+     newColors.join(', ').toLowerCase() === drawnColorText(kept0).toLowerCase()){
     newColors = [];
   }
   const bgRaw = editBgInput.value.trim();
@@ -337,7 +339,7 @@ function commitEntry(mutate){
 function serializeEdgeStyles(list){
   if(!list.length) return 'const EDGE_STYLES = [];';
   return 'const EDGE_STYLES = [\n' + list.map(s=>
-    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
+    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
   ).join('\n') + '\n];';
 }
 
@@ -355,7 +357,44 @@ function serializeSettings(o){
   const keys = Object.keys(legend);
   const legendPart = keys.length
     ? `, legend: {${keys.map(k=> `${jsStr(k)}: ${jsStr(legend[k])}`).join(', ')}}` : '';
-  return `const SETTINGS = {refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}};`;
+  /* The rest of the legend's making: names, rows taken out and put in,
+     and rows of the author's own — each written only when there is one. */
+  const extra = cleanLegendRows(o);
+  const tagColors = cleanTagColors(o.tagColors);
+  if(Object.keys(tagColors).length) extra.tagColors = tagColors;
+  /* The names are keyed by a mark's key, which has a colon in it, so the
+     keys are written quoted, as the meanings' are. */
+  const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
+  const extraPart = Object.keys(extra).map(k=> `, ${k}: ${k === 'legendNames' || k === 'tagColors' ? quoted(extra[k]) : jsVal(extra[k])}`).join('');
+  return `const SETTINGS = {refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}${extraPart}};`;
+}
+const LEGEND_KEY_RE = /^(shape|border|tag|line|mark):/;
+function cleanTagColors(v){
+  const out = {};
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  Object.keys(v).sort().forEach(k=>{ if(isHexColor(v[k]) && !tagIsSpecial(k) && k !== UNTAGGED) out[k] = v[k]; });
+  return out;
+}
+function cleanLegendRows(o){
+  const out = {};
+  if(!o || typeof o !== 'object') return out;
+  const names = {};
+  if(o.legendNames && typeof o.legendNames === 'object' && !Array.isArray(o.legendNames)){
+    Object.keys(o.legendNames).sort().forEach(k=>{
+      if(LEGEND_KEY_RE.test(k) && typeof o.legendNames[k] === 'string' && o.legendNames[k]) names[k] = o.legendNames[k];
+    });
+  }
+  if(Object.keys(names).length) out.legendNames = names;
+  ['legendHidden', 'legendAdded'].forEach(k=>{
+    const list = Array.isArray(o[k]) ? Array.from(new Set(o[k].filter(x=> typeof x === 'string' && LEGEND_KEY_RE.test(x)))) : [];
+    if(list.length) out[k] = list;
+  });
+  const own = Array.isArray(o.legendOwn) ? o.legendOwn.filter(r=> r && typeof r.id === 'string' && /^own\d+$/.test(r.id))
+    .map(r=> ({id: r.id, name: typeof r.name === 'string' ? r.name : '',
+               meaning: typeof r.meaning === 'string' && r.meaning ? r.meaning : undefined,
+               color: isHexColor(r.color) ? r.color : '#20242b'})) : [];
+  if(own.length) out.legendOwn = own;
+  return out;
 }
 /* Only strings, under names a legend row can have. Anything else in there
    came from a file edited by hand and would be written back verbatim. */
@@ -471,7 +510,7 @@ function isDefaultEdgeStyle(style){
     style.arrow===DEFAULT_EDGE_STYLE.arrow && !style.arrowIn && !style.sinusoid &&
     !style.note && !style.color &&
     !style.gradient && !style.fromSide && !style.toSide && !style.fromRing && !style.toRing &&
-    !style.square && !(style.bends && style.bends.length);
+    style.square !== false && !(style.bends && style.bends.length);
 }
 function setEdgeStyleOverride(from, to, style){
   const idx = EDGE_STYLES.findIndex(s=>s.from===from && s.to===to);

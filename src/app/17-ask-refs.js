@@ -468,6 +468,7 @@ async function deleteTagEverywhere(tag, count){
       `It is on ${count} ${count===1?'entry':'entries'}, and will be removed from ${count===1?'it':'them'}.`)) return;
   applyEdit(()=>{
     TAG_CATS.forEach(c=>{ const i = c.tags.indexOf(tag); if(i >= 0) c.tags.splice(i, 1); });
+    setTagColorIn(tag, null);
     workingNodes.forEach(t=>{
       const opts = t[6];
       if(!opts || !Array.isArray(opts.tags)) return;

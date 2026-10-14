@@ -1661,7 +1661,10 @@ async function main(){
     };
     out.dashPlainOff = await dashed({});
     out.dashInOff = await dashed({arrowIn:true});
-    refill(EDGE_STYLES, []);
+    /* Rounded by request: square elbows are the default since 0.12.0,
+       and what is pinned here is that a rounded corner never squares off. */
+    refill(EDGE_STYLES, nodes.get('ax').parents.map(p=> ({from:p, to:'ax', routing:'orthogonal',
+                                                          dash:'solid', arrow:true, square:false})));
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
 
     /* The amalgam's bar is STRAIGHT, and every lineage turns onto it with
@@ -2622,6 +2625,10 @@ async function main(){
 
     /* Only the two lineages at the ends of the bar round their turn onto
        it; the ones between join it as a T. */
+    // Rounded by request; square is the default since 0.12.0.
+    ['tp0','tp1','tp2','tp3'].forEach(f=> setEdgeStyleOverride(f, 'tam',
+      Object.assign({}, edgeStyleFor(f, 'tam'), {square:false})));
+    redrawEdges();
     const memberOf = (id)=> document.querySelector(`.amalgam-member[data-from="${id}"]`);
     /* The last two commands, whatever their length: a box closed onto
        its words has fractional sides, and forty characters of a path with
@@ -3208,7 +3215,9 @@ async function main(){
     closeEdgePopover();
     await new Promise(r=> setTimeout(r, 200));
 
-    /* Lineages routed straight merge at one point: no bar, no joints. */
+    /* Lineages routed straight keep their bar (0.12.0, the owner's word:
+       the super-line stays and its segments may be straight). It used to
+       vanish, every line running to one point. */
     applyEdit(()=>{
       workingNodes.push(['sa','Alpha',null,null,null,null,{pos:[37000,-900], colors:['#c23b22']}]);
       workingNodes.push(['sb','Beta',null,null,null,null,{pos:[37300,-900], colors:['#1d7a5f']}]);
@@ -3357,8 +3366,8 @@ async function main(){
   check('a redraw does not fade the connectors back in', r16.noFade);
   check('a note placed on a connector survives restyling it',
         r16.emptyLeaderKept);
-  check('lineages routed straight merge at one point, with no bar',
-        r16.straightMembers === 3 && r16.straightJoints === 0 && r16.straightJunction === 1,
+  check('lineages routed straight keep the bar, every one on its own stretch of it',
+        r16.straightMembers === 3 && r16.straightJoints === 2 && r16.straightJunction === 1,
         JSON.stringify({m:r16.straightMembers, j:r16.straightJoints, b:r16.straightJunction}));
   check('one elbowed lineage brings the bar back for all of them',
         r16.mixedJoints === 2, String(r16.mixedJoints));
@@ -4814,7 +4823,8 @@ async function main(){
         workingNodes.push(['sgA','A',null,null,null,null,{pos:[76000,-1500]}]);
         workingNodes.push(['sgB','B','sgA',null,null,null,{pos:[76300,-1500+dy]}]);
       });
-      refill(EDGE_STYLES, [{from:'sgA', to:'sgB', fromSide:'right', toSide:'left'}]);
+      // Corners counted as rounded ones: asked for, since square is the default.
+      refill(EDGE_STYLES, [{from:'sgA', to:'sgB', fromSide:'right', toSide:'left', square:false}]);
       rebuildChart(); await wait(320);
       const el = document.querySelector('path.edge.struct[data-from="sgA"][data-to="sgB"]');
       return el ? (el.getAttribute('d').match(/Q/g) || []).length : -1;
@@ -4971,7 +4981,8 @@ async function main(){
       workingNodes.push(['knA','A',null,null,null,null,{pos:[82000,-1600]}]);
       workingNodes.push(['knB','B','knA',null,null,null,{pos:[82020,-1300]}]);
     });
-    refill(EDGE_STYLES, [{from:'knA', to:'knB', fromSide:'bottom', toSide:'top'}]);
+    // Rounded, so its corners can be counted; square is the default.
+    refill(EDGE_STYLES, [{from:'knA', to:'knB', fromSide:'bottom', toSide:'top', square:false}]);
     rebuildChart(); await wait(460);
     {
       const el = document.querySelector('path.edge.struct[data-from="knA"][data-to="knB"]');
@@ -5298,7 +5309,9 @@ async function main(){
       workingNodes.push(['apC','Child','apA',null,null,null,{pos:[91600,-1650]}]);
       workingNodes.push(['apM','M',['apA','apB'],null,null,'amalgam',{pos:[92150,-1550]}]);
     });
-    refill(EDGE_STYLES, [{from:'apA', to:'apC', fromSide:'bottom', toSide:'right', arrow:true}]);
+    // Rounded so the turns can be counted; square is the default.
+    refill(EDGE_STYLES, [{from:'apA', to:'apC', fromSide:'bottom', toSide:'right', arrow:true, square:false},
+                         {from:'apA', to:'apM', routing:'orthogonal', dash:'solid', arrow:true, square:false}]);
     rebuildChart(); await wait(760);
     {
       const a = nodes.get('apA');
@@ -8149,11 +8162,12 @@ async function main(){
     applyEdit(()=>{ workingNodes.find(e=> e[0] === 'bdM')[6].pos = [40, 80]; });
     await wait(600);
     {
-      /* Carried well past the end of the structure, the entry stops at the
-         end of the bar: it belongs to the merge and cannot be left beside
-         it. The leash that used to PULL it back is still gone — this only
-         stops it going where it cannot be drawn. */
+      /* Carried well past the end of the structure, the entry goes where
+         it is put, and the bar stays exactly where it was: it used to stop
+         at the bar's end, and the owner asked that the entry and its bar
+         never move each other (0.12.0). The merged arrow turns to reach. */
       const n = nodes.get('bdM');
+      const barBefore = JSON.stringify(['lo','hi','cross'].map(k=> +amalgamBars.get('bdM')[k].toFixed(2)));
       /* Read off as NUMBERS: the entry objects are reused across redraws,
          so a reference kept over a drag reports where it ended up. */
       const fromCentre = n.x + n.w/2;
@@ -8172,10 +8186,12 @@ async function main(){
       await wait(500);
       const to = nodes.get('bdM');
       const centre = to.x + to.w/2;
-      out.heldOnBar = centre <= Math.max(...landings) + 40;
-      out.barCentre = Math.round(centre) + ' vs ' + Math.round(Math.max(...landings));
-      /* and it went somewhere — the clamp is a limit, not a lock */
-      out.stillMoved = centre > fromCentre + 60;
+      const barAfter = JSON.stringify(['lo','hi','cross'].map(k=> +amalgamBars.get('bdM')[k].toFixed(2)));
+      // To a twentieth of a pixel: the landings are worked out relative to
+      // the entry's port and put back, which costs a rounding at most.
+      out.heldOnBar = JSON.parse(barAfter).every((v, i)=> Math.abs(v - JSON.parse(barBefore)[i]) < 0.05);
+      out.barCentre = Math.round(centre) + ' vs ' + Math.round(Math.max(...landings)) + ' ' + barBefore + ' ' + barAfter;
+      out.stillMoved = centre > Math.max(...landings) + 300;
     }
 
     /* ---- the guides: two middles before two edges ---- */
@@ -8301,7 +8317,7 @@ async function main(){
         r40.beadsSameColour === 0 && r40.beadsOneChange === 1 && r40.beadsOnTheSeam === 0,
         JSON.stringify({same:r40.beadsSameColour, changed:r40.beadsOneChange,
                         onSeam:r40.beadsOnTheSeam}));
-  check('and its entry cannot be carried off the end of its own bar',
+  check('and its entry goes past the end of its bar, which stays where it was',
         r40.heldOnBar && r40.stillMoved, r40.barCentre);
   check('the guides offer two middles before two edges',
         r40.midWins && r40.midBeatsNearerEdge, String(r40.pickAt));
@@ -11697,7 +11713,14 @@ async function main(){
       const plate = ()=> document.querySelector('.edge-note[data-from="sqA"] .edge-note-plate');
       out.plateOwn = !!plate() && +plate().getAttribute('rx') > 0;
       out.calloutOwn = rx('sqK').length > 0 && rx('sqK').every(v=> v > 0);
-      out.serialized = /square:true/.test(serializeEdgeStyles(EDGE_STYLES));
+      /* Square is the default since 0.12.0, so what the file carries is
+         the exception: a rounded connector writes square:false, one that
+         never said writes nothing about its corners at all (and an old
+         square:true is written back as it was, so an untouched region is
+         untouched). */
+      const one = (sq)=> serializeEdgeStyles([{from:'a', to:'b', routing:'orthogonal', dash:'solid',
+                                               arrow:true, square:sq}]);
+      out.serialized = /square:false/.test(one(false)) && !/square:/.test(one(undefined));
       /* …and the bar over a hovered entry sets them. */
       const bar = document.getElementById('styleBar');
       const press = (group, value)=> bar.querySelector(
@@ -14066,7 +14089,8 @@ async function main(){
       const st = edgeStyleFor('fvA', 'fvB');
       out.edgeBarAt = JSON.stringify({groups, dash: st.dash, arrowIn: st.arrowIn, square: st.square});
       out.edgeBar = groups.join() === 'edgeLine,corners,ends' && st.dash === 'dotted' &&
-        st.arrowIn === true && st.square === true && !styleBar.hidden;
+        // Square to start with since 0.12.0, so the press rounds them.
+        st.arrowIn === true && st.square === false && !styleBar.hidden;
       closeStyleBar();
       // The line was drawn again by the presses; it is the new one the pointer leaves.
       document.querySelector('.edge-hit[data-from="fvA"][data-to="fvB"]')
@@ -14448,6 +14472,190 @@ async function main(){
     await new Promise(r=> setTimeout(r, 250));
   });
   });
+  await scenario("square elbows, colours from tags, a legend of one's own and a bar that stays put", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const beforeNodes = workingNodes.slice(), beforeStyles = EDGE_STYLES.slice();
+    const beforeSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const out = {};
+    const X = snapToGrid(120000), Y = snapToGrid(-3000);
+    applyEdit(()=>{
+      workingNodes.push(['tgA','Alpha',null,null,null,null,{pos:[X, Y], tags:['work-a']}]);
+      workingNodes.push(['tgB','Beta','tgA',null,null,null,{pos:[X + 260, Y], tags:['work-a','fan-fiction']}]);
+      workingNodes.push(['tgC','Gamma','tgB',null,null,null,{pos:[X + 520, Y], tags:['work-a'], colors:['#22cc22']}]);
+    });
+    await wait(300);
+
+    /* 1. A connector nobody has styled has square elbows. */
+    {
+      const line = document.querySelector('#edgeLayer path.edge.struct[data-from="tgA"][data-to="tgB"]');
+      out.squareDefault = edgeStyleFor('tgA', 'tgB').square === true && edgeStyleFor('x', 'y').routing === 'orthogonal' &&
+                          !!line && !/Q/.test(line.getAttribute('d'));
+    }
+
+    /* 5. An entry takes its tag's colour; its own colour wins; a special
+          tag has no colour to give and no square to set one with. */
+    applyEdit(()=> setTagColorIn('work-a', '#3a6fd8'));
+    await wait(250);
+    out.tagColour = JSON.stringify(['tgA','tgB','tgC'].map(id=> nodes.get(id).colors));
+    out.tagColourTaken = nodes.get('tgA').colors[0] === '#3a6fd8' && nodes.get('tgB').colors[0] === '#3a6fd8' &&
+                         nodes.get('tgC').colors[0] === '#22cc22';
+    out.tagColourSaved = /tagColors: \{'work-a': '#3a6fd8'\}/.test(serializeSettings(SETTINGS));
+    SETTINGS.tagColors = Object.assign({}, SETTINGS.tagColors, {'fan-fiction': '#ff0000'});
+    out.specialRefused = !/fan-fiction/.test(serializeSettings(SETTINGS)) && tagColorOf('fan-fiction') === null;
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await wait(250);
+    const ffRow = document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"] .swatch');
+    out.specialNoSwatch = !ffRow || ffRow.classList.contains('swatch-none');
+    setSideTab(document.getElementById('tagsPanel'), false);
+    // The form shows the colour drawn, and committing it stores nothing.
+    selectNode('tgA'); document.getElementById('detailEditToggle').click(); await wait(300);
+    out.formShowsTagColour = document.getElementById('editColorsInput').value === '#3a6fd8';
+    commitNodeEdit(); await wait(300);
+    const optsA = workingNodes.find(t=> t[0] === 'tgA')[6];
+    out.formStoresNothing = !optsA.colors;
+    deselect();
+
+    /* 7. Colours are typed into boxes the size of a colour, side by side. */
+    {
+      const pair = document.querySelector('.editor-field-pair');
+      out.hexPair = !!pair && pair.contains(document.getElementById('editColorsField')) &&
+                    pair.contains(document.getElementById('editBgField'));
+    }
+    /* 8. The callout is added from a mark, not a row. */
+    {
+      const b = document.getElementById('styleAddCallout');
+      out.calloutMark = !!b && !!b.querySelector('svg') && b.textContent.trim() === '' &&
+                        b.closest('.style-row') === document.getElementById('styleRouting').closest('.style-row');
+    }
+
+    /* 4. The legend is the editor's, and says what its author wants. */
+    setSideTab(document.getElementById('keyPanel'), true);
+    await wait(250);
+    keyList.querySelector('.plus-mini').click(); await wait(100);
+    keyList.querySelector('.key-add-own').click(); await wait(200);
+    const own = [...keyList.querySelectorAll('.key-item')].find(x=> x.querySelector('.key-own-hex'))
+                  .querySelector('.key-name-input');
+    own.value = 'Entity'; own.dispatchEvent(new Event('change')); await wait(200);
+    out.legendOwnRow = (SETTINGS.legendOwn || []).some(r=> r.name === 'Entity') &&
+                       /legendOwn:/.test(serializeSettings(SETTINGS));
+    setSideTab(document.getElementById('keyPanel'), false);
+    markReadOnly(false); await wait(200);
+    out.legendHiddenForReader = getComputedStyle(document.getElementById('keyPanel')).display === 'none';
+    markEditable(); await wait(200);
+
+    /* 2 and 3. A merge: the arrow out of it is a connector with a look of
+       its own, the amalgam may ripple, straight segments keep the bar, and
+       the bar is the lineages' — the entry carried about does not move it,
+       and it is carried itself along the arrow's axis. */
+    applyEdit(()=>{
+      workingNodes.push(['mbA','One',null,null,null,null,{pos:[X, Y + 400]}]);
+      workingNodes.push(['mbB','Two',null,null,null,null,{pos:[X + 260, Y + 400]}]);
+      workingNodes.push(['mbC','Three',null,null,null,null,{pos:[X + 520, Y + 400]}]);
+      workingNodes.push(['mbM','Merge',['mbA','mbB','mbC'],null,null,'amalgam',{pos:[X + 260, Y + 600], border:'wavy'}]);
+    });
+    await wait(400);
+    vs = 1.2; vx = 600 - (X + 300) * vs; vy = 300 - (Y + 450) * vs; applyTransform();
+    await wait(150);
+    out.amalgamRipples = isWavyBorder(nodes.get('mbM')) &&
+      !!document.querySelector('.node[data-id="mbM"] > path');
+    out.outHit = !!document.querySelector('.edge-hit[data-from=""][data-to="mbM"]');
+    applyEdit(()=> setEdgeStyleOverride('', 'mbM', Object.assign({}, edgeStyleFor('', 'mbM'), {dash:'dashed'})));
+    await wait(250);
+    out.outDashed = document.querySelector('.amalgam-out[data-to="mbM"]').getAttribute('stroke-dasharray') === DASH_PATTERNS.dashed;
+    openEdgeStylePopover('', 'mbM', {clientX:500, clientY:400, stopPropagation(){}});
+    await wait(200);
+    out.outGlows = !!document.querySelector('.amalgam-out.edge-picked[data-to="mbM"]') &&
+                   document.getElementById('stylePaintMode').closest('.style-row').hidden &&
+                   document.getElementById('styleDelete').hidden;
+    closeEdgePopover(); await wait(150);
+
+    const rec0 = amalgamBars.get('mbM');
+    const barAt = ()=> +amalgamBars.get('mbM').cross.toFixed(2);
+    const toClient = (x, y)=>{ const r0 = svg.getBoundingClientRect(); return {x: r0.left + vx + x*vs, y: r0.top + vy + y*vs}; };
+    const hit = ()=> document.querySelector('.amalgam-bar-hit[data-amalgam="mbM"]');
+    // A click picks the bar out.
+    let p = toClient(rec0.lo * 0.8 + rec0.hi * 0.2, rec0.cross);
+    hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:1}));
+    await wait(100);
+    out.barFocused = amalgamBarFocus === 'mbM' && !!document.querySelector('.amalgam-bar-focus[data-amalgam="mbM"]');
+    // A carry moves it down, along the arrow, and is written down.
+    const before = barAt();
+    hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
+    for(let k = 1; k <= 8; k++){
+      window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:p.x + k, clientY:p.y + k*8}));
+      await wait(20);
+    }
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    await wait(350);
+    const moved = barAt();
+    const stored = workingNodes.find(t=> t[0] === 'mbM')[6].bar;
+    out.barCarried = moved > before + GRID && !!stored && stored.k === 'y' && stored.after === true;
+    out.barAt = JSON.stringify({before, moved, stored});
+    // Undo puts it back where it was.
+    undoLastEdit(); await wait(300);
+    out.barUndone = Math.abs(barAt() - before) < 0.05;
+    redoLastEdit(); await wait(300);
+    // The entry carried up beside the bar and past it: the bar does not move.
+    const m = nodes.get('mbM');
+    const start = toClient(m.x + m.w/2, m.y + m.h/2);
+    const g = document.querySelector('.node[data-id="mbM"]');
+    g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:start.x, clientY:start.y}));
+    const seen = new Set();
+    for(let k = 1; k <= 20; k++){
+      window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:start.x + k*12, clientY:start.y - k*14}));
+      await wait(30);
+      seen.add(barAt());
+    }
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    await wait(400);
+    out.barHeldUnderEntry = seen.size === 1 && [...seen][0] === moved && barAt() === moved;
+    out.barSeen = JSON.stringify([...seen]);
+    // A double click on a stretch opens that lineage's panel.
+    const rec1 = amalgamBars.get('mbM');
+    const s3 = rec1.stretches.find(s=> s.from === 'mbC');
+    p = toClient((s3.lo + s3.hi) / 2, rec1.cross);
+    hit().dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:p.x, clientY:p.y}));
+    await wait(200);
+    out.stretchOpens = edgePopover.classList.contains('open') && currentEdgeStyleTarget &&
+                       currentEdgeStyleTarget.from === 'mbC' && currentEdgeStyleTarget.to === 'mbM';
+    closeEdgePopover();
+    // Every lineage straight, and the bar is still there.
+    ['mbA','mbB','mbC'].forEach(f=> EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true}));
+    redrawEdges(); await wait(200);
+    out.straightJoints = document.querySelectorAll('.amalgam-joint[data-to="mbM"]').length;
+    out.straightKeepsBar = !!hit() && out.straightJoints >= 1;
+
+    applyEdit(()=>{
+      workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+      refill(EDGE_STYLES, beforeStyles);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+      Object.assign(SETTINGS, beforeSettings);
+    });
+    setBarFocus(null);
+    await wait(300);
+    return out;
+  });
+  check('a connector nobody styled turns square elbows', r.squareDefault);
+  check('an entry takes the colour of its tag, its own colour wins', r.tagColourTaken && r.tagColourSaved, r.tagColour);
+  check('a special tag has no colour and no square to set one', r.specialRefused && r.specialNoSwatch);
+  check('the form shows the tag colour and stores none of it', r.formShowsTagColour && r.formStoresNothing);
+  check('border and background colours sit side by side', r.hexPair);
+  check('a callout is added from a mark beside the path', r.calloutMark);
+  check('the legend takes rows of the author\'s own, and readers do not see it',
+        r.legendOwnRow && r.legendHiddenForReader, JSON.stringify({own:r.legendOwnRow, hidden:r.legendHiddenForReader}));
+  check('an amalgam may ripple', r.amalgamRipples);
+  check('the merged arrow can be pointed at, styled and lit, but not repainted or deleted',
+        r.outHit && r.outDashed && r.outGlows, JSON.stringify({hit:r.outHit, dash:r.outDashed, glow:r.outGlows}));
+  check('a click picks out the bar', r.barFocused);
+  check('a carried bar moves along the arrow and is written down, and undo takes it back',
+        r.barCarried && r.barUndone, r.barAt);
+  check('the entry carried beside and past its bar never moves it', r.barHeldUnderEntry, r.barSeen);
+  check('a double click on a stretch of the bar opens that lineage', r.stretchOpens);
+  check('straight lineages keep the bar', r.straightKeepsBar, String(r.straightJoints));
+  });
   await scenario("a page told late that it is read-only", async () => {
   /* On claude.ai the host answers "may this viewer write?" after the
      first draw, so everything left out by asking readOnlyView while it
@@ -14477,11 +14685,12 @@ async function main(){
     document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, false));
     return {before, after, back, pending, refsBefore, refsAfter};
   });
-  check('an editor has the + buttons to begin with', late.before.plus === 3 && late.before.refColour === 1, JSON.stringify(late.before));
+  // Four since 0.12.0: the legend has a + of its own for the rows it shows.
+  check('an editor has the + buttons to begin with', late.before.plus === 4 && late.before.refColour === 1, JSON.stringify(late.before));
   check('a page told late that it is read-only offers no + for a tag, a category or a reference, nor a reference\'s ✎ ✕ or the citation colour',
         late.after.plus === 0 && late.after.refTools === 0 && late.after.refColour === 0 && late.after.tagDel === 0, JSON.stringify(late.after));
   check('and the functions behind them refuse a reader', !late.pending && late.refsBefore === late.refsAfter, JSON.stringify(late));
-  check('the way back gives them back', late.back.plus === 3 && late.back.refColour === 1, JSON.stringify(late.back));
+  check('the way back gives them back', late.back.plus === 4 && late.back.refColour === 1, JSON.stringify(late.back));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

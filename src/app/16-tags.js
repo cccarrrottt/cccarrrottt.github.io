@@ -350,59 +350,227 @@ function setKeyMeaning(key, text){
     if(Object.keys(next).length) SETTINGS.legend = next; else delete SETTINGS.legend;
   });
 }
+/* The legend is the author's, whole: every row's name and meaning, which
+   rows stand in it, and rows of their own that are no mark the program
+   draws. What the program supplies is a starting point — the marks the
+   chart is using — and everything the author changes is kept with the
+   chart, in SETTINGS:
+     legend        {key: meaning}  what a mark means here
+     legendNames   {key: name}     what the row is called
+     legendHidden  [key]           marks in use that the author took out
+     legendAdded   [key]           marks NOT in use that the author put in
+     legendOwn     [{id, name, meaning, color}]  rows of the author's own
+   It is a tool for the author while the chart is being built, so a reader
+   is not shown it (the owner's call, 2026-10-14); see body.read-only. */
+function legendSetting(name, fallback){
+  const v = SETTINGS[name];
+  return v === undefined ? fallback : v;
+}
+function keyNameOf(mark){
+  const names = legendSetting('legendNames', {});
+  return typeof names[mark.key] === 'string' && names[mark.key] ? names[mark.key] : mark.name;
+}
+/* The rows in the order they stand: the program's marks in its own order,
+   less those taken out and with those put in, then the author's own. */
+function keyRows(){
+  const hidden = new Set(legendSetting('legendHidden', []));
+  const added = new Set(legendSetting('legendAdded', []));
+  const used = new Set(keyMarksInUse().map(m=> m.key));
+  const marks = KEY_MARKS.filter(m=> (used.has(m.key) || added.has(m.key)) && !hidden.has(m.key));
+  return {marks, own: legendSetting('legendOwn', []).slice()};
+}
+/* Every legend change is one step of undo, and empties are not stored:
+   a chart whose author never touched the legend writes what it always did. */
+function editLegend(change){
+  if(readOnlyView) return;
+  applyEdit(()=>{
+    const next = {
+      legendNames: Object.assign({}, legendSetting('legendNames', {})),
+      legendHidden: legendSetting('legendHidden', []).slice(),
+      legendAdded: legendSetting('legendAdded', []).slice(),
+      legendOwn: legendSetting('legendOwn', []).map(o=> Object.assign({}, o)),
+    };
+    change(next);
+    const empty = v=> Array.isArray(v) ? !v.length : !Object.keys(v).length;
+    Object.keys(next).forEach(k=>{ if(empty(next[k])) delete SETTINGS[k]; else SETTINGS[k] = next[k]; });
+  });
+}
+function setKeyName(key, text){
+  const mark = KEY_MARKS.find(m=> m.key === key);
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  const want = (!t || (mark && t === mark.name)) ? null : t;
+  const now = legendSetting('legendNames', {})[key] || null;
+  if(want === now) return;
+  editLegend(o=>{ if(want === null) delete o.legendNames[key]; else o.legendNames[key] = want; });
+}
+function hideKeyMark(key){
+  editLegend(o=>{
+    o.legendAdded = o.legendAdded.filter(k=> k !== key);
+    if(keyMarksInUse().some(m=> m.key === key) && !o.legendHidden.includes(key)) o.legendHidden.push(key);
+  });
+}
+function showKeyMark(key){
+  editLegend(o=>{
+    o.legendHidden = o.legendHidden.filter(k=> k !== key);
+    if(!keyMarksInUse().some(m=> m.key === key) && !o.legendAdded.includes(key)) o.legendAdded.push(key);
+  });
+}
+function addOwnKeyRow(){
+  let id;
+  const taken = new Set(legendSetting('legendOwn', []).map(r=> r.id));
+  for(let i = 1; taken.has(id = 'own' + i); i++);
+  editLegend(o=> o.legendOwn.push({id, name: 'New mark', meaning: '', color: '#20242b'}));
+  return id;
+}
+function editOwnKeyRow(id, field, value){
+  const row = legendSetting('legendOwn', []).find(r=> r.id === id);
+  if(!row) return;
+  let v = String(value || '');
+  if(field !== 'color') v = v.replace(/\s+/g, ' ').trim();
+  if(field === 'color' && !HEX_RE.test(v)) return;
+  if((row[field] || '') === v) return;
+  editLegend(o=>{ const r = o.legendOwn.find(x=> x.id === id); if(r) r[field] = v; });
+}
+function deleteOwnKeyRow(id){
+  editLegend(o=>{ o.legendOwn = o.legendOwn.filter(r=> r.id !== id); });
+}
+/* A field that settles on Enter or leaving it, and puts back what it had
+   on Escape — the legend's words, its names and its colours alike. */
+function keyField(tag, cls, value, placeholder, label, commit){
+  const box = document.createElement(tag);
+  if(tag === 'textarea') box.rows = 1; else box.type = 'text';
+  box.className = cls;
+  box.value = value;
+  box.placeholder = placeholder;
+  box.setAttribute('aria-label', label);
+  box.spellcheck = false;
+  box.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); box.blur(); }
+    if(ev.key === 'Escape'){ ev.preventDefault(); box.value = value; box.blur(); }
+  });
+  box.addEventListener('change', ()=> commit(box.value));
+  return box;
+}
+function keyRemoveButton(title, fn){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'key-remove';
+  b.title = title;
+  b.textContent = '✕';
+  b.addEventListener('click', ev=>{ ev.stopPropagation(); fn(); });
+  return b;
+}
+/* The menu under the legend's +: the program's marks not in the legend,
+   and a row of the author's own. */
+let keyAddMenuOpen = false;
+function buildKeyAddMenu(){
+  const menu = document.createElement('div');
+  menu.className = 'key-add-menu';
+  const shown = new Set(keyRows().marks.map(m=> m.key));
+  const own = document.createElement('button');
+  own.type = 'button';
+  own.className = 'key-add-own';
+  own.textContent = '+ A row of your own';
+  own.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    keyAddMenuOpen = false;
+    const id = addOwnKeyRow();
+    const box = keyList.querySelector(`.key-item[data-own="${id}"] .key-name-input`);
+    if(box){ box.focus(); box.select(); }
+  });
+  menu.appendChild(own);
+  let group = null;
+  KEY_MARKS.filter(m=> !shown.has(m.key)).forEach(m=>{
+    if(m.group !== group){
+      group = m.group;
+      const gh = document.createElement('div');
+      gh.className = 'key-group';
+      gh.textContent = group;
+      menu.appendChild(gh);
+    }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'key-add-mark';
+    b.innerHTML = m.sample() + `<span>${escapeHtml(keyNameOf(m))}</span>`;
+    b.addEventListener('click', ev=>{ ev.stopPropagation(); keyAddMenuOpen = false; showKeyMark(m.key); });
+    menu.appendChild(b);
+  });
+  return menu;
+}
 function buildKeyTab(){
   if(!keyList) return;
   const scroll = keyList.scrollTop;
   keyList.innerHTML = '';
-  const marks = keyMarksInUse();
-  keyList.appendChild(sectionHead('Legend', marks.length));
-  if(!marks.length){
+  const {marks, own} = keyRows();
+  const head = sectionHead('Legend', marks.length + own.length);
+  if(!readOnlyView){
+    const add = makePlusButton('Add a row to the legend');
+    add.addEventListener('click', ev=>{ ev.stopPropagation(); keyAddMenuOpen = !keyAddMenuOpen; buildKeyTab(); });
+    head.appendChild(add);
+  }
+  keyList.appendChild(head);
+  if(keyAddMenuOpen && !readOnlyView) keyList.appendChild(buildKeyAddMenu());
+  if(!marks.length && !own.length){
     const empty = document.createElement('div');
     empty.className = 'key-empty';
     empty.textContent = 'Nothing on the chart yet.';
     keyList.appendChild(empty);
   }
   let group = null;
+  const heading = g=>{
+    if(g === group) return;
+    group = g;
+    const gh = document.createElement('div');
+    gh.className = 'key-group';
+    gh.textContent = g;
+    keyList.appendChild(gh);
+  };
+  const row = (sampleHtml, words)=>{
+    const r = document.createElement('div');
+    r.className = 'key-item';
+    r.innerHTML = sampleHtml;
+    const w = document.createElement('div');
+    w.className = 'key-words';
+    words.forEach(x=> w.appendChild(x));
+    r.appendChild(w);
+    keyList.appendChild(r);
+    return r;
+  };
+  const text = (cls, t)=>{ const d = document.createElement('div'); d.className = cls; d.textContent = t; return d; };
   marks.forEach(m=>{
-    if(m.group !== group){
-      group = m.group;
-      const gh = document.createElement('div');
-      gh.className = 'key-group';
-      gh.textContent = group;
-      keyList.appendChild(gh);
-    }
-    const row = document.createElement('div');
-    row.className = 'key-item';
-    row.dataset.key = m.key;
-    const meaning = keyMeaningOf(m);
-    row.innerHTML = m.sample() +
-      `<div class="key-words"><div class="key-name">${escapeHtml(m.name)}</div></div>`;
-    const words = row.querySelector('.key-words');
+    heading(m.group);
+    const name = keyNameOf(m), meaning = keyMeaningOf(m);
+    let r;
     if(readOnlyView){
-      if(meaning){
-        const d = document.createElement('div');
-        d.className = 'key-meaning';
-        d.textContent = meaning;
-        words.appendChild(d);
-      }
+      r = row(m.sample(), [text('key-name', name)].concat(meaning ? [text('key-meaning', meaning)] : []));
     } else {
-      /* A field that grows with what is written in it, so a meaning of a
-         sentence or two is read whole rather than scrolled sideways. */
-      const box = document.createElement('textarea');
-      box.rows = 1;
-      box.className = 'key-meaning-input';
-      box.value = meaning;
-      box.placeholder = 'What it means on this chart';
-      box.setAttribute('aria-label', `What “${m.name}” means on this chart`);
-      box.addEventListener('keydown', ev=>{
-        ev.stopPropagation();
-        if(ev.key === 'Enter'){ ev.preventDefault(); box.blur(); }
-        if(ev.key === 'Escape'){ ev.preventDefault(); box.value = keyMeaningOf(m); box.blur(); }
-      });
-      box.addEventListener('change', ()=> setKeyMeaning(m.key, box.value));
-      words.appendChild(box);
+      r = row(m.sample(), [
+        keyField('input', 'key-name-input', name, m.name, `The name of “${m.name}” in the legend`, v=> setKeyName(m.key, v)),
+        keyField('textarea', 'key-meaning-input', meaning, 'What it means on this chart',
+                 `What “${name}” means on this chart`, v=> setKeyMeaning(m.key, v))
+      ]);
+      r.appendChild(keyRemoveButton('Take this row out of the legend — the + puts it back', ()=> hideKeyMark(m.key)));
     }
-    keyList.appendChild(row);
+    r.dataset.key = m.key;
+  });
+  own.forEach(o=>{
+    heading('Your own');
+    const swatch = keySvg(`<rect ${KEY_BOX} class="key-own" style="fill:${escapeHtml(o.color || '#20242b')}"/>`);
+    let r;
+    if(readOnlyView){
+      r = row(swatch, [text('key-name', o.name)].concat(o.meaning ? [text('key-meaning', o.meaning)] : []));
+    } else {
+      const hex = keyField('input', 'key-own-hex hex-input', o.color || '', '#20242b', 'The colour of this row', v=> editOwnKeyRow(o.id, 'color', v.trim()));
+      hex.maxLength = 9;
+      r = row(swatch, [
+        keyField('input', 'key-name-input', o.name, 'Name', 'The name of this row', v=> editOwnKeyRow(o.id, 'name', v)),
+        keyField('textarea', 'key-meaning-input', o.meaning || '', 'What it means on this chart', 'What this row means', v=> editOwnKeyRow(o.id, 'meaning', v)),
+        hex
+      ]);
+      r.appendChild(keyRemoveButton('Delete this row', ()=> deleteOwnKeyRow(o.id)));
+    }
+    r.dataset.own = o.id;
   });
   keyList.scrollTop = scroll;
 }
@@ -803,6 +971,52 @@ function buildCategoryBlock(group){
   return wrap;
 }
 
+/* A tag's colour, typed where its square was. Enter or leaving keeps it,
+   Escape keeps what was there, and an emptied box takes the colour off. */
+function openTagColorBox(row, tag){
+  const sw = row.querySelector('.swatch');
+  if(!sw || row.querySelector('.tag-color-box')) return;
+  const box = document.createElement('input');
+  box.type = 'text';
+  box.className = 'tb-hex tag-color-box';
+  box.maxLength = 9;
+  box.spellcheck = false;
+  box.value = tagColorOf(tag) || '';
+  box.placeholder = '#3a6fd8';
+  box.style.setProperty('--swatch', box.value || 'transparent');
+  sw.replaceWith(box);
+  let done = false;
+  const finish = keep=>{
+    if(done) return;
+    done = true;
+    const v = box.value.trim();
+    if(keep && (v === '' || HEX_RE.test(v)) && (v || null) !== tagColorOf(tag)){
+      applyEdit(()=> setTagColorIn(tag, v || null));
+    } else buildSideTabs();
+  };
+  box.addEventListener('mousedown', ev=> ev.stopPropagation());
+  box.addEventListener('click', ev=> ev.stopPropagation());
+  box.addEventListener('input', ()=>{
+    const v = box.value.trim();
+    box.classList.toggle('bad', !!v && !HEX_RE.test(v));
+    box.style.setProperty('--swatch', HEX_RE.test(v) ? v : 'transparent');
+  });
+  box.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  box.addEventListener('blur', ()=> finish(true));
+  box.focus();
+  box.select();
+}
+/* Inside an edit: the map is replaced rather than changed in place, so the
+   undo snapshot taken before still holds the old one. */
+function setTagColorIn(tag, color){
+  const next = Object.assign({}, SETTINGS.tagColors || {});
+  if(color && !tagIsSpecial(tag)) next[tag] = color; else delete next[tag];
+  if(Object.keys(next).length) SETTINGS.tagColors = next; else delete SETTINGS.tagColors;
+}
 function buildTagRow(tag, catName){
   const row = document.createElement('div');
   row.className = 'legend-item' + (hiddenTags.has(tag) ? ' off' : '');
@@ -813,8 +1027,17 @@ function buildTagRow(tag, catName){
   /* A star on the ones that act. It is a mark on the NAME, not a column of
      its own, so the rows still line up and a chart with no special tags in
      it looks exactly as it did. */
+  /* The square is the tag's colour — the one its entries are drawn in when
+     they have none of their own. A tag that acts, and the Untagged bucket,
+     give no colour, so they have no square: a square there promised a
+     colour that could never be set. Pressed, it opens the colour to type
+     in; a tag with no colour yet shows an empty one to press. */
+  const colorable = tag !== UNTAGGED && !tagIsSpecial(tag);
+  const own = colorable ? tagColorOf(tag) : null;
   row.innerHTML =
-    `<div class="swatch" style="background:var(--accent)"></div>` +
+    (colorable && (own || !readOnlyView)
+      ? `<div class="swatch${own ? '' : ' swatch-unset'}"${own ? ` style="background:${escapeHtml(own)}"` : ''}></div>`
+      : `<div class="swatch swatch-none"></div>`) +
     `<div class="name">${tagShapeHtml(displayName, {special: tagIsSpecial(tag),
                                                     reserved: tag === UNTAGGED,
                                                     why: SPECIAL_TAGS[tag]})}</div>` +
@@ -832,6 +1055,13 @@ function buildTagRow(tag, catName){
     buildSideTabs();
   });
   row.insertBefore(eye, row.firstChild);
+  const sw = row.querySelector('.swatch');
+  if(colorable && !readOnlyView && sw){
+    sw.classList.add('swatch-pick');
+    sw.title = own ? `${own} — the colour of entries with this tag; press to change` : 'Give this tag a colour';
+    sw.addEventListener('mousedown', ev=> ev.stopPropagation());
+    sw.addEventListener('click', ev=>{ ev.stopPropagation(); openTagColorBox(row, tag); });
+  }
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
      with no tags at all show up — so it cannot be filed or deleted. Nor
      can anything by a reader: the ✕ on a category was already kept from

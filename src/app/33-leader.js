@@ -279,6 +279,8 @@ document.addEventListener('click', e=>{
 styleDeleteBtn.onclick = ()=>{
   if(!currentEdgeStyleTarget) return;
   const {from,to} = currentEdgeStyleTarget;
+  // The merged arrow goes with its merge, never on its own.
+  if(isMergedArrow(from, to)) return;
   clearStyleStatus();
   if(deleteEdge(from, to)) closeEdgePopover();
 };

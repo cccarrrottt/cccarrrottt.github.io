@@ -330,6 +330,12 @@ function importChartFromText(text){
        with it, and not left over from the chart it replaced. */
     const legendIn = cleanLegend(settingsIn && settingsIn.legend);
     if(Object.keys(legendIn).length) SETTINGS.legend = legendIn; else delete SETTINGS.legend;
+    const rowsIn = cleanLegendRows(settingsIn);
+    const tagColorsIn = cleanTagColors(settingsIn && settingsIn.tagColors);
+    if(Object.keys(tagColorsIn).length) SETTINGS.tagColors = tagColorsIn; else delete SETTINGS.tagColors;
+    ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn'].forEach(k=>{
+      if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
+    });
     rebuildStickerMap();
     rebuildMediaMap();
   });

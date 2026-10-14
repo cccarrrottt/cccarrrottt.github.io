@@ -211,12 +211,15 @@ function openEdgeStylePopover(from, to, evt){
   const structEdge = structEdges.find(e=>e.from===from && e.to===to);
   currentEdgeNaturalColor = (structEdge && structEdge.color) || '#20242b';
   const a = nodes.get(from), b = nodes.get(to);
-  edgeStyleLabelEl.textContent = (a ? stripMarkup(a.label) : from) + ' → ' + (b ? stripMarkup(b.label) : to);
+  /* The merged arrow has no source entry; what it comes from is the
+     merge, and that is what the panel calls it. */
+  edgeStyleLabelEl.textContent = (a ? stripMarkup(a.label) : from === '' ? 'Merge' : from) + ' → ' + (b ? stripMarkup(b.label) : to);
   edgeStyleLabelEl.title = edgeStyleLabelEl.textContent;
   styleRoutingSel.value = style.routing;
   /* A lineage feeding an amalgam runs into the shared bar: its colour
      names which lineage it is, and the bar decides where it runs. */
-  const mergedEdge = isAmalgamMember(from, to);
+  const mergedEdge = isMergePart(from, to);
+  const mergedOut = isMergedArrow(from, to);
   /* And it cannot be painted with a gradient. Its colour is what says
      WHICH lineage this stretch of the bar belongs to — a sweep between two
      colours says it belongs to two, which is the one thing the bar exists
@@ -226,7 +229,9 @@ function openEdgeStylePopover(from, to, evt){
   if(gradBtn){
     gradBtn.disabled = mergedEdge;
     gradBtn.classList.toggle('disabled', mergedEdge);
-    gradBtn.title = mergedEdge
+    gradBtn.title = mergedOut
+      ? 'Set by the amalgam: the merged arrow carries every lineage\u2019s colour'
+      : mergedEdge
       ? 'Not on a merged lineage: its colour names which lineage it is'
       : 'Gradient along the connector';
   }
@@ -239,10 +244,16 @@ function openEdgeStylePopover(from, to, evt){
       clearBtn.disabled = mergedEdge;
       clearBtn.classList.toggle('disabled', mergedEdge);
       clearBtn.title = mergedEdge
-        ? 'Set by the amalgam: a merged lineage runs where the bar puts it'
+        ? 'Set by the amalgam: the merge decides where this runs'
         : 'Route it again — take every bend set by hand out';
     }
   }
+  /* The merged arrow's paint is every lineage's colour, and it is not a
+     connector anybody drew, so it cannot be deleted on its own either:
+     it goes when the merge does. The rows are taken away rather than
+     greyed — there is nothing in either it could ever offer. */
+  document.getElementById('stylePaintMode').closest('.style-row').hidden = mergedOut;
+  styleDeleteBtn.hidden = mergedOut;
   if(mergedEdge && style.gradient){
     // Data can carry one even though the control cannot set it.
     style = Object.assign({}, style, {gradient: null, color: style.color || style.gradient[0]});
@@ -313,7 +324,7 @@ function applyLiveEdgeStyle(){
        from the note's own bar — all carried through untouched here. */
     dash: kept.dash, sinusoid: kept.sinusoid || undefined,
     arrow: kept.arrow, arrowIn: kept.arrowIn || undefined,
-    square: kept.square || undefined,
+    square: kept.square ? undefined : false,
     note: noteFromForm(),
     notePos: noteFromForm() ? (kept.notePos || 'above') : undefined,
     /* Where along the line the note rides. Placed on the DRAWING by
