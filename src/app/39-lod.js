@@ -34,7 +34,7 @@ var LOD_REACH = 150, LOD_CAT_REACH = 1000;
 // How far a patch stands out round the entries it covers.
 var LOD_PAD = 26;
 var LOD_INK = '#8a8f98';
-var lodLevel = 0, lodStale = true, lodLayerEl = null;
+var lodLevel = 0, lodStale = true, lodLayerEl = null, lodHeightMemo = null;
 
 function lodLayer(){
   if(!lodLayerEl){
@@ -51,18 +51,21 @@ function lodLayer(){
 // The height an ordinary entry is drawn at: the median, so a few tall
 // cards or captions do not decide it.
 function lodEntryHeight(){
+  /* Asked on every frame of a zoom, so remembered until the chart changes
+     (markLodStale), rather than sorting every entry's height each time. */
+  if(lodHeightMemo) return lodHeightMemo;
   const hs = [];
   nodes.forEach(n=>{ if(!isFreeShape(n.shape || '') && !isCalloutNode(n)) hs.push(n.h); });
   if(!hs.length) return 40;
   hs.sort((a, b)=> a - b);
-  return hs[hs.length >> 1] || 40;
+  return (lodHeightMemo = hs[hs.length >> 1] || 40);
 }
 function lodLevelNow(){
   if(typeof nodes === 'undefined' || !nodes.size) return 0;
   const px = vs * lodEntryHeight();
   return px < LOD_CAT_PX ? 2 : px < LOD_TAG_PX ? 1 : 0;
 }
-function markLodStale(){ lodStale = true; syncLod(); }
+function markLodStale(){ lodStale = true; lodHeightMemo = null; syncLod(); }
 /* Asked on every change of view: cheap unless the level has changed, when
    the patches are drawn afresh; otherwise only their labels are resized,
    since they are kept a readable size on the screen. */

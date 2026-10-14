@@ -8168,9 +8168,6 @@ async function main(){
          never move each other (0.12.0). The merged arrow turns to reach. */
       const n = nodes.get('bdM');
       const barBefore = JSON.stringify(['lo','hi','cross'].map(k=> +amalgamBars.get('bdM')[k].toFixed(2)));
-      /* Read off as NUMBERS: the entry objects are reused across redraws,
-         so a reference kept over a drag reports where it ended up. */
-      const fromCentre = n.x + n.w/2;
       const g = document.querySelector('.node[data-id="bdM"]');
       const start = toClient(n.x + n.w/2, n.y + n.h/2);
       const landings = ['bdA','bdB','bdC'].map(id=>{

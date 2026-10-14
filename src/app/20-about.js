@@ -11,9 +11,17 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.11.0';
+const APP_VERSION = '0.12.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.12.0', date:'2026-10-14', title:'A pixel round the words', notes:[
+'Connectors turn square by default: a connector nobody has styled routes orthogonally with square elbows, and rounding is the choice. An amalgam\u2019s merged arrow is a connector like the rest now \u2014 it can be pointed at, lit, dashed, waved, rounded, routed straight or curved and given a note, while its paint stays every lineage\u2019s colour \u2014 and an amalgam may have a wavy border.',
+'An entry takes its tag\u2019s colour. A tag\u2019s square in the Tags list is its colour; an entry with no colour of its own is drawn in its tags\u2019 colours, and one with neither is the default black. The tags that act, and Untagged, have no colour to give.',
+'Seen from far away, the chart draws what its entries add up to: a patch of colour for each cluster of entries sharing a tag, and further out one for each category. A click on a patch zooms in to it.',
+'A merge\u2019s bar stays where it is put. Carrying the amalgam only lengthens its merged arrow \u2014 the bar no longer gives way to it or flips across the lineages \u2014 and a click on the bar picks it out to be carried along the arrow. A double click on a stretch of it opens that lineage. Lineages routed straight keep the bar.',
+'The legend is the author\u2019s and is shown only while editing: names, meanings, rows taken out and put back, and rows of one\u2019s own. Colour boxes are the size of a colour, side by side where there are two.',
+'Along the way: a picked set is lit evenly with what runs between it; a pan no longer closes the open entry; a reader is offered nothing that changes the chart; words sit a pixel from their border; and connectors, notes and callouts take their looks from a bar on the thing itself.',
+  ]},
   {v:'0.11.0', date:'2026-10-06', title:'In the hand', notes:[
 'The chart works on a phone. One finger does what the mouse does — carries an entry, pans the paper, draws a connector out of an entry’s edge, pulls a corner, moves a bend — and two fingers pan and zoom about the point between them. A tap is a click and two quick taps a double click, so an entry is opened for writing the way it is on a desk. For a reader, who cannot carry anything, every drag on the chart pans.',
 'A hold stands in for the keys a finger has not got. Held still for a moment and then moved, a finger on open paper draws the selection box (Shift), and on an entry carries it free of the grid (Ctrl); a held tap on an entry adds it to the selection or takes it out. In the Management panel a tag or a reference is picked up by holding it, so a finger that simply moves still scrolls the list.',

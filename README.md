@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.11.0** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.12.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 38 files, one per subsystem — see "One scope, many
+  app/         the program, 39 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
 build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
@@ -55,7 +55,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 38 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 39 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -408,6 +408,29 @@ The point is chosen by pointing at the connector, not by typing a number — 0.6
 you are looking at an elbowed line. Shift restricts the offer to the ends, quarters and middle:
 the places such a note usually wants to be, and exactly the places freehand pointing is worst at
 hitting.
+
+## Seen from far away
+
+`src/app/39-lod.js` is the chart's level of detail. The level is decided by
+how tall an ordinary entry (the median) is on the screen: under 5 pixels each
+cluster of entries sharing a tag is drawn as one patch of the tag's colour,
+under 2.4 one patch per category. A cluster is entries of one tag within
+`LOD_REACH` of each other (`LOD_CAT_REACH` for a category). The entries'
+layers are `display:none` while the patches show, which is the saving; the
+patches are drawn again only when the level or the chart changes. A tag's
+colour is `SETTINGS.tagColors`, set on its square in the Tags list; scenery
+tags have none.
+
+## A merge's bar
+
+A bar is the lineages': `opts.bar = {k, after, lead}` on the amalgam says
+which axis it is laid across, which side of the lineages, and how far beyond
+them. It is written the first time anything of the merge is carried
+(`fixAmalgamBars`) and after that the amalgam carried about moves only the
+merged arrow. Until then `amalgamGeometry` works the place out as before. A
+click on the bar picks it out and it is carried along the arrow
+(`beginBarDrag`). The merged arrow's style is the `EDGE_STYLES` entry
+`{from:'', to:<amalgam>}` (`isMergedArrow`).
 
 ## On a phone
 

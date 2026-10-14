@@ -463,7 +463,7 @@ function amalgamStem(geo, from, pnodes){
 function drawAmalgam(list, ports){
   const geo = amalgamGeometry(list, ports);
   if(!geo) return;
-  const {b, ring, side, nrm, ux, uy, port} = geo;
+  const {b, ring, side, nrm, ux, uy} = geo;
 
   // Members read along the bar in the order their sources actually lie, so
   // the lines fan in without crossing each other.

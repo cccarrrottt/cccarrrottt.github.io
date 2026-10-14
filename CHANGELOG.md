@@ -6,7 +6,49 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
-## Unreleased — "A pixel round the words"
+## 0.12.0 — "A pixel round the words" (2026-10-14)
+
+### Ninth thoughts (owner's notes)
+
+- **Connectors turn square by default.** A connector nobody has styled
+  routes orthogonally with square elbows, the merged arrow of an amalgam
+  included; rounding is the choice now, stored as `square:false`. An old
+  `square:true` is written back as it was.
+- **An entry takes its tag's colour.** A tag's square in the Tags list
+  is its colour — pressed, it opens a box to type one in. An entry with no
+  colour of its own is drawn in the colours of its tags (one ring per
+  distinct colour, in tag order); one with a colour of its own keeps it,
+  and one with neither is the default black. The tags that act (fan
+  fiction, unreleased, the hub, the local multiverse) and Untagged carry
+  no colour, and show no square. The entry's form shows the colour it is
+  drawn in, and committing it stores nothing.
+- **Seen from far away, the chart draws patches.** Once an ordinary
+  entry is only a few pixels tall on the screen, each cluster of entries
+  that share a tag is drawn as one patch of the tag's colour, and further
+  out still each category is one patch. The entries are not drawn
+  meanwhile. A click on a patch zooms in to it.
+- **The legend is the author's.** It is shown only while editing. Each
+  row's name and meaning can be written, a row can be taken out (the +
+  puts it back, along with any mark not yet in use), and rows of one's
+  own can be added with a colour.
+- **A merge's bar stays where it is put.** The first time anything of a
+  merge is carried, its bar is fixed where it stands, measured from the
+  lineages; the amalgam carried about after that only lengthens its
+  merged arrow. The bar no longer gives way to the entry, nor flips to
+  the far side of the lineages when the entry passes their middle, and
+  the entry is no longer held between the bar's ends. A click on the bar
+  picks it out and it can be carried along the merged arrow; a double
+  click (a long press on a phone) on a stretch opens that lineage's panel.
+- **The merged arrow is a connector.** It can be pointed at and lit,
+  dashed, waved, rounded, routed straight or curved, and given a note.
+  Its paint stays every lineage's colour, and it is not deleted on its
+  own. Lineages routed straight keep the bar instead of all running to
+  one point. An amalgam may have a wavy border.
+- **Colour boxes are the size of a colour.** The entry's border colours
+  and background stand side by side; a connector's note and a callout
+  without a shelf have a background box with its square on the bar. The
+  callout is added from a mark beside the path instead of a row of its
+  own.
 
 ### Eighth thoughts (owner's notes)
 
