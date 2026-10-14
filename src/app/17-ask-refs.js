@@ -245,6 +245,7 @@ async function refPrompt(existing, title){
   return {title:'', detail:(got.detail||'').trim(), url};
 }
 async function editRef(key){
+  if(readOnlyView) return;
   const i = refIndex(key);
   if(i < 0) return;
   const got = await refPrompt(REFS[i], 'Edit reference');
@@ -274,6 +275,7 @@ function reorderRef(key, overKey, where){
   buildSideTabs(); rebuildChart();
 }
 async function deleteRef(key){
+  if(readOnlyView) return;
   const used = refUsageCount(key);
   if(used && !await askConfirm('Delete this reference?',
       `${used} ${used===1?'text cites':'texts cite'} it. Deleting removes those marks from the text as well.`)) return;
@@ -466,6 +468,7 @@ async function deleteTagEverywhere(tag, count){
       `It is on ${count} ${count===1?'entry':'entries'}, and will be removed from ${count===1?'it':'them'}.`)) return;
   applyEdit(()=>{
     TAG_CATS.forEach(c=>{ const i = c.tags.indexOf(tag); if(i >= 0) c.tags.splice(i, 1); });
+    setTagColorIn(tag, null);
     workingNodes.forEach(t=>{
       const opts = t[6];
       if(!opts || !Array.isArray(opts.tags)) return;

@@ -1060,7 +1060,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     const paint = paintColors.length>1 ? makeGradient(paintColors, false, nodeDefs) : paintColors[0];
     // fill is set via inline style, not the plain attribute, because the
     // .node rect{fill:var(--panel)} stylesheet rule otherwise wins over it
-    borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:rad(cornerR-i)}),
+    if(isWavy) borderRing('path',
+      (i)=>({d: wavyRectPath(n.x+i, n.y+i, n.w-i*2, h-i*2, -i)}),
+      paint, bgFillStyle || 'fill:var(--panel);');
+    else borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:rad(cornerR-i)}),
                paint, bgFillStyle);
     textFill = paint;
   } else if(isBio){

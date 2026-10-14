@@ -22,6 +22,11 @@ const AMALGAM_GAP = 18, AMALGAM_LEAD = 34, AMALGAM_PITCH = 2 * 6 + 3;
    coordinates. Filled in by drawAmalgam; read by a drag that offers to
    centre the entry on its own bar. */
 const amalgamBars = new Map();
+/* The bar a click has taken hold of, by its amalgam's id, and the drag
+   carrying one. Up here rather than with the code that uses them, because
+   the first drawing below already asks. */
+let amalgamBarFocus = null;
+let amalgamBarDrag = null;
 /* How far a lineage runs straight down before it touches the bar. Two
    corner radii and a little over, so the bend onto the bar always has a
    full radius of leg to sit in and can never square off. */
@@ -53,6 +58,19 @@ const amalgamMemberKeys = new Set();
 // One place builds the key, so the two ends can never drift apart.
 function edgePairKey(from, to){ return from + '\u0000' + to; }
 function isAmalgamMember(from, to){ return amalgamMemberKeys.has(edgePairKey(from, to)); }
+/* The merged arrow out of a bar into its amalgam. It has no source entry —
+   it belongs to the merge, not to a lineage — so it is named by an empty
+   `from` and the amalgam it feeds, here, in the style it is given and on
+   the page alike. */
+function isMergedArrow(from, to){
+  if(from !== '') return false;
+  const b = nodes.get(to);
+  return !!b && (b.shape || '') === 'amalgam';
+}
+/* Either piece of a merge: the arrow, or a lineage running into it. What
+   both share is that the merge decides where they run and what they end
+   in, so neither has bends of its own or an arrowhead to switch. */
+function isMergePart(from, to){ return isAmalgamMember(from, to) || isMergedArrow(from, to); }
 
 /* The colour of one border ring of an entry — what the port on that ring
    is drawn in, and so what a connector leaving it inherits. */
@@ -126,6 +144,11 @@ function amalgamGeometry(list, ports){
      the vote still decide. */
   const pnodes = list.map(e=> nodes.get(e.from)).filter(Boolean);
   const byHand = list.some(e=> SIDES.includes(edgeStyleFor(e.from, e.to).toSide));
+  /* A bar somebody has put somewhere — by carrying it, or by carrying the
+     entry or a lineage, which fixes it where it stood (see fixAmalgamBars).
+     It says the axis and the side itself, and how far beyond the lineages
+     it hangs; nothing about the entry enters into it. */
+  const fixed = b.bar || null;
   let resting = null;
   if(pnodes.length && !byHand){
     const span = (k, len)=> ({lo: Math.min(...pnodes.map(p=> p[k])),
@@ -166,11 +189,13 @@ function amalgamGeometry(list, ports){
       const kv = sideIsVertical(side) ? 'y' : 'x';
       if(queued(kv) && !queued(kv === 'x' ? 'y' : 'x')) k = kv === 'x' ? 'y' : 'x';
     } else if(k && queued(k) && !queued(k === 'x' ? 'y' : 'x')) k = k === 'x' ? 'y' : 'x';
+    if(fixed) k = fixed.k;
     if(k){
       const sp = k === 'x' ? sx : sy, len = k === 'x' ? 'w' : 'h';
       const centre = b[k] + b[len]/2;
-      const after = centre >= sp.mid;
-      const at = after ? sp.hi + AMALGAM_LEAD : sp.lo - AMALGAM_LEAD;
+      const after = fixed ? fixed.after : centre >= sp.mid;
+      const lead = fixed ? fixed.lead : AMALGAM_LEAD;
+      const at = after ? sp.hi + lead : sp.lo - lead;
       /* Short of its resting place, the entry is across the bar's line
          from where it normally stands, and the bar is laid beyond it —
          which is what lets an entry be put on either side of its own bar.
@@ -186,7 +211,8 @@ function amalgamGeometry(list, ports){
       const facing = behind ? after : (past === after);
       side = k === 'x' ? (facing ? 'left' : 'right')
                        : (facing ? 'top' : 'bottom');
-      resting = {at, k, towards: (SIDE_NORMAL[side][k] < 0) === after};
+      resting = {at, k, after, lead, fixed: !!fixed, spLo: sp.lo, spHi: sp.hi,
+                 towards: (SIDE_NORMAL[side][k] < 0) === after};
     }
   }
   const nrm = SIDE_NORMAL[side] || {x:0, y:-1};
@@ -247,13 +273,28 @@ function amalgamGeometry(list, ports){
    * always did. */
   const rest = Number.isFinite(nearest) ? nearest - AMALGAM_LEAD : AMALGAM_GAP;
   let barDist = rest;
-  if(barDist < AMALGAM_GAP){
+  /* A bar that has been put somewhere stays exactly there. Giving way to
+     the entry is the entry deciding where the bar goes, and carried up
+     under its lineages that was a push the reader could watch: the bar
+     stepped ahead of the box a grid square at a time. A fixed bar is
+     where it was left, and if the entry is taken across it the merged
+     arrow simply comes in from the other side (see amalgamStem). */
+  if(resting && resting.fixed) barDist = (resting.at - port[resting.k]) * nrm[resting.k];
+  else if(barDist < AMALGAM_GAP){
     barDist = rest + Math.ceil((AMALGAM_GAP - rest) / GRID - 1e-9) * GRID;
     if(towards && Number.isFinite(nearest) && barDist > nearest - AMALGAM_SQUEEZE)
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
+          rest: resting ? restingNow(resting, port[resting.k] + nrm[resting.k] * barDist) : null,
           cx: port.x + nrm.x * barDist, cy: port.y + nrm.y * barDist};
+}
+/* Where the bar stands now, said the way a fixed bar is stored: the axis,
+   the side of the lineages, and how far beyond them — measured from where
+   it was actually drawn, so fixing it moves nothing. */
+function restingNow(r, atNow){
+  return {k: r.k, after: r.after,
+          lead: Math.max(AMALGAM_LEAD_MIN, r.after ? atNow - r.spHi : r.spLo - atNow)};
 }
 /* Which side of its own entry a lineage leaves by.
  *
@@ -422,7 +463,7 @@ function amalgamStem(geo, from, pnodes){
 function drawAmalgam(list, ports){
   const geo = amalgamGeometry(list, ports);
   if(!geo) return;
-  const {b, ring, side, nrm, ux, uy, port} = geo;
+  const {b, ring, side, nrm, ux, uy} = geo;
 
   // Members read along the bar in the order their sources actually lie, so
   // the lines fan in without crossing each other.
@@ -440,10 +481,13 @@ function drawAmalgam(list, ports){
      turning. Leaving it out of the bar's arithmetic, which is what this
      did first, moved it onto the nearest handover BEAD instead: a point
      that belongs to a neighbour's turn, not to this lineage at all.
-     With every lineage straight there is no bar to keep a place on, and
-     the merge takes its other form entirely — see drawStraightAmalgam. */
+   *
+     That holds with EVERY lineage straight as well. Such a merge used to
+     take another form entirely — no bar, every line running to one point
+     — which meant a reader who asked for straight segments lost the
+     super-line they were asking about. The owner's word is that the bar
+     stays and its lineages may be straight on it. */
   const allMembers = members;
-  const allStraight = allMembers.every(e=> edgeStyleFor(e.from, e.to).routing === 'straight');
   const n = members.length;
   /* Where the bar hangs — see amalgamGeometry, which works it out from the
      entry and its lineages alone so that the answer is available before
@@ -466,25 +510,6 @@ function drawAmalgam(list, ports){
   // bar, and where the bar is depends on where the lineages come from.
   let dimple = {x: cx, y: cy};
 
-  /* The straight merge.
-   *
-   * The bar exists to give elbowed lineages somewhere to turn onto: they
-   * come down, turn once, run along it, and hand over. A lineage routed
-   * STRAIGHT does none of that — it runs from its entry to wherever it is
-   * going in one line — so a bar under a fan of straight lines is a level
-   * nothing needs, with a stub of it left over at either end and a right
-   * angle written into a construction that has no right angles anywhere
-   * else in it.
-   *
-   * So when every lineage of a merge is straight, there is no bar: each
-   * one runs directly to the point where the colours hand over, which is
-   * where the merged arrow leaves from and where the bead already sits.
-   * Mix the routings and the bar comes back — the elbowed ones still need
-   * it, and half a bar would be worse than all of it. */
-  if(allStraight){
-    drawStraightAmalgam(allMembers, ports, b, port, ring, {x:cx, y:cy}, ux, uy, nrm, side);
-    return;
-  }
 
   /* The bar runs from the first parent's line to the last and no further —
      it is the span the lineages actually cover, not a row of equal tiles
@@ -625,6 +650,9 @@ function drawAmalgam(list, ports){
        the hand is aiming at while the entry is being centred, and a line
        crossing the bar does not say WHICH point on the bar it means. */
     cross: ux ? cy : cx,
+    /* Where the bar stands, in the form a fixed bar is kept in — what a
+       drag writes down when it first takes hold of it (fixAmalgamBars). */
+    rest: geo.rest,
     /* Where each lineage lands, and where it would land if nothing were
        crowding it — its port. The first is what the bar's guides are laid
        out from; the second is how far a parent's port stands from its
@@ -678,6 +706,10 @@ function drawAmalgam(list, ports){
     }
     return {lo: o, hi: o};
   });
+  // Whose stretch is where, in chart coordinates — what a click on the
+  // bar asks to find the lineage it landed on.
+  amalgamBars.get(b.id).stretches = members.map((e, i)=> ({from: e.from,
+    lo: (ux ? cx : cy) + bounds[i].lo, hi: (ux ? cx : cy) + bounds[i].hi}));
 
   /* A note on a lineage of a merge is a note like any other.
    *
@@ -868,16 +900,7 @@ function drawAmalgam(list, ports){
   // It leaves from a point ON the bar, so the bar and the arrow are one
   // continuous shape rather than a line crossing another line.
   const stem = amalgamStem(geo, dimple, allMembers.map(e=> nodes.get(e.from)).filter(Boolean));
-  const head = stem.port, last = stem.pts[stem.pts.length - 2];
-  const paint = makeEdgeGradient(colors, stem.pts);
-  const tip = arrowTrimmed(last, {x:head.x, y:head.y});
-  const shaft = stem.pts.slice(0, -1).concat([tip]);
-  el('path', {class:'edge struct amalgam-out',
-              d: shaft.length > 2 ? roundedPath(shaft, EDGE_CORNER_R)
-                 : `M${dimple.x.toFixed(2)},${dimple.y.toFixed(2)} L${tip.x.toFixed(2)},${tip.y.toFixed(2)}`,
-              stroke:paint, 'data-from':'', 'data-to':b.id}, edgeLayer);
-  drawRingCap(head, paint, null, '', b.id);
-  drawAmalgamArrow(head, last.x, last.y, ring, paint, b.id);
+  drawMergedArrow(b, stem, colors, ring);
 
   /* The bead over the junction.
    *
@@ -920,6 +943,9 @@ function drawAmalgam(list, ports){
    * useful for exactly one thing, which is lining the entry up with it,
    * and that is a GUIDE: it is drawn while the entry is being carried with
    * Shift held, in the guide layer, and at no other time. */
+  /* The grip on the bar goes in before the beads, which stay the last
+     thing painted — they cover the seams — and take no pointer. */
+  drawBarGrip(b.id, barPt(landings[0]), barPt(landings[n-1]), ux);
   const drawnAt = [];
   for(let i = 0; i < n - 1; i++){
     const jAt = bounds[i].hi;                       // == bounds[i+1].lo
@@ -969,66 +995,46 @@ function drawAmalgam(list, ports){
   beadGround(dimple, beadR);
   el('circle', {class:'amalgam-bead amalgam-junction', cx:dimple.x.toFixed(2), cy:dimple.y.toFixed(2),
                 r:beadR, fill:beadPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
-
 }
-/* A merge whose every lineage is routed straight: no bar, one meeting
-   point. See the note in drawAmalgam that sends us here. */
-function drawStraightAmalgam(members, ports, b, port, ring, meet, ux, uy, nrm, side){
-  const colors = members.map(amalgamMemberColor);
-  members.forEach(e=>{
-    const a = nodes.get(e.from);
-    const recM = ports.get(e);
-    if(!a || !recM || !recM.p1) return;
-    const style = edgeStyleFor(e.from, e.to);
-    const color = amalgamMemberColor(e);
-    const dash = DASH_PATTERNS[style.dash];
-    /* It leaves its entry by the side that faces the meeting point — the
-       same rule the barred form uses, for the same reason: chosen from the
-       two entries' positions alone, a lineage feeding a merge can leave by
-       the side pointing away from it and have to run back around its own
-       box. A side set by hand on the connector still wins. */
-    const p1 = recM.p1;
-    /* Stopped at the bead rather than at its centre, so the colours meet
-       under it instead of piling up in a point that then shows through. */
-    const pts = [p1, edgeShortened(p1, meet, AMALGAM_BEAD_R * 0.7)];
-    const d = style.sinusoid ? wavyPath(pts)
-            : `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)} L${pts[1].x.toFixed(2)},${pts[1].y.toFixed(2)}`;
-    const attrs = {class:'edge struct amalgam-member', d, stroke: color,
-                   'data-from':e.from, 'data-to':e.to};
-    if(dash) attrs['stroke-dasharray'] = dash;
-    edgePath(attrs, style, edgeLayer);
-    drawRingCap(p1, color, dash, e.from, e.to, isDoubleDash(style), d);
-    /* Asked unconditionally: whether there is anything to draw is one
-       question with one answer, and drawEdgeNote is where it lives — an
-       empty note is still drawn while it is being started. */
-    drawEdgeNote(style.note, pts, style.notePos, e.from, e.to,
-                                style.noteAt, color, style.noteBg);
-    drawCalloutLeaders(e.from, e.to, pts, color);
-    edgeHit(d, e.from, e.to);
-  });
-
-  // And the one arrow out of the meeting point, carrying every colour.
-  const outPts = [meet, {x:port.x, y:port.y}];
-  const paint = makeEdgeGradient(colors, outPts);
-  const tip = arrowTrimmed(meet, {x:port.x, y:port.y});
-  el('path', {class:'edge struct amalgam-out',
-              d:`M${meet.x.toFixed(2)},${meet.y.toFixed(2)} L${tip.x.toFixed(2)},${tip.y.toFixed(2)}`,
-              stroke:paint, 'data-from':'', 'data-to':b.id}, edgeLayer);
-  drawRingCap(port, paint, null, '', b.id);
-  drawAmalgamArrow(port, meet.x, meet.y, ring, paint, b.id);
-
-  /* The bead. There is only ever one here — with no bar there are no
-     stretches of it for lineages to hand over along, so the junction is
-     the single place every colour meets. Its gradient runs ACROSS the
-     merged arrow, so all of them appear in it. */
-  const beadR = AMALGAM_BEAD_R;
-  const beadPaint = makeEdgeGradient(colors, [
-    {x: meet.x - ux*beadR, y: meet.y - uy*beadR},
-    {x: meet.x + ux*beadR, y: meet.y + uy*beadR}
-  ]);
-  beadGround(meet, beadR);
-  el('circle', {class:'amalgam-bead amalgam-junction', cx:meet.x.toFixed(2), cy:meet.y.toFixed(2),
-                r:beadR, fill:beadPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
+/* The merged arrow, in whatever look it has been given.
+ *
+ * It used to be drawn bare: a fixed weight, a fixed corner and nothing to
+ * take hold of, so it was the one line on the chart that could not be
+ * dashed, waved, given a note or lit when pointed at. It is a connector,
+ * and it takes a connector's look from the style stored for it under an
+ * empty source (see isMergedArrow) — the pattern, the wave, the corners,
+ * and the route: square with turns by default, as the owner asked, or
+ * straight or curved where somebody chose that for it. Only its paint is
+ * not its own: it carries every lineage's colour, which is what it means. */
+function drawMergedArrow(b, stem, colors, ring){
+  const os = edgeStyleFor('', b.id);
+  const head = stem.port;
+  const route = os.routing === 'straight' ? [stem.pts[0], stem.pts[stem.pts.length - 1]] : stem.pts;
+  const paint = makeEdgeGradient(colors, route);
+  let d, from;
+  if(os.sinusoid){
+    d = wavyPath(route, 0, ARROW_TRIM, false, edgeCornerR(os));
+    from = route[route.length - 2];
+  } else if(os.routing === 'curve' && route.length > 2){
+    const cut = cutAlong(curveThrough(route, CURVE_STEP), 0, ARROW_TRIM);
+    d = polylinePath(cut);
+    from = cut[cut.length - 2] || route[route.length - 2];
+  } else {
+    from = route[route.length - 2];
+    const tip = arrowTrimmed(from, {x: head.x, y: head.y});
+    const shaft = route.slice(0, -1).concat([tip]);
+    d = shaft.length > 2 ? roundedPath(shaft, edgeCornerR(os))
+      : `M${shaft[0].x.toFixed(2)},${shaft[0].y.toFixed(2)} L${tip.x.toFixed(2)},${tip.y.toFixed(2)}`;
+  }
+  const dash = DASH_PATTERNS[os.dash];
+  const attrs = {class:'edge struct amalgam-out', d, stroke: paint, 'data-from':'', 'data-to':b.id};
+  if(dash) attrs['stroke-dasharray'] = dash;
+  edgePath(attrs, os, edgeLayer);
+  drawRingCap(head, paint, dash, '', b.id, isDoubleDash(os), d);
+  drawAmalgamArrow(head, from.x, from.y, ring, paint, b.id);
+  drawEdgeNote(os.note, route, os.notePos, '', b.id, os.noteAt, colors[0], os.noteBg);
+  drawCalloutLeaders('', b.id, route, colors[0]);
+  edgeHit(d, '', b.id);
 }
 /* A disc of paper under a bead, the bead's own size.
  *
@@ -1040,14 +1046,6 @@ function drawStraightAmalgam(members, ports, b, port, ring, meet, ux, uy, nrm, s
 function beadGround(at, r){
   el('circle', {class:'amalgam-bead-ground', cx:at.x.toFixed(2), cy:at.y.toFixed(2), r}, edgeLayer);
 }
-/* A point `back` short of `to`, along the line from `from`. */
-function edgeShortened(from, to, back){
-  const dx = to.x - from.x, dy = to.y - from.y;
-  const len = Math.hypot(dx, dy);
-  if(len <= back) return {x: to.x, y: to.y};
-  return {x: to.x - dx/len*back, y: to.y - dy/len*back};
-}
-
 redrawEdges();
 
 
@@ -1232,3 +1230,179 @@ function positionSwapButton(){
   swapParentsBtn.style.left = (sr.left - host.left + cx * vs + vx) + 'px';
   swapParentsBtn.style.top = (sr.top - host.top + top * vs + vy - 34) + 'px';
 }
+
+
+/* ---------------------------------------------------------------------
+   Taking hold of a merge's bar.
+
+   The bar is the lineages' — it hangs a lead beyond them and travels with
+   them — and the entry it feeds has no say in where it goes. So it has to
+   be possible to put it somewhere by hand, and the owner's gesture for
+   that is a click anywhere on it: the bar is picked out, and carried
+   along the merged arrow's axis, nearer the lineages or further from
+   them. Nothing else moves but the lineages' drops and the arrow.
+
+   A double click on one stretch of the bar (a long press, on glass) is
+   what a click on the lineage itself does everywhere else: that lineage's
+   panel, to style that stretch.
+   ------------------------------------------------------------------ */
+function drawBarGrip(id, a, z, ux){
+  if(Math.hypot(z.x - a.x, z.y - a.y) < 1) return;
+  const d = `M${a.x.toFixed(2)},${a.y.toFixed(2)} L${z.x.toFixed(2)},${z.y.toFixed(2)}`;
+  if(amalgamBarFocus === id) paintBarFocus(id, d);
+  const hit = el('path', {class:'amalgam-bar-hit' + (ux ? ' across-y' : ' across-x'), d,
+                          'data-amalgam': id}, edgeLayer);
+  hit.addEventListener('mousedown', ev=> beginBarDrag(ev, id));
+  hit.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    if(amalgamBarDrag && amalgamBarDrag.swallow) return;
+    /* A held tap on glass arrives as a click with a key down (see
+       touchModsFor), and a held tap is the phone's double click here. */
+    if(ev.shiftKey || ev.ctrlKey || ev.metaKey){ openBarStretch(id, ev); return; }
+    setBarFocus(id);
+  });
+  hit.addEventListener('dblclick', ev=>{
+    ev.stopPropagation();
+    ev.preventDefault();
+    openBarStretch(id, ev);
+  });
+}
+// Which lineage's stretch of the bar a point on the screen is on.
+function barStretchAt(id, clientX, clientY){
+  const rec = amalgamBars.get(id);
+  if(!rec || !rec.stretches || !rec.stretches.length) return null;
+  const p = clientToWorld(clientX, clientY);
+  const at = rec.axis === 'x' ? p.x : p.y;
+  let best = null, bestD = Infinity;
+  rec.stretches.forEach(s=>{
+    const d = at < s.lo ? s.lo - at : at > s.hi ? at - s.hi : 0;
+    if(d < bestD){ bestD = d; best = s; }
+  });
+  return best;
+}
+function openBarStretch(id, ev){
+  const s = barStretchAt(id, ev.clientX, ev.clientY);
+  if(!s || readOnlyView) return;
+  setBarFocus(null);
+  openEdgeStylePopover(s.from, id, ev);
+}
+function setBarFocus(id){
+  const next = (id && !readOnlyView) ? id : null;
+  if(next === amalgamBarFocus) return;
+  amalgamBarFocus = next;
+  edgeLayer.querySelectorAll('.amalgam-bar-focus').forEach(p=> p.remove());
+  if(!next) return;
+  const hit = edgeLayer.querySelector(`.amalgam-bar-hit[data-amalgam="${CSS.escape(next)}"]`);
+  if(hit) paintBarFocus(next, hit.getAttribute('d'));
+}
+/* A halo UNDER the bar, not a line over it: the bar is several lineages'
+   colours end to end, and painting it over in one would hide the very
+   thing it is made of. */
+function paintBarFocus(id, d){
+  const halo = el('path', {class:'amalgam-bar-focus', d, 'data-amalgam': id}, edgeLayer);
+  edgeLayer.insertBefore(halo, edgeLayer.firstChild);
+}
+/* The place a bar stands, fixed: what it is told to keep from now on. A
+   bar no drag has touched is worked out afresh from where the entry is,
+   which is how it came to give way to the entry and flip across the
+   lineages with it — so the first time anything belonging to a merge is
+   picked up, its bar is written down where it stands and stays there. */
+function barSpecFor(id){
+  const b = nodes.get(id);
+  if(b && b.bar) return Object.assign({}, b.bar);
+  const rec = amalgamBars.get(id);
+  return rec && rec.rest ? Object.assign({}, rec.rest) : null;
+}
+function writeBarSpec(id, spec){
+  const found = workingEntry(id);
+  if(!found) return;
+  const opts = entryOpts(found.entry);
+  if(spec) opts.bar = {k: spec.k, after: !!spec.after, lead: +(+spec.lead).toFixed(2)};
+  else delete opts.bar;
+  putEntry(found.index, found.entry, opts);
+}
+/* Every merge a carried set touches — its amalgam or any of its lineages
+   — has its bar fixed in the working data, inside the same step of undo
+   as the move. Answers what was fixed, so a drag that comes back to where
+   it started can take it out again. */
+function fixAmalgamBars(ids){
+  const carried = new Set(ids);
+  const fixed = [];
+  nodes.forEach(b=>{
+    if((b.shape || '') !== 'amalgam' || b.bar) return;
+    if(!carried.has(b.id) && !(b.parents || []).some(p=> carried.has(p))) return;
+    const spec = barSpecFor(b.id);
+    if(!spec) return;
+    b.bar = spec;
+    writeBarSpec(b.id, spec);
+    fixed.push(b.id);
+  });
+  return fixed;
+}
+function unfixAmalgamBars(list){
+  (list || []).forEach(id=>{
+    const b = nodes.get(id);
+    if(b) b.bar = null;
+    writeBarSpec(id, null);
+  });
+}
+function beginBarDrag(ev, id){
+  if(ev.button !== 0 || readOnlyView) return;
+  ev.stopPropagation();
+  ev.preventDefault();
+  closeStyleBar();
+  const spec = barSpecFor(id);
+  if(!spec) return;
+  const b = nodes.get(id);
+  amalgamBarDrag = {id, spec, had: !!(b && b.bar), x0: ev.clientX, y0: ev.clientY,
+                    moved: false, before: null, lead: spec.lead};
+}
+let barDragFrame = 0;
+window.addEventListener('mousemove', ev=>{
+  const st = amalgamBarDrag;
+  if(!st || st.swallow) return;
+  const dx = ev.clientX - st.x0, dy = ev.clientY - st.y0;
+  if(!st.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+  if(!st.moved){
+    st.moved = true;
+    st.before = takeSnapshot();
+    setBarFocus(st.id);
+    document.body.classList.add('bar-carrying');
+  }
+  // Along the merged arrow's axis only: the bar is laid across `k`.
+  const along = (st.spec.k === 'y' ? dy : dx) / vs;
+  const step = dragIsFree(ev) ? Math.round(along) : snapToGrid(along);
+  st.lead = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? step : -step));
+  const b = nodes.get(st.id);
+  if(b) b.bar = Object.assign({}, st.spec, {lead: st.lead});
+  if(barDragFrame) return;
+  barDragFrame = requestAnimationFrame(()=>{
+    barDragFrame = 0;
+    redrawEdges();
+    applyVisibility();
+    if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
+    paintMultiSelection();
+  });
+});
+window.addEventListener('mouseup', ()=>{
+  const st = amalgamBarDrag;
+  if(!st || st.swallow) return;
+  if(barDragFrame){ cancelAnimationFrame(barDragFrame); barDragFrame = 0; }
+  document.body.classList.remove('bar-carrying');
+  if(!st.moved){ amalgamBarDrag = null; return; }
+  // The click the browser sends after a carry is not a click on the bar.
+  st.swallow = true;
+  setTimeout(()=>{ if(amalgamBarDrag === st) amalgamBarDrag = null; }, 0);
+  const b = nodes.get(st.id);
+  if(Math.abs(st.lead - st.spec.lead) < 1e-6){
+    if(b) b.bar = st.had ? st.spec : null;
+    redrawEdges();
+    return;
+  }
+  applyEdit(()=> writeBarSpec(st.id, Object.assign({}, st.spec, {lead: st.lead})), st.before);
+  setBarFocus(st.id);
+});
+/* A press anywhere else lets the bar go, as it lets anything picked go;
+   so does Escape. */
+svg.addEventListener('mousedown', ()=> setBarFocus(null));
+document.addEventListener('keydown', ev=>{ if(ev.key === 'Escape') setBarFocus(null); });

@@ -180,14 +180,30 @@
               <p class="editor-help">Double-click the picture on the card to resize it by its own corners — hold Shift to keep its proportions.</p>
             </div>
           </div>
+          <!-- The two colour lists side by side: a colour is at most nine
+               characters, so a box the width of the panel was mostly
+               empty, and the two read as one question — what the entry is
+               drawn in. Each still takes a list: rings for the border, a
+               gradient for the ground. -->
+          <div class="editor-field-pair">
           <div class="editor-field" id="editColorsField">
             <label for="editColorsInput">Border colors</label>
             <div class="field-with-reset">
-              <input id="editColorsInput" type="text" placeholder="#20242b, #3fae4a">
+              <input id="editColorsInput" type="text" placeholder="#20242b">
               <button type="button" class="hex-reset" id="editColorsReset" title="Back to the default border colour">⟲</button>
             </div>
             <div class="swatch-strip" id="editColorsSwatches"></div>
           </div>
+          <div class="editor-field" id="editBgField">
+            <label for="editBgInput">Background</label>
+            <div class="field-with-reset">
+              <input id="editBgInput" type="text" placeholder="white">
+              <button type="button" class="hex-reset" id="editBgReset" title="Back to the paper">⟲</button>
+            </div>
+            <div class="swatch-strip" id="editBgSwatches"></div>
+          </div>
+          </div>
+          <p class="editor-help editor-pair-help">Several colours, split by commas: rings round the border, a gradient across the ground.</p>
           <div class="editor-field">
             <label for="editTagsInput">Tags</label>
             <!-- The tags an entry carries are chosen, never typed. The
@@ -199,15 +215,6 @@
               <input id="editTagsInput" type="text" hidden>
               <div class="tag-menu" id="editTagsMenu" hidden></div>
             </div>
-          </div>
-          <div class="editor-field">
-            <label for="editBgInput">Background</label>
-            <div class="field-with-reset">
-              <input id="editBgInput" type="text" placeholder="white — or #f4e9c9, #d8e6f5">
-              <button type="button" class="hex-reset" id="editBgReset" title="Back to the paper">⟲</button>
-            </div>
-            <div class="swatch-strip" id="editBgSwatches"></div>
-            <p class="editor-help">One colour fills the box; two or more make a gradient across it.</p>
           </div>
           <div class="editor-field">
             <label for="editShapeInput">Node style</label>
@@ -553,6 +560,10 @@
           <option value="curve">Curve</option>
         </select>
         <button type="button" class="editor-btn style-reroute" id="styleBendsClear" title="Route it again — take every bend set by hand out">⟳</button>
+        <!-- A row of its own and a sentence of a label for one button that
+             is pressed now and then: the mark says it — a card on a leader,
+             and a plus. -->
+        <button type="button" class="editor-btn style-callout-add" id="styleAddCallout" title="Add a callout — a comment card pointing at this connector: click the connector where it should attach, then where the card should stand"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="3" width="12" height="7.5" rx="0.5"/><path d="M6 10.5 L11 20.5"/><circle cx="11" cy="20.5" r="1.3" fill="currentColor" stroke="none"/><path d="M19 13v7M15.5 16.5h7" stroke-width="2"/></svg></button>
       </div>
 
       <div class="style-row">
@@ -571,10 +582,6 @@
       </div>
 
       <p class="style-row-note">Drag the marks on the line to bend it. <b>Shift</b> lines one up with other connectors; double-click takes one out. Double-click the line itself to write a note on it.</p>
-      <div class="style-row">
-        <span class="style-row-label">Callout</span>
-        <button type="button" class="style-callout-add" id="styleAddCallout" title="Add a comment card pointing at this connector — click the connector where it should attach, then click where the card should stand">⌐ Add a callout</button>
-      </div>
 
       <div class="edge-popover-actions">
         <button class="editor-btn danger" id="styleDelete">Delete</button>
@@ -660,6 +667,7 @@
     '36-site-owner.js',
     '37-style-bar.js',
     '38-touch.js',
+    '39-lod.js',
   ];
   var NL = String.fromCharCode(10);
   Promise.all(PARTS.map(function(p){

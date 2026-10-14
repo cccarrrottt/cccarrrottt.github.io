@@ -330,6 +330,12 @@ function importChartFromText(text){
        with it, and not left over from the chart it replaced. */
     const legendIn = cleanLegend(settingsIn && settingsIn.legend);
     if(Object.keys(legendIn).length) SETTINGS.legend = legendIn; else delete SETTINGS.legend;
+    const rowsIn = cleanLegendRows(settingsIn);
+    const tagColorsIn = cleanTagColors(settingsIn && settingsIn.tagColors);
+    if(Object.keys(tagColorsIn).length) SETTINGS.tagColors = tagColorsIn; else delete SETTINGS.tagColors;
+    ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn'].forEach(k=>{
+      if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
+    });
     rebuildStickerMap();
     rebuildMediaMap();
   });
@@ -454,6 +460,14 @@ function markReadOnly(sticky){
   // isn't there yet.
   try{ closeEditForm(); }catch(e){}
   try{ closeEdgePopover(); }catch(e){}
+  /* …and drawn again, as markEditable does on the way back. Several
+     controls are left out by asking readOnlyView while they are built —
+     the side tabs' + buttons for a tag, a category and a reference, a
+     reference's pencil and ✕, the citation colour — and on claude.ai the
+     answer arrives after the first draw, so a reader was handed all of
+     them, built for the editor the page had assumed it was. Before the
+     first draw there is nothing to redo. */
+  try{ if(nodes.size) rebuildChart(); }catch(e){}
 }
 /* On the published site every visitor starts as a reader, and says so on
    the first frame rather than drawing an editor and taking it away. The

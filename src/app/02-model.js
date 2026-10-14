@@ -79,7 +79,12 @@ function borderStyleOf(n){
  * short of the circle, or cut into it, and on a second ring it missed the
  * circle by the difference between the two ring steps. That is the
  * arrowhead standing off the border of a character bio. */
-const WAVY_BORDER_SHAPES = ['ellipse', 'amalgam', 'image', 'textbox'];
+/* An amalgam used to be on this list, for no reason it carried: its box is
+   a rounded rectangle like any entry's, painted with its lineages' sweep
+   instead of one ink, and a ripple round it is the same ripple. The owner
+   asked for it, so its rippled outline is the plain one with the paint
+   swapped (see renderNodes). */
+const WAVY_BORDER_SHAPES = ['ellipse', 'image', 'textbox'];
 function isWavyBorder(n){
   return !!n && borderStyleOf(n) === 'wavy' &&
          !WAVY_BORDER_SHAPES.includes(n.shape || '');
@@ -432,6 +437,23 @@ const NODE_GROW_REF = NODE_FIT_MINH;
 const NODE_MAX_LINES = 3;
 
 const DEFAULT_NODE_COLOR = '#20242b';
+/* The colour a tag gives the entries wearing it, kept with the chart in
+   SETTINGS.tagColors. A tag that acts — the weave, the ruling, the echo,
+   the stack — is a kind of drawing rather than a kind of thing, and has
+   no colour to give; neither has the Untagged bucket. */
+function tagColorOf(tag){
+  const map = SETTINGS.tagColors;
+  if(!map || typeof map !== 'object' || tagIsSpecial(tag)) return null;
+  return isHexColor(map[tag]) ? map[tag] : null;
+}
+/* Every colour an entry's tags give it, in the order the tags are listed,
+   each once — one ring per colour, as with colours of its own. */
+function tagColorsOf(tags){
+  if(!tags || !tags.length) return null;
+  const out = [];
+  tags.forEach(t=>{ const c = tagColorOf(t); if(c && !out.includes(c)) out.push(c); });
+  return out.length ? out : null;
+}
 // Kept in step with --emoji in the stylesheet.
 const EMOJI_FAMILY = "'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sans-serif";
 /* The chip standing for an entry's default text.
@@ -578,6 +600,24 @@ function migrateTagSpellings(list){
   return moved;
 }
 
+/* Where a merge's bar has been put: which axis it is laid ACROSS (`k`),
+   which side of the lineages it hangs on (`after` — past their far edge
+   on that axis, or short of their near one), and how far beyond them
+   (`lead`). Measured from the LINEAGES, never from the entry: the bar is
+   theirs, moving a parent takes it along, and moving the amalgam moves
+   nothing but the merged arrow. Absent until a drag first fixes it; until
+   then amalgamGeometry works the place out as it always has. */
+/* The nearest a bar may be put to its lineages: the run-up a lineage needs
+   to come down and turn onto it with a full corner (AMALGAM_APPROACH, two
+   corner radii and a little) and a hair more. Written out rather than
+   derived, because this part runs before the geometry's. */
+const AMALGAM_LEAD_MIN = 18;
+function amalgamBarOf(opts){
+  const v = opts && opts.bar;
+  if(!v || typeof v !== 'object' || (v.k !== 'x' && v.k !== 'y')) return null;
+  if(typeof v.lead !== 'number' || !Number.isFinite(v.lead)) return null;
+  return {k: v.k, after: !!v.after, lead: Math.max(AMALGAM_LEAD_MIN, v.lead)};
+}
 function buildModel(){
   // A rebuilt chart is a new chart as far as the routes are concerned.
   routeBars.clear();
@@ -607,7 +647,14 @@ workingNodes.forEach(item=>{
     parents = [parent];
   }
   const tags = (opts && Array.isArray(opts.tags) && opts.tags.length) ? opts.tags : null;
-  const colors = opts ? hexColors(opts.colors) : null;
+  /* An entry is drawn in its own colours when it has them, and otherwise
+     in the colours of its tags (the owner's design, 2026-10-14): a tag
+     will name a work, and an entry wears the work it belongs to. With no
+     coloured tag it is the default ink, as it always was. ownColors keeps
+     which of the two it is, because the form must not write a tag's
+     colour back as the entry's own. */
+  const ownColors = opts ? hexColors(opts.colors) : null;
+  const colors = ownColors || tagColorsOf(tags);
   nodes.set(id,{
     id, label, note:note||null,
     // A character bio is a small circle rather than a box: it carries a
@@ -622,7 +669,7 @@ workingNodes.forEach(item=>{
     w: (shape==='ellipse' ? BIO_SIZE : BOXW), h:56,
     children:[],
     link: (opts && opts.link) || null,
-    colors,
+    colors, ownColors,
     color: (colors && colors[0]) || DEFAULT_NODE_COLOR,
     /* What the entry is filled with. One colour is a flat ground; more
        than one is a gradient across the box, the same way an amalgam's
@@ -690,6 +737,9 @@ workingNodes.forEach(item=>{
        pointer and while the entry's panel is open on it; on, it is part
        of the drawing and is always there. */
     bioCard: !!(opts && opts.bioCard),
+    /* Where an amalgam's bar stands, once it has been put somewhere: see
+       amalgamBarOf and amalgamGeometry. */
+    bar: amalgamBarOf(opts),
     /* Which side that card stands on: 'auto' works it out from what is in
        the way, 'left' and 'right' are the reader's own answer. */
     bioSide: (opts && (opts.bioSide === 'left' || opts.bioSide === 'right'))

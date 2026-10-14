@@ -133,6 +133,8 @@ function resumeAnimation(elm, period, since, stagger){
 }
 function applyVisibility(){
   syncTagLiveliness();
+  // What is shown has changed, so the patches drawn for it are stale.
+  markLodStale();
   qNodes('.node').forEach(g=>{
     const n = nodes.get(g.dataset.id);
     g.style.display = (n && nodeHidden(n)) ? 'none' : '';
@@ -193,6 +195,8 @@ function applyTransform(){
   // re-anchored whenever the drawing moves under it.
   positionBioCard();
   positionSwapButton();
+  // Far enough out, the entries give way to patches; see syncLod.
+  syncLod();
   /* The in-node field stands on its entry, so it moves with the drawing.
      Its type is scaled by the zoom as well, which is what keeps what is
      being typed the same size as what it will be. */
@@ -422,41 +426,19 @@ function dragIsFree(e){ return !!(e.ctrlKey || e.metaKey); }
  * one is gone: the bar hangs from the lineages and stays where they are,
  * and the merged arrow simply reaches further.
  *
- * The other held the entry between the bar's own ENDS, and that one is
- * right and stays. The merged arrow leaves from a point on the bar and
- * runs to the entry, so an entry taken past the last lineage has no bar
- * left to leave from: the arrow stops being a stem dropping out of the
- * merge and becomes a long diagonal running away from it, which is not a
- * shape anything else on this chart draws. Perpendicular to the bar the
- * entry goes as far as it likes. */
+ * The other held the entry between the bar's own ENDS, so the merged
+ * arrow could not become a long diagonal. It went in 0.12.0: the arrow
+ * turns corners instead (amalgamStem), and the owner asked that the entry
+ * and its bar never move each other. */
 const AMALGAM_LEASH = 520;
 function amalgamBarClamp(st, offX, offY){
   let out = null;
   if(!st || !st.members) return null;
-  st.members.forEach(m=>{
-    const n = m.node;
-    if(!n || (n.shape||'') !== 'amalgam') return;
-    const parents = (n.parents || []).map(id=> nodes.get(id))
-      .filter(p=> p && !st.members.some(o=> o.id === p.id));
-    // One lineage is an ordinary connector with no bar to stay on.
-    if(parents.length < 2) return;
-    const homeX = m.originX + n.w/2, homeY = m.originY + n.h/2;
-    let cx = homeX + offX, cy = homeY + offY;
-    let held = false;
-    const cxs = parents.map(p=> p.x + p.w/2);
-    const cys = parents.map(p=> p.y + p.h/2);
-    const spanX = Math.max(...cxs) - Math.min(...cxs);
-    const spanY = Math.max(...cys) - Math.min(...cys);
-    // The bar runs along whichever axis the lineages are spread out on.
-    if(spanX >= spanY){
-      const held2 = Math.max(Math.min(...cxs), Math.min(Math.max(...cxs), cx));
-      if(held2 !== cx){ cx = held2; held = true; }
-    } else {
-      const held2 = Math.max(Math.min(...cys), Math.min(Math.max(...cys), cy));
-      if(held2 !== cy){ cy = held2; held = true; }
-    }
-    if(held) out = {x: cx - homeX, y: cy - homeY};
-  });
+  /* The amalgam itself used to be held between its bar's two ends, so the
+     merged arrow always left the bar straight ahead. The arrow turns
+     corners now (see amalgamStem), and the owner's rule is that the entry
+     and its bar do not move each other in any way — so the entry goes
+     where it is put, and only the arrow follows it. */
   /* And a LINEAGE stays on its own side of the bar.
    *
    * The bar hangs a fixed clearance short of the nearest parent, and may not
@@ -644,6 +626,12 @@ window.addEventListener('mousemove', e=>{
        taken at the drop already held all of that, and undoing the move
        left it behind. */
     st.before = takeSnapshot();
+    /* And every merge this carry touches has its bar written down where
+       it stands, so from here on it stays there: the amalgam carried
+       about lengthens its arrow and nothing else, and the bar no longer
+       gives way to it or jumps across the lineages when the entry passes
+       their middle. See fixAmalgamBars. */
+    st.barsFixed = fixAmalgamBars(st.members.map(m=> m.id));
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and
@@ -849,8 +837,10 @@ window.addEventListener('mouseup', ()=>{
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
   if(st.node.x===st.originX && st.node.y===st.originY){
-    // Snapped back to where it started — and the bends with it.
+    // Snapped back to where it started — and the bends with it, and any
+    // bar the carry fixed, since nothing has been done.
     carryBends(st, 0, 0);
+    unfixAmalgamBars(st.barsFixed);
     return;
   }
   /* Any bend these entries' connectors no longer need goes with the drop;

@@ -104,37 +104,59 @@ const styleBar = (()=>{
   group('leader', STYLE_BAR_LEADER);
   group('leaderForm', STYLE_BAR_LEADER_FORM);
   group('noteSide', STYLE_BAR_NOTE_SIDE);
-  /* The plate's ground. Its INK is the connector's and is not the
-     reader's to set; what it is written on is. Typed, as every colour on
-     the chart is, and blank is the paper. */
-  {
-    const row = group('noteBg', []);
+  /* A colour typed on the bar, with the square that shows it beside the
+     box — the same pair every hex field on the page is: a box no wider
+     than the longest code it can hold, and the colour it names. Blank is
+     the paper. Typing is one step of undo however long it runs. */
+  const hexGroup = (name, title, apply)=>{
+    const row = group(name, []);
+    row.classList.add('style-bar-hex');
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'hex-input';
     input.placeholder = 'white';
     input.maxLength = 9;
     input.spellcheck = false;
-    input.title = 'What the note is written on — blank is the paper';
+    input.title = title;
+    const chip = document.createElement('span');
+    chip.className = 'hex-preview';
     row.appendChild(input);
+    row.appendChild(chip);
     input.addEventListener('mousedown', ev=> ev.stopPropagation());
     input.addEventListener('keydown', ev=> ev.stopPropagation());
     input.addEventListener('input', ()=>{
-      const t = styleBarTarget;
-      if(!t || t.kind !== 'note' || readOnlyView) return;
+      if(!styleBarTarget || readOnlyView) return;
       const v = input.value.trim();
       if(v && !readHex(input)) return;
       input.classList.remove('bad');
-      /* One step of undo for a run of typing, as in every other field. */
+      paintHexChip(chip, v);
       if(input.dataset.pushed !== '1'){ pushUndo(); input.dataset.pushed = '1'; }
-      const o = EDGE_STYLES.find(s=> s.from === t.from && s.to === t.to);
-      if(!o) return;
-      if(v) o.noteBg = v; else delete o.noteBg;
-      redrawEdges();
+      apply(styleBarTarget, v);
       refreshSaveUI();
     });
     input.addEventListener('blur', ()=>{ delete input.dataset.pushed; });
-  }
+    return row;
+  };
+  /* The plate's ground. Its INK is the connector's and is not the
+     reader's to set; what it is written on is. */
+  hexGroup('noteBg', 'What the note is written on — blank is the paper', (t, v)=>{
+    if(t.kind !== 'note') return;
+    const o = EDGE_STYLES.find(s=> s.from === t.from && s.to === t.to);
+    if(!o) return;
+    if(v) o.noteBg = v; else delete o.noteBg;
+    redrawEdges();
+  });
+  /* And a callout's card, which is an entry's box and fills as one does —
+     from opts.bg. A shelf has no card to fill, and is not offered it. */
+  hexGroup('cardBg', 'What the callout is written on — blank is the paper', (t, v)=>{
+    if(t.kind !== 'node') return;
+    const found = workingEntry(t.id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    if(v) opts.bg = [v]; else delete opts.bg;
+    putEntry(found.index, found.entry, opts);
+    rebuildChart();
+  });
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -154,6 +176,14 @@ const styleBar = (()=>{
    {kind:'edge', from, to, x, y}, a connector, with where on the screen the
    pointer met it, since a line has no corner to stand the bar over. */
 let styleBarTarget = null;
+/* The square beside a typed colour: the colour when the text is one, the
+   paper's dashed outline when it is blank or not a colour yet. */
+function paintHexChip(chip, v){
+  if(!chip) return;
+  const ok = !!v && HEX_RE.test(v);
+  chip.style.background = ok ? v : '';
+  chip.classList.toggle('empty', !ok);
+}
 let styleBarTimer = null;
 
 function styleBarNode(){
@@ -210,6 +240,13 @@ function syncStyleBar(){
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
   rows.edgeLine.hidden = rows.ends.hidden = t.kind !== 'edge';
   rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
+  rows.cardBg.hidden = !(n && isCalloutNode(n) && !(n.leader && n.leader.shelf));
+  const showHex = (row, v)=>{
+    const input = row.querySelector('input');
+    if(document.activeElement !== input){ input.value = v || ''; input.classList.remove('bad'); }
+    paintHexChip(row.querySelector('.hex-preview'), input.value.trim());
+  };
+  if(!rows.cardBg.hidden) showHex(rows.cardBg, n.bg && n.bg.length === 1 ? n.bg[0] : (n.bg ? n.bg.join(', ') : ''));
   if(t.kind === 'edge'){
     rows.border.hidden = rows.frame.hidden = true;
     rows.corners.hidden = false;
@@ -224,11 +261,14 @@ function syncStyleBar(){
        into the shared bar, and the single arrow into the entry belongs to
        the merge as a whole. Greyed rather than hidden, so the row still
        explains itself. */
-    const merged = isAmalgamMember(t.from, t.to);
+    const merged = isMergePart(t.from, t.to);
+    const out = isMergedArrow(t.from, t.to);
     rows.ends.querySelectorAll('button').forEach(b=>{
-      b.classList.toggle('on', b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false);
+      b.classList.toggle('on', out ? b.dataset.value === 'out'
+        : b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false);
       b.disabled = merged;
-      b.title = merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
+      b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
+              : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
                        : STYLE_BAR_ENDS.find(e=> e[0] === b.dataset.value)[2];
     });
     styleBar.hidden = false;
@@ -272,8 +312,7 @@ function syncStyleBar(){
        button is greyed rather than left to look as if it did nothing. */
     light(rows.corners, style.noteSquare ? '' : 'round', ()=> style.noteFrame === false);
     light(rows.noteSide, style.notePos || 'above');
-    const bg = rows.noteBg.querySelector('input');
-    if(document.activeElement !== bg){ bg.value = style.noteBg || ''; bg.classList.remove('bad'); }
+    showHex(rows.noteBg, style.noteBg);
   }
   if(n || t.kind === 'note'){
     rows.corners.querySelectorAll('button').forEach(b=>{
@@ -378,7 +417,7 @@ function applyStyleBar(group, value){
       change.sinusoid = value === 'sinusoid' || undefined;
       change.dash = value === 'sinusoid' ? 'solid' : value;
     } else if(group === 'corners'){
-      change.square = !kept.square || undefined;
+      change.square = kept.square ? false : undefined;
     } else if(group === 'ends'){
       if(value === 'in') change.arrowIn = !kept.arrowIn || undefined;
       else change.arrow = kept.arrow === false;

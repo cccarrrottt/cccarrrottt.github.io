@@ -263,6 +263,8 @@
      answer comes late), the ✕ on a tag would otherwise stay up until the
      panel is next built. */
   body.read-only .legend-tag-del,
+  body.read-only #sideTabs .plus-mini,
+  body.read-only #refColorRow, body.read-only .ref-tools,
   body.read-only #edgePopover{display:none !important;}
   body.read-only .node{cursor:pointer;}
   /* ---------- Character-bio circle + its card ---------- */
@@ -983,6 +985,33 @@
   .style-choice button:disabled{opacity:0.4;cursor:default;}
   .style-choice button:disabled:hover{color:var(--ink-dim);border-color:var(--line);}
   .edge.amalgam-out{stroke-width:2.2;opacity:1;}
+  /* A merge's bar, to take hold of: a click picks it out, a carry moves it
+     along the merged arrow (see drawBarGrip). The cursor says which way it
+     will go; picked out, the bar wears the glow a picked connector does. */
+  /* Seen from far away (see 39-lod.js): the entries and everything hung
+     on them give way to patches of their tags' colours. Not displayed is
+     not laid out or painted, which is the point of it. */
+  body.lod #fanLayer, body.lod #auraLayer, body.lod #backLayer, body.lod #edgeLayer,
+  body.lod #leaderHitLayer, body.lod #nodeLayer, body.lod #arrowLayer, body.lod #frontLayer,
+  body.lod #bioCardLayer, body.lod #bendLayer{display:none;}
+  #lodLayer{display:none;}
+  body.lod #lodLayer{display:inline;}
+  .lod-patch{opacity:0.5;cursor:zoom-in;}
+  .lod-patch:hover{opacity:0.68;}
+  .lod-label{
+    fill:var(--ink);stroke:var(--paper);paint-order:stroke;stroke-linejoin:round;
+    font-family:'IBM Plex Sans',Arial,sans-serif;font-weight:600;text-anchor:middle;
+    dominant-baseline:central;pointer-events:none;
+  }
+  .amalgam-bar-hit{fill:none;stroke:transparent;stroke-width:14px;pointer-events:stroke;cursor:pointer;}
+  .amalgam-bar-hit.across-y{cursor:ns-resize;}
+  .amalgam-bar-hit.across-x{cursor:ew-resize;}
+  .amalgam-bar-focus{
+    fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round;opacity:0.3;
+    pointer-events:none;
+  }
+  body.bar-carrying, body.bar-carrying *{cursor:grabbing !important;}
+  body.read-only .amalgam-bar-hit, body.read-only .amalgam-bar-focus{display:none;}
   /* …except when something else on the chart is being looked at. The two
      rules above pin the bar and the merged arrow to full strength so they
      read as one solid line; that must not also make them the only thing
@@ -1096,6 +1125,20 @@
   }
   .legend-item:hover{background:var(--panel-2);}
   .legend-item .swatch{width:11px;height:11px;border-radius:2.5px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;}
+  .legend-item .swatch-unset{background:transparent;box-shadow:none;border:1px dashed var(--ink-faint);box-sizing:border-box;}
+  .legend-item .swatch-none{visibility:hidden;}
+  .legend-item .swatch-pick{cursor:pointer;}
+  .legend-item .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
+  .legend-item input.tag-color-box{
+    flex:0 0 74px;width:74px;height:20px;cursor:text;
+    background:var(--panel-2);border:1px solid var(--accent);color:var(--ink);
+    border-radius:3px;padding:0 4px 0 18px;
+    font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+    background-image:linear-gradient(var(--swatch,transparent), var(--swatch,transparent));
+    background-repeat:no-repeat;background-position:4px center;background-size:10px 10px;
+  }
+  .legend-item input.tag-color-box:focus{outline:none;}
+  .legend-item input.tag-color-box.bad{background-color:rgba(194,59,34,0.08);}
   .legend-item .name{flex:1;color:var(--ink-dim);}
   /* The row's name is a tag, so it is drawn as one. Its own left margin
      replaces the swatch's gap, so the labels still line up in a column. */
@@ -2230,7 +2273,7 @@
   /* One labelled row per setting, each a strip of small symbol buttons —
      compact enough that the whole popover reads at a glance instead of
      being five dropdowns tall. */
-  .style-row{display:flex;align-items:center;gap:8px;}
+  .style-row{display:flex;align-items:center;gap:6px;}
   .style-row-label{
     flex:0 0 34px;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;
@@ -2240,11 +2283,11 @@
   .style-select{
     flex:1;min-width:0;height:24px;
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
-    border-radius:4px;padding:0 20px 0 6px;cursor:pointer;
+    border-radius:4px;padding:0 16px 0 5px;cursor:pointer;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
     appearance:none;-webkit-appearance:none;-moz-appearance:none;
     background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 10 7'%3E%3Cpath d='M1 1.4L5 5.4L9 1.4' fill='none' stroke='%238291a8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;background-position:right 6px center;
+    background-repeat:no-repeat;background-position:right 4px center;
   }
   .style-select:hover{color:var(--ink);border-color:var(--accent);}
   .style-select:focus{outline:none;border-color:var(--accent);}
@@ -2259,8 +2302,12 @@
     background:var(--accent);border-color:var(--accent);color:var(--accent-ink);
   }
   .style-colors{gap:5px;}
+  /* A box for ONE colour is as wide as the longest code there is — the
+     hash and eight digits — and no wider: stretched across a panel it
+     promised room for something that never comes, and pushed the square
+     that shows the colour off to the far side. */
   .hex-input{
-    flex:1;min-width:0;height:24px;
+    flex:0 0 auto;width:calc(9ch + 14px);min-width:0;height:24px;
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
     border-radius:4px;padding:0 6px;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;
@@ -2271,6 +2318,9 @@
     flex:0 0 24px;height:24px;border-radius:4px;border:1px solid var(--line);
     background:var(--panel-2);
   }
+  .hex-preview.empty{background:var(--paper);border-style:dashed;}
+  .style-bar-hex{align-items:center;}
+  .style-bar-hex .hex-preview{flex-basis:20px;height:20px;}
   .edge-popover-actions{display:flex;gap:6px;margin-top:1px;}
   .edge-popover-actions .editor-btn{flex:1;padding:6px 4px;font-size:10px;}
 
@@ -2418,13 +2468,11 @@
   .leader-snap-leg{fill:#2f6f9f;opacity:0.8;}
   .leader-snap-mid{fill:var(--paper);stroke:var(--accent);stroke-width:1.8;opacity:1;}
   .leader-snap-current{fill:none;stroke:var(--accent);stroke-width:1.4;opacity:0.9;}
-  .style-callout-add{
-    flex:1;cursor:pointer;padding:5px 8px;
-    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
-    text-transform:uppercase;letter-spacing:0.5px;
-    background:var(--panel-2);color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;
-  }
-  .style-callout-add:hover{color:var(--ink);border-color:var(--accent);}
+  /* The two buttons beside the route share its row, so they are only as
+     wide as their marks: at the editor's own padding they squeezed the
+     route's name down to "Orthog". */
+  .style-row .style-reroute, .style-callout-add{flex:0 0 auto;height:24px;padding:0 6px;line-height:1;display:inline-flex;align-items:center;}
+  .style-callout-add svg{display:block;}
   body.read-only .style-callout-add{display:none;}
 
   /* ---- references --------------------------------------------------
@@ -2521,6 +2569,41 @@
   .key-meaning-input:hover{border-color:var(--line);}
   .key-meaning-input:focus{outline:none;border-color:var(--accent);background:var(--panel);color:var(--ink);}
   .key-empty{padding:8px 6px;font-size:12px;color:var(--ink-faint);font-style:italic;}
+  /* The legend as the author makes it: the name and the meaning are both
+     fields that look like text until pointed at, a ✕ takes a row out, and
+     the + opens the marks that are not in it and a row of one's own. */
+  .key-item{position:relative;}
+  .key-name-input{
+    width:100%;box-sizing:border-box;font-size:12px;color:var(--ink);line-height:1.3;
+    background:transparent;border:1px solid transparent;border-radius:4px;padding:1px 4px;margin-left:-4px;
+    font-family:inherit;
+  }
+  .key-name-input:hover{border-color:var(--line);}
+  .key-name-input:focus{outline:none;border-color:var(--accent);background:var(--panel);}
+  .key-own-hex.hex-input{height:20px;margin-top:3px;font-size:10px;}
+  .key-own{stroke:var(--ink);stroke-width:1;}
+  .key-remove{
+    flex:0 0 auto;align-self:flex-start;background:none;border:none;cursor:pointer;
+    color:var(--ink-faint);font-size:11px;padding:2px 3px;opacity:0;
+  }
+  .key-item:hover .key-remove, .key-remove:focus{opacity:1;}
+  .key-remove:hover{color:var(--accent);}
+  body.touch-input .key-remove{opacity:0.7;}
+  .key-add-menu{
+    margin:4px 6px 8px;padding:4px;border:1px solid var(--line);border-radius:6px;
+    background:var(--panel);display:flex;flex-direction:column;gap:1px;
+  }
+  .key-add-menu .key-group{margin:6px 4px 2px;}
+  .key-add-menu button{
+    display:flex;align-items:center;gap:8px;text-align:left;background:none;border:none;
+    padding:3px 4px;border-radius:4px;cursor:pointer;color:var(--ink);font-size:12px;font-family:inherit;
+  }
+  .key-add-menu button:hover{background:var(--panel-2);}
+  .key-add-own{color:var(--accent) !important;font-family:'IBM Plex Mono',monospace !important;font-size:10.5px !important;
+    text-transform:uppercase;letter-spacing:0.4px;}
+  /* A reader is not shown the legend at all: it is the author's working
+     key while the chart is being made (the owner's call, 2026-10-14). */
+  body.read-only #keyPanel{display:none !important;}
   .ref-item{
     padding:7px 8px;border-bottom:1px solid var(--line);position:relative;
   }
@@ -2650,6 +2733,10 @@
   .hex-field{display:flex;align-items:center;gap:3px;}
   /* A field and the control that puts it back to its default, on one row. */
   .field-with-reset{display:flex;align-items:center;gap:5px;}
+  .editor-field-pair{display:flex;gap:10px;align-items:flex-start;}
+  .editor-field-pair > .editor-field{flex:1 1 0;min-width:0;margin-bottom:0;}
+  .editor-field-pair > .editor-field[hidden]{display:none;}
+  .editor-pair-help{margin:4px 0 12px;}
   .field-with-reset input{flex:1;min-width:0;}
   .hex-reset{
     background:none;border:none;padding:0 2px;cursor:pointer;line-height:1;

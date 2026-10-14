@@ -160,7 +160,7 @@ function touchMenuFor(st){
     const id = g.dataset.id;
     return (id && (selectedId === id || multiSelection.has(id))) ? 'selection' : null;
   }
-  const thing = '.edge-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
+  const thing = '.edge-hit, .amalgam-bar-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
   return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
 function touchCarryMods(st){

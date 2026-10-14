@@ -216,7 +216,7 @@ const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, 
                              noteBg: null, bends: null,
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
-                             fromRing: 0, toRing: 0, gradient: null, square: false,
+                             fromRing: 0, toRing: 0, gradient: null, square: true,
                              noteFrame: true, noteSquare: false };
 function edgeStyleFor(from, to){
   const o = EDGE_STYLES.find(s=>s.from===from && s.to===to);
@@ -274,8 +274,10 @@ function edgeStyleFor(from, to){
     // Which border ring each end attaches to on a multi-coloured node.
     fromRing: typeof o.fromRing === 'number' ? o.fromRing : 0,
     toRing: typeof o.toRing === 'number' ? o.toRing : 0,
-    // Square elbows (and a square note plate) instead of rounded ones.
-    square: !!o.square,
+    /* Square elbows unless asked for rounded ones: only the rounding is
+       stored, as square:false — the owner made square the default
+       (2026-10-14), as it already was for an entry's corners. */
+    square: o.square !== false,
     /* The note's plate: framed or bare, rounded or square. Its own, not the
        connector's — the line's corners are the line's, and a remark on it
        chooses how it is written down. */
