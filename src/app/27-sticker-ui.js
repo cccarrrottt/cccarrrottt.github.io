@@ -368,7 +368,7 @@ function addRefButton(bar){
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tb-ref-btn';
-  btn.textContent = '[n]';
+  btn.innerHTML = REF_SVG;
   btn.title = 'Cite a reference';
   btn.addEventListener('click', ev=>{
     ev.stopPropagation();

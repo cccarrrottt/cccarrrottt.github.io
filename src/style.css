@@ -1055,7 +1055,7 @@
      the tabs still, and it also meant one page at a time — the tags could
      not stay open while a reference was looked up. */
   .side-tabs{
-    --side-tab-len:118px;
+    --side-tab-len:44px;
     --side-tab-gap:8px;
     position:absolute;top:14px;bottom:14px;left:0;
     width:26px;
@@ -1104,8 +1104,9 @@
     background:var(--panel);width:27px;z-index:1;border-right:none;
     border-radius:0;box-shadow:none;
   }
-  /* Read from the bottom up, the way a spine is labelled. */
-  .side-tab-handle span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;white-space:nowrap;}
+  /* Each tab is marked by a sign rather than a word: a tag, a citation,
+     a map. */
+  .side-tab-handle svg{display:block;width:15px;height:15px;margin:0 auto;}
   .side-tab-handle:hover{color:var(--accent);}
   .side-tab.open .side-tab-handle{color:var(--ink);}
   .legend-list{overflow-y:auto;flex:1;min-height:0;padding:6px 8px;
@@ -1230,7 +1231,8 @@
   .plus-mini svg{width:11px;height:11px;}
   /* The Tags heading's two: a tag and a category, drawn a size up so the
      small + on each still reads. */
-  .plus-mini.add-tag svg, .plus-mini.add-cat svg{width:13px;height:13px;}
+  .plus-mini.add-tag svg, .plus-mini.add-cat svg, .plus-mini.add-ref svg{width:13px;height:13px;}
+  .inline-icon svg{width:1.15em;height:1.15em;vertical-align:-0.25em;}
   /* An eye with nothing to hide is a control that cannot act, and reads
      as one — the same wash every other disabled control on the page has. */
   .eye-mini:disabled{opacity:0.4;cursor:default;}
@@ -2648,9 +2650,7 @@
     border:1px solid var(--line);border-radius:3px;
     padding:0 2px;margin:0 1px;cursor:default;user-select:all;
   }
-  .tb-ref-btn{
-    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9px;
-  }
+  .tb-ref-btn svg{display:block;width:12px;height:12px;}
   .ref-picker{width:232px;padding:5px;}
   .ref-picker-grid{display:flex;flex-direction:column;gap:2px;}
   .ref-pick{

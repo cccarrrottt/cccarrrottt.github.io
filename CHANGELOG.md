@@ -16,6 +16,15 @@ Releases before 0.9.0 were not numbered.
   plate. It stood a few pixels low, on phones and desktops alike: the
   editor was placed by the frame and laid out by the field, which is
   taller than a plate closed on its words.
+- The three drawers down the left edge are marked by signs instead of
+  words: a tag for Tags, a [1] for References, a folded map for the
+  Legend. The tabs are shorter to suit.
+- The cite button on every text toolbar is the same drawn [1], and the +
+  that adds a reference is a [1] with a +, made like the tag's and the
+  category's.
+- The note in an empty References drawer is set like the Tags drawer's
+  note instead of at body size, and a reader is no longer told to add a
+  reference with a + they do not have.
 
 ## 0.12.0 — "A pixel round the words" (2026-10-14)
 

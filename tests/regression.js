@@ -12523,6 +12523,28 @@ async function main(){
     out.tabsApart = states.every(s=> s.tabsStill && s.tabsFree && s.shown && s.apart &&
       new Set(s.sizes).size === 1);
     out.tabLengths = tabRects().map(r=> r[1]);
+    /* Each tab marked by a sign, not a word: a tag, a citation, a map —
+       named for anything that reads the page aloud. The citation is the
+       mark on every cite button too, and the + for a reference is made
+       the way the tag's and the category's are. */
+    {
+      const signs = tabIds.map(id=>{ const b = document.getElementById(id);
+        return {svg: !!b.querySelector('svg'), text: b.textContent.trim(), label: b.getAttribute('aria-label')}; });
+      out.tabSigns = JSON.stringify(signs);
+      out.tabsBySign = signs.every(t=> t.svg && !t.text && t.label) &&
+        signs.map(t=> t.label).join() === 'Tags,References,Legend';
+      const cite = document.querySelector('.mini-toolbar .tb-ref-btn');
+      out.citeIsSign = !!cite && !!cite.querySelector('svg') && !cite.textContent.trim();
+      buildSideTabs();
+      const addRef = document.querySelector('#refsList .plus-mini.add-ref');
+      const addTag = document.querySelector('#tagsList .plus-mini.add-tag');
+      const box = b=> { const r = b.getBoundingClientRect(), q = b.querySelector('svg').getBoundingClientRect();
+                        return [r.width, r.height, q.width, q.height].map(v=> Math.round(v)).join(); };
+      setSideTab(refs, true); setSideTab(tags, true); await wait(60);
+      out.refAddLike = !!addRef && !!addTag && box(addRef) === box(addTag);
+      out.refAddBoxes = addRef && addTag ? box(addRef) + ' / ' + box(addTag) : 'missing';
+      setSideTab(refs, false); setSideTab(tags, false);
+    }
     /* A press on one tab leaves the others as they were. */
     setSideTab(refs, true);
     document.getElementById('tagsTab').click();
@@ -12587,6 +12609,9 @@ async function main(){
   check('tags, references and the legend are three drawers that open together and never move or overlap',
         rT.tabsApart, JSON.stringify(rT.tabStates));
   check('and the three tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
+  check('each tab is marked by a sign, not a word', rT.tabsBySign, rT.tabSigns);
+  check('the cite button on a text toolbar is the [1] sign', rT.citeIsSign);
+  check('the + for a reference is made as the tag\'s and the category\'s are', rT.refAddLike, rT.refAddBoxes);
   check('pressing one tab leaves the others as they were', rT.pressTurns && rT.pressShuts);
   check('a list longer than the window scrolls inside it', rT.scrolls);
   check('each tab has its own search and its own +', rT.ownTools);

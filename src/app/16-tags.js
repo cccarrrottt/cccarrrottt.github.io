@@ -189,6 +189,15 @@ const TAG_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const CAT_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">' +
   '<path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h5l2 2.2h9A1.5 1.5 0 0 1 21.5 8.7V13M2.5 6.5V18a1.5 1.5 0 0 0 1.5 1.5h9"/>' +
   '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2"/></svg>';
+/* A citation as it is drawn — a number in brackets — as the mark of
+   everything to do with references: the button that cites one from a
+   text, the References tab, and (with the same + as a tag and a category)
+   the button that adds one. */
+const REF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M8 3.5H4.5v17H8M16 3.5h3.5v17H16"/><path d="M9.6 8.2 12.6 6v12"/></svg>';
+const REF_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M5.6 2.5H2.6v13h3M11.6 2.5h3v13h-3"/><path d="M6.9 6.2 8.8 4.8v9.6"/>' +
+  '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2" stroke-linecap="butt"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2" stroke-linecap="butt"/></svg>';
 function makePlusButton(title, svg){
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'icon-action plus-mini'; b.title = title;
@@ -209,7 +218,8 @@ function buildSideTabs(){
   refsList.innerHTML = '';
   const head = sectionHead('References', REFS.length);
   if(!readOnlyView){
-    const add = makePlusButton('Add a reference');
+    const add = makePlusButton('Add a reference', REF_ADD_SVG);
+    add.classList.add('add-ref');
     add.addEventListener('click', ev=>{ ev.stopPropagation(); startNewRefEntry(); });
     head.appendChild(add);
   }

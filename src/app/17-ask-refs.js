@@ -103,9 +103,15 @@ function openRefsPanel(focusKey){
 }
 function buildRefsInto(host){
   if(!REFS.length && !pendingNewRef){
-    const empty = document.createElement('p');
-    empty.className = 'legend-status';
-    empty.textContent = 'No references yet. Add one with +, then cite it with the [n] button on any text toolbar.';
+    /* Set as the Tags tab's own note is. It was a bare paragraph with a
+       class nothing styled, so it came out at the page's body size — the
+       largest type in the drawer — and told a reader, who has no + and no
+       toolbar, how to add one. */
+    const empty = document.createElement('div');
+    empty.className = 'legend-loose-hint';
+    empty.innerHTML = readOnlyView ? 'No references yet.'
+      : 'No references yet. Add one with <span class="inline-icon">' + REF_ADD_SVG +
+        '</span>, then cite it with the <span class="inline-icon">' + REF_SVG + '</span> button on any text toolbar.';
     host.appendChild(empty);
     return;
   }
