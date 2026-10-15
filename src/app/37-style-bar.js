@@ -28,8 +28,15 @@
  * among four grips, a link badge and a row of language chips — one more
  * thing to miss on a small box, and on a phone one more thing in the way
  * of the finger. A turn is a look too, and a button is a press with no
- * aim in it. A picture, which has no bar, keeps the same button in its
- * own menu (see freeMenuTurn).
+ * aim in it.
+ *
+ * Loose furniture — a caption, a picture — wears a bar of ONE button:
+ * where it stands in the stack. It turns by the handle at its corner
+ * instead, freely, so it is offered no quarter turn; and its file, its
+ * URL and its type are a form's work and stay in its own menu. The stack
+ * was two buttons in that form, "Behind" and "In front", which is one
+ * yes-or-no asked twice — and asked in a panel, about a thing on the
+ * drawing, which is the fault the whole bar exists to fix.
  *
  * Every click is one step of undo, and the bar stays where it is through
  * the redraw, on the thing it was opened for, so several looks can be
@@ -45,6 +52,20 @@ const STYLE_BAR_BORDERS = [
 const STYLE_BAR_CORNERS = [['round', '╭', 'Rounded corners — press again for square ones']];
 const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
 const STYLE_BAR_TURN = [['quarter', '⟳', 'Turn a quarter clockwise']];
+/* One button for the stack, the same bargain the corners make: lit, the
+   thing is behind the chart; dark, it is over it. Furniture has never had
+   a third place to be — "normal", in the middle of the entry layer,
+   looked identical to "in front" in every arrangement that mattered. */
+const STYLE_BAR_STACK = [['behind', '⧉', 'Behind the entries and the arrows — press again to put it in front']];
+/* An entry's SCENERY — a hub's echo, a local multiverse's stack — which
+   is drawn in a look of its own rather than in the box's (see
+   decorStyleOf), and so needs somewhere to choose it. The same six, since
+   the scenery is outlines like any other. */
+const STYLE_BAR_DECOR = [
+  ['solid', '──', 'Solid scenery'], ['dashed', '╌╌', 'Dashed scenery'],
+  ['dotted', '┈┈', 'Dotted scenery'], ['dashdot', '─·', 'Dash-dotted scenery'],
+  ['double', '═', 'Double scenery'], ['wavy', '∿', 'Wavy scenery']
+];
 /* A callout's leader, in the connector's own vocabulary — see
    drawLeaderLine. The bar opens on the LINE for these, as it opens on a
    note for a note's: the line is what they change, and asked for on the
@@ -96,11 +117,13 @@ const styleBar = (()=>{
     return row;
   };
   group('border', STYLE_BAR_BORDERS);
+  group('decor', STYLE_BAR_DECOR);
   group('frame', STYLE_BAR_FRAMES);
   group('edgeLine', STYLE_BAR_EDGE_LINE);
   group('corners', STYLE_BAR_CORNERS);
   group('ends', STYLE_BAR_ENDS);
   group('turn', STYLE_BAR_TURN);
+  group('stack', STYLE_BAR_STACK);
   group('leader', STYLE_BAR_LEADER);
   group('leaderForm', STYLE_BAR_LEADER_FORM);
   group('noteSide', STYLE_BAR_NOTE_SIDE);
@@ -189,10 +212,19 @@ let styleBarTimer = null;
 function styleBarNode(){
   return styleBarTarget && styleBarTarget.kind === 'node' ? nodes.get(styleBarTarget.id) : null;
 }
-/* Whether an entry wears the bar at all. A picture and a caption are
-   furniture with a menu of their own (see openFreeMenu), not boxes. */
+function styleBarDecorNode(){
+  return styleBarTarget && styleBarTarget.kind === 'decor' ? nodes.get(styleBarTarget.id) : null;
+}
+/* Whether an entry wears the bar at all. Everything on the chart does: a
+   box wears the outlines and the turn, furniture the one stack button.
+   Furniture has a menu of its own as well (see openFreeMenu), for the
+   things a form is the right place for. */
 function styleBarWants(n){
-  return !!n && !isFreeShape(n.shape || '');
+  return !!n;
+}
+// …and whether what it wears is the furniture bar rather than the box one.
+function styleBarFree(n){
+  return !!n && isFreeShape(n.shape || '');
 }
 function openStyleBar(target){
   if(readOnlyView) return;
@@ -224,19 +256,49 @@ function syncStyleBar(){
   const style = t && (t.kind === 'note' || t.kind === 'edge') ? edgeStyleFor(t.from, t.to) : null;
   const callout = t && t.kind === 'leader' ? nodes.get(t.id) : null;
   if(!t || (t.kind === 'node' && !styleBarWants(n)) || (t.kind === 'note' && !style.note) ||
+     (t.kind === 'decor' && !nodes.get(t.id)) ||
      (t.kind === 'leader' && !(callout && callout.leader))){
     closeStyleBar();
     return;
   }
+  const decorOn = styleBarDecorNode();
   const rows = {};
   styleBar.querySelectorAll('.style-bar-group').forEach(r=> rows[r.dataset.group] = r);
+  rows.decor.hidden = !decorOn;
   const light = (row, value, off)=>{
+    /* A greyed button is never shown lit as well. Lit and greyed read as
+       "pressed, and stuck there": a button that looks as if it could be
+       pressed again, and does nothing when it is. */
     row.querySelectorAll('button').forEach(b=>{
-      b.classList.toggle('on', b.dataset.value === value);
       b.disabled = !!(off && off(b.dataset.value));
+      b.classList.toggle('on', !b.disabled && b.dataset.value === value);
     });
   };
-  rows.turn.hidden = !n;
+  rows.turn.hidden = !n || styleBarFree(n);
+  /* Furniture's bar is the stack and nothing else. A caption and a
+     picture have no border of their own to outline, no corners, and
+     nothing a connector could meet. */
+  rows.stack.hidden = !styleBarFree(n);
+  if(!rows.stack.hidden){
+    rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
+    rows.leader.hidden = rows.leaderForm.hidden = true;
+    rows.edgeLine.hidden = rows.ends.hidden = true;
+    rows.noteSide.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
+    light(rows.stack, (n.z || 0) < 0 ? 'behind' : '');
+    styleBar.hidden = false;
+    positionStyleBar();
+    return;
+  }
+  if(decorOn){
+    rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
+    rows.leader.hidden = rows.leaderForm.hidden = true;
+    rows.edgeLine.hidden = rows.ends.hidden = true;
+    rows.noteSide.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
+    light(rows.decor, decorStyleOf(decorOn));
+    styleBar.hidden = false;
+    positionStyleBar();
+    return;
+  }
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
   rows.edgeLine.hidden = rows.ends.hidden = t.kind !== 'edge';
   rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
@@ -264,9 +326,8 @@ function syncStyleBar(){
     const merged = isMergePart(t.from, t.to);
     const out = isMergedArrow(t.from, t.to);
     rows.ends.querySelectorAll('button').forEach(b=>{
-      b.classList.toggle('on', out ? b.dataset.value === 'out'
-        : b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false);
       b.disabled = merged;
+      b.classList.toggle('on', !merged && (b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false));
       b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
               : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
                        : STYLE_BAR_ENDS.find(e=> e[0] === b.dataset.value)[2];
@@ -329,7 +390,7 @@ function positionStyleBar(){
   if(!t || styleBar.hidden) return;
   const host = document.querySelector('.main').getBoundingClientRect();
   let left, top, bottom;
-  if(t.kind === 'node'){
+  if(t.kind === 'node' || t.kind === 'decor'){
     const n = nodes.get(t.id);
     if(!n){ closeStyleBar(); return; }
     const sr = svg.getBoundingClientRect();
@@ -344,6 +405,11 @@ function positionStyleBar(){
       if(r.height) top = Math.min(top, r.top - host.top);
     });
     bottom = sr.top - host.top + (n.y + n.h + out) * vs + vy;
+    /* Furniture's own handle stands off that same top-left corner, and
+       the bar went up over it: the curved arrow was there, under a button
+       that put the picture behind the chart. The furniture bar starts
+       just inside the corner instead, so the two never share a place. */
+    if(styleBarFree(n)) left += (out + 3) * vs;
   } else if(t.kind === 'edge'){
     left = t.x - host.left - 18;
     top = t.y - host.top - 14;
@@ -377,6 +443,34 @@ function positionStyleBar(){
 function applyStyleBar(group, value){
   const t = styleBarTarget;
   if(!t) return;
+  if(t.kind === 'decor'){
+    applyEdit(()=>{
+      const found = workingEntry(t.id);
+      if(!found) return;
+      const opts = entryOpts(found.entry);
+      // Solid is the absence of the field, as a border's is.
+      if(value === 'solid') delete opts.decor; else opts.decor = value;
+      putEntry(found.index, found.entry, opts);
+    });
+    syncStyleBar();
+    return;
+  }
+  if(t.kind === 'node' && group === 'stack'){
+    /* A toggle, and the two states it has are both written down: the
+       entry layer, which is what a picture is born into, draws over the
+       chart exactly as "in front" does, so there is nothing for the
+       absence of the field to mean. */
+    applyEdit(()=>{
+      const found = workingEntry(t.id);
+      if(!found) return;
+      const n = nodes.get(t.id);
+      const opts = entryOpts(found.entry);
+      if((n && n.z || 0) < 0) opts.z = 1; else opts.z = -1;
+      putEntry(found.index, found.entry, opts);
+    });
+    syncStyleBar();
+    return;
+  }
   if(t.kind === 'node' && group === 'turn'){
     const n = nodes.get(t.id);
     if(!n) return;
@@ -444,6 +538,11 @@ function applyStyleBar(group, value){
 {
   const over = (ev)=>{
     if(readOnlyView) return;
+    const band = ev.target.closest && ev.target.closest('.node-aura-hit');
+    if(band){
+      openStyleBar({kind:'decor', id: band.dataset.id});
+      return;
+    }
     const lead = ev.target.closest && ev.target.closest('.leader-line-hit');
     if(lead){
       openStyleBar({kind:'leader', id: lead.dataset.id});
@@ -469,7 +568,7 @@ function applyStyleBar(group, value){
     }
   };
   const out = (ev)=>{
-    const from = ev.target.closest && ev.target.closest('.node, .edge-note, .leader-line-hit, .edge-hit, #bendLayer');
+    const from = ev.target.closest && ev.target.closest('.node, .node-aura-hit, .edge-note, .leader-line-hit, .edge-hit, #bendLayer');
     if(!from) return;
     const to = ev.relatedTarget;
     if(to && (from.contains(to) || styleBar.contains(to))) return;

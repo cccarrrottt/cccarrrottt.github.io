@@ -66,21 +66,21 @@
     <div class="side-tabs" id="sideTabs">
       <section class="side-tab" id="tagsPanel">
         <button type="button" class="side-tab-handle" id="tagsTab" aria-expanded="false"
-                aria-controls="tagsList" title="Tags — what the chart can be filtered by"><span>Tags</span></button>
+                aria-controls="tagsList" title="Tags — what the chart can be filtered by" aria-label="Tags"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.6V4.5A1.5 1.5 0 0 1 4.5 3h7.1l9.1 9.1-8.6 8.6z"/><circle cx="7.6" cy="7.6" r="1.4"/></svg></button>
         <div class="side-tab-body">
           <div class="legend-list" id="tagsList"></div>
         </div>
       </section>
       <section class="side-tab" id="refsPanel">
         <button type="button" class="side-tab-handle" id="refsTab" aria-expanded="false"
-                aria-controls="refsList" title="References — what the chart cites"><span>References</span></button>
+                aria-controls="refsList" title="References — what the chart cites" aria-label="References"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.5H4.5v17H8M16 3.5h3.5v17H16"/><path d="M9.6 8.2 12.6 6v12"/></svg></button>
         <div class="side-tab-body">
           <div class="legend-list" id="refsList"></div>
         </div>
       </section>
       <section class="side-tab" id="keyPanel">
         <button type="button" class="side-tab-handle" id="keyTab" aria-expanded="false"
-                aria-controls="keyList" title="Legend — what the marks on the chart mean"><span>Legend</span></button>
+                aria-controls="keyList" title="Legend — what the marks on the chart mean" aria-label="Legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 6.4 8.8 4l6.4 2.4 6-2.4v13.6l-6 2.4-6.4-2.4-6 2.4z"/><path d="M8.8 4v13.6M15.2 6.4V20"/></svg></button>
         <div class="side-tab-body">
           <div class="legend-list" id="keyList"></div>
         </div>
@@ -486,24 +486,16 @@
             <button type="button" class="editor-btn" id="freeMenuImageClear">Clear</button>
           </div>
         </div>
-        <div class="editor-field">
-          <label>Stacking</label>
-          <div class="free-menu-row" id="freeMenuLayerRow">
-            <button type="button" class="editor-btn" data-z="-1" title="Behind the entries and the arrows, as a backdrop">Behind</button>
-            <button type="button" class="editor-btn" data-z="1" title="Over the entries and the arrows">In front</button>
-          </div>
-        </div>
-        <div class="editor-field">
-          <label>Turn</label>
-          <div class="free-menu-row">
-            <button type="button" class="editor-btn" id="freeMenuTurn" title="Turn the picture a quarter clockwise">⟳ A quarter clockwise</button>
-          </div>
-        </div>
+        <!-- Where it stands in the stack is set from the hover bar on the
+             picture itself, and the angle by the curved arrow at its
+             top-left corner. Neither belongs in a form: both are about
+             the thing on the drawing, and were aimed at by eye here. -->
       </div>
 
       <div id="freeMenuTextPart">
-        <!-- The angle is set on the CAPTION, by the round arrow at its
-             top-left corner — not by a slider in here. See beginNodeRotate. -->
+        <!-- The angle is set on the CAPTION, by the curved arrow at its
+             top-left corner, and where it stands in the stack on its
+             hover bar — not by controls in here. See beginNodeRotate. -->
         <!-- The WORDS are written on the caption: double-click it. What
              is set here is the caption's own face and size, which belong
              to the whole of it rather than to a run inside it. -->

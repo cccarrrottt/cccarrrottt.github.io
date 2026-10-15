@@ -3,9 +3,10 @@
 
    A picture and a text block are not entries in the continuity — they have
    no lineage, no ports and nothing to say in the entry panel — so clicking
-   one opens this small card beside it instead. A picture gets a file, a URL
-   and a stacking choice; a text block gets its words, with the same live
-   preview the entry editor has.
+   one opens this small card beside it instead. A picture gets a file and a
+   URL; a text block gets its own face and size. What is about the thing on
+   the drawing — where it stands in the stack, which way round it is — is
+   set on the drawing, from the hover bar and the corner handle.
    ------------------------------------------------------------------ */
 const freeMenu = document.getElementById('freeMenu');
 const freeMenuImagePart = document.getElementById('freeMenuImagePart');
@@ -56,10 +57,6 @@ function openFreeMenu(id, evt){
   freeMenuTextPart.style.display  = isImage ? 'none' : '';
   if(isImage){
     freeMenuImageUrl.value = n.image || '';
-    // Remembered as it was, so that changing something else in this menu
-    // does not quietly decide it for the reader. See freeMenuZ.
-    freeMenuZ = n.z || 0;
-    paintFreeLayerRow(freeMenuZ);
   } else {
     populateFontOptions(freeMenuFont);
     freeMenuFont.value = n.font || FONT_OPTIONS[0].key;
@@ -70,50 +67,9 @@ function openFreeMenu(id, evt){
   positionFreeMenu(evt, n);
 }
 
-/* Which layer the menu is currently offering, kept apart from which
-   button is lit.
- *
- * There are two buttons and three states: behind, the entry layer, and in
- * front. An element that has never been given a layer sits in the entry
- * layer, and the row lights "in front" for it, because that is the nearer
- * of the two. Reading the answer back OFF the lit button therefore turned
- * that display into a decision: change an image's URL and nothing else,
- * and it was moved in front of the whole chart. What the reader chose is
- * remembered here instead, and only a click on the row changes it. */
-let freeMenuZ = 0;
-// Two choices, not three: an image is either behind the chart or over it.
-// "Normal" put it in the middle of the entry layer, which looked identical
-// to "in front" in every arrangement that mattered.
-function paintFreeLayerRow(z){
-  const want = z < 0 ? -1 : 1;
-  document.querySelectorAll('#freeMenuLayerRow .editor-btn').forEach(b=>{
-    b.classList.toggle('on', Number(b.dataset.z) === want);
-  });
-}
-
 document.getElementById('freeMenuClose').onclick = (ev)=>{ ev.stopPropagation(); closeFreeMenu(); };
 freeMenu.addEventListener('click', ev=> ev.stopPropagation());
 wireImagePicker('freeMenuImagePick', 'freeMenuImageClear', 'freeMenuImageUrl');
-
-document.querySelectorAll('#freeMenuLayerRow .editor-btn').forEach(b=>{
-  b.addEventListener('click', ev=>{
-    ev.stopPropagation();
-    freeMenuZ = Number(b.dataset.z);
-    paintFreeLayerRow(freeMenuZ);
-    queueFreeMenuCommit(0);
-  });
-});
-
-/* A picture turns in quarters like any entry; it has no style bar, so the
-   button is here. Whatever the menu still holds is committed first, so the
-   turn is a step of its own on top of it. */
-document.getElementById('freeMenuTurn').addEventListener('click', ev=>{
-  ev.stopPropagation();
-  const n = freeMenuId && nodes.get(freeMenuId);
-  if(!n) return;
-  flushFreeMenuCommit();
-  turnEntryTo(n.id, quarterTurnOf(n) + 90);
-});
 
 /* The free-element menu commits as you use it too — one undo step for the
    whole time the menu is open, the same as the entry editor. */
@@ -135,7 +91,6 @@ function commitFreeMenu(){
   if(!n) return;
   const isImage = (n.shape||'') === 'image';
   const url = freeMenuImageUrl.value.trim();
-  const z = freeMenuZ;
   const font = freeMenuFont.value === FONT_OPTIONS[0].key ? null : freeMenuFont.value;
   const sizeRaw = freeMenuFontSize.value.trim();
   const fontSize = sizeRaw ? Number(sizeRaw) : null;
@@ -150,7 +105,10 @@ function commitFreeMenu(){
     const opts = entryOpts(found.entry);
     if(isImage){
       if(url) opts.image = url; else delete opts.image;
-      if(z) opts.z = z; else delete opts.z;
+      /* Where it stands in the stack is not this form's to write any
+         more: it is set from the hover bar on the picture. A commit from
+         here that touched it would put back whatever the (now absent)
+         row last said — the same fault the angle had below. */
     } else {
       /* The WORDS are not this form's to write any more: they are typed on
          the caption itself. What is set here is the caption's own face and
@@ -158,7 +116,7 @@ function commitFreeMenu(){
       if(font) opts.font = font; else delete opts.font;
       if(fontSize && Number.isFinite(fontSize)) opts.fontSize = fontSize; else delete opts.fontSize;
       /* The angle is not this form's to write. It is set on the caption
-         itself, by the round arrow at its corner, and a commit from here
+         itself, by the curved arrow at its corner, and a commit from here
          that touched it would put back whatever the (now absent) slider
          last said. */
     }

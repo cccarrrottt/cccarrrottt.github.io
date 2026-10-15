@@ -62,6 +62,12 @@ function borderStyleOf(n){
   const k = (n && n.border) || 'solid';
   return BORDER_STYLES[k] ? k : 'solid';
 }
+/* The look of an entry's scenery. Solid is the default and is stored as
+   nothing, exactly as a border's is. */
+function decorStyleOf(n){
+  const k = (n && n.decor) || 'solid';
+  return BORDER_STYLES[k] ? k : 'solid';
+}
 /* Whether this entry's outline ripples.
  *
  * Asked of the DRAWING, not of the setting. The archetypes that draw an
@@ -192,12 +198,17 @@ function isFreeShape(shape){ return shape === 'image' || shape === 'textbox'; }
  * An entry turns in quarters only: the chart is drawn in right angles, and
  * a box at any other angle has no side for a connector to meet square-on.
  * Every kind of entry turns — a box, a callout, a card, a portrait, a
- * picture, a merge — because the whole of what is drawn turns with it, and
- * the box the chart reasons with is the turned one. A caption is the one
- * exception: it turns freely, as a drawing does, by a handle of its own. */
+ * merge — because the whole of what is drawn turns with it, and the box
+ * the chart reasons with is the turned one.
+ *
+ * The free furniture is the exception: a caption and a picture are
+ * drawings, not boxes on a lineage, so they turn to any angle by a handle
+ * of their own and the upright box underneath them stays upright. A
+ * picture used to turn in quarters out of a button in its menu, which gave
+ * one piece of furniture two different ways of doing the same thing. */
 function quarterTurnable(n){
   if(!n) return false;
-  return (n.shape || 'rect') !== 'textbox';
+  return !isFreeShape(n.shape || 'rect');
 }
 function quarterTurnOf(n){
   if(!n || !n.rot || !quarterTurnable(n)) return 0;
@@ -679,6 +690,19 @@ workingNodes.forEach(item=>{
        double, or the wavy edge a pocket reality used to be. */
     border: (opts && typeof opts.border === 'string' && BORDER_STYLES[opts.border])
             ? opts.border : null,
+    /* And how its SCENERY is drawn — a hub's echo, a local multiverse's
+       stack — which is a look of its own and not the box's.
+     *
+       A sheet copied the entry's outline, dash pattern, second rail and
+       ripple and all, on the reasoning that a sheet is the same world
+       seen again. What it meant in practice was that nobody could draw a
+       dashed entry with a plain stack behind it, or a plain entry with
+       the stack dashed: the scenery had no look to choose, only one to
+       inherit. It has its own now, solid unless somebody says otherwise,
+       and the register of looks is the border styles' — see
+       decorStyleOf. */
+    decor: (opts && typeof opts.decor === 'string' && BORDER_STYLES[opts.decor])
+           ? opts.decor : null,
     /* Square corners instead of rounded ones — see hasSquareCorners. */
     /* Square unless asked otherwise: an entry's default box has square
        corners, and rounding them is the choice that is recorded. */
@@ -744,8 +768,9 @@ workingNodes.forEach(item=>{
        the way, 'left' and 'right' are the reader's own answer. */
     bioSide: (opts && (opts.bioSide === 'left' || opts.bioSide === 'right'))
              ? opts.bioSide : null,
-    // Degrees clockwise about the element's own centre. A loose text block
-    // takes any angle; an entry takes quarters (see quarterTurnOf).
+    // Degrees clockwise about the element's own centre. Loose furniture —
+    // a caption, a picture — takes any angle; an entry takes quarters
+    // (see quarterTurnOf).
     rot: (opts && typeof opts.rot==='number' && Number.isFinite(opts.rot))
          ? ((opts.rot % 360) + 360) % 360 : 0,
     // A hand-set box size, from dragging a node's corner. Absent means the

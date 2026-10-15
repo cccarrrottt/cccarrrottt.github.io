@@ -368,15 +368,6 @@ function avoidLeaderSide(n, side){
   if(!taken || taken !== side) return side;
   return (SIDE_FALLBACK[side] || [])[0] || side;
 }
-/* Whether a point is in FRONT of one side of a box — past its face,
-   where a connector leaving by that side is already heading. */
-function sideAheadOf(n, side, p){
-  const nrm = SIDE_NORMAL[side];
-  if(!n || !nrm || !p) return true;
-  const fx = nrm.x > 0 ? n.x + n.w : nrm.x < 0 ? n.x : n.x + n.w/2;
-  const fy = nrm.y > 0 ? n.y + n.h : nrm.y < 0 ? n.y : n.y + n.h/2;
-  return (p.x - fx) * nrm.x + (p.y - fy) * nrm.y > 0;
-}
 function resolvePorts(edgesList, sideOverrides){
   const ends = [];   // one entry per edge end
   edgesList.forEach(e=>{
@@ -406,24 +397,30 @@ function resolvePorts(edgesList, sideOverrides){
      * over both. */
     const bendChain = usableHandBends(style, a, b);
     const firstBend = bendChain[0], lastBend = bendChain[bendChain.length - 1];
-    /* …and a side is given up only when the bend is BEHIND it.
+    /* …and the bend decides outright, not only when the guess would send
+     * the line backwards past its own entry.
      *
-     * The automatic guess answers a different question from the bends —
-     * which side of one entry faces the other — and where the two
-     * disagree the guess wins, because it is about the pair and the bend
-     * is about one point. But it cannot win when the point it would send
-     * the line away from is behind the face it leaves by: then the route
-     * goes out, stops, and comes back past its own entry to reach a bend
-     * that has not moved, which is what the knee JUMPING to the far side
-     * of its box looked like when two entries were pulled apart far
-     * enough for the guess to flip. Facing the bend it is pinned to, the
-     * connector is stable under any movement that leaves the bends alone,
-     * which is what a route placed by hand promises. A side set by hand
-     * still wins over both. */
-    const autoFrom = (firstBend && !sideAheadOf(a, auto.from, firstBend))
-      ? sideFacing(a, firstBend.x, firstBend.y) : auto.from;
-    const autoTo = (lastBend && !sideAheadOf(b, auto.to, lastBend))
-      ? sideFacing(b, lastBend.x, lastBend.y) : auto.to;
+     * Keeping the guess wherever it pointed roughly the right way left it
+     * free to FLIP — it answers "which side of one entry faces the
+     * other", so pulling the two apart along the other axis changes its
+     * answer — and a flip takes the port to a different face while the
+     * bend has not moved at all. The whole route is then drawn again
+     * between a new port and the same fixed points: at one step of a
+     * carry the line left its entry rightwards and came into the other
+     * from the left; at the next it left downwards and came in from
+     * above. That is the connector jumping. Nothing about it was
+     * gradual, and nothing the reader did asked for it.
+     *
+     * A bend is a statement about ONE point and one entry, so it answers
+     * a question the pair cannot: which face of this box the line is
+     * pinned towards. That answer changes only when the bend itself
+     * crosses the box's diagonal — which is the reader moving the entry
+     * past their own bend, and is the one case where the side SHOULD
+     * change. Everywhere else the route now holds still under any
+     * movement that leaves the bends alone, which is what a route placed
+     * by hand promises. A side set by hand still wins over it. */
+    const autoFrom = firstBend ? sideFacing(a, firstBend.x, firstBend.y) : auto.from;
+    const autoTo = lastBend ? sideFacing(b, lastBend.x, lastBend.y) : auto.to;
     let fromSide = (over && over.fromSide) || style.fromSide || autoFrom;
     let toSide = (over && over.toSide) || style.toSide || autoTo;
     /* …but never the side a callout's own leader already occupies. */

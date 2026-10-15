@@ -437,6 +437,17 @@
    * .dim sets the group's opacity, which nothing transitions — so the
    * scenery now behaves exactly as the thing it is scenery for. */
   .node-aura.dim{opacity:0.14;}
+  /* The band a reader points at to reach the scenery: as wide as the
+     scenery, hollow in the middle, and invisible. The layer takes no
+     pointer, so this says so for itself. */
+  .node-aura-hit{fill:none;stroke:transparent;pointer-events:stroke;cursor:pointer;}
+  body.read-only .node-aura-hit{pointer-events:none;}
+  /* Scenery picked out, or standing round a picked entry, wears the same
+     glow everything else on the chart wears when it is picked. */
+  .node-aura.picked .hub-echo, .node-aura.picked .local-sheet{
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
+  }
   /* Picked out, an entry KEEPS ITS BORDER.
    *
      The selection used to redraw the outline at three pixels instead of
@@ -1006,9 +1017,11 @@
   .amalgam-bar-hit{fill:none;stroke:transparent;stroke-width:14px;pointer-events:stroke;cursor:pointer;}
   .amalgam-bar-hit.across-y{cursor:ns-resize;}
   .amalgam-bar-hit.across-x{cursor:ew-resize;}
+  /* Paper, so only its glow is seen — the same glow as .edge-picked. */
   .amalgam-bar-focus{
-    fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round;opacity:0.3;
-    pointer-events:none;
+    fill:none;stroke:var(--paper);stroke-width:1.6;pointer-events:none;
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
   body.bar-carrying, body.bar-carrying *{cursor:grabbing !important;}
   body.read-only .amalgam-bar-hit, body.read-only .amalgam-bar-focus{display:none;}
@@ -1053,7 +1066,7 @@
      the tabs still, and it also meant one page at a time — the tags could
      not stay open while a reference was looked up. */
   .side-tabs{
-    --side-tab-len:118px;
+    --side-tab-len:44px;
     --side-tab-gap:8px;
     position:absolute;top:14px;bottom:14px;left:0;
     width:26px;
@@ -1102,8 +1115,9 @@
     background:var(--panel);width:27px;z-index:1;border-right:none;
     border-radius:0;box-shadow:none;
   }
-  /* Read from the bottom up, the way a spine is labelled. */
-  .side-tab-handle span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;white-space:nowrap;}
+  /* Each tab is marked by a sign rather than a word: a tag, a citation,
+     a map. */
+  .side-tab-handle svg{display:block;width:15px;height:15px;margin:0 auto;}
   .side-tab-handle:hover{color:var(--accent);}
   .side-tab.open .side-tab-handle{color:var(--ink);}
   .legend-list{overflow-y:auto;flex:1;min-height:0;padding:6px 8px;
@@ -1228,7 +1242,8 @@
   .plus-mini svg{width:11px;height:11px;}
   /* The Tags heading's two: a tag and a category, drawn a size up so the
      small + on each still reads. */
-  .plus-mini.add-tag svg, .plus-mini.add-cat svg{width:13px;height:13px;}
+  .plus-mini.add-tag svg, .plus-mini.add-cat svg, .plus-mini.add-ref svg{width:13px;height:13px;}
+  .inline-icon svg{width:1.15em;height:1.15em;vertical-align:-0.25em;}
   /* An eye with nothing to hide is a control that cannot act, and reads
      as one — the same wash every other disabled control on the page has. */
   .eye-mini:disabled{opacity:0.4;cursor:default;}
@@ -2646,9 +2661,7 @@
     border:1px solid var(--line);border-radius:3px;
     padding:0 2px;margin:0 1px;cursor:default;user-select:all;
   }
-  .tb-ref-btn{
-    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9px;
-  }
+  .tb-ref-btn svg{display:block;width:12px;height:12px;}
   .ref-picker{width:232px;padding:5px;}
   .ref-picker-grid{display:flex;flex-direction:column;gap:2px;}
   .ref-pick{
@@ -2862,6 +2875,12 @@
   .style-bar button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
   .style-bar button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
   .style-bar button:disabled{opacity:0.35;cursor:default;}
+  /* Greyed is never lit as well, wherever a row of choices has both. */
+  .style-bar button.on:disabled, .free-menu-row .editor-btn.on:disabled,
+  .comment-filter .editor-btn.on:disabled, .style-choice button.on:disabled,
+  .mini-toolbar button.on:disabled{
+    color:var(--ink-dim);background:var(--panel-2);border-color:var(--line);
+  }
   body.read-only .style-bar{display:none;}
 
   /* The version line and the history at the foot of the About panel. */

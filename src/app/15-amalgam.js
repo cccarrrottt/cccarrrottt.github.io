@@ -150,11 +150,18 @@ function amalgamGeometry(list, ports){
      it hangs; nothing about the entry enters into it. */
   const fixed = b.bar || null;
   let resting = null;
-  if(pnodes.length && !byHand){
-    const span = (k, len)=> ({lo: Math.min(...pnodes.map(p=> p[k])),
-                              hi: Math.max(...pnodes.map(p=> p[k] + p[len])),
-                              mid: pnodes.reduce((t, p)=> t + p[k] + p[len]/2, 0) / pnodes.length});
-    const sx = span('x', 'w'), sy = span('y', 'h');
+  const span = (k, len)=> ({lo: Math.min(...pnodes.map(p=> p[k])),
+                            hi: Math.max(...pnodes.map(p=> p[k] + p[len])),
+                            mid: pnodes.reduce((t, p)=> t + p[k] + p[len]/2, 0) / pnodes.length});
+  const sx = pnodes.length ? span('x', 'w') : null, sy = pnodes.length ? span('y', 'h') : null;
+  /* A bar somebody has carried is honoured even where a lineage was given
+     its side by hand. The hand-set side decides which way a LINEAGE
+     leaves its own entry; where the bar hangs is a separate answer, and
+     the only one a carry is giving. Read as one question, a merge with a
+     single hand-set side could not be carried at all: there was no
+     resting place to measure from, so the bar had nothing to be moved
+     from and the drag did nothing. */
+  if(pnodes.length && (!byHand || fixed)){
     const gapX = Math.max(b.x - sx.hi, sx.lo - (b.x + b.w));
     const gapY = Math.max(b.y - sy.hi, sy.lo - (b.y + b.h));
     /* Clear on one axis only: the bar crosses that one. Clear on both — an
@@ -286,15 +293,26 @@ function amalgamGeometry(list, ports){
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
-          rest: resting ? restingNow(resting, port[resting.k] + nrm[resting.k] * barDist) : null,
+          rest: restingNow(side, port, nrm, barDist, sx, sy, resting),
           cx: port.x + nrm.x * barDist, cy: port.y + nrm.y * barDist};
 }
-/* Where the bar stands now, said the way a fixed bar is stored: the axis,
-   the side of the lineages, and how far beyond them — measured from where
-   it was actually drawn, so fixing it moves nothing. */
-function restingNow(r, atNow){
-  return {k: r.k, after: r.after,
-          lead: Math.max(AMALGAM_LEAD_MIN, r.after ? atNow - r.spHi : r.spLo - atNow)};
+/* Where the bar stands NOW, said the way a fixed bar is stored: the axis,
+   the side of the lineages, and how far beyond them — read off where it
+   was actually drawn, so writing it down moves nothing.
+ *
+   Answered for every merge that has lineages, not only for the ones with
+   a resting place worked out above. A bar is carried by being moved from
+   where it stands, and a merge whose lineages were given their sides by
+   hand had nothing written down to move from: the carry found no spec
+   and did nothing at all. Where it stands is a question the drawing can
+   always answer. */
+function restingNow(side, port, nrm, barDist, sx, sy){
+  if(!sx || !sy) return null;
+  const k = sideIsVertical(side) ? 'y' : 'x';
+  const sp = k === 'x' ? sx : sy;
+  const at = port[k] + nrm[k] * barDist;
+  const after = at >= (sp.lo + sp.hi) / 2;
+  return {k, after, lead: Math.max(AMALGAM_LEAD_MIN, after ? at - sp.hi : sp.lo - at)};
 }
 /* Which side of its own entry a lineage leaves by.
  *
@@ -726,6 +744,9 @@ function drawAmalgam(list, ports){
   /* Each middle lineage's run along the bar, as drawn — the reach below
      has to lie on exactly the same line where it crosses one. */
   const stretches = [];
+  /* Each lineage's part of the bar on its own, as drawn — what a picked
+     bar is lit along (see paintBarFocus). */
+  const barPieces = [];
   members.forEach((e, i)=>{
     const a = nodes.get(e.from);
     const recM = ports.get(e);
@@ -817,6 +838,8 @@ function drawAmalgam(list, ports){
                           : ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
       stretches[i] = {land, bar, wavy: !!style.sinusoid};
     }
+    if(bar) barPieces.push({from: e.from, d: style.sinusoid ? wavyPath([land, bar], 0, 0, true)
+                              : `M${land.x.toFixed(2)},${land.y.toFixed(2)} L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`});
     /* What the reader sees, whichever way the corner was drawn. `joined`
        carries the bar leg only for the two end lineages, so anchoring a
        note on it put a note on a MIDDLE lineage back on the short routed
@@ -894,8 +917,10 @@ function drawAmalgam(list, ports){
       const dash = DASH_PATTERNS[style.dash];
       if(dash) attrs['stroke-dasharray'] = dash;
       edgePath(attrs, Object.assign({}, style, {sinusoid: false}), edgeLayer);
+      barPieces.push({from: e.from, d});
     }
   }
+  amalgamBars.get(b.id).pieces = barPieces;
   const colors = allMembers.map(amalgamMemberColor);
   // It leaves from a point ON the bar, so the bar and the arrow are one
   // continuous shape rather than a line crossing another line.
@@ -1249,10 +1274,18 @@ function positionSwapButton(){
 function drawBarGrip(id, a, z, ux){
   if(Math.hypot(z.x - a.x, z.y - a.y) < 1) return;
   const d = `M${a.x.toFixed(2)},${a.y.toFixed(2)} L${z.x.toFixed(2)},${z.y.toFixed(2)}`;
-  if(amalgamBarFocus === id) paintBarFocus(id, d);
+  if(amalgamBarFocus === id) paintBarFocus(id);
   const hit = el('path', {class:'amalgam-bar-hit' + (ux ? ' across-y' : ' across-x'), d,
                           'data-amalgam': id}, edgeLayer);
-  hit.addEventListener('mousedown', ev=> beginBarDrag(ev, id));
+  hit.addEventListener('mousedown', ev=>{
+    /* Whether the lineage under the press is the one already picked is
+       asked HERE, at the first press: the click that follows lets its
+       panel go, as a click anywhere does, so by the double click there is
+       nothing left to ask. */
+    const s = barStretchAt(id, ev.clientX, ev.clientY);
+    if(s && edgeIsPicked(s.from, id)) barPressedPicked = {id, from: s.from, at: performance.now()};
+    beginBarDrag(ev, id);
+  });
   hit.addEventListener('click', ev=>{
     ev.stopPropagation();
     if(amalgamBarDrag && amalgamBarDrag.swallow) return;
@@ -1264,9 +1297,24 @@ function drawBarGrip(id, a, z, ux){
   hit.addEventListener('dblclick', ev=>{
     ev.stopPropagation();
     ev.preventDefault();
+    /* On a lineage that is already picked, a double click on its stretch
+       of the bar is what it is on the rest of that line: its note. The
+       stretch is that lineage's as much as the line coming down is, and a
+       double click that meant "note" on one half and "panel" on the other
+       half of a line already lit as one was a line of two minds. */
+    const s = barStretchAt(id, ev.clientX, ev.clientY);
+    const was = barPressedPicked;
+    barPressedPicked = null;
+    if(s && !readOnlyView && was && was.id === id && was.from === s.from
+       && performance.now() - was.at < 1000){
+      setBarFocus(null);
+      startEdgeNote(s.from, id, ev);
+      return;
+    }
     openBarStretch(id, ev);
   });
 }
+var barPressedPicked = null;
 // Which lineage's stretch of the bar a point on the screen is on.
 function barStretchAt(id, clientX, clientY){
   const rec = amalgamBars.get(id);
@@ -1292,15 +1340,30 @@ function setBarFocus(id){
   amalgamBarFocus = next;
   edgeLayer.querySelectorAll('.amalgam-bar-focus').forEach(p=> p.remove());
   if(!next) return;
-  const hit = edgeLayer.querySelector(`.amalgam-bar-hit[data-amalgam="${CSS.escape(next)}"]`);
-  if(hit) paintBarFocus(next, hit.getAttribute('d'));
+  paintBarFocus(next);
 }
-/* A halo UNDER the bar, not a line over it: the bar is several lineages'
-   colours end to end, and painting it over in one would hide the very
-   thing it is made of. */
-function paintBarFocus(id, d){
-  const halo = el('path', {class:'amalgam-bar-focus', d, 'data-amalgam': id}, edgeLayer);
-  edgeLayer.insertBefore(halo, edgeLayer.firstChild);
+/* A picked bar is lit the way a picked connector is — the same glow
+   (.edge-picked), round the bar and nothing else. It used to wear a halo
+   of its own, a wide band of accent under the line, which read as some
+   other kind of picked from every line beside it.
+
+   The glow cannot go on the lineages' own paths: each one is the line
+   coming down AND its stretch of the bar, so lighting it lit the whole
+   lineage. Each stretch is traced again under the chart in paper, the
+   lineage's own weight, and the glow is that tracing's shadow: the paper
+   is lost against the page, the stretch drawn over it hides the rest,
+   and what shows is the glow — along waves and through dashes as the
+   stretch itself goes. */
+function paintBarFocus(id){
+  const rec = amalgamBars.get(id);
+  (rec && rec.pieces || []).forEach(p=>{
+    const sel = `.edge.amalgam-member[data-from="${CSS.escape(p.from)}"][data-to="${CSS.escape(id)}"]:not(.dbl-inner)`;
+    const line = edgeLayer.querySelector(sel);
+    const w = line ? getComputedStyle(line).strokeWidth : '';
+    const glow = el('path', {class:'amalgam-bar-focus', d: p.d, 'data-amalgam': id}, edgeLayer);
+    if(w) glow.style.strokeWidth = w;
+    edgeLayer.insertBefore(glow, edgeLayer.firstChild);
+  });
 }
 /* The place a bar stands, fixed: what it is told to keep from now on. A
    bar no drag has touched is worked out afresh from where the entry is,

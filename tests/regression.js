@@ -4273,6 +4273,11 @@ async function main(){
     await wait(700);
     const picRow = workingNodes.find(x=> x[0] === 'fp2');
     out.pictureKeptItsLayer = !(picRow && picRow[6] && picRow[6].z);
+    /* …and it cannot, because the menu no longer offers the stack or the
+       turn at all: both are set on the picture itself. */
+    out.menuHasNoStack = !document.getElementById('freeMenuLayerRow') &&
+                         !document.getElementById('freeMenuTurn') &&
+                         !/Stacking|quarter clockwise/.test(freeMenu.textContent);
     closeFreeMenu();
     await wait(180);
 
@@ -4363,6 +4368,8 @@ async function main(){
                         z:r21.copyKeepsLayer}));
   check('changing a picture’s address does not move it in front of the chart',
         r21.pictureKeptItsLayer);
+  check('and its menu offers neither the stack nor the turn any more',
+        r21.menuHasNoStack);
   check('card layout is not lost by looking at another archetype',
         r21.cardSurvivesLook);
   check('a question on screen owns the keyboard',
@@ -7487,7 +7494,10 @@ async function main(){
       await wait(120);
     }
 
-    /* A pocket reality's sheets are copies of its own rippled outline. */
+    /* The scenery has a look of its OWN. A pocket reality's sheets used
+       to be copies of its rippled outline, which meant the only way to
+       have plain sheets round a rippled entry was not to ripple it; they
+       are plain until the scenery itself is asked to ripple. */
     applyEdit(()=>{
       workingNodes.length = 0; EDGE_STYLES.length = 0;
       workingNodes.push(['wp','Pocket', null, null, null, 'pocket',
@@ -7501,7 +7511,14 @@ async function main(){
         .map(e=> e.tagName.toLowerCase()).join(',');
       out.pocketSheets = kinds('wp');
       out.plainSheets = kinds('wr');
-      out.sheetsRippled = out.pocketSheets === 'path,path' && out.plainSheets === 'rect,rect';
+      applyEdit(()=>{
+        const row = workingNodes.find(it=> it[0] === 'wp');
+        row[6] = Object.assign({}, row[6], {decor:'wavy'});
+      });
+      await wait(700);
+      out.askedSheets = kinds('wp');
+      out.sheetsRippled = out.pocketSheets === 'rect,rect' && out.plainSheets === 'rect,rect' &&
+                          out.askedSheets === 'path,path';
     }
 
     /* The portrait's card: as tall as its words, and not popped open when
@@ -7624,8 +7641,9 @@ async function main(){
         r37.resetOnNote && r37.resetOnCallout && r37.noHexOnNote && r37.noteCleared,
         JSON.stringify({note:r37.resetOnNote, callout:r37.resetOnCallout,
                         noHex:r37.noHexOnNote, cleared:r37.noteAfter}));
-  check('a pocket reality’s sheets are rippled like its own outline',
-        r37.sheetsRippled, r37.pocketSheets + ' | ' + r37.plainSheets);
+  check('a pocket reality’s sheets are plain until the scenery is asked to ripple',
+        r37.sheetsRippled,
+        r37.pocketSheets + ' | ' + r37.plainSheets + ' | asked ' + r37.askedSheets);
   check('a portrait’s card is no taller than its words', r37.cardTall, r37.cardHeights);
   check('a card already open is not opened again by pointing at it', r37.noRepop);
   check('and none pops up while another entry’s settings are open',
@@ -7896,15 +7914,17 @@ async function main(){
       await wait(150);
     }
 
-    /* A caption is turned by its own handle, and only a caption has one. */
+    /* Furniture is turned by its own handle, and only furniture has one. */
     applyEdit(()=>{
       workingNodes.length = 0; EDGE_STYLES.length = 0;
       workingNodes.push(['rt','Caption', null, null, null, 'textbox', {pos:[-120,-20]}]);
       workingNodes.push(['rb','Entry', null, null, null, null, {pos:[160,-20]}]);
+      workingNodes.push(['ri','', null, null, null, 'image', {pos:[-120,140]}]);
     });
     await wait(800);
     {
-      out.captionHandle = !!document.querySelector('.node[data-id="rt"] .node-rotate');
+      out.captionHandle = !!document.querySelector('.node[data-id="rt"] .node-rotate') &&
+                          !!document.querySelector('.node[data-id="ri"] .node-rotate');
       /* An entry turns in quarters, from its style bar (see "a quarter
          turn"); it has no handle of either kind. */
       out.entryNoHandle = !document.querySelector('.node[data-id="rb"] .node-rotate');
@@ -7978,7 +7998,7 @@ async function main(){
   check('the + picks an archetype by its picture',
         r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
-  check('a caption is turned freely by a handle on the caption, and only a caption',
+  check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
         JSON.stringify({caption:r39.captionHandle, entry:r39.entryNoHandle,
                         live:r39.turnedLive, snap:r39.snapStep}));
@@ -8855,9 +8875,22 @@ async function main(){
       out.weights = before + ' -> ' + getComputedStyle(outline()).strokeWidth;
       out.stillGlows = /drop-shadow/.test(getComputedStyle(outline()).filter || '');
       deselect(); await wait(200);
-      // the stack takes the entry's own border style
-      const sheet = document.querySelector('.node-aura[data-id="lk2"] .local-sheet');
-      out.sheetDashed = !!sheet && sheet.getAttribute('stroke-dasharray') === '7 5';
+      /* The stack is drawn in the scenery's own style, not the entry's:
+         a dashed entry gets plain sheets, and dashed sheets are asked
+         for. A double one is still two outlines a sheet. */
+      const sheetOf = (id)=> document.querySelector(`.node-aura[data-id="${id}"] .local-sheet`);
+      out.sheetPlain = !!sheetOf('lk2') && !sheetOf('lk2').getAttribute('stroke-dasharray');
+      applyEdit(()=>{
+        const row = workingNodes.find(it=> it[0] === 'lk2');
+        row[6] = Object.assign({}, row[6], {decor:'dashed'});
+      });
+      await wait(700);
+      out.sheetDashed = !!sheetOf('lk2') && sheetOf('lk2').getAttribute('stroke-dasharray') === '7 5';
+      applyEdit(()=>{
+        const row = workingNodes.find(it=> it[0] === 'lk3');
+        row[6] = Object.assign({}, row[6], {decor:'double'});
+      });
+      await wait(700);
       out.doubleSheets = document.querySelectorAll('.node-aura[data-id="lk3"] .local-sheet').length;
       // both grounds, on one entry, at the same size
       const rule = document.querySelector('.unreleased-rule[data-id="lk4"]');
@@ -8924,9 +8957,10 @@ async function main(){
                         box:r42.cardKnowsItsBox}));
   check('picking an entry out does not redraw its border heavier',
         r42.weightHeld && r42.stillGlows, r42.weights);
-  check('a stack of worlds copies the entry’s border, whatever style it is',
-        r42.sheetDashed && r42.doubleSheets === 4,
-        JSON.stringify({dashed:r42.sheetDashed, doubleParts:r42.doubleSheets}));
+  check('a stack of worlds is drawn in the scenery’s own style, not the entry’s',
+        r42.sheetPlain && r42.sheetDashed && r42.doubleSheets === 4,
+        JSON.stringify({plain:r42.sheetPlain, dashed:r42.sheetDashed,
+                        doubleParts:r42.doubleSheets}));
   check('an unreleased entry stands on a grey ruled ground of its own',
         r42.bothGrounds && r42.groundsAgree && r42.ruleIsGrey &&
         r42.unreleasedIsSpecial && r42.ruleOpacity > 0.2 && r42.ruleOpacity < 0.6,
@@ -12523,6 +12557,28 @@ async function main(){
     out.tabsApart = states.every(s=> s.tabsStill && s.tabsFree && s.shown && s.apart &&
       new Set(s.sizes).size === 1);
     out.tabLengths = tabRects().map(r=> r[1]);
+    /* Each tab marked by a sign, not a word: a tag, a citation, a map —
+       named for anything that reads the page aloud. The citation is the
+       mark on every cite button too, and the + for a reference is made
+       the way the tag's and the category's are. */
+    {
+      const signs = tabIds.map(id=>{ const b = document.getElementById(id);
+        return {svg: !!b.querySelector('svg'), text: b.textContent.trim(), label: b.getAttribute('aria-label')}; });
+      out.tabSigns = JSON.stringify(signs);
+      out.tabsBySign = signs.every(t=> t.svg && !t.text && t.label) &&
+        signs.map(t=> t.label).join() === 'Tags,References,Legend';
+      const cite = document.querySelector('.mini-toolbar .tb-ref-btn');
+      out.citeIsSign = !!cite && !!cite.querySelector('svg') && !cite.textContent.trim();
+      buildSideTabs();
+      const addRef = document.querySelector('#refsList .plus-mini.add-ref');
+      const addTag = document.querySelector('#tagsList .plus-mini.add-tag');
+      const box = b=> { const r = b.getBoundingClientRect(), q = b.querySelector('svg').getBoundingClientRect();
+                        return [r.width, r.height, q.width, q.height].map(v=> Math.round(v)).join(); };
+      setSideTab(refs, true); setSideTab(tags, true); await wait(60);
+      out.refAddLike = !!addRef && !!addTag && box(addRef) === box(addTag);
+      out.refAddBoxes = addRef && addTag ? box(addRef) + ' / ' + box(addTag) : 'missing';
+      setSideTab(refs, false); setSideTab(tags, false);
+    }
     /* A press on one tab leaves the others as they were. */
     setSideTab(refs, true);
     document.getElementById('tagsTab').click();
@@ -12587,6 +12643,9 @@ async function main(){
   check('tags, references and the legend are three drawers that open together and never move or overlap',
         rT.tabsApart, JSON.stringify(rT.tabStates));
   check('and the three tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
+  check('each tab is marked by a sign, not a word', rT.tabsBySign, rT.tabSigns);
+  check('the cite button on a text toolbar is the [1] sign', rT.citeIsSign);
+  check('the + for a reference is made as the tag\'s and the category\'s are', rT.refAddLike, rT.refAddBoxes);
   check('pressing one tab leaves the others as they were', rT.pressTurns && rT.pressShuts);
   check('a list longer than the window scrolls inside it', rT.scrolls);
   check('each tab has its own search and its own +', rT.ownTools);
@@ -12973,9 +13032,10 @@ async function main(){
       const z = nodes.get('bq3');
       out.turnHome = Math.abs(z.x + z.w/2 - before.cx) < 0.02 && Math.abs(z.y + z.h/2 - before.cy) < 0.02 &&
         Math.abs(z.w - before.w) < 0.6 && !z.rot;
-      /* Everything turns in quarters but a caption, which turns freely. */
-      out.turnOnlyEntries = !quarterTurnable({shape:'textbox'}) && quarterTurnable({shape:'ellipse'}) &&
-        quarterTurnable({shape:'image'}) && quarterTurnable({card:true}) && quarterTurnable({shape:null}) &&
+      /* Everything turns in quarters but the loose furniture — a caption
+         and a picture — which turns freely, by a handle of its own. */
+      out.turnOnlyEntries = !quarterTurnable({shape:'textbox'}) && !quarterTurnable({shape:'image'}) &&
+        quarterTurnable({shape:'ellipse'}) && quarterTurnable({card:true}) && quarterTurnable({shape:null}) &&
         quarterTurnable({shape:'amalgam'}) && quarterTurnable({shape:'callout'});
       /* …by a button in the style bar, not by a handle on the entry. */
       out.turnHandle = !document.querySelector('.node .node-turn') &&
@@ -13008,7 +13068,7 @@ async function main(){
   check('and it keeps its colours when it turns', rQ.turnKeepsPaint);
   check('a connector meets the turned box', rQ.turnPort);
   check('four quarters bring it home', rQ.turnHome);
-  check('everything but a caption turns in quarters, and no entry wears a turning handle',
+  check('everything but the loose furniture turns in quarters, and no entry wears a turning handle',
         rQ.turnOnlyEntries && rQ.turnHandle);
 
   /* ---- unsaved work outlives a page that closes without asking ---- */
@@ -13092,6 +13152,76 @@ async function main(){
       for(let i = 0; i + 1 < nums.length; i += 2) pts.push({x: nums[i], y: nums[i+1]});
       return pts;
     };
+
+    /* A hand-bent route holds still while the entries move.
+     *
+       The port used to be put on whichever side of the entry FACED the
+       other entry — an answer about the pair, which flips as they are
+       pulled apart on the other axis, while the bends have not moved.
+       Every flip redrew the whole route at once: the line left one face
+       at one step of the carry and another face at the next, with the
+       reader's own points unchanged. The bends decide the sides now, so
+       carrying either entry about moves the route by what the entry
+       moved and no more. */
+    applyEdit(()=>{
+      workingNodes.push(['hh1', 'Hold A', null, null, null, null, {pos: at(0, 0)}]);
+      workingNodes.push(['hh2', 'Hold B', 'hh1', null, null, null, {pos: at(400, 300)}]);
+      EDGE_STYLES.push({from:'hh1', to:'hh2', routing:'orthogonal', dash:'solid', arrow:true,
+                        square:false, bends:[at(60, 200), at(300, 200)]});
+    });
+    await wait(300);
+    {
+      /* How far one route strays from the other, as a shape: index by
+         index says nothing once a route gains or loses a vertex. */
+      const near = (p, poly)=>{
+        let m = Infinity;
+        for(let i = 1; i < poly.length; i++){
+          const a = poly[i-1], b = poly[i];
+          const vx = b.x - a.x, vy = b.y - a.y, L = vx*vx + vy*vy;
+          let t = L ? ((p.x-a.x)*vx + (p.y-a.y)*vy) / L : 0;
+          t = Math.max(0, Math.min(1, t));
+          m = Math.min(m, Math.hypot(p.x - (a.x + t*vx), p.y - (a.y + t*vy)));
+        }
+        return m;
+      };
+      const apart = (A, B)=>{
+        let m = 0;
+        A.forEach(p=> m = Math.max(m, near(p, B)));
+        B.forEach(p=> m = Math.max(m, near(p, A)));
+        return m;
+      };
+      const steps = [];
+      let worst = 0;
+      let prev = drawn('hh1', 'hh2');
+      /* Carried well clear of the bends, on both entries and both ways,
+         so nothing here is the reader moving an entry over its own
+         point — which is the one case where a side SHOULD change. */
+      for(const [id, dx, dy] of [['hh2', 0, 40], ['hh2', 40, 0], ['hh1', 0, -40], ['hh1', -40, 0]]){
+        for(let k = 0; k < 5; k++){
+          applyEdit(()=>{
+            const f = workingEntry(id);
+            const o = entryOpts(f.entry);
+            const n = nodes.get(id);
+            o.pos = [+(n.x + dx).toFixed(2), +(n.y + dy).toFixed(2)];
+            putEntry(f.index, f.entry, o);
+          });
+          await wait(90);
+          const now = drawn('hh1', 'hh2');
+          if(prev && now){
+            const d = apart(prev, now);
+            worst = Math.max(worst, d);
+            steps.push(+d.toFixed(1));
+          }
+          prev = now;
+        }
+      }
+      /* The entry moved 40 a step, so a route that follows it moves about
+         that much. Twice it is a route that has been redrawn somewhere
+         else — which is the jump. */
+      out.bendHold = +worst.toFixed(1);
+      out.bendHoldSteps = JSON.stringify(steps);
+      out.bendHeld = worst < 80;
+    }
 
     /* The two the owner drew in ordinary work and saved: a bend between two
        entries that only a route through one of them could reach, and the
@@ -13191,18 +13321,81 @@ async function main(){
     /* Its ground turns with it, and keeps the turn while it is carried. */
     const piece = fanLayer.querySelector('[data-ground="htR"] > *');
     out.groundTurned = !!piece && /^rotate\(90,/.test(piece.dataset.rotTransform || '');
-    /* A caption has no style bar, so no quarter turn either. */
-    openStyleBar({kind:'node', id:'htT'});
-    out.captionNoBar = styleBar.hidden;
-    /* A picture has the same button in its own menu. */
+    /* Furniture wears a bar of ONE row — where it stands in the stack —
+       and no quarter turn: it turns freely, by the handle at its corner. */
     applyEdit(()=>{ workingNodes.push(['htI', '', null, null, null, 'image', {pos: at(600, 1900), size:[120, 60]}]); });
-    await wait(200);
-    openFreeMenu('htI');
-    document.getElementById('freeMenuTurn').click();
-    await wait(150);
-    closeFreeMenu();
-    const pic = nodes.get('htI');
-    out.pictureTurned = quarterTurnOf(pic) === 90 && Math.abs(pic.w - 60) < 0.6 && Math.abs(pic.h - 120) < 0.6;
+    await wait(250);
+    out.freeBar = {};
+    for(const id of ['htT', 'htI']){
+      openStyleBar({kind:'node', id});
+      const shown = [...styleBar.querySelectorAll('.style-bar-group')]
+        .filter(r=> !r.hidden).map(r=> r.dataset.group);
+      out.freeBar[id] = (!styleBar.hidden && shown.length === 1 && shown[0] === 'stack' &&
+                         !!document.querySelector(`.node[data-id="${id}"] .node-rotate`)) ||
+                        JSON.stringify({open: !styleBar.hidden, shown});
+    }
+    /* …and the bar clears that handle rather than standing over it.
+       Measured with the picture actually on the screen: off it, the bar
+       is clamped to the window's edge and would clear anything. */
+    {
+      const keep = {vs, vx, vy};
+      const pic0 = nodes.get('htI');
+      vs = 1; vx = 400 - pic0.x; vy = 300 - pic0.y; applyTransform();
+      openStyleBar({kind:'node', id:'htI'});
+      const handle = document.querySelector('.node[data-id="htI"] .node-rotate');
+      const a = styleBar.getBoundingClientRect(), b = handle.getBoundingClientRect();
+      out.barClearsHandle = a.right <= b.left + 0.5 || a.left >= b.right - 0.5 ||
+                            a.bottom <= b.top + 0.5 || a.top >= b.bottom - 0.5;
+      out.barAtHandle = JSON.stringify({bar:[a.left, a.top, a.right, a.bottom].map(Math.round),
+                                        handle:[b.left, b.top, b.right, b.bottom].map(Math.round)});
+      out.barOnScreen = a.width > 0 && a.left > 4 && b.width > 0;
+      vs = keep.vs; vx = keep.vx; vy = keep.vy; applyTransform();
+    }
+    /* That one button is a toggle, lit while the thing is behind the
+       chart — the two buttons it replaced were one yes-or-no asked twice. */
+    {
+      const stackBtn = ()=> document.querySelector('#styleBar [data-group="stack"] button');
+      openStyleBar({kind:'node', id:'htI'});
+      stackBtn().click();
+      await wait(180);
+      out.picBehind = (nodes.get('htI').z || 0) < 0 &&
+        !!backLayer.querySelector('.node[data-id="htI"]') && stackBtn().classList.contains('on');
+      stackBtn().click();
+      await wait(180);
+      out.picFront = (nodes.get('htI').z || 0) > 0 &&
+        !!frontLayer.querySelector('.node[data-id="htI"]') && !stackBtn().classList.contains('on');
+      closeStyleBar();
+    }
+    /* And the handle turns a picture to any angle, as it turns a caption.
+       Only the drawing turns: the box the chart reasons with stays
+       upright, so a picture no longer swaps its sides. */
+    {
+      const n = nodes.get('htI');
+      const was = {w: n.w, h: n.h};
+      const g0 = document.querySelector('.node[data-id="htI"]');
+      const handle = g0 && g0.querySelector('.node-rotate');
+      const cx = n.x + n.w/2, cy = n.y + n.h/2;
+      const sr = svg.getBoundingClientRect();
+      const toClient = (wx, wy)=> ({x: sr.left + vx + wx*vs, y: sr.top + vy + wy*vs});
+      const reach = Math.max(n.w, n.h);
+      const a0 = Math.atan2(n.y - cy, n.x - cx);
+      const a1 = a0 + 32*Math.PI/180;
+      const p0 = toClient(cx + Math.cos(a0)*reach, cy + Math.sin(a0)*reach);
+      const p1 = toClient(cx + Math.cos(a1)*reach, cy + Math.sin(a1)*reach);
+      handle.dispatchEvent(new MouseEvent('mousedown',
+        {bubbles:true, cancelable:true, button:0, clientX:p0.x, clientY:p0.y}));
+      window.dispatchEvent(new MouseEvent('mousemove',
+        {bubbles:true, cancelable:true, clientX:p1.x, clientY:p1.y}));
+      window.dispatchEvent(new MouseEvent('mouseup',
+        {bubbles:true, cancelable:true, clientX:p1.x, clientY:p1.y}));
+      await wait(300);
+      const m = nodes.get('htI');
+      const g = document.querySelector('.node[data-id="htI"]');
+      out.pictureAngle = m.rot || 0;
+      out.pictureTurned = Math.abs((m.rot || 0) - 32) < 1.5 && quarterTurnOf(m) === 0 &&
+        Math.abs(m.w - was.w) < 0.6 && Math.abs(m.h - was.h) < 0.6 &&
+        /^rotate\(3[12],/.test((g && g.getAttribute('transform')) || '');
+    }
 
     /* The field opens exactly over the entry, at whatever zoom — never
        bigger — and is turned with a turned one. */
@@ -13252,6 +13445,8 @@ async function main(){
   check('the bends the owner saved no longer send a line through an entry or back on itself',
         rW.saved.every(f=> !f), JSON.stringify(rW.saved));
   check('no hand bend anywhere round two entries breaks the route', !rW.fuzz.length, rW.fuzz.slice(0, 4).join(' | '));
+  check('a hand-bent route holds still while its entries are carried about',
+        rW.bendHeld, JSON.stringify({worst: rW.bendHold, steps: rW.bendHoldSteps}));
   check('a lineage leaving along the bar turns only towards it and onto it',
         rW.lineages.every(k=> k >= 0 && k <= 2), JSON.stringify(rW.lineages));
   check('the style bar turns an entry, a card and a portrait a quarter clockwise, in place',
@@ -13259,8 +13454,16 @@ async function main(){
   check('the style bar stays where it was when its turn button is pressed', rW.barStill === true);
   check('a turned portrait takes its card round with it', rW.bioCardTurns, rW.bioCardAt);
   check('a turned entry\'s ground turns with it', rW.groundTurned);
-  check('a caption is not given the quarter turn', rW.captionNoBar);
-  check('a picture turns from its own menu', rW.pictureTurned);
+  check('furniture wears the stack button alone, and keeps its own handle',
+        rW.freeBar.htT === true && rW.freeBar.htI === true,
+        JSON.stringify(rW.freeBar));
+  check('and the bar stands clear of that handle',
+        rW.barClearsHandle && rW.barOnScreen, rW.barAtHandle);
+  check('one button puts a picture behind the chart and back in front',
+        rW.picBehind && rW.picFront,
+        JSON.stringify({behind: rW.picBehind, front: rW.picFront}));
+  check('a picture turns to any angle by its handle, and keeps its sides',
+        rW.pictureTurned, 'turned to ' + rW.pictureAngle);
   check('the inline field opens no bigger than its entry, at any zoom and turned or not',
         !rW.editorTooBig.length, rW.editorTooBig.slice(0, 4).join(' | '));
   });
@@ -14578,6 +14781,20 @@ async function main(){
     hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:1}));
     await wait(100);
     out.barFocused = amalgamBarFocus === 'mbM' && !!document.querySelector('.amalgam-bar-focus[data-amalgam="mbM"]');
+    /* …lit as a picked connector is lit, and along the bar only: the same
+       glow, laid on tracings of the stretches, none of them reaching up a
+       lineage. */
+    {
+      const glows = [...document.querySelectorAll('.amalgam-bar-focus[data-amalgam="mbM"]')];
+      const line = document.querySelector('.edge.amalgam-member[data-to="mbM"]');
+      line.classList.add('edge-picked');
+      const picked = getComputedStyle(line).filter;
+      line.classList.remove('edge-picked');
+      out.barGlow = JSON.stringify({n: glows.length, picked, bar: glows.map(g=> getComputedStyle(g).filter),
+                                    h: glows.map(g=> +g.getBBox().height.toFixed(2))});
+      out.barLitAsPicked = glows.length >= 1 && picked !== 'none' &&
+        glows.every(g=> getComputedStyle(g).filter === picked && g.getBBox().height < 1);
+    }
     // A carry moves it down, along the arrow, and is written down.
     const before = barAt();
     hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
@@ -14618,7 +14835,63 @@ async function main(){
     await wait(200);
     out.stretchOpens = edgePopover.classList.contains('open') && currentEdgeStyleTarget &&
                        currentEdgeStyleTarget.from === 'mbC' && currentEdgeStyleTarget.to === 'mbM';
+    /* With that lineage picked, a double click on its stretch is what it
+       is on the rest of the line: its note. The click before it lets the
+       panel go, as any click does, so this is the whole gesture. */
+    hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:1}));
+    hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:2}));
+    hit().dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:p.x, clientY:p.y}));
+    await wait(250);
+    out.pickedStretchNote = JSON.stringify(nodeEditorTarget);
+    out.pickedStretchWrites = !!nodeEditorTarget && nodeEditorTarget.kind === 'note' &&
+      nodeEditorTarget.from === 'mbC' && nodeEditorTarget.to === 'mbM' && !nodeEditor.hidden;
+    closeNodeEditor(true);
     closeEdgePopover();
+    await wait(150);
+    /* The field opened on a note stands on its plate: the words on the
+       words, and the frame on the plate, not a few pixels under it. */
+    applyEdit(()=> setEdgeStyleOverride('mbC', 'mbM', Object.assign({}, edgeStyleFor('mbC', 'mbM'),
+      {note: 'A note on the line', notePos: 'above', noteAt: 0.3})));
+    await wait(250);
+    openEdgeNoteEditor('mbC', 'mbM', {focus: false});
+    await wait(150);
+    {
+      const plate = document.querySelector('.edge-note[data-from="mbC"][data-to="mbM"] .edge-note-plate').getBoundingClientRect();
+      const surf = richFields.get('nodeEditorText').surface;
+      const f = surf.getBoundingClientRect(), b = getComputedStyle(surf, '::before');
+      const bw = parseFloat(getComputedStyle(surf).borderTopWidth) || 0;
+      const top = f.top + bw + parseFloat(b.top), bottom = f.bottom - bw - parseFloat(b.bottom);
+      out.noteFrame = JSON.stringify({plate:[+plate.top.toFixed(2), +plate.bottom.toFixed(2)],
+                                      frame:[+top.toFixed(2), +bottom.toFixed(2)]});
+      out.noteFrameOnPlate = Math.abs((top + bottom)/2 - (plate.top + plate.bottom)/2) < 1 &&
+                             Math.abs(top - plate.top) < 1.5 && Math.abs(bottom - plate.bottom) < 1.5;
+    }
+    closeNodeEditor(true);
+    /* A side set by hand on one lineage does not take the bar away from
+       the reader: the carry still has somewhere to move it from. */
+    applyEdit(()=> setEdgeStyleOverride('mbA', 'mbM', Object.assign({}, edgeStyleFor('mbA', 'mbM'), {toSide:'top'})));
+    await wait(300);
+    {
+      const rec2 = amalgamBars.get('mbM');
+      out.handRest = JSON.stringify(rec2 && rec2.rest);
+      const at0 = barAt();
+      const q = toClient(rec2.axis === 'x' ? (rec2.lo + rec2.hi)/2 : rec2.cross,
+                         rec2.axis === 'x' ? rec2.cross : (rec2.lo + rec2.hi)/2);
+      hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:q.x, clientY:q.y}));
+      for(let k = 1; k <= 8; k++){
+        window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:q.x + k*8, clientY:q.y + k*8}));
+        await wait(20);
+      }
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+      await wait(350);
+      out.handCarried = Math.abs(barAt() - at0) > GRID &&
+                        !!(workingNodes.find(t=> t[0] === 'mbM')[6].bar);
+      out.handBarAt = JSON.stringify({at0, now: barAt()});
+    }
     // Every lineage straight, and the bar is still there.
     ['mbA','mbB','mbC'].forEach(f=> EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true}));
     redrawEdges(); await wait(200);
@@ -14647,10 +14920,15 @@ async function main(){
   check('the merged arrow can be pointed at, styled and lit, but not repainted or deleted',
         r.outHit && r.outDashed && r.outGlows, JSON.stringify({hit:r.outHit, dash:r.outDashed, glow:r.outGlows}));
   check('a click picks out the bar', r.barFocused);
+  check('a picked bar glows as a picked connector does, along the bar only', r.barLitAsPicked, r.barGlow);
   check('a carried bar moves along the arrow and is written down, and undo takes it back',
         r.barCarried && r.barUndone, r.barAt);
   check('the entry carried beside and past its bar never moves it', r.barHeldUnderEntry, r.barSeen);
   check('a double click on a stretch of the bar opens that lineage', r.stretchOpens);
+  check('a double click on the stretch of a lineage already picked opens its note', r.pickedStretchWrites, r.pickedStretchNote);
+  check('the field on a connector\'s note keeps its frame on the plate', r.noteFrameOnPlate, r.noteFrame);
+  check('a lineage given its side by hand still leaves the bar something to be carried from',
+        r.handCarried, JSON.stringify({rest:r.handRest, at:r.handBarAt}));
   check('straight lineages keep the bar', r.straightKeepsBar, String(r.straightJoints));
   });
   await scenario("seen from far away: patches by tag, then by category", async () => {
@@ -14678,12 +14956,28 @@ async function main(){
     out.tagPatches = JSON.stringify(patches());
     out.byTag = lodLevel === 1 && out.tagPatches === JSON.stringify(['Work A', 'Work B', 'Work C']) &&
                 getComputedStyle(nodeLayer).display === 'none';
-    out.tagColour = document.querySelector('.lod-patch[data-key="Work A"] polygon').getAttribute('fill') === '#3a6fd8';
+    out.tagColour = document.querySelector('.lod-patch[data-key="Work A"] path').getAttribute('fill') === '#3a6fd8';
+    /* A patch is a blob, not a figure: its outline is curved all the way
+       round, with no straight run and no corner left in it. */
+    {
+      const d = document.querySelector('.lod-patch[data-key="Work A"] path').getAttribute('d');
+      out.patchPath = d.slice(0, 60);
+      out.patchIsBlob = /^M[-\d.,]+( C[-\d., ]+)+Z$/.test(d) && !/ L/.test(d) && (d.match(/C/g) || []).length >= 6;
+    }
+    /* …and the bow is what makes it one. Corner-cutting alone leaves a
+       ruled side of the hull exactly where it was, so each side is given
+       a midpoint pushed out along its own normal first. */
+    {
+      const bowed = lodBow([{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100}], 0.1);
+      out.bowed = bowed.length === 8 && bowed[1].y === -10 && bowed[3].x === 110 &&
+                  bowed[5].y === 110 && bowed[7].x === -10;
+      out.bowPts = JSON.stringify(bowed.map(q=> [q.x, q.y]));
+    }
     vs = (LOD_CAT_PX - 0.5) / h; applyTransform(); await wait(100);
     out.catPatches = JSON.stringify(patches());
     out.byCat = lodLevel === 2 && out.catPatches === JSON.stringify(['Work C', 'cat:Franchise']);
     // A click on a patch goes in to where its entries can be read.
-    document.querySelector('.lod-patch[data-key="cat:Franchise"] polygon')
+    document.querySelector('.lod-patch[data-key="cat:Franchise"] path')
       .dispatchEvent(new MouseEvent('click', {bubbles:true}));
     await wait(100);
     out.zoomedIn = lodLevel === 0 && getComputedStyle(nodeLayer).display !== 'none';
@@ -14700,7 +14994,91 @@ async function main(){
   check('close in, the entries are drawn as themselves', r.near);
   check('far out, a patch for each cluster of a tag, in the tag\'s colour', r.byTag && r.tagColour, r.tagPatches);
   check('further out, one patch for each category', r.byCat, r.catPatches);
+  check('a patch is a blob, curved all the way round', r.patchIsBlob, r.patchPath);
+  check('every side of its hull bows outward before the corners are cut',
+        r.bowed, r.bowPts);
   check('a click on a patch zooms in until its entries can be read', r.zoomedIn);
+  });
+  await scenario("scenery with a look of its own, a glow and a menu", async () => {
+  const rS = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const keep = {vs, vx, vy};
+    const out = {};
+    const X = snapToGrid(9000), Y = snapToGrid(9000);
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      workingNodes.push(['scH', 'Hub', null, null, null, null, {pos:[X, Y], tags:[HUB_TAG], border:'dashed'}]);
+      workingNodes.push(['scL', 'Local', null, null, null, null, {pos:[X + 330, Y], tags:[LOCAL_TAG], border:'wavy'}]);
+    });
+    await wait(500);
+    const r = svg.getBoundingClientRect();
+    vs = 1.5; vx = r.width/2 - (X + 200)*vs; vy = r.height/2 - (Y + 40)*vs; applyTransform();
+    await wait(250);
+
+    /* The scenery no longer copies the box it stands behind: a dashed
+       entry gets a plain echo and a rippled one a plain stack, until
+       somebody asks for otherwise. */
+    const echoes = ()=> [...document.querySelectorAll('.hub-echo')];
+    const sheets = ()=> [...document.querySelectorAll('.local-sheet')];
+    out.plainEcho = echoes().length >= 1 && echoes().every(p=> !p.getAttribute('stroke-dasharray'));
+    out.plainSheet = sheets().length >= 1 &&
+      sheets().every(p=> p.tagName.toLowerCase() === 'rect' && !p.getAttribute('stroke-dasharray'));
+    out.sceneryWas = JSON.stringify({echo: echoes().map(p=> p.getAttribute('stroke-dasharray') || '-'),
+                                     sheet: sheets().map(p=> p.tagName)});
+
+    // There is something to point at, and pointing at it offers its look.
+    out.bands = document.querySelectorAll('.node-aura-hit').length;
+    const band = document.querySelector('.node-aura-hit[data-id="scH"]');
+    openStyleBar({kind:'decor', id:'scH'});
+    await wait(150);
+    out.menuGroups = [...styleBar.querySelectorAll('.style-bar-group:not([hidden])')]
+      .map(g=> g.dataset.group).join(',');
+    out.menuIsDecor = !styleBar.hidden && out.menuGroups === 'decor';
+
+    // …and choosing one changes the scenery and nothing else.
+    applyStyleBar('decor', 'dashed');
+    await wait(350);
+    out.decorStored = (workingNodes.find(t=> t[0] === 'scH') || [])[6].decor;
+    out.borderKept = (workingNodes.find(t=> t[0] === 'scH') || [])[6].border;
+    out.echoTookIt = echoes().length >= 1 && echoes().every(p=> !!p.getAttribute('stroke-dasharray'));
+    closeStyleBar();
+
+    /* Picked on its own, the scenery is lit the way everything else on
+       the chart is lit when it is picked. */
+    const lit = ()=> [...document.querySelectorAll('.node-aura.picked')].map(g=> g.dataset.id).sort();
+    deselect();
+    setDecorPick('scH');
+    await wait(100);
+    out.sceneryPicked = JSON.stringify(lit());
+    const glow = band ? getComputedStyle(document.querySelector('.node-aura.picked .hub-echo')).filter : '';
+    out.sceneryGlows = glow !== 'none' && glow.includes('drop-shadow');
+    out.glow = glow;
+
+    // And picking the ENTRY lights its scenery with it.
+    setDecorPick(null);
+    setSelection(['scL'], 'scL');
+    await wait(150);
+    out.entryLightsScenery = JSON.stringify(lit()) === JSON.stringify(['scL']);
+    out.entryLit = JSON.stringify(lit());
+    deselect();
+    setDecorPick(null);
+
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x)); });
+    vs = keep.vs; vx = keep.vx; vy = keep.vy; applyTransform();
+    await wait(300);
+    return out;
+  });
+  check('an entry\'s scenery does not copy the entry\'s own outline',
+        rS.plainEcho && rS.plainSheet, rS.sceneryWas);
+  check('the scenery can be pointed at, and pointing at it offers its look',
+        rS.bands === 2 && rS.menuIsDecor, JSON.stringify({bands:rS.bands, groups:rS.menuGroups}));
+  check('a look chosen there is the scenery\'s, not the box\'s',
+        rS.decorStored === 'dashed' && rS.borderKept === 'dashed' && rS.echoTookIt,
+        JSON.stringify({decor:rS.decorStored, border:rS.borderKept}));
+  check('scenery picked on its own glows as anything picked does',
+        rS.sceneryPicked === '["scH"]' && rS.sceneryGlows, rS.glow);
+  check('picking the entry lights its scenery too', rS.entryLightsScenery, rS.entryLit);
   });
   await scenario("a page told late that it is read-only", async () => {
   /* On claude.ai the host answers "may this viewer write?" after the

@@ -269,11 +269,20 @@ function positionNodeEditor(){
   const above = fieldTop + hang - barH - gap - lift;
   const under = above < 6;
   nodeEditor.classList.toggle('bar-under', under);
+  /* The toolbar keeps its gap from the FRAME, which stands `hang` inside
+     the field; so the field runs on under the toolbar's gap by that much.
+     The editor used to be placed by the frame and then laid out by the
+     field, which put the field `hang` lower than the box it was centred
+     on — on a connector's note, closed on its ink, a few pixels. The
+     words were caught by alignEditorOnInk, which moved the field up to
+     them; the frame, which is held to the box against that move, stayed
+     those pixels low, off the plate it stood for. */
+  const sep = (gap + lift - hang).toFixed(2) + 'px';
   if(bar){
-    bar.style.marginBottom = !under && lift ? (gap + lift) + 'px' : '';
-    bar.style.marginTop = under ? (gap + lift) + 'px' : '';
+    bar.style.marginBottom = under ? '' : sep;
+    bar.style.marginTop = under ? sep : '';
   }
-  const y = under ? fieldTop + hang : above;
+  const y = under ? fieldTop : above;
   surf.transform = box.turn ? `rotate(${box.turn}deg)` : '';
   surf.transformOrigin = box.turn ? 'center' : '';
   nodeEditor.style.left = x + 'px';

@@ -131,20 +131,32 @@ function resumeAnimation(elm, period, since, stagger){
   const into = ((since % period) + period) % period;
   elm.style.animationDelay = (((stagger || 0) - into) / 1000).toFixed(3) + 's';
 }
-function applyVisibility(){
-  syncTagLiveliness();
-  // What is shown has changed, so the patches drawn for it are stale.
-  markLodStale();
-  qNodes('.node').forEach(g=>{
-    const n = nodes.get(g.dataset.id);
-    g.style.display = (n && nodeHidden(n)) ? 'none' : '';
-  });
-  // The ground and the scenery both belong to their entry and go when it does.
-  [...fanLayer.querySelectorAll(GROUND_PARTS),
-   ...auraLayer.querySelectorAll('.node-aura')].forEach(r=>{
-    const n = nodes.get(r.dataset.id);
-    r.style.display = (n && nodeHidden(n)) ? 'none' : '';
-  });
+/* `opts.edgesOnly` is the frame of a drag.
+ *
+   Nothing is hidden or shown by carrying an entry: the tags are what
+   decide that, and they are not touched. What the frame does change is
+   the connectors, which are rebuilt from nothing and so are born
+   showing. So a drag asks only about them, and leaves the entries, the
+   scenery, the ground and the far-away patches alone — all of which were
+   being swept, and the patches redrawn, on every frame of every carry
+   for an answer that could not have changed. */
+function applyVisibility(opts){
+  const edgesOnly = !!(opts && opts.edgesOnly);
+  if(!edgesOnly){
+    syncTagLiveliness();
+    // What is shown has changed, so the patches drawn for it are stale.
+    markLodStale();
+    qNodes('.node').forEach(g=>{
+      const n = nodes.get(g.dataset.id);
+      g.style.display = (n && nodeHidden(n)) ? 'none' : '';
+    });
+    // The ground and the scenery both belong to their entry and go when it does.
+    [...fanLayer.querySelectorAll(GROUND_PARTS),
+     ...auraLayer.querySelectorAll('.node-aura')].forEach(r=>{
+      const n = nodes.get(r.dataset.id);
+      r.style.display = (n && nodeHidden(n)) ? 'none' : '';
+    });
+  }
   // Every piece of a connector, not only its line: the arrowheads, the ring
   // caps and the notes live in the layer above the entries, and hiding a
   // tag used to leave them behind as orphans floating over an empty chart.
@@ -789,14 +801,13 @@ function queueDragRedraw(st){
     dragRouteHold = st ? {memo: st.routeMemo, moving: new Set(st.members.map(m=> m.id))} : null;
     try{ redrawEdges(); }
     finally{ dragRouteHold = null; }
-    applyVisibility();
+    applyVisibility({edgesOnly: true});
     /* Every connector has just been rebuilt from nothing, so none of them
        remembers being faded — and the highlight is what says which of them
        belong to the entry being looked at. Without putting it back, picking
        an entry up lit the whole chart for as long as the mouse was down and
        let it settle again the moment it was released. */
-    if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
-    paintMultiSelection();
+    if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId, {edgesOnly: true});
     // A portrait's card is anchored beside its circle, so it has to travel
     // with it. Without this it sat where the circle used to be until the
     // mouse came up, and then jumped. Any card at all, since a portrait
