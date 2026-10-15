@@ -159,6 +159,35 @@ function lodHull(pts){
   }
   return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
+/* A hull's own sides are RULED, and corner-cutting leaves them so: a
+   cluster four entries wide came out as a lozenge, round at the ends and
+   flat along the top. Nothing about a cluster's edge is straight, so
+   every side is given a midpoint pushed out along its own outward
+   normal, a tenth of its length, before the corners are cut. A short
+   side moves almost not at all and a long one bows, which is what makes
+   a blob out of a figure. The hull is convex, so "outward" is simply
+   away from its middle. */
+function lodBow(pts, share){
+  const n = pts.length;
+  if(n < 3) return pts;
+  let mx = 0, my = 0;
+  pts.forEach(q=>{ mx += q.x; my += q.y; });
+  mx /= n; my /= n;
+  const out = [];
+  for(let i = 0; i < n; i++){
+    const a = pts[i], b = pts[(i + 1) % n];
+    out.push(a);
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if(L < 1) continue;
+    // The normal of the side, turned to face away from the middle.
+    let nx = -(b.y - a.y) / L, ny = (b.x - a.x) / L;
+    if(nx * (cx - mx) + ny * (cy - my) < 0){ nx = -nx; ny = -ny; }
+    const push = L * (share || 0.1);
+    out.push({x: cx + nx * push, y: cy + ny * push});
+  }
+  return out;
+}
 /* A hull is a POLYGON, and a patch of a dozen entries came out as an
    unmistakable many-sided figure — a shape with corners, standing for a
    cluster that has none. Corner-cutting (Chaikin) replaces every corner
@@ -221,7 +250,7 @@ function drawLod(level){
       x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y);
       x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h);
     });
-    const outline = lodBlob(lodHull(corners), 1);
+    const outline = lodBlob(lodBow(lodHull(corners), 0.1), 1);
     const color = lodColorOf(c.key);
     const g = el('g', {class:'lod-patch', 'data-key': c.key,
                        'data-x0': x0, 'data-y0': y0, 'data-x1': x1, 'data-y1': y1}, layer);

@@ -29,8 +29,9 @@ Releases before 0.9.0 were not numbered.
   asked the whole chart which entries were dimmed and which scenery was
   alive — answers that cannot change while something is being carried —
   and now asks only the connectors.
-- A cluster drawn far away is a blob rather than a polygon: its hull is
-  rounded and every span between corners bows outward.
+- A cluster drawn far away is a blob rather than a polygon: every side
+  of its hull bows outward along its own normal and the corners are then
+  cut away.
 - The scenery of the special tags — a hub's echo, a local multiverse's
   stack — no longer copies the entry's border style. It has a look of
   its own: a click picks it out, with the same glow anything else gets,

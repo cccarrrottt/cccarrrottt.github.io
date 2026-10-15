@@ -14964,6 +14964,15 @@ async function main(){
       out.patchPath = d.slice(0, 60);
       out.patchIsBlob = /^M[-\d.,]+( C[-\d., ]+)+Z$/.test(d) && !/ L/.test(d) && (d.match(/C/g) || []).length >= 6;
     }
+    /* …and the bow is what makes it one. Corner-cutting alone leaves a
+       ruled side of the hull exactly where it was, so each side is given
+       a midpoint pushed out along its own normal first. */
+    {
+      const bowed = lodBow([{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100}], 0.1);
+      out.bowed = bowed.length === 8 && bowed[1].y === -10 && bowed[3].x === 110 &&
+                  bowed[5].y === 110 && bowed[7].x === -10;
+      out.bowPts = JSON.stringify(bowed.map(q=> [q.x, q.y]));
+    }
     vs = (LOD_CAT_PX - 0.5) / h; applyTransform(); await wait(100);
     out.catPatches = JSON.stringify(patches());
     out.byCat = lodLevel === 2 && out.catPatches === JSON.stringify(['Work C', 'cat:Franchise']);
@@ -14986,6 +14995,8 @@ async function main(){
   check('far out, a patch for each cluster of a tag, in the tag\'s colour', r.byTag && r.tagColour, r.tagPatches);
   check('further out, one patch for each category', r.byCat, r.catPatches);
   check('a patch is a blob, curved all the way round', r.patchIsBlob, r.patchPath);
+  check('every side of its hull bows outward before the corners are cut',
+        r.bowed, r.bowPts);
   check('a click on a patch zooms in until its entries can be read', r.zoomedIn);
   });
   await scenario("scenery with a look of its own, a glow and a menu", async () => {
