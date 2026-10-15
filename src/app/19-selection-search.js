@@ -34,10 +34,22 @@ const multiSelection = new Set();
 function markEntryOpen(on){
   try{ document.body.classList.toggle('entry-open', !!on); }catch(e){}
 }
-function paintSelectionHighlight(id){
+/* `opts.edgesOnly` is the frame of a drag, as it is for applyVisibility.
+ *
+   Carrying an entry about changes no part of WHAT is picked: the same
+   entries are lit, the same scenery is stepped back, the same tags are
+   alive. The connectors are the one thing the frame rebuilds, so they
+   are the one thing that has to be told again. Everything else — a class
+   written onto every entry, every aura, every patch of ground, the
+   portraits' cards and the tag list — was being written again, to the
+   same value, on every frame of every carry, and the cost of it grew
+   with the number of entries picked: carrying a lassoed dozen was slower
+   than carrying one for no reason a reader could see. */
+function paintSelectionHighlight(id, opts){
   const n = nodes.get(id);
   if(!n) return;
-  markEntryOpen(id);
+  const edgesOnly = !!(opts && opts.edgesOnly);
+  if(!edgesOnly) markEntryOpen(id);
   /* A picture or a loose caption belongs to no lineage, so there is
      nothing for it to light and nothing that should step back for it.
    *
@@ -53,6 +65,10 @@ function paintSelectionHighlight(id){
      when a free element is selected after an entry that had dimmed
      things. */
   if(isFreeShape(n.shape || '')){
+    if(edgesOnly){
+      qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
+      return;
+    }
     qNodes('.node').forEach(g=>{
       g.classList.toggle('selected', g.dataset.id === id);
       g.classList.remove('dim');
@@ -122,16 +138,23 @@ function paintSelectionHighlight(id){
      about the very line between two picked entries is part of what was
      picked out, and stepping it back with the rest of the chart left the
      line glowing and its explanation grey. */
-  qNodes('.node').forEach(g=>{
-    const gid = g.dataset.id;
-    g.classList.toggle('selected', gid===id);
-    g.classList.toggle('dim', !related.has(gid));
-    g.classList.toggle('lit', multi && related.has(gid) && !multiSelection.has(gid) &&
-      g.classList.contains('node-callout'));
-  });
-  auraLayer.querySelectorAll('.node-aura').forEach(g=>{
-    g.classList.toggle('dim', !related.has(g.dataset.id));
-  });
+  if(!edgesOnly){
+    qNodes('.node').forEach(g=>{
+      const gid = g.dataset.id;
+      g.classList.toggle('selected', gid===id);
+      g.classList.toggle('dim', !related.has(gid));
+      g.classList.toggle('lit', multi && related.has(gid) && !multiSelection.has(gid) &&
+        g.classList.contains('node-callout'));
+    });
+    /* An entry's scenery is part of the entry, so picking the entry
+       picks it out too: the echo and the stack glow with the box they
+       belong to rather than staying grey beside it. */
+    auraLayer.querySelectorAll('.node-aura').forEach(g=>{
+      const gid = g.dataset.id;
+      g.classList.toggle('dim', !related.has(gid));
+      g.classList.toggle('picked', gid === id || multiSelection.has(gid) || gid === decorPick);
+    });
+  }
   /* The GROUND steps back with everything else.
    *
      A tag's scenery comes in two halves that live in two different layers
@@ -141,7 +164,7 @@ function paintSelectionHighlight(id){
      chart back except for the gold lattice and the grey comb under other
      people's entries, which stayed exactly as bright as they had been and
      became the loudest thing on a page that was supposed to be quiet. */
-  fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=>{
+  if(!edgesOnly) fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=>{
     g.classList.toggle('dim', !related.has(g.dataset.id));
   });
   /* EVERY piece of a connector, not only its line. The arrowheads, the
@@ -188,8 +211,24 @@ function paintSelectionHighlight(id){
     p.classList.toggle('lit', lit);
     p.classList.toggle('dim', !lit);
   });
+  if(edgesOnly) return;
   paintBioCardDim();
   syncTagLiveliness();
+}
+/* The scenery picked on its own: an echo or a stack clicked where it
+   stands, lit as everything else on the chart is lit when it is picked,
+   and let go by the next click anywhere else. Nothing else answers to
+   it — the entry is not selected by it, because the reader pointed at
+   the scenery and not at the box. */
+var decorPick = null;
+function setDecorPick(id){
+  const next = (id && nodes.has(id)) ? id : null;
+  if(next === decorPick) return;
+  decorPick = next;
+  auraLayer.querySelectorAll('.node-aura').forEach(g=>{
+    g.classList.toggle('picked', g.dataset.id === decorPick ||
+      g.dataset.id === selectedId || multiSelection.has(g.dataset.id));
+  });
 }
 function paintMultiSelection(){
   qNodes('.node').forEach(g=>{
@@ -334,12 +373,23 @@ function selectNode(id, opts){
   updateAddFabPosition();
 }
 
-svg.addEventListener('click', ()=>{
+svg.addEventListener('click', (ev)=>{
+  /* A click on an entry's scenery picks the SCENERY. It is drawn under
+     the entries, in a layer that answers to nothing else, so a click
+     that lands on it is a click on empty canvas as far as everything
+     below is concerned — which let go of whatever was selected. */
+  const band = ev.target.closest && ev.target.closest('.node-aura-hit');
+  if(band && !readOnlyView){
+    ev.stopPropagation();
+    setDecorPick(band.dataset.id === decorPick ? null : band.dataset.id);
+    return;
+  }
   closeFreeMenu();
   // A finished marquee ends with a click on the canvas, which would
   // otherwise immediately clear the selection it just made.
   if(suppressCanvasClick){ suppressCanvasClick = false; return; }
   closeBioCard();
+  setDecorPick(null);
   deselect();
 });
 function deselect(){
@@ -352,7 +402,10 @@ function deselect(){
   qNodes('.node.multi').forEach(g=>g.classList.remove('multi'));
   qNodes('.node').forEach(g=>{ g.classList.remove('selected'); g.classList.remove('dim'); g.classList.remove('lit'); });
   document.body.classList.remove('multi-picked');
-  auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
+  auraLayer.querySelectorAll('.node-aura').forEach(g=>{
+    g.classList.remove('dim');
+    g.classList.toggle('picked', g.dataset.id === decorPick);
+  });
   fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
   qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
   paintBioCardDim();

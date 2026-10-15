@@ -150,11 +150,18 @@ function amalgamGeometry(list, ports){
      it hangs; nothing about the entry enters into it. */
   const fixed = b.bar || null;
   let resting = null;
-  if(pnodes.length && !byHand){
-    const span = (k, len)=> ({lo: Math.min(...pnodes.map(p=> p[k])),
-                              hi: Math.max(...pnodes.map(p=> p[k] + p[len])),
-                              mid: pnodes.reduce((t, p)=> t + p[k] + p[len]/2, 0) / pnodes.length});
-    const sx = span('x', 'w'), sy = span('y', 'h');
+  const span = (k, len)=> ({lo: Math.min(...pnodes.map(p=> p[k])),
+                            hi: Math.max(...pnodes.map(p=> p[k] + p[len])),
+                            mid: pnodes.reduce((t, p)=> t + p[k] + p[len]/2, 0) / pnodes.length});
+  const sx = pnodes.length ? span('x', 'w') : null, sy = pnodes.length ? span('y', 'h') : null;
+  /* A bar somebody has carried is honoured even where a lineage was given
+     its side by hand. The hand-set side decides which way a LINEAGE
+     leaves its own entry; where the bar hangs is a separate answer, and
+     the only one a carry is giving. Read as one question, a merge with a
+     single hand-set side could not be carried at all: there was no
+     resting place to measure from, so the bar had nothing to be moved
+     from and the drag did nothing. */
+  if(pnodes.length && (!byHand || fixed)){
     const gapX = Math.max(b.x - sx.hi, sx.lo - (b.x + b.w));
     const gapY = Math.max(b.y - sy.hi, sy.lo - (b.y + b.h));
     /* Clear on one axis only: the bar crosses that one. Clear on both — an
@@ -286,15 +293,26 @@ function amalgamGeometry(list, ports){
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
-          rest: resting ? restingNow(resting, port[resting.k] + nrm[resting.k] * barDist) : null,
+          rest: restingNow(side, port, nrm, barDist, sx, sy, resting),
           cx: port.x + nrm.x * barDist, cy: port.y + nrm.y * barDist};
 }
-/* Where the bar stands now, said the way a fixed bar is stored: the axis,
-   the side of the lineages, and how far beyond them — measured from where
-   it was actually drawn, so fixing it moves nothing. */
-function restingNow(r, atNow){
-  return {k: r.k, after: r.after,
-          lead: Math.max(AMALGAM_LEAD_MIN, r.after ? atNow - r.spHi : r.spLo - atNow)};
+/* Where the bar stands NOW, said the way a fixed bar is stored: the axis,
+   the side of the lineages, and how far beyond them — read off where it
+   was actually drawn, so writing it down moves nothing.
+ *
+   Answered for every merge that has lineages, not only for the ones with
+   a resting place worked out above. A bar is carried by being moved from
+   where it stands, and a merge whose lineages were given their sides by
+   hand had nothing written down to move from: the carry found no spec
+   and did nothing at all. Where it stands is a question the drawing can
+   always answer. */
+function restingNow(side, port, nrm, barDist, sx, sy){
+  if(!sx || !sy) return null;
+  const k = sideIsVertical(side) ? 'y' : 'x';
+  const sp = k === 'x' ? sx : sy;
+  const at = port[k] + nrm[k] * barDist;
+  const after = at >= (sp.lo + sp.hi) / 2;
+  return {k, after, lead: Math.max(AMALGAM_LEAD_MIN, after ? at - sp.hi : sp.lo - at)};
 }
 /* Which side of its own entry a lineage leaves by.
  *

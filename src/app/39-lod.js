@@ -159,6 +159,47 @@ function lodHull(pts){
   }
   return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
+/* A hull is a POLYGON, and a patch of a dozen entries came out as an
+   unmistakable many-sided figure — a shape with corners, standing for a
+   cluster that has none. Corner-cutting (Chaikin) replaces every corner
+   with the two points a quarter in along its sides, a few times over:
+   the straight runs stay where they were, the corners round off, and
+   what is left is a blob. The hull is closed, so the cutting wraps round
+   it; three passes is where it stops changing to the eye. */
+function lodBlob(pts, passes){
+  let p = pts;
+  for(let k = 0; k < (passes || 3) && p.length > 2; k++){
+    const out = [];
+    for(let i = 0; i < p.length; i++){
+      const a = p[i], b = p[(i + 1) % p.length];
+      out.push({x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25},
+               {x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75});
+    }
+    p = out;
+  }
+  return p;
+}
+/* …and the long straight runs between them bowed outward, because a
+   cluster's edge is not a ruled line either. Corner-cutting leaves a
+   straight run exactly where it was, so a patch over a row of entries
+   came out as a lozenge: round at the ends, flat along the top. A closed
+   Catmull-Rom through the rounded outline bulges each span by a fraction
+   of its own length, which is what makes the difference between a figure
+   and a blob. */
+function lodBlobPath(pts){
+  const n = pts.length;
+  if(n < 3) return '';
+  const at = i=> pts[(i % n + n) % n];
+  let d = `M${at(0).x.toFixed(1)},${at(0).y.toFixed(1)}`;
+  for(let i = 0; i < n; i++){
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const c1 = {x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6};
+    const c2 = {x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6};
+    d += ` C${c1.x.toFixed(1)},${c1.y.toFixed(1)} ${c2.x.toFixed(1)},${c2.y.toFixed(1)}` +
+         ` ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  return d + 'Z';
+}
 /* One patch per cluster: the hull round its entries, drawn with a stroke
    as wide as the padding and round joins, so its corners come out as
    arcs round the outermost boxes — a blob, not a polygon. Fill and stroke
@@ -180,13 +221,12 @@ function drawLod(level){
       x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y);
       x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h);
     });
-    const hull = lodHull(corners);
+    const outline = lodBlob(lodHull(corners), 1);
     const color = lodColorOf(c.key);
     const g = el('g', {class:'lod-patch', 'data-key': c.key,
                        'data-x0': x0, 'data-y0': y0, 'data-x1': x1, 'data-y1': y1}, layer);
-    el('polygon', {points: hull.map(q=> `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' '),
-                   fill: color, stroke: color, 'stroke-width': LOD_PAD * 2,
-                   'stroke-linejoin': 'round'}, g);
+    el('path', {d: lodBlobPath(outline), fill: color, stroke: color,
+                'stroke-width': LOD_PAD * 2, 'stroke-linejoin': 'round'}, g);
     const name = lodNameOf(c.key);
     if(name){
       const t = el('text', {class:'lod-label', x: ((x0 + x1)/2).toFixed(1), y: ((y0 + y1)/2).toFixed(1)}, g);

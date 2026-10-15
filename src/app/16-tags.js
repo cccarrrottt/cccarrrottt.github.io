@@ -196,7 +196,7 @@ const CAT_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const REF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M8 3.5H4.5v17H8M16 3.5h3.5v17H16"/><path d="M9.6 8.2 12.6 6v12"/></svg>';
 const REF_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
-  '<path d="M5.6 2.5H2.6v13h3M11.6 2.5h3v13h-3"/><path d="M6.9 6.2 8.8 4.8v9.6"/>' +
+  '<path d="M6.4 2.8H3v17.4h3.4M16.8 2.8h3.4v10"/><path d="M9.2 7.4 12.4 5v15.2"/>' +
   '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2" stroke-linecap="butt"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2" stroke-linecap="butt"/></svg>';
 function makePlusButton(title, svg){
   const b = document.createElement('button');

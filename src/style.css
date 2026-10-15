@@ -437,6 +437,17 @@
    * .dim sets the group's opacity, which nothing transitions — so the
    * scenery now behaves exactly as the thing it is scenery for. */
   .node-aura.dim{opacity:0.14;}
+  /* The band a reader points at to reach the scenery: as wide as the
+     scenery, hollow in the middle, and invisible. The layer takes no
+     pointer, so this says so for itself. */
+  .node-aura-hit{fill:none;stroke:transparent;pointer-events:stroke;cursor:pointer;}
+  body.read-only .node-aura-hit{pointer-events:none;}
+  /* Scenery picked out, or standing round a picked entry, wears the same
+     glow everything else on the chart wears when it is picked. */
+  .node-aura.picked .hub-echo, .node-aura.picked .local-sheet{
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
+  }
   /* Picked out, an entry KEEPS ITS BORDER.
    *
      The selection used to redraw the outline at three pixels instead of
@@ -2864,6 +2875,12 @@
   .style-bar button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
   .style-bar button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
   .style-bar button:disabled{opacity:0.35;cursor:default;}
+  /* Greyed is never lit as well, wherever a row of choices has both. */
+  .style-bar button.on:disabled, .free-menu-row .editor-btn.on:disabled,
+  .comment-filter .editor-btn.on:disabled, .style-choice button.on:disabled,
+  .mini-toolbar button.on:disabled{
+    color:var(--ink-dim);background:var(--panel-2);border-color:var(--line);
+  }
   body.read-only .style-bar{display:none;}
 
   /* The version line and the history at the foot of the About panel. */

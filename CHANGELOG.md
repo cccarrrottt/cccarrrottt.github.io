@@ -25,6 +25,33 @@ Releases before 0.9.0 were not numbered.
 - The note in an empty References drawer is set like the Tags drawer's
   note instead of at body size, and a reader is no longer told to add a
   reference with a + they do not have.
+- Carrying a large selection is about twice as quick. Redrawing a frame
+  asked the whole chart which entries were dimmed and which scenery was
+  alive — answers that cannot change while something is being carried —
+  and now asks only the connectors.
+- A cluster drawn far away is a blob rather than a polygon: its hull is
+  rounded and every span between corners bows outward.
+- The scenery of the special tags — a hub's echo, a local multiverse's
+  stack — no longer copies the entry's border style. It has a look of
+  its own: a click picks it out, with the same glow anything else gets,
+  and pointing at it offers the six outlines. Picking the entry lights
+  both it and its scenery.
+- A connector bent by hand no longer jumps as the entries it joins are
+  carried. The side a bend leaves by is decided by the bend itself, not
+  guessed afresh from where the two boxes now stand.
+- Buttons that are greyed out are no longer lit as well, so none of them
+  reads as pressed-and-stuck and takes a press that does nothing. The
+  arrowheads on an amalgam's parent connectors are the case that showed
+  it.
+- A merge's bar can be carried along the merged arrow again when its
+  lineages leave by sides set by hand: where the bar rests is read off
+  where it is drawn rather than from the one arrangement that wrote it.
+- A picture turns like a caption: freely, by a handle at its corner,
+  drawn as an arrow curved both ways. The quarter-turn button in its
+  menu is gone, and the box the chart reasons with stays upright.
+- Where a picture or a caption stands in the stack is one button on the
+  bar that appears over it, instead of two in its menu — and a caption
+  can be put behind the chart too, which it never could.
 
 ## 0.12.0 — "A pixel round the words" (2026-10-14)
 

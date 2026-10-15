@@ -486,24 +486,16 @@
             <button type="button" class="editor-btn" id="freeMenuImageClear">Clear</button>
           </div>
         </div>
-        <div class="editor-field">
-          <label>Stacking</label>
-          <div class="free-menu-row" id="freeMenuLayerRow">
-            <button type="button" class="editor-btn" data-z="-1" title="Behind the entries and the arrows, as a backdrop">Behind</button>
-            <button type="button" class="editor-btn" data-z="1" title="Over the entries and the arrows">In front</button>
-          </div>
-        </div>
-        <div class="editor-field">
-          <label>Turn</label>
-          <div class="free-menu-row">
-            <button type="button" class="editor-btn" id="freeMenuTurn" title="Turn the picture a quarter clockwise">⟳ A quarter clockwise</button>
-          </div>
-        </div>
+        <!-- Where it stands in the stack is set from the hover bar on the
+             picture itself, and the angle by the curved arrow at its
+             top-left corner. Neither belongs in a form: both are about
+             the thing on the drawing, and were aimed at by eye here. -->
       </div>
 
       <div id="freeMenuTextPart">
-        <!-- The angle is set on the CAPTION, by the round arrow at its
-             top-left corner — not by a slider in here. See beginNodeRotate. -->
+        <!-- The angle is set on the CAPTION, by the curved arrow at its
+             top-left corner, and where it stands in the stack on its
+             hover bar — not by controls in here. See beginNodeRotate. -->
         <!-- The WORDS are written on the caption: double-click it. What
              is set here is the caption's own face and size, which belong
              to the whole of it rather than to a run inside it. -->

@@ -759,6 +759,17 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   if(isHub || isLocal){
     const c = ringColors[0];
     const aura = el('g', {class:'node-aura', 'data-id':n.id}, auraLayer);
+    /* Something to take hold of.
+     *
+       The scenery is a few hairlines standing in a band round the entry,
+       and the layer it lives in takes no pointer at all — so an echo and
+       a stack were the only things drawn on the chart that could not be
+       pointed at, hovered or picked. One band per kind of scenery, as
+       wide as the scenery it covers and hollow in the middle, so the
+       entry underneath still answers to its own clicks. */
+    const hitBand = (x, y, w2, h2, r, width)=>
+      el('rect', {class:'node-aura-hit', 'data-id':n.id, x, y, width:w2, height:h2,
+                  rx: rad(r), 'stroke-width': width}, aura);
     /* The scenery starts OUTSIDE whatever the entry itself is drawn with.
        As an archetype a hub was always a plain single-bordered box, so the
        echo could step straight out of n.x; as a tag it can sit on an entry
@@ -778,6 +789,13 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
          because this is the only place that knows the geometry; the
          stylesheet reads them out of the keyframes. */
       const outer = own + HUB_ECHOES * HUB_ECHO_STEP;
+      // The echo is drawn in the scenery's own pattern, as the stack is.
+      const echoDash = (BORDER_STYLES[decorStyleOf(n)] || BORDER_STYLES.solid).dash;
+      {
+        const band = HUB_ECHOES * HUB_ECHO_STEP;
+        const mid = own + band / 2;
+        hitBand(n.x - mid, n.y - mid, n.w + mid*2, h + mid*2, cornerR + mid, band);
+      }
       for(let i = HUB_ECHOES; i >= 1; i--){
         const grow = own + i * HUB_ECHO_STEP;
         const rw = n.w + grow*2, rh = h + grow*2;
@@ -789,6 +807,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
           x: n.x - grow, y: n.y - grow,
           width: rw, height: rh,
           rx: rad(cornerR + grow), stroke: c, class: 'hub-echo',
+          ...(echoDash ? {'stroke-dasharray': echoDash} : {}),
           style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
                  `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +
                  `--echo-sx0:${sx0.toFixed(4)};--echo-sy0:${sy0.toFixed(4)};` +
@@ -808,18 +827,30 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       /* The sheets were drawn a little less round than the box, and are
          never rounder than it. */
       const sheetR = Math.min(3, cornerR);
-      const sheetShape = (x, y)=> isWavy
+      {
+        const far = LOCAL_SHEETS * LOCAL_SHEET_STEP;
+        const mid = own + far / 2;
+        hitBand(n.x + mid, n.y - mid, n.w, h, sheetR, far);
+      }
+      /* …the ripple with the rest of it: the stack waves when the stack
+         is set to wave, not when the box in front of it does. */
+      const sheetWavy = decorStyleOf(n) === 'wavy';
+      const sheetShape = (x, y)=> sheetWavy
         ? {tag:'path', attrs:{d: wavyRectPath(x, y, n.w, h, 0)}}
         : {tag:'rect', attrs:{x, y, width:n.w, height:h, rx:rad(sheetR)}};
-      /* A sheet is a COPY OF THE ENTRY'S OUTLINE, and an outline has a
-         style. The ripple was carried across and nothing else was, so a
-         dashed entry stood in front of a stack of solid rectangles and a
-         double-bordered one in front of single-railed ones — three boxes
-         that were meant to read as the same world seen three times, drawn
-         three different ways. Every style is carried now: the dash
-         pattern, and the second rail a double border is made of. */
-      const sheetDash = (BORDER_STYLES[borderStyleOf(n)] || BORDER_STYLES.solid).dash;
-      const sheetDouble = borderStyleOf(n) === 'double';
+      /* A sheet has a look OF ITS OWN, and solid is what it is unless
+         somebody chose otherwise.
+       *
+         It used to copy the entry's outline — dash pattern, second rail,
+         ripple and all — on the reasoning that a sheet is the same world
+         seen again. The reasoning is sound and the rule was not: it left
+         the scenery with no look to choose, so a dashed entry could not
+         have a plain stack behind it and a plain entry could not have a
+         dashed one. The stack answers to its own setting (decorStyleOf),
+         which is where the reader's choice lands. */
+      const sheetStyle = decorStyleOf(n);
+      const sheetDash = (BORDER_STYLES[sheetStyle] || BORDER_STYLES.solid).dash;
+      const sheetDouble = sheetStyle === 'double';
       for(let i = LOCAL_SHEETS; i >= 1; i--){
         const off = i * LOCAL_SHEET_STEP;
         const shp = sheetShape(n.x + own + off, n.y - own - off);
@@ -828,7 +859,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
              line stands a sheet's own stroke in from the first rather than
              within the entry's band. */
           const gap = 2.4;
-          const inner = isWavy
+          const inner = sheetWavy
             ? {tag:'path', attrs:{d: wavyRectPath(n.x + own + off + gap,
                                                   n.y - own - off + gap,
                                                   n.w - gap*2, h - gap*2, -gap)}}
@@ -1150,11 +1181,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
    * out of the new properties looking exactly as it did. */
   if(!isFree) textFill = readableOn(textFill, (n.bg && n.bg.length) ? n.bg[0] : null);
 
-  /* A rotated text block turns about its own centre. Only the drawing
-     turns: the box the chart reasons with — for dragging, selecting and
-     the marquee — stays upright, which keeps every other part of the page
-     simple and is invisible at the angles a caption actually uses. */
-  if(isTextbox && n.rot){
+  /* A rotated caption or picture turns about its own centre. Only the
+     drawing turns: the box the chart reasons with — for dragging,
+     selecting and the marquee — stays upright, which keeps every other
+     part of the page simple and is invisible at the angles loose
+     furniture actually uses. */
+  if(isFree && n.rot){
     g.dataset.rotTransform = `rotate(${n.rot},${(n.x+n.w/2).toFixed(2)},${(n.y+h/2).toFixed(2)})`;
     g.setAttribute('transform', g.dataset.rotTransform);
   }
@@ -1370,22 +1402,25 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         });
       });
     });
-    /* And a caption gets one more handle: the round arrow that turns it,
-       to any angle. Only a caption — everything else turns in quarters,
-       by the ⟳ in its style bar (or, for a picture, in its menu), because
-       a box on a chart of right angles has to keep sides a connector can
-       meet. It stands off the top-left corner, where a corner grip would
-       be, so the two read as one family of handles. */
-    if(isTextbox){
+    /* And loose furniture — a caption, a picture — gets one more handle:
+       the curved arrow that turns it, to any angle. Only furniture:
+       everything else turns in quarters, by the ⟳ in its style bar,
+       because a box on a chart of right angles has to keep sides a
+       connector can meet. It stands off the top-left corner, where a
+       corner grip would be, so the two read as one family of handles. */
+    if(isFree){
       const rx = n.x - 4, ry = n.y - 4;
       const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, g);
       el('circle', {cx:-5, cy:-5, r:8, class:'node-rotate-hit'}, rot);
-      /* Three quarters of a circle with a head on it — the mark every
-         drawing program uses, so nobody has to be told what it is. */
-      el('path', {d:'M-9.5,-3 A5,5 0 1 1 -3,-1.2', class:'node-rotate-mark'}, rot);
-      el('path', {d:'M-1.2,-4.2 L-2.4,0.2 L-6,-1.6 Z', class:'node-rotate-head'}, rot);
+      /* An arc with a head at BOTH ends. Three quarters of a circle with
+         one head on it is the mark for a turn in one direction — a
+         quarter clockwise, which is what this handle no longer does. A
+         handle that turns either way says so with two heads. */
+      el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, rot);
+      el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, rot);
+      el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, rot);
       el('title',{},rot).textContent =
-        'Drag to turn; hold Shift for eighths of a turn; double-click to put it back level';
+        'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
       rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));
       rot.addEventListener('click', ev=> ev.stopPropagation());
       rot.addEventListener('dblclick', ev=>{
