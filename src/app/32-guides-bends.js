@@ -175,6 +175,10 @@ function letBendsGo(){
    line's settings is not a statement that the rest of the chart is beside
    the point, the way picking an entry is. Repainted with the handles,
    which are redrawn whenever the connectors are. */
+function edgeIsPicked(from, to){
+  const t = edgePopover.classList.contains('open') ? currentEdgeStyleTarget : null;
+  return !!t && t.from === from && t.to === to;
+}
 function paintEdgePick(){
   const t = edgePopover.classList.contains('open') ? currentEdgeStyleTarget : null;
   qEdges('.edge-picked').forEach(p=> p.classList.remove('edge-picked'));

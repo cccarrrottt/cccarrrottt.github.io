@@ -14578,6 +14578,20 @@ async function main(){
     hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:1}));
     await wait(100);
     out.barFocused = amalgamBarFocus === 'mbM' && !!document.querySelector('.amalgam-bar-focus[data-amalgam="mbM"]');
+    /* …lit as a picked connector is lit, and along the bar only: the same
+       glow, laid on tracings of the stretches, none of them reaching up a
+       lineage. */
+    {
+      const glows = [...document.querySelectorAll('.amalgam-bar-focus[data-amalgam="mbM"]')];
+      const line = document.querySelector('.edge.amalgam-member[data-to="mbM"]');
+      line.classList.add('edge-picked');
+      const picked = getComputedStyle(line).filter;
+      line.classList.remove('edge-picked');
+      out.barGlow = JSON.stringify({n: glows.length, picked, bar: glows.map(g=> getComputedStyle(g).filter),
+                                    h: glows.map(g=> +g.getBBox().height.toFixed(2))});
+      out.barLitAsPicked = glows.length >= 1 && picked !== 'none' &&
+        glows.every(g=> getComputedStyle(g).filter === picked && g.getBBox().height < 1);
+    }
     // A carry moves it down, along the arrow, and is written down.
     const before = barAt();
     hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
@@ -14618,7 +14632,42 @@ async function main(){
     await wait(200);
     out.stretchOpens = edgePopover.classList.contains('open') && currentEdgeStyleTarget &&
                        currentEdgeStyleTarget.from === 'mbC' && currentEdgeStyleTarget.to === 'mbM';
+    /* With that lineage picked, a double click on its stretch is what it
+       is on the rest of the line: its note. The click before it lets the
+       panel go, as any click does, so this is the whole gesture. */
+    hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:1}));
+    hit().dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y}));
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    hit().dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:p.x, clientY:p.y, detail:2}));
+    hit().dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:p.x, clientY:p.y}));
+    await wait(250);
+    out.pickedStretchNote = JSON.stringify(nodeEditorTarget);
+    out.pickedStretchWrites = !!nodeEditorTarget && nodeEditorTarget.kind === 'note' &&
+      nodeEditorTarget.from === 'mbC' && nodeEditorTarget.to === 'mbM' && !nodeEditor.hidden;
+    closeNodeEditor(true);
     closeEdgePopover();
+    await wait(150);
+    /* The field opened on a note stands on its plate: the words on the
+       words, and the frame on the plate, not a few pixels under it. */
+    applyEdit(()=> setEdgeStyleOverride('mbC', 'mbM', Object.assign({}, edgeStyleFor('mbC', 'mbM'),
+      {note: 'A note on the line', notePos: 'above', noteAt: 0.3})));
+    await wait(250);
+    openEdgeNoteEditor('mbC', 'mbM', {focus: false});
+    await wait(150);
+    {
+      const plate = document.querySelector('.edge-note[data-from="mbC"][data-to="mbM"] .edge-note-plate').getBoundingClientRect();
+      const surf = richFields.get('nodeEditorText').surface;
+      const f = surf.getBoundingClientRect(), b = getComputedStyle(surf, '::before');
+      const bw = parseFloat(getComputedStyle(surf).borderTopWidth) || 0;
+      const top = f.top + bw + parseFloat(b.top), bottom = f.bottom - bw - parseFloat(b.bottom);
+      out.noteFrame = JSON.stringify({plate:[+plate.top.toFixed(2), +plate.bottom.toFixed(2)],
+                                      frame:[+top.toFixed(2), +bottom.toFixed(2)]});
+      out.noteFrameOnPlate = Math.abs((top + bottom)/2 - (plate.top + plate.bottom)/2) < 1 &&
+                             Math.abs(top - plate.top) < 1.5 && Math.abs(bottom - plate.bottom) < 1.5;
+    }
+    closeNodeEditor(true);
     // Every lineage straight, and the bar is still there.
     ['mbA','mbB','mbC'].forEach(f=> EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true}));
     redrawEdges(); await wait(200);
@@ -14647,10 +14696,13 @@ async function main(){
   check('the merged arrow can be pointed at, styled and lit, but not repainted or deleted',
         r.outHit && r.outDashed && r.outGlows, JSON.stringify({hit:r.outHit, dash:r.outDashed, glow:r.outGlows}));
   check('a click picks out the bar', r.barFocused);
+  check('a picked bar glows as a picked connector does, along the bar only', r.barLitAsPicked, r.barGlow);
   check('a carried bar moves along the arrow and is written down, and undo takes it back',
         r.barCarried && r.barUndone, r.barAt);
   check('the entry carried beside and past its bar never moves it', r.barHeldUnderEntry, r.barSeen);
   check('a double click on a stretch of the bar opens that lineage', r.stretchOpens);
+  check('a double click on the stretch of a lineage already picked opens its note', r.pickedStretchWrites, r.pickedStretchNote);
+  check('the field on a connector\'s note keeps its frame on the plate', r.noteFrameOnPlate, r.noteFrame);
   check('straight lineages keep the bar', r.straightKeepsBar, String(r.straightJoints));
   });
   await scenario("seen from far away: patches by tag, then by category", async () => {

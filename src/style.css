@@ -1006,9 +1006,11 @@
   .amalgam-bar-hit{fill:none;stroke:transparent;stroke-width:14px;pointer-events:stroke;cursor:pointer;}
   .amalgam-bar-hit.across-y{cursor:ns-resize;}
   .amalgam-bar-hit.across-x{cursor:ew-resize;}
+  /* Paper, so only its glow is seen — the same glow as .edge-picked. */
   .amalgam-bar-focus{
-    fill:none;stroke:var(--accent);stroke-width:9;stroke-linecap:round;opacity:0.3;
-    pointer-events:none;
+    fill:none;stroke:var(--paper);stroke-width:1.6;pointer-events:none;
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
   body.bar-carrying, body.bar-carrying *{cursor:grabbing !important;}
   body.read-only .amalgam-bar-hit, body.read-only .amalgam-bar-focus{display:none;}

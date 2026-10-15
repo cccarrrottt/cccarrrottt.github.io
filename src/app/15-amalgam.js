@@ -726,6 +726,9 @@ function drawAmalgam(list, ports){
   /* Each middle lineage's run along the bar, as drawn — the reach below
      has to lie on exactly the same line where it crosses one. */
   const stretches = [];
+  /* Each lineage's part of the bar on its own, as drawn — what a picked
+     bar is lit along (see paintBarFocus). */
+  const barPieces = [];
   members.forEach((e, i)=>{
     const a = nodes.get(e.from);
     const recM = ports.get(e);
@@ -817,6 +820,8 @@ function drawAmalgam(list, ports){
                           : ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
       stretches[i] = {land, bar, wavy: !!style.sinusoid};
     }
+    if(bar) barPieces.push({from: e.from, d: style.sinusoid ? wavyPath([land, bar], 0, 0, true)
+                              : `M${land.x.toFixed(2)},${land.y.toFixed(2)} L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`});
     /* What the reader sees, whichever way the corner was drawn. `joined`
        carries the bar leg only for the two end lineages, so anchoring a
        note on it put a note on a MIDDLE lineage back on the short routed
@@ -894,8 +899,10 @@ function drawAmalgam(list, ports){
       const dash = DASH_PATTERNS[style.dash];
       if(dash) attrs['stroke-dasharray'] = dash;
       edgePath(attrs, Object.assign({}, style, {sinusoid: false}), edgeLayer);
+      barPieces.push({from: e.from, d});
     }
   }
+  amalgamBars.get(b.id).pieces = barPieces;
   const colors = allMembers.map(amalgamMemberColor);
   // It leaves from a point ON the bar, so the bar and the arrow are one
   // continuous shape rather than a line crossing another line.
@@ -1249,10 +1256,18 @@ function positionSwapButton(){
 function drawBarGrip(id, a, z, ux){
   if(Math.hypot(z.x - a.x, z.y - a.y) < 1) return;
   const d = `M${a.x.toFixed(2)},${a.y.toFixed(2)} L${z.x.toFixed(2)},${z.y.toFixed(2)}`;
-  if(amalgamBarFocus === id) paintBarFocus(id, d);
+  if(amalgamBarFocus === id) paintBarFocus(id);
   const hit = el('path', {class:'amalgam-bar-hit' + (ux ? ' across-y' : ' across-x'), d,
                           'data-amalgam': id}, edgeLayer);
-  hit.addEventListener('mousedown', ev=> beginBarDrag(ev, id));
+  hit.addEventListener('mousedown', ev=>{
+    /* Whether the lineage under the press is the one already picked is
+       asked HERE, at the first press: the click that follows lets its
+       panel go, as a click anywhere does, so by the double click there is
+       nothing left to ask. */
+    const s = barStretchAt(id, ev.clientX, ev.clientY);
+    if(s && edgeIsPicked(s.from, id)) barPressedPicked = {id, from: s.from, at: performance.now()};
+    beginBarDrag(ev, id);
+  });
   hit.addEventListener('click', ev=>{
     ev.stopPropagation();
     if(amalgamBarDrag && amalgamBarDrag.swallow) return;
@@ -1264,9 +1279,24 @@ function drawBarGrip(id, a, z, ux){
   hit.addEventListener('dblclick', ev=>{
     ev.stopPropagation();
     ev.preventDefault();
+    /* On a lineage that is already picked, a double click on its stretch
+       of the bar is what it is on the rest of that line: its note. The
+       stretch is that lineage's as much as the line coming down is, and a
+       double click that meant "note" on one half and "panel" on the other
+       half of a line already lit as one was a line of two minds. */
+    const s = barStretchAt(id, ev.clientX, ev.clientY);
+    const was = barPressedPicked;
+    barPressedPicked = null;
+    if(s && !readOnlyView && was && was.id === id && was.from === s.from
+       && performance.now() - was.at < 1000){
+      setBarFocus(null);
+      startEdgeNote(s.from, id, ev);
+      return;
+    }
     openBarStretch(id, ev);
   });
 }
+var barPressedPicked = null;
 // Which lineage's stretch of the bar a point on the screen is on.
 function barStretchAt(id, clientX, clientY){
   const rec = amalgamBars.get(id);
@@ -1292,15 +1322,30 @@ function setBarFocus(id){
   amalgamBarFocus = next;
   edgeLayer.querySelectorAll('.amalgam-bar-focus').forEach(p=> p.remove());
   if(!next) return;
-  const hit = edgeLayer.querySelector(`.amalgam-bar-hit[data-amalgam="${CSS.escape(next)}"]`);
-  if(hit) paintBarFocus(next, hit.getAttribute('d'));
+  paintBarFocus(next);
 }
-/* A halo UNDER the bar, not a line over it: the bar is several lineages'
-   colours end to end, and painting it over in one would hide the very
-   thing it is made of. */
-function paintBarFocus(id, d){
-  const halo = el('path', {class:'amalgam-bar-focus', d, 'data-amalgam': id}, edgeLayer);
-  edgeLayer.insertBefore(halo, edgeLayer.firstChild);
+/* A picked bar is lit the way a picked connector is — the same glow
+   (.edge-picked), round the bar and nothing else. It used to wear a halo
+   of its own, a wide band of accent under the line, which read as some
+   other kind of picked from every line beside it.
+
+   The glow cannot go on the lineages' own paths: each one is the line
+   coming down AND its stretch of the bar, so lighting it lit the whole
+   lineage. Each stretch is traced again under the chart in paper, the
+   lineage's own weight, and the glow is that tracing's shadow: the paper
+   is lost against the page, the stretch drawn over it hides the rest,
+   and what shows is the glow — along waves and through dashes as the
+   stretch itself goes. */
+function paintBarFocus(id){
+  const rec = amalgamBars.get(id);
+  (rec && rec.pieces || []).forEach(p=>{
+    const sel = `.edge.amalgam-member[data-from="${CSS.escape(p.from)}"][data-to="${CSS.escape(id)}"]:not(.dbl-inner)`;
+    const line = edgeLayer.querySelector(sel);
+    const w = line ? getComputedStyle(line).strokeWidth : '';
+    const glow = el('path', {class:'amalgam-bar-focus', d: p.d, 'data-amalgam': id}, edgeLayer);
+    if(w) glow.style.strokeWidth = w;
+    edgeLayer.insertBefore(glow, edgeLayer.firstChild);
+  });
 }
 /* The place a bar stands, fixed: what it is told to keep from now on. A
    bar no drag has touched is worked out afresh from where the entry is,

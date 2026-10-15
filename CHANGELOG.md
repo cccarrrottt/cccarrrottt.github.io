@@ -6,6 +6,17 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## Unreleased
+
+- A picked merge bar glows the way a picked connector does, along the bar
+  and nothing else, instead of wearing a wide halo of its own.
+- With a lineage of a merge already picked, a double click on its stretch
+  of the bar opens that lineage's note, as it does on the rest of the line.
+- The field opened on a connector's note keeps its frame on the note's
+  plate. It stood a few pixels low, on phones and desktops alike: the
+  editor was placed by the frame and laid out by the field, which is
+  taller than a plate closed on its words.
+
 ## 0.12.0 — "A pixel round the words" (2026-10-14)
 
 ### Ninth thoughts (owner's notes)
