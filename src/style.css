@@ -496,7 +496,7 @@
      faint warm grey — visible only if you already knew it was there, which
      is no use for a mark whose whole job is to say "this entry is not
      canon" across a crowded chart. */
-  .fanfic-line{stroke:#e8b21f;stroke-width:4;fill:none;}
+  .fanfic-line{stroke:var(--fanfic-base, #e8b21f);stroke-width:4;fill:none;}
   /* Visible enough, at rest, to be read as gold from across the chart.
      At 0.12 the lattice was a suggestion that only became a colour when
      the light crossed it — and the light only crosses it under the
@@ -511,7 +511,7 @@
      the thing standing on it. */
   .fanfic-weave.dim{opacity:0.05;}
   /* The same lattice as it looks where the light falls on it. */
-  .fanfic-line-lit{stroke:#ffcf3d;stroke-width:4.6;}
+  .fanfic-line-lit{stroke:var(--fanfic-glow, #ffcf3d);stroke-width:4.6;}
 
   /* ---- the unreleased ground ---------------------------------------
      A comb of straight verticals rather than a weave, and a cold metallic
@@ -527,7 +527,7 @@
   /* The weave's own weight, at the weave's own strength: two rulings of
      the same size drawn with the same pen, differing only in how they are
      laid and in what colour. */
-  .unreleased-line{stroke:#525c6b;stroke-width:4;fill:none;}
+  .unreleased-line{stroke:var(--unreleased-base, #525c6b);stroke-width:4;fill:none;}
   .unreleased-rule{opacity:0.3;}
   .unreleased-rule.dim{opacity:0.04;}
   /* The glare: see the lit pattern in 10-decor. A paler ruling and a thin
@@ -536,12 +536,12 @@
   /* A steel sheen rather than a white-out: bluer and stronger than the grey
      ruling it crosses, so the band reads on white paper without punching a
      hole in it. */
-  .unreleased-line-lit{stroke:#7d92ad;stroke-width:4.6;}
+  .unreleased-line-lit{stroke:var(--unreleased-glow, #7d92ad);stroke-width:4.6;}
   .unreleased-sheen{fill:#eef2f7;opacity:0.2;}
   /* On the dark page the drawing is turned over, so a light is drawn DARK
      here to come out bright — the same trick for both grounds. */
-  :root[data-theme="dark"] .unreleased-line-lit{stroke:#3a4a60;}
-  :root[data-theme="dark"] .fanfic-line-lit{stroke:#8a5a00;}
+  :root[data-theme="dark"] .unreleased-line-lit{stroke:var(--unreleased-glow, #3a4a60);}
+  :root[data-theme="dark"] .fanfic-line-lit{stroke:var(--fanfic-glow, #8a5a00);}
 
   /* ---- what a special tag does, performed ---------------------------
      Still at rest, and moving only while the entry is under the pointer
@@ -1152,6 +1152,16 @@
     background-repeat:no-repeat;background-position:4px center;background-size:10px 10px;
   }
   .legend-item input.tag-color-box:focus{outline:none;}
+  /* A ground's two inks and the button that puts them back. A square still
+     at the program's colour wears a dashed edge, so which ones were chosen
+     reads at a glance. */
+  .legend-item .ground-colors{display:flex;align-items:center;gap:5px;flex:0 0 auto;}
+  .legend-item .ground-default{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
+  .legend-item .ground-reset{
+    width:16px;height:16px;padding:0;line-height:1;font-size:11px;
+    background:none;border:none;color:var(--ink-faint);cursor:pointer;
+  }
+  .legend-item .ground-reset:hover:not(:disabled){color:var(--accent);}
   .legend-item input.tag-color-box.bad{background-color:rgba(194,59,34,0.08);}
   .legend-item .name{flex:1;color:var(--ink-dim);}
   /* The row's name is a tag, so it is drawn as one. Its own left margin
@@ -2875,12 +2885,10 @@
   .style-bar button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
   .style-bar button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
   .style-bar button:disabled{opacity:0.35;cursor:default;}
-  /* Greyed is never lit as well, wherever a row of choices has both. */
-  .style-bar button.on:disabled, .free-menu-row .editor-btn.on:disabled,
-  .comment-filter .editor-btn.on:disabled, .style-choice button.on:disabled,
-  .mini-toolbar button.on:disabled{
-    color:var(--ink-dim);background:var(--panel-2);border-color:var(--line);
-  }
+  /* Greyed AND lit is a state of its own: pressed, and waiting for
+     whatever greyed it to let it count again. It keeps the fill and is
+     faded with the rest of the greyed buttons, so a row reads at a glance
+     as which choice would come back. */
   body.read-only .style-bar{display:none;}
 
   /* The version line and the history at the foot of the About panel. */

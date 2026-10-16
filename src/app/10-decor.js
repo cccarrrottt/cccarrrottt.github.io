@@ -62,6 +62,67 @@ const SPECIAL_TAGS = {
   [HUB_TAG]: 'Entries with this tag are drawn with an echo spreading out of them.',
   [LOCAL_TAG]: 'Entries with this tag are drawn with a stack of near-identical worlds behind them.'
 };
+/* The two grounds' colours, which the chart's author may set.
+ *
+ * Each ground is drawn in two inks: the ruling as it lies, and the ruling
+ * as it looks where the light crosses it. Both are the chart's, kept in
+ * SETTINGS.groundColors as {fanfic: {base, glow}, unreleased: {…}} and
+ * written only where somebody changed one, so a chart that never did
+ * writes the line it always wrote. They reach the drawing as custom
+ * properties on the page, which the stylesheet's own colours stand behind
+ * as fallbacks — the dark page keeps its own darker light unless a light
+ * was chosen, and a chosen one is turned over with the rest of the chart. */
+const GROUND_COLOR_DEFAULTS = {
+  fanfic:     {tag: FANFIC_TAG,     base: '#e8b21f', glow: '#ffcf3d'},
+  unreleased: {tag: UNRELEASED_TAG, base: '#525c6b', glow: '#7d92ad'},
+};
+const GROUND_SLOTS = ['base', 'glow'];
+function groundKeyOf(tag){
+  return Object.keys(GROUND_COLOR_DEFAULTS).find(k=> GROUND_COLOR_DEFAULTS[k].tag === tag) || null;
+}
+function cleanGroundColors(v){
+  const out = {};
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  Object.keys(GROUND_COLOR_DEFAULTS).forEach(k=>{
+    const one = v[k];
+    if(!one || typeof one !== 'object') return;
+    const kept = {};
+    GROUND_SLOTS.forEach(s=>{ if(isHexColor(one[s])) kept[s] = one[s]; });
+    if(Object.keys(kept).length) out[k] = kept;
+  });
+  return out;
+}
+function groundColorSet(key, slot){
+  const own = SETTINGS.groundColors && SETTINGS.groundColors[key];
+  return (own && isHexColor(own[slot])) ? own[slot] : null;
+}
+function groundColorOf(key, slot){
+  return groundColorSet(key, slot) || GROUND_COLOR_DEFAULTS[key][slot];
+}
+function applyGroundColors(){
+  const root = document.documentElement.style;
+  Object.keys(GROUND_COLOR_DEFAULTS).forEach(k=>{
+    GROUND_SLOTS.forEach(s=>{
+      const prop = `--${k}-${s}`, v = groundColorSet(k, s);
+      if(v) root.setProperty(prop, v); else root.removeProperty(prop);
+    });
+  });
+}
+/* Inside an edit, and replacing the map rather than changing it, as the
+   tags' own colours are: the undo snapshot still holds the old one. A
+   null colour puts that ink back to the program's; no key at all puts
+   back both. */
+function setGroundColorIn(key, slot, color){
+  const next = cleanGroundColors(SETTINGS.groundColors);
+  if(!GROUND_COLOR_DEFAULTS[key]) return;
+  if(!slot) delete next[key];
+  else {
+    const one = Object.assign({}, next[key] || {});
+    if(color && isHexColor(color)) one[slot] = color; else delete one[slot];
+    if(Object.keys(one).length) next[key] = one; else delete next[key];
+  }
+  if(Object.keys(next).length) SETTINGS.groundColors = next; else delete SETTINGS.groundColors;
+}
 function nodeHasTag(n, tag){ return !!(n && n.tags && n.tags.indexOf(tag) >= 0); }
 function tagIsSpecial(tag){ return Object.prototype.hasOwnProperty.call(SPECIAL_TAGS, tag); }
 /* One tag, drawn as a tag. `special` and `reserved` are the two kinds that

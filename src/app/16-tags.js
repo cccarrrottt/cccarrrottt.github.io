@@ -1020,6 +1020,46 @@ function openTagColorBox(row, tag){
   box.focus();
   box.select();
 }
+/* One of a ground's two colours, typed where its square was — the same
+   box, the same keys and the same rules as a tag's own colour; emptied, it
+   gives that ink back to the program. */
+function openGroundColorBox(sq, key, slot){
+  const row = sq.closest('.legend-item');
+  if(!row || row.querySelector('.tag-color-box')) return;
+  const box = document.createElement('input');
+  box.type = 'text';
+  box.className = 'tb-hex tag-color-box';
+  box.maxLength = 9;
+  box.spellcheck = false;
+  box.value = groundColorSet(key, slot) || '';
+  box.placeholder = GROUND_COLOR_DEFAULTS[key][slot];
+  box.style.setProperty('--swatch', groundColorOf(key, slot));
+  sq.replaceWith(box);
+  let done = false;
+  const finish = keep=>{
+    if(done) return;
+    done = true;
+    const v = box.value.trim();
+    if(keep && (v === '' || HEX_RE.test(v)) && (v || null) !== groundColorSet(key, slot)){
+      applyEdit(()=> setGroundColorIn(key, slot, v || null));
+    } else buildSideTabs();
+  };
+  box.addEventListener('mousedown', ev=> ev.stopPropagation());
+  box.addEventListener('click', ev=> ev.stopPropagation());
+  box.addEventListener('input', ()=>{
+    const v = box.value.trim();
+    box.classList.toggle('bad', !!v && !HEX_RE.test(v));
+    box.style.setProperty('--swatch', HEX_RE.test(v) ? v : GROUND_COLOR_DEFAULTS[key][slot]);
+  });
+  box.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  box.addEventListener('blur', ()=> finish(true));
+  box.focus();
+  box.select();
+}
 /* Inside an edit: the map is replaced rather than changed in place, so the
    undo snapshot taken before still holds the old one. */
 function setTagColorIn(tag, color){
@@ -1071,6 +1111,42 @@ function buildTagRow(tag, catName){
     sw.title = own ? `${own} — the colour of entries with this tag; press to change` : 'Give this tag a colour';
     sw.addEventListener('mousedown', ev=> ev.stopPropagation());
     sw.addEventListener('click', ev=>{ ev.stopPropagation(); openTagColorBox(row, tag); });
+  }
+  /* A ground has no colour to give its entries, but it is drawn in two of
+     its own — the ruling and the light that crosses it — and those are the
+     author's to choose. Two squares where the tag's one would be (after
+     the name, so the column of squares still lines up), and a button that
+     puts both back. The button stays when there is nothing to put back,
+     greyed, so the row does not change shape under the pointer. */
+  const groundKey = groundKeyOf(tag);
+  if(groundKey && !readOnlyView){
+    const box = document.createElement('span');
+    box.className = 'ground-colors';
+    GROUND_SLOTS.forEach(slot=>{
+      const sq = document.createElement('div');
+      const set = groundColorSet(groundKey, slot);
+      sq.className = 'swatch swatch-pick ground-swatch' + (set ? '' : ' ground-default');
+      sq.dataset.slot = slot;
+      sq.style.background = groundColorOf(groundKey, slot);
+      const what = slot === 'base' ? 'the ground’s ruling' : 'the light crossing it';
+      sq.title = `${groundColorOf(groundKey, slot)} — ${what}${set ? '' : ' (the program’s)'}; press to change`;
+      sq.addEventListener('mousedown', ev=> ev.stopPropagation());
+      sq.addEventListener('click', ev=>{ ev.stopPropagation(); openGroundColorBox(sq, groundKey, slot); });
+      box.appendChild(sq);
+    });
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'ground-reset';
+    reset.textContent = '\u21BA';
+    reset.title = 'Put both colours back to the program’s';
+    reset.disabled = !(SETTINGS.groundColors && SETTINGS.groundColors[groundKey]);
+    reset.addEventListener('mousedown', ev=> ev.stopPropagation());
+    reset.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      applyEdit(()=> setGroundColorIn(groundKey, null));
+    });
+    box.appendChild(reset);
+    row.insertBefore(box, row.querySelector('.count'));
   }
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
      with no tags at all show up — so it cannot be filed or deleted. Nor
