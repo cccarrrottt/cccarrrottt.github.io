@@ -182,10 +182,13 @@ jobs:
       # The one file there is. On this address it opens as a reader, and
       # becomes an editor only for the owner, once the write service has
       # confirmed the sign-in — see SITE_ORIGINS in src/app/01-store.js.
+      # Beside it, what makes it an app a phone can keep and open with no
+      # signal: the manifest, the icons and the worker in src/site/.
       - name: Stage the site
         run: |
           mkdir -p _site
           cp dist/nexus.html _site/index.html
+          cp src/site/* _site/
 
       - uses: actions/configure-pages@v5
 

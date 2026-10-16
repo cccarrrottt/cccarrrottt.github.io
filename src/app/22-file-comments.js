@@ -822,22 +822,26 @@ document.addEventListener('visibilitychange', ()=>{
 /* Putting a kept chart back. One undo step, like an import: the page is
    then simply dirty, and Save publishes it the usual way. */
 function restoreChartData(data){
-  applyEdit(()=>{
-    if(Array.isArray(data.nodes)) workingNodes = data.nodes.map(it=> Array.isArray(it) ? it.slice() : it);
-    if(Array.isArray(data.edgeStyles)) refill(EDGE_STYLES, data.edgeStyles);
-    if(Array.isArray(data.stickers)) refill(STICKERS, data.stickers);
-    if(Array.isArray(data.media)) refill(MEDIA, data.media);
-    if(Array.isArray(data.comments)) refill(COMMENTS, data.comments);
-    if(Array.isArray(data.tagCats)) refill(TAG_CATS, data.tagCats);
-    if(Array.isArray(data.refs)) refill(REFS, data.refs);
-    if(data.settings && typeof data.settings === 'object'){
-      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
-      Object.assign(SETTINGS, data.settings);
-    }
-    rebuildStickerMap();
-    rebuildMediaMap();
-  });
+  applyEdit(()=> putChartData(data));
   try{ buildSideTabs(); }catch(e){}
+}
+/* The putting back itself, with no undo step and no redraw — for the one
+   caller that is not an edit: a Save kept on this device and not yet sent
+   (36-site-owner), which is what the chart IS on this device until it goes. */
+function putChartData(data){
+  if(Array.isArray(data.nodes)) workingNodes = data.nodes.map(it=> Array.isArray(it) ? it.slice() : it);
+  if(Array.isArray(data.edgeStyles)) refill(EDGE_STYLES, data.edgeStyles);
+  if(Array.isArray(data.stickers)) refill(STICKERS, data.stickers);
+  if(Array.isArray(data.media)) refill(MEDIA, data.media);
+  if(Array.isArray(data.comments)) refill(COMMENTS, data.comments);
+  if(Array.isArray(data.tagCats)) refill(TAG_CATS, data.tagCats);
+  if(Array.isArray(data.refs)) refill(REFS, data.refs);
+  if(data.settings && typeof data.settings === 'object'){
+    Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+    Object.assign(SETTINGS, data.settings);
+  }
+  rebuildStickerMap();
+  rebuildMediaMap();
 }
 let draftOffer = null;
 function hideDraftBar(){

@@ -10003,8 +10003,11 @@ async function main(){
   };
 
   /* The write service, as the page sees it. */
-  const api = {sha: dataSha, saves: [], asked: 0};
-  const c = await browser.newContext({viewport:{width:1500, height:950}});
+  const api = {sha: dataSha, saves: [], asked: 0, offline: false, renewNext: false};
+  const SESSIONS = ['Bearer good-session', 'Bearer renewed-session'];
+  /* The site's worker would take the page's requests past these routes to
+     the real site; the next scenario tests it against a server of its own. */
+  const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
@@ -10015,6 +10018,8 @@ async function main(){
                   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
                   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
     const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
+    // No connection: the request never gets anywhere.
+    if(api.offline) return r.abort('internetdisconnected');
     if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
     if(u.pathname === '/login'){
       // What the real service does at the end of a sign-in, minus GitHub.
@@ -10022,8 +10027,13 @@ async function main(){
         `<script>opener.postMessage({rhizomeSession:'good-session'}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
     }
     api.asked++;
-    if(q.headers()['authorization'] !== 'Bearer good-session') return reply(401, {error: 'not signed in.'});
-    if(u.pathname === '/me') return reply(200, {owner: true, login: 'the-owner', sha: api.sha});
+    if(SESSIONS.indexOf(q.headers()['authorization']) < 0) return reply(401, {error: 'not signed in.'});
+    if(u.pathname === '/me'){
+      // The service renewing a session whose GitHub token ran out.
+      const renewed = api.renewNext ? {session: 'renewed-session'} : {};
+      api.renewNext = false;
+      return reply(200, {owner: true, login: 'the-owner', sha: api.sha, ...renewed});
+    }
     if(u.pathname === '/save'){
       const b = JSON.parse(q.postData());
       api.saves.push(b);
@@ -10219,11 +10229,165 @@ async function main(){
   check('an expired session leaves a reader, and is forgotten', rs.readOnly && rs.stored === null, JSON.stringify(rs));
   await stale.close();
 
+  /* ---- the owner with no signal: a phone with the site on its home screen ---- */
+  api.sha = dataSha;
+  api.renewNext = true;
+  const savesBefore = api.saves.length;
+  const phone = await c.newPage();
+  phone.on('pageerror', e => errs.push(e.message));
+  await phone.addInitScript(() => { try{
+    if(!sessionStorage.getItem('suite.phone')){
+      localStorage.setItem('rhizome.site.session', 'good-session');
+      sessionStorage.setItem('suite.phone', '1');
+    }
+  }catch(e){} });
+  await phone.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+  await phone.waitForFunction(() => typeof rebuildChart === 'function');
+  await phone.waitForFunction(() => !readOnlyView, null, {timeout: 5000}).catch(() => {});
+  const p0 = await phone.evaluate(() => ({readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session'),
+                                          owner: localStorage.getItem('rhizome.site.owner')}));
+  check('a session the service renewed replaces the one the page held',
+        !p0.readOnly && p0.stored === 'renewed-session', JSON.stringify(p0));
+  check('and the owner it confirmed is remembered for opening with no connection', p0.owner === 'the-owner', p0.owner);
+
+  api.offline = true;
+  const p1 = await phone.evaluate(async () => {
+    applyEdit(() => { workingNodes[0][1] = 'WRITTEN WITH NO SIGNAL'; });
+    await saveNow();
+    const kept = await readOutbox();
+    return {dirty: isDirty(), said: document.getElementById('saveStateText').textContent,
+            kept: !!kept && kept.parts.NODES.includes('WRITTEN WITH NO SIGNAL'), base: kept && kept.base};
+  });
+  check('Save with no connection keeps the chart on this device instead of failing',
+        !p1.dirty && p1.kept && /on this device/.test(p1.said) && api.saves.length === savesBefore, JSON.stringify(p1));
+  check('kept on top of the chart the page was editing', p1.base === dataSha, p1.base);
+
+  await phone.reload({waitUntil: 'load'});
+  await phone.waitForFunction(() => typeof rebuildChart === 'function');
+  await phone.waitForFunction(() => !readOnlyView, null, {timeout: 5000}).catch(() => {});
+  await wait(300);
+  const p2 = await phone.evaluate(() => ({readOnly: readOnlyView, first: workingNodes[0][1], dirty: isDirty(),
+                                          said: document.getElementById('saveStateText').textContent,
+                                          drawn: [...document.querySelectorAll('#nodeLayer .node')].some(n => n.textContent.replace(/\s+/g, '').includes('WRITTENWITHNOSIGNAL'))}));
+  check('opened again with no connection, the owner is still an editor', !p2.readOnly, JSON.stringify(p2));
+  check('and the chart is the one kept on the device, not the one the page was built with',
+        p2.first === 'WRITTEN WITH NO SIGNAL' && p2.drawn && !p2.dirty, JSON.stringify(p2));
+  check('and the page says it has not reached the site yet', /on this device/.test(p2.said), p2.said);
+
+  api.offline = false;
+  await phone.evaluate(() => window.dispatchEvent(new Event('online')));
+  await phone.waitForFunction(() => !sitePending, null, {timeout: 5000}).catch(() => {});
+  const sent = api.saves[api.saves.length - 1];
+  const p3 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()),
+                                                said: document.getElementById('saveStateText').textContent}));
+  check('when the connection comes back the kept Save is sent by itself',
+        api.saves.length === savesBefore + 1 && !!sent && sent.base === dataSha && sent.parts.NODES.includes('WRITTEN WITH NO SIGNAL'),
+        sent ? sent.base : 'nothing sent');
+  check('and nothing is left waiting', !p3.pending && !p3.kept && /Sent to the site/.test(p3.said), JSON.stringify(p3));
+
+  /* Somebody saved from another device in between. */
+  api.offline = true;
+  await phone.evaluate(async () => {
+    applyEdit(() => { workingNodes[0][1] = 'AND THIS ON THE TRAIN'; });
+    await saveNow();
+  });
+  api.offline = false;
+  api.sha = 'saved-from-the-desk';
+  await phone.evaluate(() => window.dispatchEvent(new Event('online')));
+  await wait(600);
+  const p4 = await phone.evaluate(async () => {
+    const kept = await readOutbox();
+    return {pending: sitePending, kept: !!kept && kept.parts.NODES.includes('AND THIS ON THE TRAIN'),
+            said: document.getElementById('saveStateText').textContent};
+  });
+  check('a kept Save the repository has moved past is refused, and stays kept rather than lost',
+        p4.pending && p4.kept && /newer chart/.test(p4.said) && /Export/.test(p4.said), JSON.stringify(p4));
+  await phone.evaluate(() => dropOutbox());
+  await phone.close();
+  api.sha = dataSha;
+
   await site.evaluate(() => document.getElementById('ownerBtn').click());
   const out = await site.evaluate(() => ({readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')}));
   check('signing out makes the tab a reader again', out.readOnly && out.stored === null, JSON.stringify(out));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   await c.close();
+  });
+
+  await scenario("the site kept on a phone with no signal", async () => {
+  if(MODE === 'src'){
+    check('the site is the built file and src/site beside it, so there is nothing to keep from src', true);
+    return;
+  }
+  /* The site as CI stages it: the built page as index.html, src/site/
+     beside it. The page is not ON the site here, so the worker is
+     registered by hand — what is tested is the worker, and what it keeps. */
+  const SITE_DIR = path.join(ROOT, 'src', 'site');
+  const files = {'/': fs.readFileSync(path.join(DIR, PAGE))};
+  for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  const TYPES = {'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
+  let up = true;
+  const srv = http.createServer((q, r) => {
+    if(!up){ r.destroy(); return; }
+    const rel = q.url.split('?')[0];
+    const body = files[rel === '/index.html' ? '/' : rel];
+    if(!body){ r.writeHead(404); r.end(); return; }
+    r.writeHead(200, {'Content-Type': rel === '/' || rel === '/index.html' ? 'text/html; charset=utf-8' : (TYPES[path.extname(rel)] || 'application/octet-stream')});
+    r.end(body);
+  });
+  await new Promise(res => srv.listen(0, '127.0.0.1', res));
+  const at = `http://127.0.0.1:${srv.address().port}/`;
+  const c = await browser.newContext({viewport:{width:390, height:844}});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  const errs = [];
+  try{
+    const manifest = JSON.parse(files['/manifest.webmanifest'].toString('utf8'));
+    const icons = (manifest.icons || []).map(i => i.src);
+    check('the manifest names the app, opens it without the browser, and has the icons a launcher asks for',
+          !!manifest.name && manifest.display === 'standalone' && manifest.start_url === './' &&
+          ['192x192', '512x512'].every(sz => (manifest.icons || []).some(i => i.sizes === sz && i.type === 'image/png')) &&
+          icons.every(src => !!files['/' + src]), JSON.stringify(icons));
+
+    const p = await c.newPage();
+    p.on('pageerror', e => errs.push(e.message));
+    await p.goto(at, {waitUntil: 'load'});
+    await p.waitForFunction(() => typeof rebuildChart === 'function');
+    const drawnOnline = await p.evaluate(() => document.querySelectorAll('#nodeLayer .node').length);
+    const reg = await p.evaluate(async () => {
+      try{ await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; return 'ready'; }
+      catch(e){ return String(e && e.message || e); }
+    });
+    await p.waitForFunction(() => !!navigator.serviceWorker.controller, null, {timeout: 5000}).catch(() => {});
+    const controlled = await p.evaluate(() => !!navigator.serviceWorker.controller);
+    check('the worker installs, keeping everything it lists, and takes the open page', reg === 'ready' && controlled,
+          JSON.stringify({reg, controlled}));
+
+    up = false;
+    await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
+    await p.waitForFunction(() => typeof rebuildChart === 'function', null, {timeout: 8000}).catch(() => {});
+    const offline = await p.evaluate(() => ({ok: typeof rebuildChart === 'function',
+                                             drawn: document.querySelectorAll('#nodeLayer .node').length}))
+      .catch(e => ({ok: false, error: e.message}));
+    check('with no connection the page still opens, and draws the chart', offline.ok && offline.drawn === drawnOnline,
+          JSON.stringify({offline, online: drawnOnline}));
+
+    /* Online again, the network's page is the one shown — a kept copy is
+       for when there is nothing else, never in preference. */
+    up = true;
+    files['/'] = Buffer.concat([files['/'], Buffer.from('\n<!-- a newer page -->\n')]);
+    await p.reload({waitUntil: 'load'});
+    const fresh = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page')));
+    check('with a connection, the page is fetched afresh rather than taken from the copy', fresh);
+    up = false;
+    await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
+    const keptNewer = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page'))).catch(() => false);
+    check('and that is the copy kept for next time', keptNewer);
+    check('and none of it raised an error', errs.length === 0, errs.join(' | '));
+  } finally {
+    await c.close();
+    await new Promise(res => srv.close(res));
+  }
   });
 
   /* ---- 33. guides, grounds, a swap and a dark page ---- */
@@ -13690,12 +13854,25 @@ async function main(){
     await wait(400);
     {
       const spans = [...document.querySelectorAll('.node[data-id="wsA"] text tspan')];
-      const space = measureText('a a') - measureText('aa');
+      /* In the face the entry is drawn in, not in measureText's default. */
+      const face = {family: fontFamilyFor(null)};
+      const space = measureText('a a', face) - measureText('aa', face);
+      /* What the layout decided: each word starts one measured word and one
+         space after the last. That is exact, and it is the claim — a gap
+         that is a space, not the old 6.5-per-character guess at one. */
+      const advances = spans.slice(1).map((t, i)=>
+        parseFloat(t.getAttribute('x')) - parseFloat(spans[i].getAttribute('x')) - measureText(spans[i].textContent, face));
+      /* What the browser drew. A word drawn under the chart's zoom is shaped
+         at that scale and can come out a twentieth of a pixel off the same
+         word measured unscaled — Chromium 156 does, where earlier ones did
+         not — so the drawn gap is held to a tenth of a pixel. The guess this
+         check was written against was off by three. */
       const gaps = spans.slice(1).map((t, i)=>
         parseFloat(t.getAttribute('x')) - parseFloat(spans[i].getAttribute('x')) - spans[i].getComputedTextLength());
-      out.gaps = JSON.stringify({space: +space.toFixed(2), gaps: gaps.map(g=> +g.toFixed(2))});
+      out.gaps = JSON.stringify({space: +space.toFixed(2), advances: advances.map(g=> +g.toFixed(3)), gaps: gaps.map(g=> +g.toFixed(2))});
       out.wordGapIsASpace = spans.length === 3 && space > 0 &&
-        gaps.every(g=> Math.abs(g - space) < 0.05) && Math.abs(measureSpace({}) - space) < 0.01;
+        advances.every(g=> Math.abs(g - space) < 0.01) &&
+        gaps.every(g=> Math.abs(g - space) < 0.1) && Math.abs(measureSpace(face) - space) < 0.01;
     }
     /* ---- the field keeps the drawing's line, however short the box ---- */
     {
