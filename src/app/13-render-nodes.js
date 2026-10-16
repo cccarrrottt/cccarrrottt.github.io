@@ -757,7 +757,14 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      the archetype keeps only its colour and whatever it draws around
      itself. */
   if(isHub || isLocal){
-    const c = ringColors[0];
+    /* The scenery is the border said again further out, so it wears the
+       border it stands next to: the OUTERMOST ring, as a tab does. It took
+       the innermost, and on an entry with two colours the echo came out
+       of a blue edge in red. An amalgam's single border is a gradient of
+       its lineages, and the scenery round it is the same gradient. */
+    const c = (isAmalgam && paintColors.length > 1)
+      ? makeGradient(paintColors, false, nodeDefs)
+      : tabInkOf(ringColors);
     const aura = el('g', {class:'node-aura', 'data-id':n.id}, auraLayer);
     /* Something to take hold of.
      *
@@ -1416,9 +1423,15 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
          one head on it is the mark for a turn in one direction — a
          quarter clockwise, which is what this handle no longer does. A
          handle that turns either way says so with two heads. */
-      el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, rot);
-      el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, rot);
-      el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, rot);
+      /* …and it stands across the corner, not level with the top: the
+         hollow of the arc faces the entry, so it reads as the corner's own
+         curve drawn again a little way out — this is the corner that
+         turns. Drawn level, and centred on the hit circle, then tipped an
+         eighth of a turn about that centre. */
+      const mark = el('g', {class:'node-rotate-glyph', transform:'rotate(-45,-5,-5) translate(1,-3.25)'}, rot);
+      el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, mark);
+      el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, mark);
+      el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, mark);
       el('title',{},rot).textContent =
         'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
       rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));

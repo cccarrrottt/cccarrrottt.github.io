@@ -333,6 +333,8 @@ function importChartFromText(text){
     const rowsIn = cleanLegendRows(settingsIn);
     const tagColorsIn = cleanTagColors(settingsIn && settingsIn.tagColors);
     if(Object.keys(tagColorsIn).length) SETTINGS.tagColors = tagColorsIn; else delete SETTINGS.tagColors;
+    const groundIn = cleanGroundColors(settingsIn && settingsIn.groundColors);
+    if(Object.keys(groundIn).length) SETTINGS.groundColors = groundIn; else delete SETTINGS.groundColors;
     ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
     });

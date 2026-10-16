@@ -310,7 +310,8 @@ function applyLiveEdgeStyle(){
     toRing: kept.toRing || undefined,
     // Placed on the drawing, not in this form — carried through untouched
     // so restyling a connector never straightens a route somebody bent.
-    bends: (kept.bends && kept.bends.length) ? kept.bends : undefined
+    bends: (kept.bends && kept.bends.length) ? kept.bends : undefined,
+    bendSides: (kept.bends && kept.bends.length && kept.bendSides) ? kept.bendSides : undefined
   });
   /* A callout on this connector is drawn in the connector's ink, and a
      callout is an ENTRY — it lives in the node layer, which redrawEdges

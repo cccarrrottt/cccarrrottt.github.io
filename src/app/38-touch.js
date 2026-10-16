@@ -163,6 +163,66 @@ function touchMenuFor(st){
   const thing = '.edge-hit, .amalgam-bar-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
   return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
+/* Open paper: on the chart, and on nothing that answers to a tap of its
+   own — the things a held tap there would not offer Paste over either. */
+const TOUCH_THINGS = '.node, .edge-hit, .amalgam-bar-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura, .lod-patch';
+function touchOnOpenCanvas(target){
+  return !!target && svg.contains(target) && !target.closest(TOUCH_THINGS);
+}
+/* A double tap on open paper zooms, as it does on every map a phone has.
+ *
+ * In, by two, about the place tapped — and from as far in as the chart
+ * goes, back out to the whole of it, so the same gesture that went in is
+ * the way out again and nobody has to find a pinch for it. A mouse has the
+ * wheel for this and its double click on paper does nothing, so this is
+ * the finger's alone. Eased rather than jumped: a view that changes in one
+ * frame leaves the reader looking for where they were. */
+const TOUCH_ZOOM_MAX = 3, TOUCH_ZOOM_MS = 220;
+let touchZoomAnim = 0;
+function touchZoomAt(x, y){
+  const rect = svg.getBoundingClientRect();
+  const from = {vs, vx, vy};
+  let to;
+  if(vs >= TOUCH_ZOOM_MAX - 1e-3){
+    fitToView();
+    to = {vs, vx, vy};
+  } else {
+    const mx = x - rect.left, my = y - rect.top;
+    const s = Math.min(TOUCH_ZOOM_MAX, vs * 2);
+    const wx = (mx - vx) / vs, wy = (my - vy) / vs;
+    to = {vs: s, vx: mx - wx * s, vy: my - wy * s};
+  }
+  vs = from.vs; vx = from.vx; vy = from.vy;
+  const t0 = performance.now(), id = ++touchZoomAnim;
+  /* Eased in the scale's logarithm, so going in by two and coming back
+     out look like the same motion run the two ways round; the corner of
+     the view is placed from the world point under the finger, so that
+     point stays under it all the way. */
+  const step = (now)=>{
+    if(id !== touchZoomAnim) return;
+    const k = Math.min(1, (now - t0) / TOUCH_ZOOM_MS);
+    const e = 1 - Math.pow(1 - k, 3);
+    const s = Math.exp(Math.log(from.vs) + (Math.log(to.vs) - Math.log(from.vs)) * e);
+    /* Where the two views agree on a fixed screen point, the zoom pivots
+       on it; going in, that is the tap. Solved from the two ends rather
+       than assumed, so the way out to the whole chart pivots too. */
+    const d = to.vs - from.vs;
+    if(Math.abs(d) > 1e-9){
+      const px = (from.vx * to.vs - to.vx * from.vs) / d;
+      const py = (from.vy * to.vs - to.vy * from.vs) / d;
+      vx = px + (from.vx - px) * s / from.vs;
+      vy = py + (from.vy - py) * s / from.vs;
+    } else {
+      vx = from.vx + (to.vx - from.vx) * e;
+      vy = from.vy + (to.vy - from.vy) * e;
+    }
+    vs = s;
+    if(k >= 1){ vs = to.vs; vx = to.vx; vy = to.vy; }
+    applyTransform();
+    if(k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 function touchCarryMods(st){
   return st.mods || (touchGuides ? {shift: true} : null);
 }
@@ -442,7 +502,8 @@ function touchFinish(ev, cancelled){
   const at = touchClickTarget(st.target, under);
   touchMouse('click', at, st.x0, st.y0, mods, detail);
   if(isDouble){
-    touchMouse('dblclick', at, st.x0, st.y0, mods, 2);
+    if(touchOnOpenCanvas(st.target)) touchZoomAt(st.x0, st.y0);
+    else touchMouse('dblclick', at, st.x0, st.y0, mods, 2);
     touchLastTap = null;
     return;
   }

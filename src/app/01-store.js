@@ -213,7 +213,7 @@ function hexColors(list){
 
 const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, arrowIn: false,
                              sinusoid: false, note: '', notePos: 'above', noteAt: 0.5,
-                             noteBg: null, bends: null,
+                             noteBg: null, bends: null, bendSides: null,
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
                              fromRing: 0, toRing: 0, gradient: null, square: true,
@@ -261,6 +261,11 @@ function edgeStyleFor(from, to){
     /* Points this connector has to pass through, set by hand — see
        handBends. In chart coordinates, in order from the source end. */
     bends: (Array.isArray(o.bends) && o.bends.length) ? o.bends : null,
+    /* Which sides the route left and arrived by when those points were set.
+       A route pinned by hand is pinned at its ends too: see resolvePorts. */
+    bendSides: (Array.isArray(o.bends) && o.bends.length && Array.isArray(o.bendSides) &&
+                o.bendSides.length === 2 && o.bendSides.every(s=> SIDES.includes(s)))
+               ? o.bendSides.slice() : null,
     noteDir: (typeof o.noteDir === 'number' && isFinite(o.noteDir)) ? o.noteDir : null,
     noteLen: (typeof o.noteLen === 'number' && o.noteLen > 0) ? o.noteLen : null,
     color: isHexColor(o.color) ? o.color : null,

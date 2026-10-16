@@ -53,10 +53,16 @@ function bendListOf(from, to){
   const st = edgeStyleFor(from, to);
   return (st && Array.isArray(st.bends)) ? st.bends.map(b=> [b[0], b[1]]) : [];
 }
-function setBendList(from, to, list){
+/* `sides`, when given, is the pair of sides the route leaves and arrives
+   by, written down with the points (see resolvePorts). A list emptied
+   takes them with it: a connector with no corners of its own goes back to
+   choosing its sides from the geometry, like any other. */
+function setBendList(from, to, list, sides){
   const kept = edgeStyleFor(from, to);
+  const has = !!(list && list.length);
   setEdgeStyleOverride(from, to, Object.assign({}, kept, {
-    bends: (list && list.length) ? list : undefined
+    bends: has ? list : undefined,
+    bendSides: !has ? undefined : (sides || kept.bendSides || undefined)
   }));
 }
 /* Every straight run of a drawn route, as {a, b} pairs — what the ghost
@@ -98,26 +104,33 @@ function drawBendHandles(){
   const bends = bendListOf(target.from, target.to);
   const pts = rec.pts;
 
-  // A ghost in the middle of every straight run: drag it and it becomes a
-  // bend. Drawn first, so a real bend sitting on one is the one you get.
-  routeRunsOf(pts).forEach(run=>{
-    const mid = {x:(run.a.x + run.b.x)/2, y:(run.a.y + run.b.y)/2};
-    if(bends.some(b=> Math.hypot(b[0]-mid.x, b[1]-mid.y) < BEND_R*2)) return;
-    const g = el('g', {class:'bend-ghost'}, host);
+  /* A hollow mark in the middle of every ARM — every straight stretch of
+     the route, however many points it happens to be drawn through. Drag
+     it and the stretch moves sideways, whole, with the two stretches
+     either side of it lengthening or shortening to keep up. Drawn first,
+     so a corner sitting on one is the one you get. */
+  const arms = routeArms(pts);
+  for(let k = 0; k + 1 < arms.length; k++){
+    const a = arms[k], b = arms[k + 1];
+    const mid = {x:(a.x + b.x)/2, y:(a.y + b.y)/2};
+    if(bends.some(q=> Math.hypot(q[0]-mid.x, q[1]-mid.y) < BEND_R*2)) continue;
+    const vertical = Math.abs(a.x - b.x) < 0.5;
+    const g = el('g', {class:'bend-ghost ' + (vertical ? 'bend-ghost-v' : 'bend-ghost-h'),
+                       'data-arm': k}, host);
     el('circle', {cx:mid.x.toFixed(2), cy:mid.y.toFixed(2), r:BEND_R + 4,
                   class:'bend-hit'}, g);
     el('circle', {cx:mid.x.toFixed(2), cy:mid.y.toFixed(2), r:BEND_R - 0.6,
                   class:'bend-mark bend-mark-new'}, g);
-    el('title', {}, g).textContent = 'Drag to bend the connector here';
+    el('title', {}, g).textContent = 'Drag to move this stretch of the connector';
     g.addEventListener('mousedown', ev=> beginBendDrag(ev, target, mid, -1, pts));
     g.addEventListener('click', ev=> ev.stopPropagation());
-  });
+  }
   bends.forEach((b, i)=>{
     const g = el('g', {class:'bend-handle', 'data-i':i}, host);
     el('circle', {cx:b[0].toFixed(2), cy:b[1].toFixed(2), r:BEND_R + 4, class:'bend-hit'}, g);
     el('circle', {cx:b[0].toFixed(2), cy:b[1].toFixed(2), r:BEND_R, class:'bend-mark'}, g);
     el('title', {}, g).textContent =
-      'Drag to move this bend; Shift lines it up with the other connectors; double-click to take it out';
+      'Drag to move this corner; Shift lines it up with the other connectors; double-click to take it out';
     g.addEventListener('mousedown', ev=> beginBendDrag(ev, target, {x:b[0], y:b[1]}, i, pts));
     g.addEventListener('click', ev=> ev.stopPropagation());
     g.addEventListener('dblclick', ev=>{
@@ -210,23 +223,170 @@ function bendAlignments(skipKey){
   });
   return {xs, ys};
 }
+/* ---------------------------------------------------------------------
+   Moving a route by its stretches and its corners.
+ *
+ * A bend used to be a POINT the line had to pass through, and the route
+ * was built afresh through the points every time one moved: out of the
+ * port, an L to the first point, an L to the next, an L into the far
+ * port. That reads well for a point placed once, and it is the wrong
+ * model for the thing a reader actually takes hold of. Pulling a stretch
+ * of the line sideways, they expect THAT stretch to move and the rest to
+ * stay; what they got was one new point in the middle of the stretch and
+ * a route rebuilt round it — which way round each L went decided again
+ * from scratch, the port flipped to another face of the entry the moment
+ * the point crossed that entry's diagonal, and the whole line jumped.
+ *
+ * So the drawn route is the thing that is edited. When a stretch (an ARM)
+ * is dragged, it moves sideways, whole, and its two neighbours lengthen or
+ * shorten to keep up; a corner dragged is the two arms that meet at it,
+ * each moved along its own axis. Every corner of the result is written
+ * down, and so are the sides the route leaves and arrives by. The router
+ * then draws exactly that, because between consecutive corners that share
+ * a line there is nothing for it to decide. Nothing is rebuilt and so
+ * nothing can jump — and a shape the router cannot draw as given is not
+ * taken: the stretch stops at the last place it could be, rather than the
+ * line leaping somewhere else.
+   ------------------------------------------------------------------ */
+// The drawn route with every straight stretch made one arm: repeats and
+// points in the middle of a stretch dropped, the two ends kept.
+function routeArms(pts){
+  const p = [];
+  (pts || []).forEach(q=>{
+    const last = p[p.length - 1];
+    if(last && Math.abs(last.x - q.x) < 0.5 && Math.abs(last.y - q.y) < 0.5) return;
+    p.push({x:q.x, y:q.y});
+  });
+  for(let i = 1; i < p.length - 1; i++){
+    const a = p[i-1], b = p[i], c = p[i+1];
+    const vert = Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5;
+    const horz = Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5;
+    if(vert || horz){ p.splice(i, 1); i--; }
+  }
+  return p;
+}
+function armIsVertical(a, b){ return Math.abs(a.x - b.x) < 0.5; }
+/* The arms with arm k moved sideways to `v`. An end of the arm that is a
+   port cannot move: the line comes out of it, runs out square and steps
+   across to the moved arm (the step's first point is marked `jog`, and is
+   not written down — see bendsFromArms). */
+function shiftArm(P, k, v, p1, p2){
+  const n = P.length;
+  const key = armIsVertical(P[k], P[k + 1]) ? 'x' : 'y';
+  const Q = P.map(q=> Object.assign({}, q));
+  const atStart = k === 0, atEnd = k + 1 === n - 1;
+  if(!atStart) Q[k][key] = v;
+  if(!atEnd) Q[k + 1][key] = v;
+  const jogAt = (port)=>{
+    const nrm = SIDE_NORMAL[port.side] || {x:0, y:0};
+    const L = runOutFloor(port);
+    const j = {x: port.x + nrm.x * L, y: port.y + nrm.y * L, jog: true};
+    const w = {x: j.x, y: j.y};
+    w[key] = v;
+    return [j, w];
+  };
+  if(atEnd){ const [j, w] = jogAt(p2); Q.splice(n - 1, 0, w, j); }
+  if(atStart){ const [j, w] = jogAt(p1); Q.splice(1, 0, j, w); }
+  return Q;
+}
+// What is written down for a set of arms: every corner, but the two ends
+// and the start of a step out of a port.
+function bendsFromArms(Q){
+  const out = [];
+  for(let i = 1; i < Q.length - 1; i++){
+    const a = Q[i-1], b = Q[i], c = Q[i+1];
+    if(b.jog) continue;
+    const turns = armIsVertical(a, b) !== armIsVertical(b, c);
+    if(turns) out.push([+b.x.toFixed(2), +b.y.toFixed(2)]);
+  }
+  return out;
+}
+/* How far apart two routes are as SHAPES — the furthest any point of
+   either lies from the other. Two drawings of one line through different
+   numbers of points come out at nothing; a line that has jumped comes out
+   at however far it jumped. */
+function routeApart(p, q){
+  const dist = (pt, pts)=>{
+    let best = Infinity;
+    for(let i = 1; i < pts.length; i++){
+      const a = pts[i-1], b = pts[i];
+      const dx = b.x - a.x, dy = b.y - a.y, L = dx*dx + dy*dy;
+      const t = L ? Math.max(0, Math.min(1, ((pt.x - a.x)*dx + (pt.y - a.y)*dy) / L)) : 0;
+      best = Math.min(best, Math.hypot(a.x + t*dx - pt.x, a.y + t*dy - pt.y));
+    }
+    return best;
+  };
+  const dense = (pts)=>{
+    const out = [];
+    for(let i = 1; i < pts.length; i++){
+      const a = pts[i-1], b = pts[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 4));
+      for(let k = 0; k <= n; k++) out.push({x: a.x + (b.x - a.x)*k/n, y: a.y + (b.y - a.y)*k/n});
+    }
+    return out;
+  };
+  if(!p || !q || p.length < 2 || q.length < 2) return Infinity;
+  let worst = 0;
+  dense(p).forEach(pt=>{ worst = Math.max(worst, dist(pt, q)); });
+  dense(q).forEach(pt=>{ worst = Math.max(worst, dist(pt, p)); });
+  return worst;
+}
+/* How far a drawn route may differ from the arms it was asked to follow
+   and still be that route: the ends of a line are sunk into a rippled
+   border by a pixel or three (see sinkEnds), and nothing else moves. */
+const ARM_FOLLOW_TOL = 4;
 let bendDrag = null;
 function beginBendDrag(ev, target, at, index, pts){
   if(ev.button !== 0 || readOnlyView) return;
   ev.stopPropagation(); ev.preventDefault();
   const p = clientToWorld(ev.clientX, ev.clientY);
+  const e = structEdges.find(x=> x.from === target.from && x.to === target.to);
+  const ports = e ? resolvePorts(structEdges).get(e) : null;
+  if(!ports || !ports.p1 || !ports.p2) return;
+  /* The arms of the line as it is drawn now, with its two ends put back on
+     their ports — the drawing sinks them into a rippled border. */
+  const P = routeArms(pts);
+  if(P.length < 2) return;
+  P[0] = {x: ports.p1.x, y: ports.p1.y};
+  P[P.length - 1] = {x: ports.p2.x, y: ports.p2.y};
+  /* What was taken hold of. A hollow mark is the arm it sits on; a corner
+     is the two arms that meet at it — or, for a point that is not at a
+     corner of the line any more, the arm it lies on. */
+  const near = (q)=> Math.hypot(q.x - at.x, q.y - at.y);
+  let corner = -1;
+  if(index >= 0){
+    for(let i = 1; i < P.length - 1; i++){ if(near(P[i]) < 2.5){ corner = i; break; } }
+  }
+  let arm = -1;
+  if(corner < 0){
+    let best = Infinity;
+    for(let k = 0; k + 1 < P.length; k++){
+      const a = P[k], b = P[k + 1];
+      const d = armIsVertical(a, b)
+        ? Math.abs(at.x - a.x) + Math.max(0, Math.min(a.y, b.y) - at.y, at.y - Math.max(a.y, b.y))
+        : Math.abs(at.y - a.y) + Math.max(0, Math.min(a.x, b.x) - at.x, at.x - Math.max(a.x, b.x));
+      if(d < best){ best = d; arm = k; }
+    }
+  }
+  /* What moves is the corner, or the arm, by however far the hand moves —
+     not to wherever the hand is. A handle left from an older chart can
+     stand off the line it belongs to, and taking hold of it used to throw
+     the stretch straight across to it. */
+  let anchor;
+  if(corner > 0) anchor = {x: P[corner].x, y: P[corner].y};
+  else {
+    const a = P[arm], b = P[arm + 1];
+    anchor = armIsVertical(a, b)
+      ? {x: a.x, y: Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), at.y))}
+      : {x: Math.max(Math.min(a.x, b.x), Math.min(Math.max(a.x, b.x), at.x)), y: a.y};
+  }
   bendDrag = {
-    target, index, moved: false,
+    target, moved: false, P, corner, arm,
+    p1: ports.p1, p2: ports.p2,
+    sides: [ports.p1.side, ports.p2.side],
     startX: ev.clientX, startY: ev.clientY,
-    grabDX: at.x - p.x, grabDY: at.y - p.y,
-    at: {x: at.x, y: at.y},
-    /* Where in the list a NEW bend belongs: after every bend that already
-       lies earlier along the drawn route than this ghost does. */
-    insertAt: index >= 0 ? index : (()=>{
-      const f = fractionNearest(pts, at.x, at.y);
-      const list = bendListOf(target.from, target.to);
-      return list.filter(b=> fractionNearest(pts, b[0], b[1]) < f).length;
-    })()
+    from: {x: p.x, y: p.y}, anchor,
+    at: {x: anchor.x, y: anchor.y}
   };
   document.body.classList.add('bending');
 }
@@ -238,10 +398,20 @@ window.addEventListener('mousemove', ev=>{
     st.moved = true;
     // Before the first live change: see applyEdit's `before`.
     st.before = takeSnapshot();
+    st.good = bendListOf(st.target.from, st.target.to);
+    st.goodSides = edgeStyleFor(st.target.from, st.target.to).bendSides;
   }
   const p = clientToWorld(ev.clientX, ev.clientY);
-  let x = p.x + st.grabDX, y = p.y + st.grabDY;
+  let x = st.anchor.x + (p.x - st.from.x), y = st.anchor.y + (p.y - st.from.y);
   const free = ev.ctrlKey || ev.metaKey;
+  /* Which coordinates the hand is moving: an arm only sideways, a corner
+     both ways. The other is held exactly where it was, so a stretch
+     dragged a little crooked does not drift along itself. */
+  let movesX = true, movesY = true;
+  if(st.corner < 0){
+    const vertical = armIsVertical(st.P[st.arm], st.P[st.arm + 1]);
+    movesX = vertical; movesY = !vertical;
+  }
   clearGuides();
   if(ev.shiftKey && !free){
     const key = calloutEdgeKey(st.target.from, st.target.to);
@@ -253,7 +423,7 @@ window.addEventListener('mousemove', ev=>{
         if(Math.abs(d) <= tol && (!best || Math.abs(d) < Math.abs(best.d))) best = {d, at:t}; });
       return best;
     };
-    const gx = near(x, xs), gy = near(y, ys);
+    const gx = movesX && near(x, xs), gy = movesY && near(y, ys);
     if(gx){
       x = gx.at;
       el('line', {class:'align-guide align-guide-line', x1:x.toFixed(2), x2:x.toFixed(2),
@@ -267,15 +437,42 @@ window.addEventListener('mousemove', ev=>{
   } else if(!free){
     x = snapToGrid(x); y = snapToGrid(y);
   } else { x = Math.round(x); y = Math.round(y); }
+  if(!movesX) x = st.at.x;
+  if(!movesY) y = st.at.y;
+  if(x === st.at.x && y === st.at.y && st.tried) return;
+  st.tried = true;
   st.at = {x, y};
-  const list = bendListOf(st.target.from, st.target.to);
-  if(st.index >= 0) list[st.index] = [x, y];
-  else list.splice(st.insertAt, 0, [x, y]);
+  /* The arms as they would be. A corner is its two arms: the one after it
+     moved first, so that a step put in at the far end does not shift the
+     place of the one before. */
+  let Q;
+  if(st.corner > 0){
+    const k = st.corner;
+    const after = armIsVertical(st.P[k], st.P[k + 1]) ? x : y;
+    const before = armIsVertical(st.P[k - 1], st.P[k]) ? x : y;
+    Q = shiftArm(shiftArm(st.P, k, after, st.p1, st.p2), k - 1, before, st.p1, st.p2);
+  } else {
+    const v = armIsVertical(st.P[st.arm], st.P[st.arm + 1]) ? x : y;
+    Q = shiftArm(st.P, st.arm, v, st.p1, st.p2);
+  }
+  const list = bendsFromArms(Q);
   // Live, without a step of undo per frame: the drawn style is set, and
   // the drop below is what writes it down.
-  setBendList(st.target.from, st.target.to, list);
-  if(st.index < 0){ st.index = st.insertAt; }
+  setBendList(st.target.from, st.target.to, list, st.sides);
   redrawEdges();
+  /* …and only if it is what was asked for. A shape the router cannot draw
+     as given — a stretch pulled back past the run-out of its port, into
+     the entry, or onto the line beside it — is not taken; the line stays
+     as it last was, and the next movement of the hand may well be one it
+     can follow. */
+  const rec = drawnRoutes.get(calloutEdgeKey(st.target.from, st.target.to));
+  if(!rec || routeApart(rec.pts, Q) > ARM_FOLLOW_TOL){
+    setBendList(st.target.from, st.target.to, st.good, st.goodSides);
+    redrawEdges();
+  } else {
+    st.good = list;
+    st.goodSides = st.sides;
+  }
   applyVisibility();
   if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
 });

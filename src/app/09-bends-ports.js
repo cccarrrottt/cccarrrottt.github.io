@@ -92,6 +92,116 @@ function usableHandBends(style, a, b){
   if(!boxes.length) return list;
   return list.filter(p=> !boxes.some(r=> p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1));
 }
+/* The shortest run-out a port allows — stubLength asked about a far end
+   standing on the port itself, which has no room in front of it.
+ *
+ * Where a stretch that leaves a port is moved sideways, the line still has
+ * to come out of the port square; it does so for this far and then steps
+ * across. At exactly this distance the router's own run-out and the step
+ * coincide, so writing down only where the step ENDS is enough to have it
+ * drawn where it was asked for — and the entry, carried later, takes its
+ * run-out with it rather than leaving it pinned on the paper. */
+function runOutFloor(port){
+  const q = Object.assign({}, port, {head: true});
+  return stubLength(q, {x: q.x, y: q.y});
+}
+/* A route pinned by hand, with its entry carried up to it.
+ *
+ * The corners stay where they were put — that is what pinning means — and
+ * the entry can be carried right up to them and past. Then the first
+ * corner is BEHIND the port's run-out, and nothing honest can be drawn
+ * through it: the line would have to leave the entry and turn straight
+ * back. Setting such a corner aside, as an unpinned bend is set aside,
+ * redraws the whole connector some other way all at once — the jump —
+ * so a pinned route is PUSHED instead, like snow in front of a plough:
+ * the first corner is moved out along the port's normal to where the
+ * run-out ends, and so is whatever stretch it starts (the corner across
+ * from it on the same stretch, or the next one along a stretch that was
+ * heading outwards). A stretch that was heading back towards the entry —
+ * a route that goes out, over and back — is left where it is: that turn
+ * is the reader's, not the entry's. Measured from each end, so carrying
+ * either entry pushes its own end of the line and nothing else. */
+function clearOfPort(bends, port){
+  const n = SIDE_NORMAL[port && port.side];
+  if(!n || !bends.length) return bends;
+  const floor = runOutFloor(port);
+  const along = (b)=> (b.x - port.x) * n.x + (b.y - port.y) * n.y;
+  const key = n.x ? 'x' : 'y';
+  const out = bends.map(b=> ({x: b.x, y: b.y}));
+  let need = floor;
+  for(let i = 0; i < out.length; i++){
+    const b = out[i], was = bends[i];
+    const d = need - along(b);
+    if(d <= 1e-6) break;
+    b.x += n.x * d; b.y += n.y * d;
+    const next = bends[i + 1];
+    if(!next) break;
+    const across = Math.abs(next[key] - was[key]) < 0.5;
+    if(across){ need = along(b); continue; }
+    /* A stretch heading outwards is pushed ahead of the corner as well,
+       and kept at least a grid step long: any shorter and it would be
+       squared away into the corner (see absorbBendOffsets), the line out
+       and the line back would lie on top of each other, and the route
+       would be set aside after all. */
+    const run = along(next) - along(was);
+    if(run < -0.5) break;
+    need = along(b) + Math.min(GRID, Math.max(0, run));
+  }
+  return out;
+}
+/* …and its first and last corners kept level with the ports they turn
+ * away from.
+ *
+ * A corner is written down where it stood, and the stretch it ends that
+ * comes straight out of a port was standing at that port's level. The
+ * port does not stay there: the entry is carried, or another connector
+ * arrives on the same face and the ports spread out along it. The corner
+ * kept the old level, so the line left the port, stepped up to where the
+ * port used to be, went across and came back down — a hook nobody drew —
+ * and when the step grew short enough to be squared away the whole hook
+ * vanished in one frame, which was the jump. The stretch out of the port
+ * is the port's, not the reader's: a stretch the reader moved off the
+ * port's level is written down with a step at the run-out (see shiftArm),
+ * and that corner turns ALONG the run-out rather than across it, so it is
+ * never touched here. Only a corner the line turns across at — the end
+ * of the port's own straight stretch — follows the port. */
+function levelWithPorts(bends, p1, p2){
+  const n1 = SIDE_NORMAL[p1 && p1.side], n2 = SIDE_NORMAL[p2 && p2.side];
+  if(!n1 || !n2 || !bends.length) return bends;
+  const out = bends.map(b=> ({x: b.x, y: b.y}));
+  const k1 = n1.x ? 'x' : 'y', c1 = n1.x ? 'y' : 'x';
+  const k2 = n2.x ? 'x' : 'y', c2 = n2.x ? 'y' : 'x';
+  const last = out.length - 1;
+  /* Which way the line leaves the first corner, and arrives at the last,
+     follows bentRoute's own rule: a leg starts across the axis the one
+     before it finished on, and the final leg starts across the target's
+     normal. With one corner, the other end of its leg is the far stub. */
+  let leaves;
+  if(last > 0) leaves = Math.abs(out[1][c1] - out[0][c1]) > 0.5 ? c1 : k1;
+  else {
+    const first = c2;
+    leaves = Math.abs(p2[first] - out[0][first]) > 0.5 ? first : (first === 'x' ? 'y' : 'x');
+  }
+  let arrives;
+  if(last > 0) arrives = Math.abs(out[last - 1][k2] - out[last][k2]) < 0.5 ? c2 : k2;
+  else arrives = Math.abs(p1[k1] - out[0][k1]) > 0.5 ? k1 : c1;
+  if(leaves === c1) out[0][c1] = p1[c1];
+  if(arrives === c2) out[last][c2] = p2[c2];
+  return out;
+}
+function pinnedHandBends(style, p1, p2){
+  let list = handBends(style);
+  if(!list.length) return list;
+  list = levelWithPorts(list, p1, p2);
+  list = clearOfPort(list, p1);
+  list = clearOfPort(list.slice().reverse(), p2).reverse();
+  // Anything still inside either entry after that is set aside as before.
+  const boxes = [p1, p2].map(p=> nodes.get(p && p.owner)).filter(Boolean).map(n=>{
+    const m = outerRingOf(n) + BEND_DODGE;
+    return {x0:n.x - m, y0:n.y - m, x1:n.x + n.w + m, y1:n.y + n.h + m};
+  });
+  return list.filter(p=> !boxes.some(r=> p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1));
+}
 /* The two boxes a hand-bent route may not run THROUGH: its own.
  *
  * Everything else on the chart it is allowed to cross — a route placed by
@@ -302,7 +412,8 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
    * connector may be given points it must pass through, and where it has
    * them they ARE the route — no search, no avoidance, no second-guessing
    * a placement somebody made on purpose. */
-  let hand = usableHandBends(style, nodes.get(p1 && p1.owner), nodes.get(p2 && p2.owner));
+  let hand = style.bendSides ? pinnedHandBends(style, q1, q2)
+    : usableHandBends(style, nodes.get(p1 && p1.owner), nodes.get(p2 && p2.owner));
   let bent = hand.length ? bentRoute(q1, q2, hand) : null;
   /* Bends that cannot be honoured cleanly are not honoured at all. They
      stay where they were put — the handles still show them, and moving an
@@ -419,8 +530,23 @@ function resolvePorts(edgesList, sideOverrides){
      * change. Everywhere else the route now holds still under any
      * movement that leaves the bends alone, which is what a route placed
      * by hand promises. A side set by hand still wins over it. */
-    const autoFrom = firstBend ? sideFacing(a, firstBend.x, firstBend.y) : auto.from;
-    const autoTo = lastBend ? sideFacing(b, lastBend.x, lastBend.y) : auto.to;
+    /* …and better still, the sides are WRITTEN DOWN with the bends.
+     *
+     * "The side the first bend is seen through" is still a reading of the
+     * geometry, and it still flips: the diagonal it is measured against
+     * belongs to the box, and a wide flat entry has a very shallow one —
+     * a corner a hundred units to the right and thirty down was "below"
+     * it, and the line left from underneath. Dragging a stretch of the
+     * route, or carrying the entry a little way, crossed that diagonal
+     * and threw the whole connector to another face. A route pinned by
+     * hand is pinned at both ends as well: the sides it had when its
+     * corners were set are kept with them (bendSides), and only a chart
+     * that predates that falls back on the reading. */
+    const pinned = style.bendSides && handBends(style).length;
+    const autoFrom = pinned ? style.bendSides[0]
+      : firstBend ? sideFacing(a, firstBend.x, firstBend.y) : auto.from;
+    const autoTo = pinned ? style.bendSides[1]
+      : lastBend ? sideFacing(b, lastBend.x, lastBend.y) : auto.to;
     let fromSide = (over && over.fromSide) || style.fromSide || autoFrom;
     let toSide = (over && over.toSide) || style.toSide || autoTo;
     /* …but never the side a callout's own leader already occupies. */

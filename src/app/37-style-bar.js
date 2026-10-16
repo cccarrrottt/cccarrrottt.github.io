@@ -266,12 +266,16 @@ function syncStyleBar(){
   styleBar.querySelectorAll('.style-bar-group').forEach(r=> rows[r.dataset.group] = r);
   rows.decor.hidden = !decorOn;
   const light = (row, value, off)=>{
-    /* A greyed button is never shown lit as well. Lit and greyed read as
-       "pressed, and stuck there": a button that looks as if it could be
-       pressed again, and does nothing when it is. */
+    /* A greyed button still shows whether it is pressed. Greying says
+       the choice does nothing just now — the wave is drawn through the
+       elbows, the frame is off — and the choice itself is still written
+       down and comes back with whatever greyed it: rounded elbows stay
+       rounded under a wave, and are rounded again when the wave is taken
+       off. Unlit while greyed, the bar claimed the opposite of what the
+       entry would do the moment the button came back. */
     row.querySelectorAll('button').forEach(b=>{
       b.disabled = !!(off && off(b.dataset.value));
-      b.classList.toggle('on', !b.disabled && b.dataset.value === value);
+      b.classList.toggle('on', b.dataset.value === value);
     });
   };
   rows.turn.hidden = !n || styleBarFree(n);
@@ -327,7 +331,7 @@ function syncStyleBar(){
     const out = isMergedArrow(t.from, t.to);
     rows.ends.querySelectorAll('button').forEach(b=>{
       b.disabled = merged;
-      b.classList.toggle('on', !merged && (b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false));
+      b.classList.toggle('on', b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false);
       b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
               : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
                        : STYLE_BAR_ENDS.find(e=> e[0] === b.dataset.value)[2];

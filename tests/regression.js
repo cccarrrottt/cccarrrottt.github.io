@@ -5613,6 +5613,9 @@ async function main(){
     await wait(500);
     out.hubOnPocket = document.querySelectorAll('#auraLayer .node-aura[data-id="tgH"] .hub-echo').length;
     out.pocketKeptRings = document.querySelectorAll('.node[data-id="tgH"] > path').length;
+    // The echo is the border said again further out: the outer ring's colour.
+    out.echoInk = [...document.querySelectorAll('#auraLayer .node-aura[data-id="tgH"] .hub-echo')]
+      .map(r=> r.getAttribute('stroke'));
     out.bothScenery = [
       document.querySelectorAll('.node-aura[data-id="tgB"] .hub-echo').length,
       document.querySelectorAll('.node-aura[data-id="tgB"] .local-sheet').length];
@@ -5681,6 +5684,8 @@ async function main(){
   check('a pocket reality can be a multiversal hub and keep all three borders',
         r29.hubOnPocket === 3 && r29.pocketKeptRings === 3,
         JSON.stringify({echo:r29.hubOnPocket, rings:r29.pocketKeptRings}));
+  check('scenery wears the colour of the border it stands next to, the outermost',
+        r29.echoInk.length === 3 && r29.echoInk.every(c=> c === '#1a1'), JSON.stringify(r29.echoInk));
   check('one entry can carry both kinds of scenery at once',
         JSON.stringify(r29.bothScenery) === JSON.stringify([3, 2]),
         JSON.stringify(r29.bothScenery));
@@ -8239,21 +8244,34 @@ async function main(){
       redrawEdges();
       await wait(250);
       out.ghostsOffered = document.querySelectorAll('#bendLayer .bend-ghost').length;
-      const ghost = document.querySelector('#bendLayer .bend-ghost');
+      /* A hollow mark is a STRETCH of the line, and dragging it moves that
+         stretch sideways, whole — not a new point the route is rebuilt
+         round. Taken by the mark on an upright stretch, dragged
+         crookedly: only the sideways part of the movement counts. */
+      const ghost = document.querySelector('#bendLayer .bend-ghost-v') ||
+                    document.querySelector('#bendLayer .bend-ghost');
+      const armX = +ghost.querySelector('.bend-mark').getAttribute('cx');
       const b = ghost.getBoundingClientRect();
       const sx = b.x + b.width/2, sy = b.y + b.height/2;
       ghost.dispatchEvent(new MouseEvent('mousedown',
         {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
       for(let k = 1; k <= 6; k++){
         window.dispatchEvent(new MouseEvent('mousemove',
-          {bubbles:true, clientX:sx - k*12, clientY:sy + k*10}));
+          {bubbles:true, clientX:sx + k*12, clientY:sy + k*10}));
         await wait(35);
       }
       window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
       await wait(400);
       const list = bendListOf('bnA','bnB');
-      out.bendMade = list.length === 1;
-      out.handlesDrawn = document.querySelectorAll('#bendLayer .bend-handle').length;
+      const want = snapToGrid(armX + 72 / vs);
+      const upright = (drawnRoutes.get(calloutEdgeKey('bnA','bnB')) || {pts:[]}).pts
+        .filter((q, i, a)=> i && Math.abs(a[i-1].x - q.x) < 0.5 && Math.abs(a[i-1].y - q.y) > 1)
+        .map(q=> q.x);
+      out.bendMade = (list.length >= 1 && upright.some(x=> Math.abs(x - want) < 1) &&
+                     !upright.some(x=> Math.abs(x - armX) < 0.5)) ||
+                     JSON.stringify({armX, want, upright, list});
+      out.handlesDrawn = document.querySelectorAll('#bendLayer .bend-handle').length === list.length
+        ? 1 : 'handles ' + document.querySelectorAll('#bendLayer .bend-handle').length + ' for ' + list.length;
       /* A hand-laid corner does not stop the route being a set of right
          angles — that is the whole point of an orthogonal bend. */
       const rec = drawnRoutes.get(calloutEdgeKey('bnA','bnB'));
@@ -8277,7 +8295,7 @@ async function main(){
                (Math.abs(a2.x - p.x) < 1.5 ? Math.abs(q[0] - p.x) < 1.5
                                            : Math.abs(q[1] - p.y) < 1.5);
       });
-      out.routePasses = !!(list.length && onRoute(list[0]));
+      out.routePasses = !!list.length && list.every(onRoute);
       /* It is written down with the chart, and comes back with it. */
       out.bendSerialised = /bends:\s*\[\[/.test(serializeEdgeStyles(EDGE_STYLES));
       /* Shift lines a bend up with the OTHER connectors, and with nothing
@@ -8288,11 +8306,12 @@ async function main(){
       nodes.forEach(n=>{ nodeEdges.add(Math.round(n.x)); nodeEdges.add(Math.round(n.x + n.w)); });
       out.ignoresBoxes = !al.xs.some(v=> nodeEdges.has(Math.round(v)) &&
         !Array.from(drawnRoutes.values()).some(r=> (r.pts||[]).some(p=> Math.abs(p.x - v) < 0.6)));
-      /* Taken out again by a double-click on the mark. */
+      /* A corner is taken out again by a double-click on its mark. */
+      const had = bendListOf('bnA','bnB').length;
       const handle = document.querySelector('#bendLayer .bend-handle');
       if(handle) handle.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true}));
       await wait(400);
-      out.bendRemoved = bendListOf('bnA','bnB').length === 0;
+      out.bendRemoved = bendListOf('bnA','bnB').length === had - 1;
       /* Straighten clears the lot. */
       applyEdit(()=>{ setBendList('bnA','bnB', [[-200,-40],[-200,60]]); });
       await wait(400);
@@ -8338,8 +8357,8 @@ async function main(){
         r40.heldOnBar && r40.stillMoved, r40.barCentre);
   check('the guides offer two middles before two edges',
         r40.midWins && r40.midBeatsNearerEdge, String(r40.pickAt));
-  check('a connector takes a corner where it is dragged, and stays square',
-        r40.ghostsOffered > 0 && r40.bendMade && r40.handlesDrawn === 1 &&
+  check('a stretch of a connector moves sideways where it is dragged, and stays square',
+        r40.ghostsOffered > 0 && r40.bendMade === true && r40.handlesDrawn === 1 &&
         r40.stillOrthogonal && r40.routePasses,
         JSON.stringify({ghosts:r40.ghostsOffered, made:r40.bendMade,
                         handles:r40.handlesDrawn, square:r40.stillOrthogonal,
@@ -12176,6 +12195,28 @@ async function main(){
     check('…about the point between them', Math.abs(pinched.w.x - before.x) < 1 && Math.abs(pinched.w.y - before.y) < 1,
           JSON.stringify({before, after: pinched.w}));
 
+    /* Two taps on open paper zoom in by two about the place tapped, and
+       from as far in as the chart goes they go back out to all of it. */
+    {
+      await pp.evaluate(()=>{ vs = 1; vx = 20000; vy = 20000; applyTransform(); });
+      const spot = [220, 560];
+      const w0 = await pp.evaluate(([x, y])=> clientToWorld(x, y), spot);
+      await tap(...spot); await tap(...spot);
+      await wait(400);
+      const inz = await pp.evaluate(([x, y])=> ({vs, w: clientToWorld(x, y)}), spot);
+      check('two taps on open paper zoom in by two, about the place tapped',
+            Math.abs(inz.vs - 2) < 0.01 && Math.abs(inz.w.x - w0.x) < 1 && Math.abs(inz.w.y - w0.y) < 1,
+            JSON.stringify({w0, inz}));
+      await pp.evaluate(()=>{ vs = 3; applyTransform(); });
+      await wait(400);
+      await tap(...spot); await tap(...spot);
+      await wait(400);
+      const outz = await pp.evaluate(()=>{ const v = {vs, vx, vy}; fitToView(); return {v, fit: {vs, vx, vy}}; });
+      check('…and from all the way in, back out to the whole chart',
+            Math.abs(outz.v.vs - outz.fit.vs) < 0.01 && Math.abs(outz.v.vx - outz.fit.vx) < 1,
+            JSON.stringify(outz));
+    }
+
     /* Back to the known view for the rest. */
     const pos = await pp.evaluate(async ()=>{
       vs = 1; vx = 20; vy = 20; applyTransform();
@@ -13223,6 +13264,148 @@ async function main(){
       out.bendHeld = worst < 80;
     }
 
+    /* A stretch of a line is moved by its mark, and a corner by its own,
+       and neither ever throws the line somewhere else.
+     *
+       The marks used to make a POINT the route was rebuilt round: which
+       way round each elbow went was decided afresh at every step, and the
+       port flipped to another face of the entry whenever the point
+       crossed the entry's diagonal — the line jumping as a stretch was
+       dragged along x. Now the drawn route is what is edited, and every
+       frame of a drag is measured against the one before. */
+    {
+      const rt = ()=> drawnRoutes.get(calloutEdgeKey('hm1', 'hm2')).pts.map(q=> ({x:q.x, y:q.y}));
+      const W = (x, y)=>{ const sr = svg.getBoundingClientRect(); return {x: sr.left + vx + x*vs, y: sr.top + vy + y*vs}; };
+      const keepView = {vs, vx, vy};
+      const setUp = (gone)=> applyEdit(()=>{
+        const i1 = workingNodes.findIndex(x=> x[0] === 'hm1');
+        if(i1 >= 0) workingNodes.splice(i1, 1);
+        const i2 = workingNodes.findIndex(x=> x[0] === 'hm2');
+        if(i2 >= 0) workingNodes.splice(i2, 1);
+        const k = EDGE_STYLES.findIndex(s=> s.from === 'hm1');
+        if(k >= 0) EDGE_STYLES.splice(k, 1);
+        if(gone) return;
+        workingNodes.push(['hm1', 'Arm start', null, null, null, null, {pos: at(1200, 600)}]);
+        workingNodes.push(['hm2', 'Arm end', 'hm1', null, null, null, {pos: at(1560, 840)}]);
+      });
+      const drag = async (g, dx, dy, steps)=>{
+        const m = g.querySelector('.bend-mark');
+        const cx = +m.getAttribute('cx'), cy = +m.getAttribute('cy');
+        const p0 = W(cx, cy);
+        g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p0.x, clientY:p0.y}));
+        let prev = rt(), worst = 0;
+        for(let s = 1; s <= steps; s++){
+          const p = W(cx + dx*s, cy + dy*s);
+          window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:p.x, clientY:p.y}));
+          const now = rt();
+          worst = Math.max(worst, routeApart(prev, now));
+          prev = now;
+        }
+        window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+        await wait(120);
+        return worst;
+      };
+      out.armJumps = {};
+      for(const [dx, dy] of [[4, 0], [-4, 0], [0, 4], [0, -4]]){
+        setUp();
+        await wait(250);
+        vs = 1; vx = 400 - 9200; vy = 200 - 8600; applyTransform();
+        bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+        for(const g of [...document.querySelectorAll('#bendLayer .bend-ghost')]){
+          const k = g.dataset.arm;
+          const fresh = document.querySelector(`#bendLayer .bend-ghost[data-arm="${k}"]`);
+          if(!fresh) continue;
+          const w = await drag(fresh, dx, dy, 30);
+          out.armJumps[`${k}:${dx},${dy}`] = +w.toFixed(1);
+          setUp();
+          await wait(200);
+          bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+        }
+      }
+      // A stretch dragged moves sideways to where it was dragged, whole.
+      setUp();
+      await wait(250);
+      bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+      {
+        const g = document.querySelector('#bendLayer .bend-ghost-v');
+        const x0 = +g.querySelector('.bend-mark').getAttribute('cx');
+        await drag(g, 4, 1, 15);
+        const ups = rt().filter((q, i, a)=> i && Math.abs(a[i-1].x - q.x) < 0.5 && Math.abs(a[i-1].y - q.y) > 1).map(q=> q.x);
+        out.armMoved = ups.some(x=> Math.abs(x - snapToGrid(x0 + 60)) < 1) ? true : JSON.stringify({x0, ups});
+        /* …and the route is pinned at its ends as well as its corners:
+           the sides are written down with the points, and go with them. */
+        const st = EDGE_STYLES.find(s=> s.from === 'hm1' && s.to === 'hm2');
+        out.sidesKept = !!st && Array.isArray(st.bendSides) && st.bendSides.length === 2 &&
+          /bendSides:\s*\[/.test(serializeEdgeStyles(EDGE_STYLES));
+        applyEdit(()=>{ setBendList('hm1', 'hm2', []); });
+        const st2 = EDGE_STYLES.find(s=> s.from === 'hm1' && s.to === 'hm2');
+        out.sidesCleared = !st2 || !st2.bendSides;
+      }
+      // A corner dragged both ways moves its two stretches, without a jump.
+      setUp();
+      await wait(250);
+      bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+      await drag(document.querySelector('#bendLayer .bend-ghost-v'), 4, 0, 10);
+      bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+      out.cornerJumps = [];
+      for(const [dx, dy] of [[4, 0], [-4, 0], [0, 4], [0, -4], [3, 3]]){
+        const h = document.querySelector('#bendLayer .bend-handle');
+        if(!h){ out.cornerJumps.push('no handle'); break; }
+        out.cornerJumps.push(+(await drag(h, dx, dy, 12)).toFixed(1));
+        bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+      }
+      /* And with the line pinned, its entry carried right up to its own
+         corner and past: the corner is pushed ahead of the entry rather
+         than set aside, which redrew the whole line some other way. */
+      setUp();
+      await wait(250);
+      bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+      await drag(document.querySelector('#bendLayer .bend-ghost-v'), 4, 0, 10);
+      out.pushJumps = [];
+      for(const [id, dx, dy] of [['hm1', 12, 0], ['hm2', -12, 0], ['hm1', 0, 12], ['hm2', 0, -12]]){
+        let prev = rt(), worst = 0;
+        /* From where it was saved, not from where it is drawn: the two
+           differ by a few units, and adding the step to the drawn place
+           carried the entry sideways as well, a little more each time. */
+        const pos0 = entryOpts(workingEntry(id).entry).pos.slice();
+        for(let k = 0; k < 20; k++){
+          applyEdit(()=>{
+            const f = workingEntry(id);
+            const o = entryOpts(f.entry);
+            o.pos = [pos0[0] + dx*(k + 1), pos0[1] + dy*(k + 1)];
+            putEntry(f.index, f.entry, o);
+          });
+          const now = rt();
+          worst = Math.max(worst, routeApart(prev, now));
+          prev = now;
+        }
+        out.pushJumps.push(+worst.toFixed(1));
+        setUp();
+        await wait(150);
+        bendHoverTarget = null; showBendsFor('hm1', 'hm2');
+        await drag(document.querySelector('#bendLayer .bend-ghost-v'), 4, 0, 10);
+      }
+      /* An entry carried across its own line's stretch — or a port slid
+         along its face by any other means — takes that stretch with it,
+         rather than stepping up to where the port used to be. */
+      {
+        const pos0 = entryOpts(workingEntry('hm1').entry).pos.slice();
+        const before = rt().length;
+        applyEdit(()=>{
+          const f = workingEntry('hm1');
+          const o = entryOpts(f.entry);
+          o.pos = [pos0[0], pos0[1] + 36];
+          putEntry(f.index, f.entry, o);
+        });
+        const now = rt();
+        out.levelKept = now.length <= before ? true : JSON.stringify(now.map(q=> [Math.round(q.x), Math.round(q.y)]));
+      }
+      bendHoverTarget = null; drawBendHandles();
+      setUp(true);
+      out.grid = GRID;
+      vs = keepView.vs; vx = keepView.vx; vy = keepView.vy; applyTransform();
+    }
+
     /* The two the owner drew in ordinary work and saved: a bend between two
        entries that only a route through one of them could reach, and the
        same under an entry turned upside down. */
@@ -13447,6 +13630,25 @@ async function main(){
   check('no hand bend anywhere round two entries breaks the route', !rW.fuzz.length, rW.fuzz.slice(0, 4).join(' | '));
   check('a hand-bent route holds still while its entries are carried about',
         rW.bendHeld, JSON.stringify({worst: rW.bendHold, steps: rW.bendHoldSteps}));
+  /* Two grid steps are the most a frame can move a line by. The hand
+     moves less than one between frames and the line steps on the grid —
+     except where a stretch leaves the line of a port or comes back onto
+     it: a step shorter than a grid line is squared away into the corner
+     (absorbBendOffsets), so the first place it can stand off that line is
+     the second grid line, and it gets there in one frame. */
+  check('a stretch dragged along either axis never throws the line elsewhere',
+        Object.values(rW.armJumps).length > 4 && Object.values(rW.armJumps).every(w=> w <= 2*rW.grid),
+        JSON.stringify(rW.armJumps));
+  check('and moves sideways, whole, to where it was dragged', rW.armMoved === true, String(rW.armMoved));
+  check('a route pinned by hand keeps its sides with its corners, and loses them with them',
+        rW.sidesKept && rW.sidesCleared, JSON.stringify({kept: rW.sidesKept, cleared: rW.sidesCleared}));
+  check('a corner dragged either way moves its two stretches without a jump',
+        rW.cornerJumps.length === 5 && rW.cornerJumps.every(w=> typeof w === 'number' && w <= 2*rW.grid),
+        JSON.stringify(rW.cornerJumps));
+  check('an entry carried into its own pinned corner pushes it ahead rather than throwing the line',
+        rW.pushJumps.length === 4 && rW.pushJumps.every(w=> w <= 12 + 2), JSON.stringify(rW.pushJumps));
+  check('a pinned stretch out of a port stays level with the port when the entry is carried across it',
+        rW.levelKept === true, String(rW.levelKept));
   check('a lineage leaving along the bar turns only towards it and onto it',
         rW.lineages.every(k=> k >= 0 && k <= 2), JSON.stringify(rW.lineages));
   check('the style bar turns an entry, a card and a portrait a quarter clockwise, in place',
@@ -14301,6 +14503,14 @@ async function main(){
       applyEdit(()=> setEdgeStyleOverride('fvA', 'fvB', Object.assign({}, edgeStyleFor('fvA', 'fvB'), {routing:'curve'})));
       openStyleBar({kind:'edge', from:'fvA', to:'fvB', x:300, y:300});
       out.curveGreys = !!styleBar.querySelector('[data-group="corners"] button').disabled;
+      /* …and still lit: the elbows were rounded before the curve, and are
+         rounded again the moment it is a square route once more. */
+      out.curveKeepsLit = styleBar.querySelector('[data-group="corners"] button').classList.contains('on');
+      closeStyleBar();
+      applyEdit(()=> setEdgeStyleOverride('fvA', 'fvB', Object.assign({}, edgeStyleFor('fvA', 'fvB'), {routing:'orthogonal'})));
+      openStyleBar({kind:'edge', from:'fvA', to:'fvB', x:300, y:300});
+      const back = styleBar.querySelector('[data-group="corners"] button');
+      out.curveComesBack = !back.disabled && back.classList.contains('on') && edgeStyleFor('fvA', 'fvB').square === false;
       closeStyleBar();
     }
 
@@ -14399,6 +14609,8 @@ async function main(){
   check('a connector\'s panel holds its route and paint, with ⟳ beside the route', rF.panelLean);
   check('the bar on a connector sets its line, its corners and its ends', rF.edgeBar, rF.edgeBarAt);
   check('and a curve\'s corners are greyed there', rF.curveGreys);
+  check('greyed, a button still shows whether it is pressed', rF.curveKeepsLit);
+  check('and comes back pressed when what greyed it is gone', rF.curveComesBack);
   check('a connector\'s bends show as the pointer reaches it, and go after it leaves',
         rF.handlesOnHover && rF.handlesGo, JSON.stringify({on: rF.handlesOnHover, go: rF.handlesGo}));
   check('a clicked connector is lit like a selected entry, and nothing else steps back',
@@ -14705,8 +14917,49 @@ async function main(){
     out.specialRefused = !/fan-fiction/.test(serializeSettings(SETTINGS)) && tagColorOf('fan-fiction') === null;
     setSideTab(document.getElementById('tagsPanel'), true);
     await wait(250);
-    const ffRow = document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"] .swatch');
+    const ffRow = document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"] .swatch:not(.ground-swatch)');
     out.specialNoSwatch = !ffRow || ffRow.classList.contains('swatch-none');
+    /* …but a ground has two inks of its own, the author's to set: two
+       squares and a button that puts both back. */
+    {
+      const row = ()=> document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"]');
+      const squares = ()=> [...row().querySelectorAll('.ground-swatch')];
+      const ink = ()=> getComputedStyle(document.querySelector('#fanfic-weave path')).stroke;
+      const g = {before: squares().length, ink0: ink(),
+                 resetGreyed: row().querySelector('.ground-reset').disabled};
+      /* The squares stand in front of the name, as every tag's square
+         does, and the two grounds' reset buttons stand in one column. */
+      {
+        applyEdit(()=> workingNodes.push(['tgU','Shelved',null,null,null,null,{pos:[X, Y + 400], tags:['unreleased', 'work-b']}]));
+        await wait(250);
+        const left = (r, sel)=> r.querySelector(sel).getBoundingClientRect().left;
+        const rows = ['fan-fiction', 'unreleased'].map(t=> document.querySelector(`#tagsList .legend-item[data-tag="${t}"]`));
+        g.squaresFirst = rows.every(r=> left(r, '.ground-swatch') < left(r, '.name'));
+        g.resetColumn = rows.map(r=> Math.round(left(r, '.ground-reset')));
+        undoLastEdit(); await wait(250);
+      }
+      squares()[0].click();
+      const box = row().querySelector('.tag-color-box');
+      box.value = '#2e86de';
+      box.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+      await wait(250);
+      g.inkSet = ink();
+      g.saved = /groundColors: \{fanfic:\{base:'#2e86de'\}\}/.test(serializeSettings(SETTINGS));
+      g.squareShows = squares()[0].style.background;
+      g.glowKept = squares()[1].classList.contains('ground-default');
+      row().querySelector('.ground-reset').click();
+      await wait(250);
+      g.inkBack = ink();
+      g.cleared = !SETTINGS.groundColors && !/groundColors/.test(serializeSettings(SETTINGS));
+      undoLastEdit(); await wait(250);
+      g.undone = ink();
+      redoLastEdit(); await wait(250);
+      out.ground = g;
+      out.groundOk = g.before === 2 && g.resetGreyed && g.squaresFirst &&
+        g.resetColumn[0] === g.resetColumn[1] && g.inkSet === 'rgb(46, 134, 222)' && g.saved &&
+        g.squareShows === 'rgb(46, 134, 222)' && g.glowKept && g.inkBack === g.ink0 && g.cleared &&
+        g.undone === 'rgb(46, 134, 222)';
+    }
     setSideTab(document.getElementById('tagsPanel'), false);
     // The form shows the colour drawn, and committing it stores nothing.
     selectNode('tgA'); document.getElementById('detailEditToggle').click(); await wait(300);
@@ -14911,6 +15164,8 @@ async function main(){
   check('a connector nobody styled turns square elbows', r.squareDefault);
   check('an entry takes the colour of its tag, its own colour wins', r.tagColourTaken && r.tagColourSaved, r.tagColour);
   check('a special tag has no colour and no square to set one', r.specialRefused && r.specialNoSwatch);
+  check('a ground takes two colours of its own from its row, and a button puts both back',
+        r.groundOk, JSON.stringify(r.ground));
   check('the form shows the tag colour and stores none of it', r.formShowsTagColour && r.formStoresNothing);
   check('border and background colours sit side by side', r.hexPair);
   check('a callout is added from a mark beside the path', r.calloutMark);
