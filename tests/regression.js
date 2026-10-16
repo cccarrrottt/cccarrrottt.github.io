@@ -13652,12 +13652,25 @@ async function main(){
     await wait(400);
     {
       const spans = [...document.querySelectorAll('.node[data-id="wsA"] text tspan')];
-      const space = measureText('a a') - measureText('aa');
+      /* In the face the entry is drawn in, not in measureText's default. */
+      const face = {family: fontFamilyFor(null)};
+      const space = measureText('a a', face) - measureText('aa', face);
+      /* What the layout decided: each word starts one measured word and one
+         space after the last. That is exact, and it is the claim — a gap
+         that is a space, not the old 6.5-per-character guess at one. */
+      const advances = spans.slice(1).map((t, i)=>
+        parseFloat(t.getAttribute('x')) - parseFloat(spans[i].getAttribute('x')) - measureText(spans[i].textContent, face));
+      /* What the browser drew. A word drawn under the chart's zoom is shaped
+         at that scale and can come out a twentieth of a pixel off the same
+         word measured unscaled — Chromium 156 does, where earlier ones did
+         not — so the drawn gap is held to a tenth of a pixel. The guess this
+         check was written against was off by three. */
       const gaps = spans.slice(1).map((t, i)=>
         parseFloat(t.getAttribute('x')) - parseFloat(spans[i].getAttribute('x')) - spans[i].getComputedTextLength());
-      out.gaps = JSON.stringify({space: +space.toFixed(2), gaps: gaps.map(g=> +g.toFixed(2))});
+      out.gaps = JSON.stringify({space: +space.toFixed(2), advances: advances.map(g=> +g.toFixed(3)), gaps: gaps.map(g=> +g.toFixed(2))});
       out.wordGapIsASpace = spans.length === 3 && space > 0 &&
-        gaps.every(g=> Math.abs(g - space) < 0.05) && Math.abs(measureSpace({}) - space) < 0.01;
+        advances.every(g=> Math.abs(g - space) < 0.01) &&
+        gaps.every(g=> Math.abs(g - space) < 0.1) && Math.abs(measureSpace(face) - space) < 0.01;
     }
     /* ---- the field keeps the drawing's line, however short the box ---- */
     {
