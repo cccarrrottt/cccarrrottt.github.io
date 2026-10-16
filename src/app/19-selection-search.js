@@ -698,6 +698,7 @@ updateStats();
    ------------------------------------------------------------------ */
 function rebuildChart(){
   const keepSelected = selectedId;
+  applyGroundColors();
   buildModel();
   renderNodes();
   redrawEdges();

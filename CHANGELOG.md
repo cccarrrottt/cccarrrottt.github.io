@@ -19,6 +19,26 @@ Releases before 0.9.0 were not numbered.
   after eight hours; a session not used for 30 days still runs out.
 - A save the write service has already committed, sent again because its
   answer was lost on the way back, is no longer refused as a conflict.
+- A connector bent by hand is edited as the line it is: a stretch is
+  dragged sideways whole, a corner moves its two stretches, and a shape
+  the router cannot draw is refused instead of being redrawn some other
+  way. The route keeps its sides with its corners, so neither end flips to
+  another face of its entry while it is dragged.
+- An entry carried into its own pinned corner pushes the corner ahead of
+  it, and the stretch that leaves a port stays level with that port when
+  the entry or the port moves — the line no longer steps up to where the
+  port used to be and then jumps when that step is squared away.
+- The turn handle on a caption or a picture stands across the corner, its
+  hollow facing the entry, so it reads as the corner's own curve.
+- A hub's echo and a local multiverse's stack are drawn in the colour of
+  the border they stand next to, the outermost ring, not the innermost.
+- On a phone, a double tap on open paper zooms in by two about the tap,
+  and from as far in as the chart goes, back out to all of it.
+- A greyed button in the style bar shows again whether it is pressed, so
+  it says what comes back when whatever greyed it is gone.
+- Fan-fiction and unreleased each have two colours of their own in the
+  Tags drawer, the ruling and the light that crosses it, with a button
+  that puts both back to the program's.
 - A picked merge bar glows the way a picked connector does, along the bar
   and nothing else, instead of wearing a wide halo of its own.
 - With a lineage of a merge already picked, a double click on its stretch

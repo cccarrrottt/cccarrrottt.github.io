@@ -339,7 +339,7 @@ function commitEntry(mutate){
 function serializeEdgeStyles(list){
   if(!list.length) return 'const EDGE_STYLES = [];';
   return 'const EDGE_STYLES = [\n' + list.map(s=>
-    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
+    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${(s.bends && s.bends.length && s.bendSides) ? `, bendSides:${jsVal(s.bendSides)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
   ).join('\n') + '\n];';
 }
 
@@ -362,6 +362,8 @@ function serializeSettings(o){
   const extra = cleanLegendRows(o);
   const tagColors = cleanTagColors(o.tagColors);
   if(Object.keys(tagColors).length) extra.tagColors = tagColors;
+  const groundColors = cleanGroundColors(o.groundColors);
+  if(Object.keys(groundColors).length) extra.groundColors = groundColors;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
