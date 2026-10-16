@@ -573,10 +573,14 @@ function buildKeyTab(){
     } else {
       const hex = keyField('input', 'key-own-hex hex-input', o.color || '', '#20242b', 'The colour of this row', v=> editOwnKeyRow(o.id, 'color', v.trim()));
       hex.maxLength = 9;
+      const hexWrap = document.createElement('div');
+      hexWrap.className = 'key-own-colour';
+      hexWrap.appendChild(hex);
+      squareForHexInput(hex, {title: 'the colour of this row', fallback: ()=> '#20242b'});
       r = row(swatch, [
         keyField('input', 'key-name-input', o.name, 'Name', 'The name of this row', v=> editOwnKeyRow(o.id, 'name', v)),
         keyField('textarea', 'key-meaning-input', o.meaning || '', 'What it means on this chart', 'What this row means', v=> editOwnKeyRow(o.id, 'meaning', v)),
-        hex
+        hexWrap
       ]);
       r.appendChild(keyRemoveButton('Delete this row', ()=> deleteOwnKeyRow(o.id)));
     }
@@ -981,84 +985,23 @@ function buildCategoryBlock(group){
   return wrap;
 }
 
-/* A tag's colour, typed where its square was. Enter or leaving keeps it,
-   Escape keeps what was there, and an emptied box takes the colour off. */
+/* A tag's colour, typed where its square was (see openHexBox). Enter or
+   leaving keeps it, Escape keeps what was there, and an emptied box takes
+   the colour off. */
 function openTagColorBox(row, tag){
   const sw = row.querySelector('.swatch');
-  if(!sw || row.querySelector('.tag-color-box')) return;
-  const box = document.createElement('input');
-  box.type = 'text';
-  box.className = 'tb-hex tag-color-box';
-  box.maxLength = 9;
-  box.spellcheck = false;
-  box.value = tagColorOf(tag) || '';
-  box.placeholder = '#3a6fd8';
-  box.style.setProperty('--swatch', box.value || 'transparent');
-  sw.replaceWith(box);
-  let done = false;
-  const finish = keep=>{
-    if(done) return;
-    done = true;
-    const v = box.value.trim();
-    if(keep && (v === '' || HEX_RE.test(v)) && (v || null) !== tagColorOf(tag)){
-      applyEdit(()=> setTagColorIn(tag, v || null));
-    } else buildSideTabs();
-  };
-  box.addEventListener('mousedown', ev=> ev.stopPropagation());
-  box.addEventListener('click', ev=> ev.stopPropagation());
-  box.addEventListener('input', ()=>{
-    const v = box.value.trim();
-    box.classList.toggle('bad', !!v && !HEX_RE.test(v));
-    box.style.setProperty('--swatch', HEX_RE.test(v) ? v : 'transparent');
-  });
-  box.addEventListener('keydown', ev=>{
-    ev.stopPropagation();
-    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
-    if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
-  });
-  box.addEventListener('blur', ()=> finish(true));
-  box.focus();
-  box.select();
+  if(!sw || row.querySelector('.hex-box')) return;
+  openHexBox(sw, {value: tagColorOf(tag) || '', placeholder: '#3a6fd8',
+    onCommit: v=>{ if(v !== tagColorOf(tag)) applyEdit(()=> setTagColorIn(tag, v)); }});
 }
-/* One of a ground's two colours, typed where its square was — the same
-   box, the same keys and the same rules as a tag's own colour; emptied, it
-   gives that ink back to the program. */
+/* One of a ground's two colours, the same way; emptied, it gives that ink
+   back to the program. */
 function openGroundColorBox(sq, key, slot){
   const row = sq.closest('.legend-item');
-  if(!row || row.querySelector('.tag-color-box')) return;
-  const box = document.createElement('input');
-  box.type = 'text';
-  box.className = 'tb-hex tag-color-box';
-  box.maxLength = 9;
-  box.spellcheck = false;
-  box.value = groundColorSet(key, slot) || '';
-  box.placeholder = GROUND_COLOR_DEFAULTS[key][slot];
-  box.style.setProperty('--swatch', groundColorOf(key, slot));
-  sq.replaceWith(box);
-  let done = false;
-  const finish = keep=>{
-    if(done) return;
-    done = true;
-    const v = box.value.trim();
-    if(keep && (v === '' || HEX_RE.test(v)) && (v || null) !== groundColorSet(key, slot)){
-      applyEdit(()=> setGroundColorIn(key, slot, v || null));
-    } else buildSideTabs();
-  };
-  box.addEventListener('mousedown', ev=> ev.stopPropagation());
-  box.addEventListener('click', ev=> ev.stopPropagation());
-  box.addEventListener('input', ()=>{
-    const v = box.value.trim();
-    box.classList.toggle('bad', !!v && !HEX_RE.test(v));
-    box.style.setProperty('--swatch', HEX_RE.test(v) ? v : GROUND_COLOR_DEFAULTS[key][slot]);
-  });
-  box.addEventListener('keydown', ev=>{
-    ev.stopPropagation();
-    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
-    if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
-  });
-  box.addEventListener('blur', ()=> finish(true));
-  box.focus();
-  box.select();
+  if(!row || row.querySelector('.hex-box')) return;
+  openHexBox(sq, {value: groundColorSet(key, slot) || '', placeholder: GROUND_COLOR_DEFAULTS[key][slot],
+    swatch: GROUND_COLOR_DEFAULTS[key][slot],
+    onCommit: v=>{ if(v !== groundColorSet(key, slot)) applyEdit(()=> setGroundColorIn(key, slot, v)); }});
 }
 /* Inside an edit: the map is replaced rather than changed in place, so the
    undo snapshot taken before still holds the old one. */
@@ -1115,12 +1058,13 @@ function buildTagRow(tag, catName){
   /* A ground has no colour to give its entries, but it is drawn in two of
      its own — the ruling and the light that crosses it — and those are the
      author's to choose. Two squares where the tag's one would be, in front
-     of the name as every tag's square is, and beside them a button that
-     puts both back. In front, nothing before it is as wide as a name, so
-     the two grounds' buttons stand in one column; placed after the name
-     they followed its width, and a long name pushed its row past the
-     panel's edge. The button stays when there is nothing to put back,
-     greyed, so the row does not change shape under the pointer. */
+     of the name as every tag's square is, and at the end of the row, by
+     the ✕, a button that puts both back. Every row keeps room for both
+     — two squares' width in front, a button's width at the end — so the
+     names, the counts and the ✕ each stand in one column whether a row
+     has a ground's controls or not. The button stays when there is
+     nothing to put back, greyed, so the row does not change shape under
+     the pointer. */
   const groundKey = groundKeyOf(tag);
   if(groundKey && !readOnlyView){
     const box = document.createElement('span');
@@ -1148,9 +1092,13 @@ function buildTagRow(tag, catName){
       ev.stopPropagation();
       applyEdit(()=> setGroundColorIn(groundKey, null));
     });
-    box.appendChild(reset);
     const slot = row.querySelector('.swatch-none');
     if(slot) slot.replaceWith(box); else row.insertBefore(box, row.querySelector('.name'));
+    row.appendChild(reset);
+  } else if(!readOnlyView){
+    const room = document.createElement('span');
+    room.className = 'ground-reset-room';
+    row.appendChild(room);
   }
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
      with no tags at all show up — so it cannot be filed or deleted. Nor
@@ -1172,7 +1120,7 @@ function buildTagRow(tag, catName){
        category you were looking at — and every tag on the panel carried a
        copy of the whole list. */
     row.classList.add('draggable-row');
-    row.title = 'Drag onto a category to file this tag there';
+    row.title = `${displayName} — drag onto a category to file this tag there`;
     row.addEventListener('mousedown', ev=> beginListDrag(ev, 'tag', tag, displayName));
   }
   return row;

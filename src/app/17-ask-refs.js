@@ -500,7 +500,9 @@ buildSideTabs();
       box.value = refColor();
       box.classList.remove('bad');
       box.style.setProperty('--swatch', refColor());
+      paintHexSquare(box);
     };
+    squareForHexInput(box, {title: 'the colour every [n] mark is drawn in'});
     const commit = ()=>{
       const v = box.value.trim();
       const ok = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);

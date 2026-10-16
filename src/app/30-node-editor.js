@@ -461,7 +461,7 @@ function finishNodeEditorLook(rec){
     (nodeEditorTarget.kind === 'note' ||
      (nodeEditorTarget.kind === 'entry' &&
       (nodes.get(nodeEditorTarget.id) || {}).shape === 'callout'));
-  if(hex) hex.style.display = inherits ? 'none' : '';
+  if(hex){ hex.style.display = inherits ? 'none' : ''; showHexSquare(hex, !inherits); }
   rec.surface.style.textAlign = nodeEditorAlign();
   /* The border scales with the drawing, as the type does; the padding is
      whatever is left of the box round the words (see positionNodeEditor). */

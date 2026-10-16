@@ -1530,11 +1530,11 @@ async function main(){
     // holds them is opened there rather than in the drawer.
     openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 250));
-    out.plainHex = getComputedStyle(document.querySelector('[data-hex-for="nodeEditorText"]')).display;
+    out.plainHex = getComputedStyle(document.querySelector('[data-hex-square-for="nodeEditorText"]')).display;
     document.getElementById('editShapeInput').value = 'amalgam';
     document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
     await new Promise(r=> setTimeout(r, 250));
-    out.mirrorHex = getComputedStyle(document.querySelector('[data-hex-for="nodeEditorText"]')).display;
+    out.mirrorHex = getComputedStyle(document.querySelector('[data-hex-square-for="nodeEditorText"]')).display;
     document.getElementById('editShapeInput').value = 'rect';
     document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
     await new Promise(r=> setTimeout(r, 250));
@@ -7480,7 +7480,7 @@ async function main(){
          entry's label, where the colour IS the reader's — but it is not
          offered while the field is open on a connector's remark. */
       out.noHexOnNote = (()=>{
-        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        const hex = document.querySelector('#nodeEditorBar .hex-square');
         return !hex || getComputedStyle(hex).display === 'none';
       })();
       // It clears the formatting the reader CAN set.
@@ -7608,7 +7608,10 @@ async function main(){
       // the last picked-out run has to be given the turn it runs in.
       await wait(80);
       const box = document.querySelector('[data-hex-for="nodeEditorText"]');
-      box.focus();
+      // The trip is made the way a reader makes it: by pressing the square.
+      const sq = document.querySelector('[data-hex-square-for="nodeEditorText"]');
+      sq.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
+      sq.click();
       await wait(120);
       out.heldPainted = (()=>{ try{ return CSS.highlights.get('held-selection').size; }
                                catch(e){ return -1; } })();
@@ -8761,7 +8764,7 @@ async function main(){
                         nodeEditorTarget && nodeEditorTarget.kind === 'note' &&
                         rec.surface.textContent === 'a note';
         /* Its ink is the connector's, so the field offers no colour box. */
-        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        const hex = document.querySelector('#nodeEditorBar .hex-square');
         out.noteNoColour = !hex || getComputedStyle(hex).display === 'none';
         rec.surface.focus();
         document.execCommand('insertText', false, ' more');
@@ -8783,7 +8786,7 @@ async function main(){
       out.calloutOpens = !document.getElementById('nodeEditor').hidden &&
                          nodeEditorTarget && nodeEditorTarget.id === 'w4';
       {
-        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        const hex = document.querySelector('#nodeEditorBar .hex-square');
         out.calloutNoColour = !hex || getComputedStyle(hex).display === 'none';
       }
       closeNodeEditor(true); await wait(200);
@@ -8791,7 +8794,7 @@ async function main(){
       dbl(document.querySelector('.node[data-id="w1"]'));
       await wait(420);
       {
-        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        const hex = document.querySelector('#nodeEditorBar .hex-square');
         out.entryHasColour = !!hex && getComputedStyle(hex).display !== 'none';
       }
       closeNodeEditor(true); await wait(200);
@@ -14936,10 +14939,21 @@ async function main(){
         const rows = ['fan-fiction', 'unreleased'].map(t=> document.querySelector(`#tagsList .legend-item[data-tag="${t}"]`));
         g.squaresFirst = rows.every(r=> left(r, '.ground-swatch') < left(r, '.name'));
         g.resetColumn = rows.map(r=> Math.round(left(r, '.ground-reset')));
+        /* …at the end of the row, by the ✕; and every row, ground or not,
+           keeps its name, its count and its ✕ in the same columns. */
+        g.resetByDel = rows.every(r=>{
+          const a = r.querySelector('.ground-reset').getBoundingClientRect();
+          const d = r.querySelector('.legend-tag-del').getBoundingClientRect();
+          return a.right <= d.left + 0.5 && d.left - a.right < 10 &&
+                 a.left > r.querySelector('.count').getBoundingClientRect().right - 0.5;
+        });
+        const all = [...document.querySelectorAll('#tagsList .legend-item')].filter(r=> r.querySelector('.legend-tag-del'));
+        const cols = sel=> new Set(all.map(r=> Math.round(left(r, sel)))).size;
+        g.columns = {rows: all.length, name: cols('.name'), del: cols('.legend-tag-del')};
         undoLastEdit(); await wait(250);
       }
       squares()[0].click();
-      const box = row().querySelector('.tag-color-box');
+      const box = row().querySelector('.hex-box');
       box.value = '#2e86de';
       box.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
       await wait(250);
@@ -14955,7 +14969,8 @@ async function main(){
       g.undone = ink();
       redoLastEdit(); await wait(250);
       out.ground = g;
-      out.groundOk = g.before === 2 && g.resetGreyed && g.squaresFirst &&
+      out.groundOk = g.before === 2 && g.resetGreyed && g.squaresFirst && g.resetByDel &&
+        g.columns.rows >= 4 && g.columns.name === 1 && g.columns.del === 1 &&
         g.resetColumn[0] === g.resetColumn[1] && g.inkSet === 'rgb(46, 134, 222)' && g.saved &&
         g.squareShows === 'rgb(46, 134, 222)' && g.glowKept && g.inkBack === g.ink0 && g.cleared &&
         g.undone === 'rgb(46, 134, 222)';
@@ -14967,6 +14982,44 @@ async function main(){
     commitNodeEdit(); await wait(300);
     const optsA = workingNodes.find(t=> t[0] === 'tgA')[6];
     out.formStoresNothing = !optsA.colors;
+    /* A colour is a square, everywhere: the list field is a row of them,
+       one pressed opens its code where it stood, and the dashed one adds. */
+    {
+      selectNode('tgC'); document.getElementById('detailEditToggle').click(); await wait(300);
+      const field = document.getElementById('editColorsInput');
+      const strip = document.getElementById('editColorsSwatches');
+      const sq = {fieldShut: getComputedStyle(field).display === 'none',
+                  chips: strip.querySelectorAll('.swatch-chip:not(.swatch-blank)').length};
+      const enter = (box, v, key)=>{ box.value = v; box.dispatchEvent(new Event('input'));
+        box.dispatchEvent(new KeyboardEvent('keydown', {key: key || 'Enter', bubbles:true})); };
+      strip.querySelector('.swatch-blank').click();
+      const addBox = strip.querySelector('.hex-box');
+      sq.addOpens = !!addBox;
+      if(addBox) enter(addBox, '#123456');
+      await wait(300);
+      sq.added = field.value;
+      strip.querySelector('.swatch-chip').click();
+      const first = strip.querySelector('.hex-box');
+      if(first) enter(first, '#abcdef', 'Escape');
+      await wait(200);
+      sq.escapeKeeps = field.value;
+      commitNodeEdit(); await wait(300);
+      sq.stored = JSON.stringify(entryOpts(workingEntry('tgC').entry).colors);
+      // …and the text toolbar's colour, the same square.
+      openNodeEditor('tgA'); await wait(400);
+      const tsq = document.querySelector('#nodeEditorBar .hex-square');
+      const hex = document.querySelector('#nodeEditorBar .tb-hex');
+      sq.barShut = !!tsq && getComputedStyle(hex).display === 'none' && getComputedStyle(tsq).display !== 'none';
+      tsq.click();
+      sq.barOpens = getComputedStyle(hex).display !== 'none' && document.activeElement === hex;
+      hex.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+      sq.barShuts = getComputedStyle(hex).display === 'none' && getComputedStyle(tsq).display !== 'none';
+      closeNodeEditor(true); await wait(200);
+      out.squares = sq;
+      out.squaresOk = sq.fieldShut && sq.chips === 1 && sq.addOpens && sq.added === '#22cc22, #123456' &&
+        sq.escapeKeeps === '#22cc22, #123456' && sq.stored === '["#22cc22","#123456"]' &&
+        sq.barShut && sq.barOpens && sq.barShuts;
+    }
     deselect();
 
     /* 7. Colours are typed into boxes the size of a colour, side by side. */
@@ -15166,6 +15219,8 @@ async function main(){
   check('a special tag has no colour and no square to set one', r.specialRefused && r.specialNoSwatch);
   check('a ground takes two colours of its own from its row, and a button puts both back',
         r.groundOk, JSON.stringify(r.ground));
+  check('a colour is a square that opens its code where it stands, in a list and on a toolbar',
+        r.squaresOk, JSON.stringify(r.squares));
   check('the form shows the tag colour and stores none of it', r.formShowsTagColour && r.formStoresNothing);
   check('border and background colours sit side by side', r.hexPair);
   check('a callout is added from a mark beside the path', r.calloutMark);

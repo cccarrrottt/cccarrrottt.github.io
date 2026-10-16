@@ -8,6 +8,18 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Every colour on the page is a square, as a tag's is: pressing it turns
+  it into the box its code is typed in, Enter or leaving keeps the code,
+  Escape puts back what was there. That covers the text toolbars (Enter
+  colours the chosen words), the citation colour, a note's or a card's
+  ground on the style bar, a connector's colours, the legend's own rows,
+  and an entry's border and background lists, which are rows of squares
+  with a dashed one that adds a colour.
+- In the Tags drawer, a ground's reset button stands at the end of its
+  row by the ✕. Names, counts and the ✕ each keep one column in every row,
+  and a name too long for the drawer is cut short instead of pushing the
+  row off the panel.
+
 - A connector bent by hand is edited as the line it is: a stretch is
   dragged sideways whole, a corner moves its two stretches, and a shape
   the router cannot draw is refused instead of being redrawn some other

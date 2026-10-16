@@ -478,7 +478,6 @@ const stylePaintMode = makeChoiceGroup('stylePaintMode', ()=>{ syncColorRow(); a
 const styleColorInput = document.getElementById('styleColor');
 const styleColor2Input = document.getElementById('styleColor2');
 const styleColorRow = document.getElementById('styleColorRow');
-const styleColorPreview = document.getElementById('styleColorPreview');
 
 // Colours are typed as hex rather than picked from a swatch, so an exact
 // value can be pasted in and read back out. HEX_RE is in 01-store.js.
@@ -492,13 +491,12 @@ function readHex(input){
 function syncColorRow(){
   const mode = stylePaintMode.value;
   styleColorRow.style.display = mode === 'default' ? 'none' : 'flex';
-  styleColor2Input.style.display = mode === 'gradient' ? '' : 'none';
-  const c1 = readHex(styleColorInput) || currentEdgeNaturalColor;
-  const c2 = readHex(styleColor2Input) || c1;
-  styleColorPreview.style.background = mode === 'gradient'
-    ? `linear-gradient(90deg, ${c1}, ${c2})`
-    : c1;
+  showHexSquare(styleColor2Input, mode === 'gradient');
+  readHex(styleColorInput); readHex(styleColor2Input);
+  paintHexSquare(styleColorInput);
+  paintHexSquare(styleColor2Input);
 }
+
 const edgeStyleLabelEl = document.getElementById('edgeStyleLabel');
 const styleStatusEl = document.getElementById('styleStatus');
 const styleDeleteBtn = document.getElementById('styleDelete');

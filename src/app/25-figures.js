@@ -560,36 +560,194 @@ document.querySelectorAll('.mini-toolbar button').forEach(btn=>{
     if(targetId === 'nodeEditorText') queueLabelPreview();
   });
 });
-/* A live row of swatches under a comma-separated colour field, so the
-   border colours can be seen rather than only read as hex. */
+/* ---- a colour is a square --------------------------------------------
+ *
+ * Every colour on the page is shown the way a tag's is: a square of the
+ * colour, and pressing it turns the square into the box its code is typed
+ * in, right where the square was. Enter or leaving keeps what was typed,
+ * Escape puts back what was there, and an emptied box takes the colour
+ * off where off is a colour (the paper, the program's own). It used to be
+ * a square AND a box side by side, everywhere, and every one of them a
+ * slightly different pair — the square on the left inside the box, or
+ * beside it, or under it in a row of its own. A code is something typed
+ * now and then; the colour is what is read all the time.
+ *
+ * Two shapes of the same thing. openHexBox is the box that stands in for
+ * an element for as long as it is open and gives it back; squareForHexInput
+ * is a square in front of a field that stays in the page, because the
+ * field is what the rest of the program reads and writes — and keeps
+ * doing so, untouched, with the square only deciding when it is seen. */
+function openHexBox(anchor, o){
+  if(!anchor || !anchor.isConnected) return null;
+  const box = document.createElement('input');
+  box.type = 'text';
+  box.className = 'hex-box';
+  box.maxLength = 9;
+  box.spellcheck = false;
+  box.value = o.value || '';
+  box.placeholder = o.placeholder || '';
+  if(o.title) box.title = o.title;
+  const show = ()=>{
+    const v = box.value.trim();
+    box.classList.toggle('bad', !!v && !HEX_RE.test(v));
+    box.style.setProperty('--swatch', HEX_RE.test(v) ? v : (o.swatch || 'transparent'));
+  };
+  show();
+  anchor.replaceWith(box);
+  let done = false;
+  const finish = keep=>{
+    if(done) return;
+    done = true;
+    const v = box.value.trim();
+    if(box.isConnected) box.replaceWith(anchor);
+    if(keep && (v === '' || HEX_RE.test(v))) o.onCommit(v || null);
+    else if(o.onCancel) o.onCancel();
+  };
+  box.addEventListener('mousedown', ev=> ev.stopPropagation());
+  box.addEventListener('click', ev=> ev.stopPropagation());
+  box.addEventListener('input', show);
+  box.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  box.addEventListener('blur', ()=> finish(true));
+  box.focus();
+  box.select();
+  return box;
+}
+/* The square in front of a field that stays. `fallback` is what the square
+   shows while the field is empty — a colour that is inherited, say; with
+   none it is the dashed square of "no colour". `onEnter` is for a field
+   whose Enter also DOES something with the colour. */
+function squareForHexInput(input, o){
+  if(!input) return null;
+  o = o || {};
+  const sq = document.createElement('button');
+  sq.type = 'button';
+  sq.className = 'hex-square' + (o.cls ? ' ' + o.cls : '');
+  // A toolbar's field is found by what it colours; so is its square.
+  if(input.dataset.hexFor) sq.dataset.hexSquareFor = input.dataset.hexFor;
+  input.before(sq);
+  input.classList.add('hex-box', 'hex-shut');
+  const paint = ()=>{
+    const v = input.value.trim(), ok = HEX_RE.test(v);
+    const fb = o.fallback ? o.fallback() : null;
+    sq.style.background = ok ? v : (fb || '');
+    sq.classList.toggle('unset', !ok);
+    sq.title = (ok ? v : fb ? `${fb} — inherited` : 'No colour set') +
+               (o.title ? ` — ${o.title}` : '') + '; press to change';
+    input.style.setProperty('--swatch', ok ? v : (fb || 'transparent'));
+  };
+  let was = null;
+  const isOpen = ()=> !input.classList.contains('hex-shut');
+  const open = ()=>{
+    if(isOpen()) return;
+    was = input.value;
+    sq.classList.add('hex-shut');
+    input.classList.remove('hex-shut');
+    input.focus();
+    input.select();
+  };
+  const close = keep=>{
+    if(!isOpen()) return;
+    if(!keep && was !== null && input.value !== was){
+      input.value = was;
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+    input.classList.add('hex-shut');
+    sq.classList.remove('hex-shut');
+    paint();
+  };
+  sq.addEventListener('mousedown', ev=>{
+    ev.stopPropagation();
+    /* A toolbar's square must not take the selection away from the words
+       it is about to colour — see rememberSurfaceSelection. */
+    if(o.keepSelection) ev.preventDefault();
+    if(o.onPress) o.onPress();
+  });
+  sq.addEventListener('click', ev=>{ ev.stopPropagation(); open(); });
+  input.addEventListener('input', paint);
+  input.addEventListener('keydown', ev=>{
+    if(ev.key !== 'Enter' && ev.key !== 'Escape') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){
+      if(o.onEnter) o.onEnter(input.value.trim());
+      close(true);
+    } else close(false);
+  });
+  input.addEventListener('blur', ()=> close(true));
+  const rec = {square: sq, paint, open, close};
+  input._hexSquare = rec;
+  paint();
+  return rec;
+}
+/* The square follows its field: repainted after the field was written to
+   by the program, and shown or hidden with it. */
+function paintHexSquare(input){
+  if(input && input._hexSquare) input._hexSquare.paint();
+}
+function showHexSquare(input, on){
+  if(!input || !input._hexSquare) return;
+  if(!on) input._hexSquare.close(true);
+  input._hexSquare.square.style.display = on ? '' : 'none';
+}
+/* A list of colours — rings round a border, a gradient across a ground —
+   is a row of squares, one per colour, and a dashed one after them that
+   adds another. Pressing a square opens its code; emptied, the colour
+   leaves the list. The comma-separated field is still the value the form
+   reads and writes, so it stays, hidden, and every change goes through it
+   exactly as typing in it did. */
 function wireSwatchStrip(inputId, stripId){
   const input = document.getElementById(inputId);
   const strip = document.getElementById(stripId);
   if(!input || !strip) return;
+  input.classList.add('hex-shut');
+  const write = (parts)=>{
+    input.value = parts.join(', ');
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('blur'));
+    if(typeof flushNodeEditCommit === 'function') flushNodeEditCommit();
+  };
   const paint = ()=>{
     strip.innerHTML = '';
     const parts = input.value.split(',').map(s=>s.trim()).filter(Boolean);
-    if(!parts.length){
-      /* An empty field draws an empty swatch rather than the word
-         "default". The strip is a row of colour squares, and a word in
-         that row reads as a different kind of thing; a blank square says
-         "no colour here" in the strip's own language — and it keeps the
-         row the same height whether or not a colour is set. */
-      const blank = document.createElement('span');
-      blank.className = 'swatch-chip swatch-blank';
-      blank.title = 'No colour set — the default is used';
-      strip.appendChild(blank);
-      return;
-    }
-    parts.forEach(c=>{
+    parts.forEach((c, i)=>{
       const chip = document.createElement('span');
-      chip.className = 'swatch-chip';
+      chip.className = 'swatch-chip swatch-pick';
       const ok = HEX_RE.test(c);
       chip.style.background = ok ? c : 'transparent';
-      chip.title = ok ? c : c + ' — not a valid hex color';
+      chip.title = (ok ? c : c + ' — not a valid hex color') + '; press to change, empty to remove';
       if(!ok) chip.style.borderColor = 'var(--accent)';
+      chip.addEventListener('mousedown', ev=> ev.stopPropagation());
+      chip.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        if(readOnlyView) return;
+        openHexBox(chip, {value: c, placeholder: c, swatch: ok ? c : null,
+          onCommit: v=>{
+            const next = parts.slice();
+            if(v) next[i] = v; else next.splice(i, 1);
+            if(next.join(', ') !== parts.join(', ')) write(next);
+          }});
+      });
       strip.appendChild(chip);
     });
+    /* An empty list draws an empty square rather than the word "default":
+       a word in a row of colour squares reads as a different kind of
+       thing. It is the same dashed square that adds a colour to a list
+       that has some, so there is always one place to press. */
+    const add = document.createElement('span');
+    add.className = 'swatch-chip swatch-blank swatch-pick';
+    add.title = parts.length ? 'Add another colour' : 'No colour set — the default is used; press to set one';
+    add.addEventListener('mousedown', ev=> ev.stopPropagation());
+    add.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      if(readOnlyView) return;
+      openHexBox(add, {value: '', placeholder: input.placeholder || '#20242b',
+        onCommit: v=>{ if(v) write(parts.concat([v])); }});
+    });
+    strip.appendChild(add);
   };
   input.addEventListener('input', paint);
   paint();
@@ -708,6 +866,15 @@ document.querySelectorAll('.tb-hex').forEach(box=>{
   box.addEventListener('focus', ()=> rememberSurfaceSelection(box));
   if(!box.value.trim()) box.value = DEFAULT_TEXT_COLOR;
   paint();
+  /* Shut behind its square like every colour on the page. Pressing the
+     square opens the code with the chosen words held; Enter puts that
+     colour on them. */
+  squareForHexInput(box, {
+    keepSelection: true,
+    title: 'the colour Enter puts on the chosen words',
+    onPress: ()=> rememberSurfaceSelection(box),
+    onEnter: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); }
+  });
 });
 
 /* The words a toolbar was last pointed at, so a trip to the hex box and

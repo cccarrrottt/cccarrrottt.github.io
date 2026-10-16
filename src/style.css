@@ -1143,30 +1143,31 @@
   .legend-item .swatch-none{visibility:hidden;}
   .legend-item .swatch-pick{cursor:pointer;}
   .legend-item .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
-  .legend-item input.tag-color-box{
-    flex:0 0 74px;width:74px;height:20px;cursor:text;
-    background:var(--panel-2);border:1px solid var(--accent);color:var(--ink);
-    border-radius:3px;padding:0 4px 0 18px;
-    font-family:'IBM Plex Mono',monospace;font-size:9.5px;
-    background-image:linear-gradient(var(--swatch,transparent), var(--swatch,transparent));
-    background-repeat:no-repeat;background-position:4px center;background-size:10px 10px;
-  }
-  .legend-item input.tag-color-box:focus{outline:none;}
   /* A ground's two inks and the button that puts them back. A square still
      at the program's colour wears a dashed edge, so which ones were chosen
      reads at a glance. */
   .legend-item .ground-colors{display:flex;align-items:center;gap:5px;flex:0 0 auto;}
+  /* Room for a ground's second square in every row, so the names stand in
+     one column; and for its reset button, so the counts and the ✕ do. */
+  #tagsList .legend-item > .swatch{margin-right:16px;}
+  /* Closer set than other lists: a tag row carries two more columns. */
+  #tagsList .legend-item{gap:5px;}
+  .legend-item .ground-reset-room{flex:0 0 16px;}
   .legend-item .ground-default{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .legend-item .ground-reset{
     flex:0 0 16px;width:16px;height:16px;padding:0;line-height:1;font-size:11px;
     background:none;border:none;color:var(--ink-faint);cursor:pointer;
   }
   .legend-item .ground-reset:hover:not(:disabled){color:var(--accent);}
-  .legend-item input.tag-color-box.bad{background-color:rgba(194,59,34,0.08);}
   .legend-item .name{flex:1;color:var(--ink-dim);}
   /* The row's name is a tag, so it is drawn as one. Its own left margin
      replaces the swatch's gap, so the labels still line up in a column. */
-  .legend-item .name .tag-shape{font-size:11px;}
+  .legend-item .name .tag-shape{font-size:11px;max-width:calc(100% - 9px);box-sizing:border-box;vertical-align:middle;}
+  /* A name too long for the panel is cut short rather than pushing the
+     count and the row's buttons out of their columns; the whole name is
+     on the row's own label (see buildTagRow). */
+  .legend-item .name{min-width:0;}
+  .legend-item .name .tag-text{min-width:0;overflow:hidden;text-overflow:ellipsis;}
   .legend-item.off .name{opacity:0.35;}
   .legend-item.off .name .tag-shape{text-decoration:line-through;}
   /* Untagged is a bucket, not a label: plain text, no shape around it —
@@ -1679,7 +1680,8 @@
   .border-inner{fill:none;filter:none;}
 
   /* Swatches beside the border-colors field, one per colour listed. */
-  .swatch-strip{display:flex;gap:4px;margin-top:6px;align-items:center;min-height:16px;}
+  .swatch-strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:16px;}
+  .field-with-reset .swatch-strip{flex:1;min-width:0;}
   .swatch-chip{
     width:16px;height:16px;border-radius:4px;border:1px solid var(--line);flex:0 0 auto;
   }
@@ -2985,3 +2987,34 @@
   /* A row is picked up by holding it; the browser's own answer to a hold —
      selecting the row's words and offering to copy them — would come first. */
   body.touch-input .draggable-row{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+
+  /* ---- a colour is a square ---------------------------------------
+     See squareForHexInput: the square of a colour, and the box its code is
+     typed in, which stands where the square was while it is open. One look
+     wherever a colour is set. The doubled class outweighs the older,
+     per-place rules for these fields (.mini-toolbar input.tb-hex and the
+     rest), which drew each of them a little differently. */
+  .hex-shut.hex-shut{display:none !important;}
+  .hex-square{
+    flex:0 0 auto;width:14px;height:14px;padding:0;margin:0 2px;cursor:pointer;
+    border:none;border-radius:3px;background:var(--panel-2);
+    box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;vertical-align:middle;
+  }
+  .hex-square:hover{box-shadow:0 0 0 1.5px var(--accent);}
+  .hex-square.unset{background:transparent !important;box-shadow:none;
+    border:1px dashed var(--ink-faint);box-sizing:border-box;}
+  .style-bar .hex-square{width:18px;height:18px;align-self:center;}
+  input.hex-box.hex-box{
+    flex:0 0 74px;width:74px;height:20px;cursor:text;box-sizing:border-box;
+    background:var(--panel-2);border:1px solid var(--accent);color:var(--ink);
+    border-radius:3px;padding:0 4px 0 18px;margin:0;
+    font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+    background-image:linear-gradient(var(--swatch,transparent), var(--swatch,transparent));
+    background-repeat:no-repeat;background-position:4px center;background-size:10px 10px;
+  }
+  input.hex-box.hex-box:focus{outline:none;}
+  input.hex-box.hex-box.bad{background-color:rgba(194,59,34,0.08);}
+  .swatch-strip .swatch-pick{cursor:pointer;}
+  .swatch-strip .swatch-pick:hover{border-color:var(--accent);}
+  .swatch-strip .swatch-blank.swatch-pick:hover{border-style:dashed;}
+  .key-own-colour{display:flex;align-items:center;}

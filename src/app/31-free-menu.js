@@ -373,6 +373,12 @@ function connectorHasCallout(from, to){
   });
   return found;
 }
+/* Each colour a square (see squareForHexInput). Empty, the first shows the
+   colour the line would take anyway, and the second the first. */
+squareForHexInput(styleColorInput, {title: 'the line’s colour',
+  fallback: ()=> currentEdgeNaturalColor || null});
+squareForHexInput(styleColor2Input, {title: 'where the gradient ends',
+  fallback: ()=> readHex(styleColorInput) || currentEdgeNaturalColor || null});
 [styleColorInput, styleColor2Input].forEach(input=>{
   input.addEventListener('input', ()=>{ syncColorRow(); applyLiveEdgeStyle(); });
   input.addEventListener('click', ev=> ev.stopPropagation());

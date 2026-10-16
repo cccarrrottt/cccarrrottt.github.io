@@ -190,20 +190,20 @@
             <label for="editColorsInput">Border colors</label>
             <div class="field-with-reset">
               <input id="editColorsInput" type="text" placeholder="#20242b">
+              <div class="swatch-strip" id="editColorsSwatches"></div>
               <button type="button" class="hex-reset" id="editColorsReset" title="Back to the default border colour">⟲</button>
             </div>
-            <div class="swatch-strip" id="editColorsSwatches"></div>
           </div>
           <div class="editor-field" id="editBgField">
             <label for="editBgInput">Background</label>
             <div class="field-with-reset">
               <input id="editBgInput" type="text" placeholder="white">
+              <div class="swatch-strip" id="editBgSwatches"></div>
               <button type="button" class="hex-reset" id="editBgReset" title="Back to the paper">⟲</button>
             </div>
-            <div class="swatch-strip" id="editBgSwatches"></div>
           </div>
           </div>
-          <p class="editor-help editor-pair-help">Several colours, split by commas: rings round the border, a gradient across the ground.</p>
+          <p class="editor-help editor-pair-help">Press a square to change its colour, the dashed one to add another: rings round the border, a gradient across the ground.</p>
           <div class="editor-field">
             <label for="editTagsInput">Tags</label>
             <!-- The tags an entry carries are chosen, never typed. The
@@ -570,7 +570,6 @@
       <div class="style-row style-colors" id="styleColorRow">
         <input type="text" id="styleColor" class="hex-input" placeholder="#20242b" maxlength="9" spellcheck="false">
         <input type="text" id="styleColor2" class="hex-input" placeholder="#e08a1e" maxlength="9" spellcheck="false">
-        <span class="hex-preview" id="styleColorPreview"></span>
       </div>
 
       <p class="style-row-note">Drag the marks on the line to bend it. <b>Shift</b> lines one up with other connectors; double-click takes one out. Double-click the line itself to write a note on it.</p>
