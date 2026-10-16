@@ -21,6 +21,9 @@ src/
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
   app/         the program, 39 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
+  site/        published beside the page on the site only: the manifest, the
+               icons and the service worker that make it an app a phone keeps
+               — see "On the home screen, with no signal" below
 build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
                    they look like; see the file for why there are only three
@@ -449,6 +452,36 @@ once the page has been touched (`body.touch-input`). Below 720 pixels the top
 bar becomes two rows, an open tab takes the screen and the entry drawer is a
 sheet from the bottom. The suite's "a phone" scenario drives all of it with
 raw touch points.
+
+### On the home screen, with no signal
+
+The site is an installable web app: in the phone's browser, *Add to Home
+Screen* (Safari's Share menu, Chrome's ⋮ menu) puts it on the home screen with
+its own icon, and it opens without the browser around it. It is the same page
+as the site, so it can do exactly what the site can; there is no second
+program to keep in step.
+
+`src/site/sw.js` keeps a copy of the page on the phone. The page is always
+asked of the network first and the copy used only when the network cannot
+answer within a few seconds, because a copy that is behind the repository is
+the one thing a Save must not be made from.
+
+With no connection, an owner this phone has already seen signed in stays the
+editor, and **Save** keeps the chart on the phone (the *outbox*, beside the
+draft in IndexedDB). The page says so for as long as it is true. When the
+connection comes back — or the app is brought back to the front — the kept
+Save is sent by itself. If the repository moved on in the meantime (a save
+from another device), it is refused like any save from a page that is
+behind, and stays kept on the phone, where Export can take it as a file.
+
+That needs a sign-in that outlives a day without signal. GitHub expires the
+token inside a session after eight hours, so the session also carries
+GitHub's refresh token, and the write service trades it for a new pair when
+the token has run out, handing the page a new session with its answer. A
+session not used for 30 days runs out (`SESSION_DAYS` in `worker/index.js`);
+changing `SESSION_SECRET` ends every session at once. This is why the app's
+*Expire user authorization tokens* must stay on — without it GitHub hands no
+refresh token.
 
 ## Why there are no browser dialogs
 
