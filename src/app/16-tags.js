@@ -1114,9 +1114,12 @@ function buildTagRow(tag, catName){
   }
   /* A ground has no colour to give its entries, but it is drawn in two of
      its own — the ruling and the light that crosses it — and those are the
-     author's to choose. Two squares where the tag's one would be (after
-     the name, so the column of squares still lines up), and a button that
-     puts both back. The button stays when there is nothing to put back,
+     author's to choose. Two squares where the tag's one would be, in front
+     of the name as every tag's square is, and beside them a button that
+     puts both back. In front, nothing before it is as wide as a name, so
+     the two grounds' buttons stand in one column; placed after the name
+     they followed its width, and a long name pushed its row past the
+     panel's edge. The button stays when there is nothing to put back,
      greyed, so the row does not change shape under the pointer. */
   const groundKey = groundKeyOf(tag);
   if(groundKey && !readOnlyView){
@@ -1146,7 +1149,8 @@ function buildTagRow(tag, catName){
       applyEdit(()=> setGroundColorIn(groundKey, null));
     });
     box.appendChild(reset);
-    row.insertBefore(box, row.querySelector('.count'));
+    const slot = row.querySelector('.swatch-none');
+    if(slot) slot.replaceWith(box); else row.insertBefore(box, row.querySelector('.name'));
   }
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
      with no tags at all show up — so it cannot be filed or deleted. Nor

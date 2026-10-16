@@ -1158,7 +1158,7 @@
   .legend-item .ground-colors{display:flex;align-items:center;gap:5px;flex:0 0 auto;}
   .legend-item .ground-default{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .legend-item .ground-reset{
-    width:16px;height:16px;padding:0;line-height:1;font-size:11px;
+    flex:0 0 16px;width:16px;height:16px;padding:0;line-height:1;font-size:11px;
     background:none;border:none;color:var(--ink-faint);cursor:pointer;
   }
   .legend-item .ground-reset:hover:not(:disabled){color:var(--accent);}

@@ -14917,7 +14917,7 @@ async function main(){
     out.specialRefused = !/fan-fiction/.test(serializeSettings(SETTINGS)) && tagColorOf('fan-fiction') === null;
     setSideTab(document.getElementById('tagsPanel'), true);
     await wait(250);
-    const ffRow = document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"] .swatch');
+    const ffRow = document.querySelector('#tagsList .legend-item[data-tag="fan-fiction"] .swatch:not(.ground-swatch)');
     out.specialNoSwatch = !ffRow || ffRow.classList.contains('swatch-none');
     /* …but a ground has two inks of its own, the author's to set: two
        squares and a button that puts both back. */
@@ -14927,6 +14927,17 @@ async function main(){
       const ink = ()=> getComputedStyle(document.querySelector('#fanfic-weave path')).stroke;
       const g = {before: squares().length, ink0: ink(),
                  resetGreyed: row().querySelector('.ground-reset').disabled};
+      /* The squares stand in front of the name, as every tag's square
+         does, and the two grounds' reset buttons stand in one column. */
+      {
+        applyEdit(()=> workingNodes.push(['tgU','Shelved',null,null,null,null,{pos:[X, Y + 400], tags:['unreleased', 'work-b']}]));
+        await wait(250);
+        const left = (r, sel)=> r.querySelector(sel).getBoundingClientRect().left;
+        const rows = ['fan-fiction', 'unreleased'].map(t=> document.querySelector(`#tagsList .legend-item[data-tag="${t}"]`));
+        g.squaresFirst = rows.every(r=> left(r, '.ground-swatch') < left(r, '.name'));
+        g.resetColumn = rows.map(r=> Math.round(left(r, '.ground-reset')));
+        undoLastEdit(); await wait(250);
+      }
       squares()[0].click();
       const box = row().querySelector('.tag-color-box');
       box.value = '#2e86de';
@@ -14944,7 +14955,8 @@ async function main(){
       g.undone = ink();
       redoLastEdit(); await wait(250);
       out.ground = g;
-      out.groundOk = g.before === 2 && g.resetGreyed && g.inkSet === 'rgb(46, 134, 222)' && g.saved &&
+      out.groundOk = g.before === 2 && g.resetGreyed && g.squaresFirst &&
+        g.resetColumn[0] === g.resetColumn[1] && g.inkSet === 'rgb(46, 134, 222)' && g.saved &&
         g.squareShows === 'rgb(46, 134, 222)' && g.glowKept && g.inkBack === g.ink0 && g.cleared &&
         g.undone === 'rgb(46, 134, 222)';
     }
