@@ -19,6 +19,17 @@ Releases before 0.9.0 were not numbered.
   row by the ✕. Names, counts and the ✕ each keep one column in every row,
   and a name too long for the drawer is cut short instead of pushing the
   row off the panel.
+- On a text toolbar a click on the colour square puts its colour on the
+  chosen words again, and a double click (or holding it on a phone) opens
+  its code. The square is square there too; it had been drawn as a bar.
+- Colouring words that already have a colour gives them the new one. It
+  used to be laid under the old colour and lost when the text was saved,
+  so a second colour on the same words did nothing; part of a coloured run
+  now splits it.
+- A connector's Fill is a choice of Inherited or Custom. Custom brings two
+  colour squares and a gradient switch into the row; the second square is
+  greyed until the gradient is on. A square with nothing set but a colour
+  it inherits shows that colour rather than a dashed outline.
 - The site can be put on a phone's home screen and opens there like an
   app, with no browser around it. It opens with no signal too: the page is
   kept on the phone and used when the network cannot answer.

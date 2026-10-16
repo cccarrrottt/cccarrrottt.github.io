@@ -466,7 +466,31 @@ function makeChoiceGroup(id, onChange){
 const styleRoutingSel = document.getElementById('styleRouting');
 styleRoutingSel.addEventListener('change', ()=> applyLiveEdgeStyle());
 styleRoutingSel.addEventListener('click', ev=> ev.stopPropagation());
-const stylePaintMode = makeChoiceGroup('stylePaintMode', ()=>{ syncColorRow(); applyLiveEdgeStyle(); });
+/* The paint a connector's panel describes — 'default' (inherited),
+   'solid' or 'gradient' — read and set as one value, as the strip of three
+   buttons it used to be was. On the panel it is two controls: Fill says
+   inherited or custom, and the switch beside the squares says whether the
+   custom colour runs into a second. */
+const styleFillSel = document.getElementById('styleFill');
+const styleGradientBtn = document.getElementById('styleGradient');
+const stylePaintMode = {
+  get value(){
+    if(styleFillSel.value !== 'custom') return 'default';
+    return styleGradientBtn.classList.contains('on') ? 'gradient' : 'solid';
+  },
+  set value(v){
+    styleFillSel.value = v === 'default' ? 'default' : 'custom';
+    styleGradientBtn.classList.toggle('on', v === 'gradient');
+  }
+};
+styleFillSel.addEventListener('change', ()=>{ syncColorRow(); applyLiveEdgeStyle(); });
+styleFillSel.addEventListener('click', ev=> ev.stopPropagation());
+styleGradientBtn.addEventListener('click', ev=>{
+  ev.stopPropagation();
+  if(styleGradientBtn.disabled) return;
+  styleGradientBtn.classList.toggle('on');
+  syncColorRow(); applyLiveEdgeStyle();
+});
 {
   const btn = document.getElementById('styleAddCallout');
   if(btn) btn.addEventListener('click', ev=>{
@@ -490,8 +514,8 @@ function readHex(input){
 // Shows only the fields the chosen paint mode actually uses.
 function syncColorRow(){
   const mode = stylePaintMode.value;
-  styleColorRow.style.display = mode === 'default' ? 'none' : 'flex';
-  showHexSquare(styleColor2Input, mode === 'gradient');
+  styleColorRow.hidden = mode === 'default';
+  enableHexSquare(styleColor2Input, mode === 'gradient');
   readHex(styleColorInput); readHex(styleColor2Input);
   paintHexSquare(styleColorInput);
   paintHexSquare(styleColor2Input);

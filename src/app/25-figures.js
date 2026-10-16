@@ -161,6 +161,52 @@ function widenOverRuby(surface, range){
   return wide;
 }
 // Applies a formatting command to whichever rich surface has focus.
+/* A colour put on words is THE colour of those words, whatever they wore.
+ *
+ * Wrapping them in a new span left any colour around them or inside them
+ * where it was, and the stored markup keeps one colour per run — the
+ * outermost — so a second colour on the same words was nested inside the
+ * first and lost on the way out: colouring words twice did nothing. Now
+ * colours inside the new run are taken off, and a coloured run around it
+ * is split, keeping its colour on either side and not over these words. */
+function carriesColour(el){
+  return el.nodeType === 1 &&
+    (!!(el.style && el.style.color) || (el.tagName === 'FONT' && el.hasAttribute('color')));
+}
+function dropColour(el){
+  if(el.style) el.style.removeProperty('color');
+  if(el.tagName === 'FONT') el.removeAttribute('color');
+  // A span or font left with nothing to say is let go of altogether.
+  const bare = (el.tagName === 'SPAN' || el.tagName === 'FONT') &&
+    Array.from(el.attributes).every(at=> at.name === 'style' && !at.value.trim());
+  if(bare && el.parentNode){
+    while(el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+    el.parentNode.removeChild(el);
+  }
+}
+function takeColourOver(span, surface){
+  Array.from(span.querySelectorAll('*')).filter(carriesColour).forEach(dropColour);
+  for(let a = span.parentNode; a && a !== surface && surface.contains(a); ){
+    const up = a.parentNode;
+    if(carriesColour(a)){
+      const side = (start)=>{
+        const r = document.createRange();
+        if(start){ r.setStart(a, 0); r.setEndBefore(span); }
+        else { r.setStartAfter(span); r.setEnd(a, a.childNodes.length); }
+        const frag = r.extractContents();
+        if(!frag.textContent) return null;
+        const twin = a.cloneNode(false);
+        twin.appendChild(frag);
+        return twin;
+      };
+      const before = side(true), after = side(false);
+      if(before) up.insertBefore(before, a);
+      if(after) up.insertBefore(after, a.nextSibling);
+      dropColour(a);
+    }
+    a = up;
+  }
+}
 function applyRichCommand(surface, kind, arg, restyle){
   surface.focus({preventScroll:true});
   // Ask for tags rather than inline styles, so what comes back out is
@@ -437,6 +483,7 @@ function applyRichCommand(surface, kind, arg, restyle){
       span.appendChild(range.extractContents());
       range.insertNode(span);
     }
+    takeColourOver(span, surface);
     const pick = document.createRange();
     pick.selectNodeContents(span);
     sel.removeAllRanges();
@@ -619,7 +666,10 @@ function openHexBox(anchor, o){
 /* The square in front of a field that stays. `fallback` is what the square
    shows while the field is empty — a colour that is inherited, say; with
    none it is the dashed square of "no colour". `onEnter` is for a field
-   whose Enter also DOES something with the colour. */
+   whose Enter also DOES something with the colour, and `onClick` for a
+   square whose press does: there a click spends the colour, as the swatch
+   on a word processor's toolbar does, and the code is opened by a double
+   click, or by holding the square on a phone. */
 function squareForHexInput(input, o){
   if(!input) return null;
   o = o || {};
@@ -634,9 +684,11 @@ function squareForHexInput(input, o){
     const v = input.value.trim(), ok = HEX_RE.test(v);
     const fb = o.fallback ? o.fallback() : null;
     sq.style.background = ok ? v : (fb || '');
-    sq.classList.toggle('unset', !ok);
+    // Dashed only when there is no colour at all: an inherited one is shown.
+    sq.classList.toggle('unset', !ok && !fb);
     sq.title = (ok ? v : fb ? `${fb} — inherited` : 'No colour set') +
-               (o.title ? ` — ${o.title}` : '') + '; press to change';
+               (o.title ? ` — ${o.title}` : '') +
+               (o.onClick ? '; click to use it, double-click to change it' : '; press to change');
     input.style.setProperty('--swatch', ok ? v : (fb || 'transparent'));
   };
   let was = null;
@@ -666,7 +718,16 @@ function squareForHexInput(input, o){
     if(o.keepSelection) ev.preventDefault();
     if(o.onPress) o.onPress();
   });
-  sq.addEventListener('click', ev=>{ ev.stopPropagation(); open(); });
+  sq.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    if(o.onClick) o.onClick(input.value.trim());
+    else open();
+  });
+  if(o.onClick){
+    sq.addEventListener('dblclick', ev=>{ ev.stopPropagation(); open(); });
+    // A long press on a phone ends in contextmenu; so does a right click.
+    sq.addEventListener('contextmenu', ev=>{ ev.preventDefault(); ev.stopPropagation(); open(); });
+  }
   input.addEventListener('input', paint);
   input.addEventListener('keydown', ev=>{
     if(ev.key !== 'Enter' && ev.key !== 'Escape') return;
@@ -692,6 +753,14 @@ function showHexSquare(input, on){
   if(!input || !input._hexSquare) return;
   if(!on) input._hexSquare.close(true);
   input._hexSquare.square.style.display = on ? '' : 'none';
+}
+/* Seen but not yet in use — the second colour of a gradient that is off:
+   it stands where it will be, greyed, so turning the gradient on does not
+   move anything. */
+function enableHexSquare(input, on){
+  if(!input || !input._hexSquare) return;
+  if(!on) input._hexSquare.close(true);
+  input._hexSquare.square.disabled = !on;
 }
 /* A list of colours — rings round a border, a gradient across a ground —
    is a row of squares, one per colour, and a dashed one after them that
@@ -866,13 +935,14 @@ document.querySelectorAll('.tb-hex').forEach(box=>{
   box.addEventListener('focus', ()=> rememberSurfaceSelection(box));
   if(!box.value.trim()) box.value = DEFAULT_TEXT_COLOR;
   paint();
-  /* Shut behind its square like every colour on the page. Pressing the
-     square opens the code with the chosen words held; Enter puts that
-     colour on them. */
+  /* Shut behind its square like every colour on the page. A click puts
+     the square's colour on the chosen words; a double click opens its code
+     with those words held, and Enter puts the new colour on them. */
   squareForHexInput(box, {
     keepSelection: true,
-    title: 'the colour Enter puts on the chosen words',
+    title: 'the colour of the chosen words',
     onPress: ()=> rememberSurfaceSelection(box),
+    onClick: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); },
     onEnter: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); }
   });
 });

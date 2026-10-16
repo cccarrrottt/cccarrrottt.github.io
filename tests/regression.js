@@ -2434,14 +2434,14 @@ async function main(){
     rebuildChart(); await new Promise(r=> setTimeout(r, 320));
     openEdgeStylePopover('gp0', 'gam', new MouseEvent('click'));
     await new Promise(r=> setTimeout(r, 260));
-    const gb = document.querySelector('#stylePaintMode button[data-value="gradient"]');
+    const gb = document.getElementById('styleGradient');
     out.gradOnMember = !!gb && gb.disabled;
     closeEdgePopover();
     applyEdit(()=>{ workingNodes.push(['gq','Q','gp0',null,null,null,{pos:[17400,620]}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 350));
     openEdgeStylePopover('gp0', 'gq', new MouseEvent('click'));
     await new Promise(r=> setTimeout(r, 260));
-    out.gradOnPlain = !document.querySelector('#stylePaintMode button[data-value="gradient"]').disabled;
+    out.gradOnPlain = !document.getElementById('styleGradient').disabled;
     closeEdgePopover();
 
     applyEdit(()=>{ workingNodes = beforeNodes; });
@@ -3887,7 +3887,8 @@ async function main(){
     await new Promise(r=> setTimeout(r, 320));
     openEdgeStylePopover('cf_a','cf_b',{clientX:400, clientY:300, stopPropagation(){}});
     await new Promise(r=> setTimeout(r, 260));
-    document.querySelector('#stylePaintMode [data-value="solid"]').click();
+    { const f = document.getElementById('styleFill'); f.value = 'custom';
+      f.dispatchEvent(new Event('change', {bubbles:true})); }
     await new Promise(r=> setTimeout(r, 200));
     document.getElementById('styleColor').value = '#ff00ff';
     document.getElementById('styleColor').dispatchEvent(new Event('input', {bubbles:true}));
@@ -3897,6 +3898,27 @@ async function main(){
     out.chosenDrawn = (document.querySelector('#edgeLayer .edge.struct[data-to="cf_b"]:not(.edge-cap)')
       || {getAttribute:()=>''}).getAttribute('stroke');
     out.chosenWritten = /colorFixed:true/.test(serializeEdgeStyles(EDGE_STYLES));
+    /* Fill is a choice of inherited or custom; custom shows two squares,
+       the second greyed until the gradient's switch turns it on. */
+    {
+      const row = document.getElementById('styleColorRow');
+      const sqs = row.querySelectorAll('.hex-square');
+      const g = document.getElementById('styleGradient');
+      const f = {shown: !row.hidden, squares: sqs.length, secondOff: !!sqs[1] && sqs[1].disabled};
+      g.click(); await new Promise(r=> setTimeout(r, 250));
+      f.secondOn = !sqs[1].disabled && g.classList.contains('on');
+      styleColor2Input.value = '#00ff00';
+      styleColor2Input.dispatchEvent(new Event('input', {bubbles:true}));
+      await new Promise(r=> setTimeout(r, 250));
+      f.gradient = JSON.stringify(edgeStyleFor('cf_a','cf_b').gradient);
+      g.click(); await new Promise(r=> setTimeout(r, 250));
+      f.backToOne = sqs[1].disabled && edgeStyleFor('cf_a','cf_b').color === '#ff00ff';
+      const sel = document.getElementById('styleFill');
+      sel.value = 'default'; sel.dispatchEvent(new Event('change', {bubbles:true}));
+      await new Promise(r=> setTimeout(r, 250));
+      f.inherits = row.hidden && !edgeStyleFor('cf_a','cf_b').color;
+      out.fill = f;
+    }
     closeEdgePopover();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -3956,6 +3978,10 @@ async function main(){
   check('a connector colour chosen by hand is applied and written down',
         r19.chosenKept && r19.chosenDrawn === '#ff00ff' && r19.chosenWritten,
         JSON.stringify({kept:r19.chosenKept, drawn:r19.chosenDrawn, written:r19.chosenWritten}));
+  check('a connector\u2019s fill is inherited or custom, and custom is two squares with a gradient switch',
+        r19.fill.shown && r19.fill.squares === 2 && r19.fill.secondOff && r19.fill.secondOn &&
+        r19.fill.gradient === '["#ff00ff","#00ff00"]' && r19.fill.backToOne && r19.fill.inherits,
+        JSON.stringify(r19.fill));
   check('a border taken away takes an incoming connector with it, link and all',
         r19.incomingStyleGone && r19.incomingLinkGone && r19.incomingNotDrawn,
         JSON.stringify({style:r19.incomingStyleGone, link:r19.incomingLinkGone,
@@ -7608,10 +7634,16 @@ async function main(){
       // the last picked-out run has to be given the turn it runs in.
       await wait(80);
       const box = document.querySelector('[data-hex-for="nodeEditorText"]');
-      // The trip is made the way a reader makes it: by pressing the square.
+      /* The trip is made the way a reader makes it: by a double click on
+         the square, which is two presses — the first of them puts the
+         square's own colour on the words — and then the dblclick. */
       const sq = document.querySelector('[data-hex-square-for="nodeEditorText"]');
-      sq.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
-      sq.click();
+      for(let i = 0; i < 2; i++){
+        sq.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
+        sq.click();
+        await wait(30);
+      }
+      sq.dispatchEvent(new MouseEvent('dblclick', {bubbles:true}));
       await wait(120);
       out.heldPainted = (()=>{ try{ return CSS.highlights.get('held-selection').size; }
                                catch(e){ return -1; } })();
@@ -7622,6 +7654,16 @@ async function main(){
       out.heldValue = document.getElementById('nodeEditorText').value;
       out.heldCleared = (()=>{ try{ return CSS.highlights.get('held-selection').size === 0; }
                                catch(e){ return false; } })();
+      /* A colour put on coloured words replaces theirs: on the whole of a
+         run, and on part of one, which splits it. */
+      const pick = (el, a, b)=>{ const t = el.firstChild; const r = document.createRange();
+        r.setStart(t, a); r.setEnd(t, b); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+      const run = ()=> surf.querySelector('span[style*="color"]');
+      pick(run(), 0, 5); applyRichCommand(surf, 'color', '#2266cc'); await wait(80);
+      out.recolourWhole = richHtmlToMarkup(surf);
+      pick(run(), 1, 3); applyRichCommand(surf, 'color', '#22aa44'); await wait(80);
+      out.recolourPart = richHtmlToMarkup(surf);
+      out.recolourNested = !!surf.querySelector('span[style*="color"] span[style*="color"]');
       closeEditForm(); deselect();
     }
 
@@ -7657,6 +7699,10 @@ async function main(){
   check('and none pops up while another entry’s settings are open',
         r37.noHoverWhileEditing);
   check('double-clicking a portrait’s card opens the words on it', r37.cardEdits);
+  check('a colour put on coloured words replaces theirs, whole or in part, instead of nesting under it',
+        r37.recolourWhole === '{{#2266cc|Alpha}} beta gamma' &&
+        r37.recolourPart === '{{#2266cc|A}}{{#22aa44|lp}}{{#2266cc|ha}} beta gamma' && !r37.recolourNested,
+        JSON.stringify({whole:r37.recolourWhole, part:r37.recolourPart, nested:r37.recolourNested}));
   check('a selection survives the trip to the hex box',
         r37.heldPainted === 1 && r37.heldApplied && r37.heldCleared,
         JSON.stringify({painted:r37.heldPainted, value:r37.heldValue,
@@ -15187,7 +15233,20 @@ async function main(){
       const tsq = document.querySelector('#nodeEditorBar .hex-square');
       const hex = document.querySelector('#nodeEditorBar .tb-hex');
       sq.barShut = !!tsq && getComputedStyle(hex).display === 'none' && getComputedStyle(tsq).display !== 'none';
+      // A square, not the bar `.mini-toolbar button` used to make of it.
+      { const b = tsq.getBoundingClientRect(); sq.barSquare = Math.round(b.width) === Math.round(b.height); }
+      /* A click puts the square's colour on the chosen words, as the old
+         swatch did; the code is a double click away. */
+      const surface = richFields.get('nodeEditorText').surface;
+      hex.value = '#cc2200'; hex.dispatchEvent(new Event('input'));
+      surface.focus();
+      { const r = document.createRange(); r.selectNodeContents(surface);
+        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+      tsq.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
       tsq.click();
+      sq.clickApplies = /#cc2200|rgb\(204, 34, 0\)/i.test(surface.innerHTML) &&
+                        getComputedStyle(hex).display === 'none';
+      tsq.dispatchEvent(new MouseEvent('dblclick', {bubbles:true}));
       sq.barOpens = getComputedStyle(hex).display !== 'none' && document.activeElement === hex;
       hex.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
       sq.barShuts = getComputedStyle(hex).display === 'none' && getComputedStyle(tsq).display !== 'none';
@@ -15195,7 +15254,7 @@ async function main(){
       out.squares = sq;
       out.squaresOk = sq.fieldShut && sq.chips === 1 && sq.addOpens && sq.added === '#22cc22, #123456' &&
         sq.escapeKeeps === '#22cc22, #123456' && sq.stored === '["#22cc22","#123456"]' &&
-        sq.barShut && sq.barOpens && sq.barShuts;
+        sq.barShut && sq.barSquare && sq.clickApplies && sq.barOpens && sq.barShuts;
     }
     deselect();
 
@@ -15249,7 +15308,7 @@ async function main(){
     openEdgeStylePopover('', 'mbM', {clientX:500, clientY:400, stopPropagation(){}});
     await wait(200);
     out.outGlows = !!document.querySelector('.amalgam-out.edge-picked[data-to="mbM"]') &&
-                   document.getElementById('stylePaintMode').closest('.style-row').hidden &&
+                   document.getElementById('styleFillRow').hidden &&
                    document.getElementById('styleDelete').hidden;
     closeEdgePopover(); await wait(150);
 
@@ -15396,7 +15455,7 @@ async function main(){
   check('a special tag has no colour and no square to set one', r.specialRefused && r.specialNoSwatch);
   check('a ground takes two colours of its own from its row, and a button puts both back',
         r.groundOk, JSON.stringify(r.ground));
-  check('a colour is a square that opens its code where it stands, in a list and on a toolbar',
+  check('a colour is a square that opens its code where it stands, in a list and on a toolbar, where a click spends it',
         r.squaresOk, JSON.stringify(r.squares));
   check('the form shows the tag colour and stores none of it', r.formShowsTagColour && r.formStoresNothing);
   check('border and background colours sit side by side', r.hexPair);
