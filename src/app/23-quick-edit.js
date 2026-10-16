@@ -263,7 +263,7 @@ function syncCardFieldVisibility(){
   editCardCheck.checked = ok && cardWanted;
 }
 function setTextColorControls(target, on){
-  document.querySelectorAll(`[data-hex-for="${target}"], [data-hex-reset="${target}"]`)
+  document.querySelectorAll(`[data-hex-for="${target}"], [data-hex-square-for="${target}"], [data-hex-reset="${target}"]`)
     .forEach(elm=>{ elm.hidden = !on; });
 }
 function syncTextColorVisibility(){

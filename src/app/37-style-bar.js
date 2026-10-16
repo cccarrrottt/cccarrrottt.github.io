@@ -127,10 +127,9 @@ const styleBar = (()=>{
   group('leader', STYLE_BAR_LEADER);
   group('leaderForm', STYLE_BAR_LEADER_FORM);
   group('noteSide', STYLE_BAR_NOTE_SIDE);
-  /* A colour typed on the bar, with the square that shows it beside the
-     box — the same pair every hex field on the page is: a box no wider
-     than the longest code it can hold, and the colour it names. Blank is
-     the paper. Typing is one step of undo however long it runs. */
+  /* A colour on the bar is a square, as every colour on the page is (see
+     squareForHexInput); pressed, it opens the code to type. Blank is the
+     paper. Typing is one step of undo however long it runs. */
   const hexGroup = (name, title, apply)=>{
     const row = group(name, []);
     row.classList.add('style-bar-hex');
@@ -141,10 +140,8 @@ const styleBar = (()=>{
     input.maxLength = 9;
     input.spellcheck = false;
     input.title = title;
-    const chip = document.createElement('span');
-    chip.className = 'hex-preview';
     row.appendChild(input);
-    row.appendChild(chip);
+    squareForHexInput(input, {title});
     input.addEventListener('mousedown', ev=> ev.stopPropagation());
     input.addEventListener('keydown', ev=> ev.stopPropagation());
     input.addEventListener('input', ()=>{
@@ -152,7 +149,6 @@ const styleBar = (()=>{
       const v = input.value.trim();
       if(v && !readHex(input)) return;
       input.classList.remove('bad');
-      paintHexChip(chip, v);
       if(input.dataset.pushed !== '1'){ pushUndo(); input.dataset.pushed = '1'; }
       apply(styleBarTarget, v);
       refreshSaveUI();
@@ -199,14 +195,6 @@ const styleBar = (()=>{
    {kind:'edge', from, to, x, y}, a connector, with where on the screen the
    pointer met it, since a line has no corner to stand the bar over. */
 let styleBarTarget = null;
-/* The square beside a typed colour: the colour when the text is one, the
-   paper's dashed outline when it is blank or not a colour yet. */
-function paintHexChip(chip, v){
-  if(!chip) return;
-  const ok = !!v && HEX_RE.test(v);
-  chip.style.background = ok ? v : '';
-  chip.classList.toggle('empty', !ok);
-}
 let styleBarTimer = null;
 
 function styleBarNode(){
@@ -310,7 +298,7 @@ function syncStyleBar(){
   const showHex = (row, v)=>{
     const input = row.querySelector('input');
     if(document.activeElement !== input){ input.value = v || ''; input.classList.remove('bad'); }
-    paintHexChip(row.querySelector('.hex-preview'), input.value.trim());
+    paintHexSquare(input);
   };
   if(!rows.cardBg.hidden) showHex(rows.cardBg, n.bg && n.bg.length === 1 ? n.bg[0] : (n.bg ? n.bg.join(', ') : ''));
   if(t.kind === 'edge'){

@@ -141,7 +141,10 @@ function tagShapeHtml(text, opts){
      be marking. */
   const star = (opts && opts.special)
     ? `<span class="tag-special" title="${escapeHtml(opts.why || '')}">*</span>` : '';
-  return `<span class="tag-shape${italic}"><i class="tag-eye"></i>${escapeHtml(text)}${star}</span>`;
+  /* The words in a span of their own, so a list too narrow for a long
+     name can cut it short with an ellipsis rather than push the row's
+     count and buttons off the panel. */
+  return `<span class="tag-shape${italic}"><i class="tag-eye"></i><span class="tag-text">${escapeHtml(text)}</span>${star}</span>`;
 }
 /* How far past the box the weave reaches. It has to clear the box by a
    good margin: the entry's own fill covers the middle of the patch, so

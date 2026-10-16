@@ -11,9 +11,16 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.12.0';
+const APP_VERSION = '0.13.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.13.0', date:'2026-10-16', title:'On the home screen', notes:[
+'The site can be put on a phone\u2019s home screen and opens there like an app, with no signal too. Save with no connection keeps the chart on the phone, says so, and sends it by itself when the connection comes back; the owner\u2019s sign-in renews itself instead of running out after eight hours.',
+'Every colour is a square, as a tag\u2019s is: pressed, it turns into the box its code is typed in, where it stands. On a text toolbar a click puts the square\u2019s colour on the chosen words and a double click opens its code. A connector\u2019s Fill is Inherited or Custom, and Custom is two squares with a gradient switch. Colouring words that already have a colour now gives them the new one.',
+'A connector bent by hand is edited as the line it is: a stretch is dragged whole, a corner moves its two stretches, and the stretch leaving a port stays level with it, so the line no longer jumps as its entries are carried.',
+'Fan-fiction and unreleased have two colours of their own with a reset, and in the Tags drawer names, counts and buttons each keep one column. The scenery of a hub or a local multiverse has a look of its own and the colour of the border it stands by.',
+'On a phone: a double tap on open paper zooms in, the text toolbar stands under the field clear of the phone\u2019s own menu, and a picked set no longer slows panning. Along the way: the drawers are marked by signs, a picture turns freely by its corner, and carrying a large selection is about twice as quick.',
+  ]},
   {v:'0.12.0', date:'2026-10-14', title:'A pixel round the words', notes:[
 'Connectors turn square by default: a connector nobody has styled routes orthogonally with square elbows, and rounding is the choice. An amalgam\u2019s merged arrow is a connector like the rest now \u2014 it can be pointed at, lit, dashed, waved, rounded, routed straight or curved and given a note, while its paint stays every lineage\u2019s colour \u2014 and an amalgam may have a wavy border.',
 'An entry takes its tag\u2019s colour. A tag\u2019s square in the Tags list is its colour; an entry with no colour of its own is drawn in its tags\u2019 colours, and one with neither is the default black. The tags that act, and Untagged, have no colour to give.',

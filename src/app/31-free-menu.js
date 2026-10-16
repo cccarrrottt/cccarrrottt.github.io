@@ -183,10 +183,9 @@ function openEdgeStylePopover(from, to, evt){
      colours says it belongs to two, which is the one thing the bar exists
      to tell apart. The button is greyed rather than hidden, like the
      route button beside the path, so the row still explains itself. */
-  const gradBtn = document.querySelector('#stylePaintMode button[data-value="gradient"]');
+  const gradBtn = styleGradientBtn;
   if(gradBtn){
     gradBtn.disabled = mergedEdge;
-    gradBtn.classList.toggle('disabled', mergedEdge);
     gradBtn.title = mergedOut
       ? 'Set by the amalgam: the merged arrow carries every lineage\u2019s colour'
       : mergedEdge
@@ -210,7 +209,7 @@ function openEdgeStylePopover(from, to, evt){
      connector anybody drew, so it cannot be deleted on its own either:
      it goes when the merge does. The rows are taken away rather than
      greyed — there is nothing in either it could ever offer. */
-  document.getElementById('stylePaintMode').closest('.style-row').hidden = mergedOut;
+  document.getElementById('styleFillRow').hidden = mergedOut;
   styleDeleteBtn.hidden = mergedOut;
   if(mergedEdge && style.gradient){
     // Data can carry one even though the control cannot set it.
@@ -373,6 +372,12 @@ function connectorHasCallout(from, to){
   });
   return found;
 }
+/* Each colour a square (see squareForHexInput). Empty, the first shows the
+   colour the line would take anyway, and the second the first. */
+squareForHexInput(styleColorInput, {title: 'the line’s colour',
+  fallback: ()=> currentEdgeNaturalColor || null});
+squareForHexInput(styleColor2Input, {title: 'where the gradient ends',
+  fallback: ()=> readHex(styleColorInput) || currentEdgeNaturalColor || null});
 [styleColorInput, styleColor2Input].forEach(input=>{
   input.addEventListener('input', ()=>{ syncColorRow(); applyLiveEdgeStyle(); });
   input.addEventListener('click', ev=> ev.stopPropagation());

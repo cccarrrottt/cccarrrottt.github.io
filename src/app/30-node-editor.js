@@ -267,7 +267,19 @@ function positionNodeEditor(){
      field down off the words, which is what holding the whole editor on
      the page used to do. */
   const above = fieldTop + hang - barH - gap - lift;
-  const under = above < 6;
+  /* On a phone the toolbar goes UNDER the field whenever there is room.
+     Words picked out with a finger bring up the phone's own menu — cut,
+     copy, paste — and it stands ABOVE them, which is exactly where the
+     toolbar was: the two covered each other, and part of a label could not
+     be formatted at all. Under, it is held off by the height of the
+     teardrop handles the phone hangs below a selection. Where the keyboard
+     leaves no room under the field, it goes back above. */
+  const touch = document.body.classList.contains('touch-input');
+  const handles = touch ? 26 : 0;
+  const vv = window.visualViewport;
+  const viewBottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - host.top;
+  const roomUnder = fieldTop + fieldH + handles + gap + barH <= viewBottom - 6;
+  const under = above < 6 || (touch && roomUnder);
   nodeEditor.classList.toggle('bar-under', under);
   /* The toolbar keeps its gap from the FRAME, which stands `hang` inside
      the field; so the field runs on under the toolbar's gap by that much.
@@ -280,7 +292,7 @@ function positionNodeEditor(){
   const sep = (gap + lift - hang).toFixed(2) + 'px';
   if(bar){
     bar.style.marginBottom = under ? '' : sep;
-    bar.style.marginTop = under ? sep : '';
+    bar.style.marginTop = under ? (gap + lift - hang + handles).toFixed(2) + 'px' : '';
   }
   const y = under ? fieldTop : above;
   surf.transform = box.turn ? `rotate(${box.turn}deg)` : '';
@@ -461,7 +473,7 @@ function finishNodeEditorLook(rec){
     (nodeEditorTarget.kind === 'note' ||
      (nodeEditorTarget.kind === 'entry' &&
       (nodes.get(nodeEditorTarget.id) || {}).shape === 'callout'));
-  if(hex) hex.style.display = inherits ? 'none' : '';
+  if(hex){ hex.style.display = inherits ? 'none' : ''; showHexSquare(hex, !inherits); }
   rec.surface.style.textAlign = nodeEditorAlign();
   /* The border scales with the drawing, as the type does; the padding is
      whatever is left of the box round the words (see positionNodeEditor). */
@@ -558,6 +570,12 @@ setRichEnter('nodeEditorText', ()=> closeNodeEditor(true));
 /* A phone's keyboard coming up resizes the window; the field is put back
    on its entry, and its toolbar back on the narrower page. */
 window.addEventListener('resize', ()=>{ if(nodeEditorTarget) positionNodeEditor(); });
+/* Chrome on Android no longer resizes the window for its keyboard — only
+   the visual viewport — and the toolbar's room under the field is
+   measured against that. */
+if(window.visualViewport) window.visualViewport.addEventListener('resize', ()=>{
+  if(nodeEditorTarget) positionNodeEditor();
+});
 /* The surface writes through to this textarea, which fires no input event
    of its own, so both the preview and the commit are driven from the
    surface — the same wiring the drawer's Label and a callout's card use. */

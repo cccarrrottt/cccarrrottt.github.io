@@ -190,20 +190,20 @@
             <label for="editColorsInput">Border colors</label>
             <div class="field-with-reset">
               <input id="editColorsInput" type="text" placeholder="#20242b">
+              <div class="swatch-strip" id="editColorsSwatches"></div>
               <button type="button" class="hex-reset" id="editColorsReset" title="Back to the default border colour">⟲</button>
             </div>
-            <div class="swatch-strip" id="editColorsSwatches"></div>
           </div>
           <div class="editor-field" id="editBgField">
             <label for="editBgInput">Background</label>
             <div class="field-with-reset">
               <input id="editBgInput" type="text" placeholder="white">
+              <div class="swatch-strip" id="editBgSwatches"></div>
               <button type="button" class="hex-reset" id="editBgReset" title="Back to the paper">⟲</button>
             </div>
-            <div class="swatch-strip" id="editBgSwatches"></div>
           </div>
           </div>
-          <p class="editor-help editor-pair-help">Several colours, split by commas: rings round the border, a gradient across the ground.</p>
+          <p class="editor-help editor-pair-help">Press a square to change its colour, the dashed one to add another: rings round the border, a gradient across the ground.</p>
           <div class="editor-field">
             <label for="editTagsInput">Tags</label>
             <!-- The tags an entry carries are chosen, never typed. The
@@ -558,19 +558,20 @@
         <button type="button" class="editor-btn style-callout-add" id="styleAddCallout" title="Add a callout — a comment card pointing at this connector: click the connector where it should attach, then where the card should stand"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="3" width="12" height="7.5" rx="0.5"/><path d="M6 10.5 L11 20.5"/><circle cx="11" cy="20.5" r="1.3" fill="currentColor" stroke="none"/><path d="M19 13v7M15.5 16.5h7" stroke-width="2"/></svg></button>
       </div>
 
-      <div class="style-row">
+      <!-- Fill is the colour it inherits, or one of its own. Custom brings
+           two squares into the row and the gradient's switch after them;
+           the second square is greyed until the gradient is on. -->
+      <div class="style-row" id="styleFillRow">
         <span class="style-row-label">Fill</span>
-        <div class="style-choice" id="stylePaintMode">
-          <button type="button" data-value="default" title="The colour it inherits">A</button>
-          <button type="button" data-value="solid" title="One colour">■</button>
-          <button type="button" data-value="gradient" title="Gradient along the connector">▨</button>
+        <select id="styleFill" class="style-select">
+          <option value="default">Inherited</option>
+          <option value="custom">Custom</option>
+        </select>
+        <div class="style-colors" id="styleColorRow" hidden>
+          <input type="text" id="styleColor" class="hex-input" placeholder="#20242b" maxlength="9" spellcheck="false">
+          <input type="text" id="styleColor2" class="hex-input" placeholder="#e08a1e" maxlength="9" spellcheck="false">
+          <button type="button" class="editor-btn style-grad" id="styleGradient" title="Gradient along the connector">▨</button>
         </div>
-      </div>
-
-      <div class="style-row style-colors" id="styleColorRow">
-        <input type="text" id="styleColor" class="hex-input" placeholder="#20242b" maxlength="9" spellcheck="false">
-        <input type="text" id="styleColor2" class="hex-input" placeholder="#e08a1e" maxlength="9" spellcheck="false">
-        <span class="hex-preview" id="styleColorPreview"></span>
       </div>
 
       <p class="style-row-note">Drag the marks on the line to bend it. <b>Shift</b> lines one up with other connectors; double-click takes one out. Double-click the line itself to write a note on it.</p>
