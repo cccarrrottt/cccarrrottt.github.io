@@ -8,6 +8,8 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+## 0.13.0 — "On the home screen" (2026-10-16)
+
 - Every colour on the page is a square, as a tag's is: pressing it turns
   it into the box its code is typed in, Enter or leaving keeps the code,
   Escape puts back what was there. That covers the text toolbars (Enter
@@ -26,6 +28,12 @@ Releases before 0.9.0 were not numbered.
   used to be laid under the old colour and lost when the text was saved,
   so a second colour on the same words did nothing; part of a coloured run
   now splits it.
+- On a phone the text toolbar stands under the field, clear of the menu
+  the phone puts above words picked out with a finger and of the handles
+  it hangs below them; where the keyboard leaves no room there, it goes
+  above as before.
+- On a phone a picked set no longer slows panning and zooming: its glow is
+  put aside while a finger moves the view and comes back when it stops.
 - A connector's Fill is a choice of Inherited or Custom. Custom brings two
   colour squares and a gradient switch into the row; the second square is
   greyed until the gradient is on. A square with nothing set but a colour
@@ -93,10 +101,6 @@ Releases before 0.9.0 were not numbered.
 - A connector bent by hand no longer jumps as the entries it joins are
   carried. The side a bend leaves by is decided by the bend itself, not
   guessed afresh from where the two boxes now stand.
-- Buttons that are greyed out are no longer lit as well, so none of them
-  reads as pressed-and-stuck and takes a press that does nothing. The
-  arrowheads on an amalgam's parent connectors are the case that showed
-  it.
 - A merge's bar can be carried along the merged arrow again when its
   lineages leave by sides set by hand: where the bar rests is read off
   where it is drawn rather than from the one arrangement that wrote it.

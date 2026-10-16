@@ -202,6 +202,7 @@ function computeBounds(){
 
 function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
+  markViewMoving();
   syncAlignGrid();
   // The bio card is an HTML overlay in screen space, so it has to be
   // re-anchored whenever the drawing moves under it.
@@ -220,6 +221,24 @@ function applyTransform(){
     `x${Math.round(-vx/vs)} · y${Math.round(-vy/vs)} · z${vs.toFixed(2)}`;
 }
 
+/* While the view moves under a finger, nothing on the chart glows.
+ *
+ * The glow of a picked entry is two drop shadows, and a moved view is a
+ * chart painted again from scratch — an SVG cannot hand its contents to
+ * the compositor to slide about, so every frame of a pan repaints every
+ * shadow. On a desktop that is nothing; on a phone each shadow is a pass
+ * of its own on the graphics chip, and a picked set of thirty entries with
+ * their connectors was sixty or more of them a frame, which is where the
+ * frame rate went. The glow comes back a moment after the view stops.
+ * The timer lives on the function because applyTransform runs during boot,
+ * before a `let` in this part would exist. */
+function markViewMoving(){
+  const b = document.body;
+  if(!b.classList.contains('touch-input')) return;
+  if(!b.classList.contains('view-moving')) b.classList.add('view-moving');
+  clearTimeout(markViewMoving.timer);
+  markViewMoving.timer = setTimeout(()=> b.classList.remove('view-moving'), 160);
+}
 function fitToView(padding){
   padding = padding||60;
   const rect = svg.getBoundingClientRect();

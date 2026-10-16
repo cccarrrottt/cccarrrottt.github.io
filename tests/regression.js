@@ -12502,6 +12502,37 @@ async function main(){
     await wait(350);
     const editing = await pp.evaluate(()=> nodeEditorTarget && nodeEditorTarget.id);
     eq('a double tap opens the entry for writing', editing, 'tpA');
+    /* …with its toolbar under the field, clear of the menu the phone
+       puts above words picked out with a finger, and of its handles. */
+    const under = await pp.evaluate(()=>{
+      const bar = document.getElementById('nodeEditorBar').getBoundingClientRect();
+      const field = richFields.get('nodeEditorText').surface.getBoundingClientRect();
+      return {gap: Math.round(bar.top - field.bottom), cls: nodeEditor.classList.contains('bar-under')};
+    });
+    check('on a phone the text toolbar stands under the field, past the selection handles',
+          under.cls && under.gap >= 24, JSON.stringify(under));
+
+    /* A picked set glows, but not while a finger moves the view: every
+       shadow is repainted on every frame of a pan. */
+    {
+      await pp.evaluate(async ()=>{ closeNodeEditor(true); setSelection(['tpA', 'tpB']);
+        await new Promise(r=> setTimeout(r, 250)); });
+      const glow = ()=> pp.evaluate(()=>{
+        const r = document.querySelector('#nodeLayer [data-id="tpA"] > rect:not(.node-hover-pad)');
+        return getComputedStyle(r).filter;
+      });
+      const still = await glow();
+      await touch('touchStart', [[200, 760]]);
+      for(let s = 1; s <= 4; s++){ await touch('touchMove', [[200 + s * 10, 760]]); await wait(16); }
+      const moving = await glow();
+      await touch('touchEnd', []);
+      await wait(400);
+      const after = await glow();
+      check('a picked set\u2019s glow is put aside while a finger moves the view, and comes back',
+            /drop-shadow/.test(still) && moving === 'none' && after === still,
+            JSON.stringify({still, moving, after}));
+      await pp.evaluate(()=> deselect());
+    }
 
     /* A reader cannot carry an entry, so under a finger a drag that starts
        on one pans instead of doing nothing. */
