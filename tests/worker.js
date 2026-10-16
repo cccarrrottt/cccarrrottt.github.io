@@ -39,7 +39,11 @@ const SVC = 'https://rhizome-edit.test.workers.dev';
 /* ---- GitHub, in memory ---- */
 function fakeGitHub(){
   const gh = {blobs: new Map(), trees: new Map(), commits: new Map(), head: null,
-              users: {'tok-owner': 'TheOwner', 'tok-other': 'someone'}, refUpdates: 0, raceNext: false};
+              users: {'tok-owner': 'TheOwner', 'tok-other': 'someone'}, refUpdates: 0, raceNext: false,
+              // Refresh tokens GitHub will still take. Each is good once.
+              refresh: new Set(['rt-first']), issued: 0};
+  const pair = () => { const rt = 'rt-' + (++gh.issued); gh.refresh.add(rt);
+                       return {access_token: 'tok-owner', expires_in: 28800, refresh_token: rt, refresh_token_expires_in: 15897600}; };
   const blob = text => { const sha = gitSha(text); gh.blobs.set(sha, text); return sha; };
   const tree = entries => { const sha = nodeCrypto.createHash('sha1').update(JSON.stringify(entries)).digest('hex');
                             gh.trees.set(sha, entries); return sha; };
@@ -56,8 +60,13 @@ function fakeGitHub(){
     const body = init && init.body ? JSON.parse(init.body) : null;
     const auth = ((init && init.headers && init.headers.Authorization) || '').replace('Bearer ', '');
     const ok = v => new Response(JSON.stringify(v), {status: 200});
+    if(u.host === 'github.com' && u.pathname === '/login/oauth/access_token' && body.grant_type === 'refresh_token'){
+      if(body.client_secret !== 'secret' || !gh.refresh.has(body.refresh_token)) return ok({error: 'bad_refresh_token'});
+      gh.refresh.delete(body.refresh_token);
+      return ok(pair());
+    }
     if(u.host === 'github.com' && u.pathname === '/login/oauth/access_token'){
-      return ok(body.code === 'code-owner' ? {access_token: 'tok-owner', expires_in: 28800}
+      return ok(body.code === 'code-owner' ? pair()
               : body.code === 'code-other' ? {access_token: 'tok-other'} : {error: 'bad_verification_code'});
     }
     if(!gh.users[auth]) return new Response('{}', {status: 401});
@@ -149,6 +158,9 @@ function partsOf(text){
         /frame-ancestors 'none'/.test(r.headers.get('Content-Security-Policy') || ''));
   const real = handed ? await w.unseal(ENV, 'session', handed[1]) : null;
   check('that session holds the owner\'s GitHub token', !!real && real.login === 'TheOwner' && real.gh === 'tok-owner');
+  check('and what renews it, so it outlives the token\'s eight hours',
+        !!real && /^rt-/.test(real.rt) && real.exp > Date.now() + 9 * 3600000 && real.exp <= Date.now() + 31 * 86400000,
+        real && JSON.stringify({rt: real.rt, days: (real.exp - Date.now()) / 86400000}));
 
   /* Who is this. */
   const auth = tok => ({headers: {Authorization: 'Bearer ' + tok, Origin: SITE}});
@@ -163,6 +175,29 @@ function partsOf(text){
   check('but not by any other site', r.headers.get('Access-Control-Allow-Origin') === null);
   r = await call('/me', auth(await session('someone')));
   check('a session for a login that is not an owner is refused', r.status === 403);
+
+  /* Renewing. A phone that was offline for days comes back with a session
+     whose GitHub token ran out long ago. */
+  const lapsed = rt => w.seal(ENV, 'session', {login: 'TheOwner', gh: 'tok-lapsed', ghExp: Date.now() - 1000,
+                                                rt, exp: Date.now() + 86400000});
+  const old = await lapsed('rt-first');
+  r = await call('/me', auth(old));
+  body = await r.json();
+  const renewed = body.session ? await w.unseal(ENV, 'session', body.session) : null;
+  check('a session whose token ran out is renewed, and the new one handed back',
+        r.status === 200 && body.owner && !!renewed && renewed.gh === 'tok-owner' && renewed.rt !== 'rt-first',
+        r.status + ' ' + JSON.stringify(renewed));
+  r = await call('/me', auth(old));
+  check('the refresh token it was renewed with is not good twice', r.status === 401);
+  r = await call('/me', auth(s));
+  body = await r.json();
+  check('a session whose token is good is not renewed', r.status === 200 && !('session' in body));
+  const lapsedSave = await lapsed([...gh.refresh][0]);
+  r = await call('/save', {method: 'POST', headers: {Authorization: 'Bearer ' + lapsedSave, Origin: SITE,
+                 'Content-Type': 'application/json'}, body: JSON.stringify({base: '0000', parts: {...partsOf(DATA), REFS: partsOf(DATA).REFS + '\n/* behind */'}})});
+  body = await r.json();
+  check('a save that is refused still hands back the session it renewed, which is all that can renew it now',
+        r.status === 409 && !!body.session && !!(await w.unseal(ENV, 'session', body.session)), r.status + ' ' + JSON.stringify(body).slice(0, 120));
 
   /* Saving. */
   const post = (tok, payload) => call('/save', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
@@ -198,6 +233,11 @@ function partsOf(text){
 
   r = await post(s, {base: gitSha(DATA), parts});
   check('the page\'s old base is now refused, so it cannot undo that save', r.status === 409);
+  const headBefore = gh.head;
+  r = await post(s, {base: gitSha(DATA), parts: edited});
+  body = await r.json();
+  check('but that same save sent again on the old base — its answer lost on the way — is not a conflict',
+        r.status === 200 && body.unchanged && body.sha === gitSha(after) && gh.head === headBefore, r.status + ' ' + JSON.stringify(body));
 
   /* The configuration. The three secrets live in Cloudflare; written into
      wrangler.toml they would be public, and would collide with the real

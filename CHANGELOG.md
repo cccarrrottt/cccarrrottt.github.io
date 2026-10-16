@@ -8,6 +8,17 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The site can be put on a phone's home screen and opens there like an
+  app, with no browser around it. It opens with no signal too: the page is
+  kept on the phone and used when the network cannot answer.
+- With no connection, Save on the site keeps the chart on the device
+  instead of failing, says so, and sends it by itself when the connection
+  comes back. A page opened again before then shows the kept chart rather
+  than the one it was built with.
+- The owner's sign-in on the site renews itself instead of running out
+  after eight hours; a session not used for 30 days still runs out.
+- A save the write service has already committed, sent again because its
+  answer was lost on the way back, is no longer refused as a conflict.
 - A picked merge bar glows the way a picked connector does, along the bar
   and nothing else, instead of wearing a wide halo of its own.
 - With a lineage of a merge already picked, a double click on its stretch

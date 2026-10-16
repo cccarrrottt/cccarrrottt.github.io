@@ -23,7 +23,14 @@
    which also makes it tamper-evident) together with the login and an
    expiry. There is no store: the service keeps nothing between requests.
    The token inside is a GitHub App user token, which GitHub expires after
-   eight hours regardless, and a session never outlives that.
+   eight hours. GitHub hands a refresh token with it, and the session
+   carries that too, so a session outlives the eight hours: when the token
+   inside has run out, the service trades the refresh token for a new pair
+   and hands the page a new session alongside its answer. That is what lets
+   the owner edit on a phone with no signal for days and still have the
+   Save go through when the signal comes back. A session that is not used
+   for SESSION_DAYS runs out all the same, and changing SESSION_SECRET
+   still ends every session at once.
 
    Configuration, set in the Cloudflare dashboard or wrangler.toml:
      GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET   the GitHub App's, secret
@@ -36,7 +43,14 @@
 
 const DATA_PATH = 'src/data.js';
 const REGIONS = ['NODES', 'COMMENTS', 'STICKERS', 'MEDIA', 'EDGESTYLES', 'TAGCATS', 'REFS', 'SETTINGS'];
+// A session with nothing to renew itself with lasts as long as its token.
 const SESSION_HOURS = 8;
+// A renewable one lasts this long from its last renewal, so a phone left in
+// a drawer for longer has to sign in again rather than hold a key forever.
+const SESSION_DAYS = 30;
+// Renewed a little early, so a token does not run out between this
+// service reading it and GitHub reading it.
+const RENEW_MARGIN = 5 * 60000;
 const STATE_MINUTES = 10;
 // The page is ~2.5 MB with its pictures inlined; this is room for growth
 // without being an invitation to post anything at all.
@@ -221,7 +235,37 @@ function page(html, status){
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 
-async function session(env, request){
+/* What a session holds, from what GitHub answered — to a sign-in or to a
+   renewal, which answer in the same shape. */
+export function sessionValue(login, got){
+  const now = Date.now();
+  const ghExp = now + (Number(got.expires_in) || SESSION_HOURS * 3600) * 1000;
+  if(!got.refresh_token) return {login, gh: got.access_token, exp: Math.min(ghExp, now + SESSION_HOURS * 3600000)};
+  const rtExp = now + (Number(got.refresh_token_expires_in) || SESSION_DAYS * 86400) * 1000;
+  return {login, gh: got.access_token, ghExp, rt: got.refresh_token,
+          exp: Math.min(rtExp, now + SESSION_DAYS * 86400000)};
+}
+
+/* A refresh token is good for one renewal: GitHub hands a new one with the
+   new token and forgets the old. So the session sealed from them has to
+   reach the page whatever else the request comes to — a refused save
+   included — or the page is left holding a session nothing can renew. The
+   handler puts ctx.session on every answer for that reason. */
+async function renew(env, s, ctx){
+  const res = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'rhizome-edit'},
+    body: JSON.stringify({client_id: env.GITHUB_CLIENT_ID, client_secret: env.GITHUB_CLIENT_SECRET,
+                          grant_type: 'refresh_token', refresh_token: s.rt})
+  });
+  const got = res.ok ? await res.json() : null;
+  if(!got || !got.access_token) throw httpError(401, 'the sign-in has run out.');
+  const next = sessionValue(s.login, got);
+  ctx.session = await seal(env, 'session', next);
+  return next;
+}
+
+async function session(env, request, ctx){
   const m = /^Bearer\s+(.+)$/.exec(request.headers.get('Authorization') || '');
   const s = m && await unseal(env, 'session', m[1]);
   if(!s) throw httpError(401, 'not signed in.');
@@ -230,6 +274,7 @@ async function session(env, request){
   if(list(env.OWNERS).map(x => x.toLowerCase()).indexOf(String(s.login).toLowerCase()) < 0){
     throw httpError(403, 'this account may not edit the chart.');
   }
+  if(s.rt && typeof s.ghExp === 'number' && s.ghExp - RENEW_MARGIN < Date.now()) return renew(env, s, ctx);
   return s;
 }
 
@@ -265,8 +310,7 @@ async function callback(env, url){
   if(list(env.OWNERS).map(x => x.toLowerCase()).indexOf(String(user.login).toLowerCase()) < 0){
     return page(`<p>Signed in as ${esc(user.login)}, who is not this chart's owner. Nothing was changed; you can close this window.</p>`, 403);
   }
-  const lifetime = Math.min(SESSION_HOURS * 3600, Number(got.expires_in) || SESSION_HOURS * 3600) * 1000;
-  const token = await seal(env, 'session', {login: user.login, gh: got.access_token, exp: Date.now() + lifetime});
+  const token = await seal(env, 'session', sessionValue(user.login, got));
   // Opened as a popup: hand the session to the page that opened it, and
   // only if that page is the site. Opened as a redirect: go back to the
   // site with the session in the fragment, which never reaches a server.
@@ -279,14 +323,14 @@ async function callback(env, url){
   </script>`);
 }
 
-async function me(env, request){
-  const s = await session(env, request);
+async function me(env, request, ctx){
+  const s = await session(env, request, ctx);
   const now = await currentData(env, s.gh);
   return {owner: true, login: s.login, sha: now.sha};
 }
 
-async function save(env, request){
-  const s = await session(env, request);
+async function save(env, request, ctx){
+  const s = await session(env, request, ctx);
   const size = Number(request.headers.get('Content-Length') || 0);
   if(size > MAX_BODY) throw httpError(413, 'the chart is too large to save.');
   let body;
@@ -295,13 +339,18 @@ async function save(env, request){
     throw httpError(400, 'the save needs a base and the chart\'s regions.');
   }
   const now = await currentData(env, s.gh);
-  // The page must be saving on top of the file that is actually there.
-  // Anything else is a page that is behind, and saving it would write an
-  // older chart over a newer one.
-  if(now.sha !== body.base) throw httpError(409, 'the repository has a newer chart.');
   const file = await readBlob(env, s.gh, now.sha);
   const next = applyRegions(file, body.parts);
+  // A save of exactly what is there changes nothing, whatever it was made
+  // on top of. That is not a courtesy: a save kept on a phone with a bad
+  // signal can be committed and its answer lost on the way back, and the
+  // phone sends it again on an older base. Calling that a conflict would
+  // tell the owner their work collides with itself.
   if(next === file) return {sha: now.sha, unchanged: true};
+  // Otherwise the page must be saving on top of the file that is actually
+  // there. Anything else is a page that is behind, and saving it would
+  // write an older chart over a newer one.
+  if(now.sha !== body.base) throw httpError(409, 'the repository has a newer chart.');
   return commitData(env, s.gh, now, next, s.login);
 }
 
@@ -309,18 +358,20 @@ export default {
   async fetch(request, env){
     const url = new URL(request.url);
     const h = cors(env, request);
+    const ctx = {};
+    const withSession = body => ctx.session ? Object.assign({}, body, {session: ctx.session}) : body;
     try{
       if(request.method === 'OPTIONS') return new Response(null, {status: 204, headers: h});
       const missing = missingConfig(env);
       if(missing.length) return json({error: 'the save service is not set up: ' + missing.join(', ') + '. Set it in Cloudflare, Worker → Settings → Variables and Secrets, as a Secret.'}, 503, h);
       if(request.method === 'GET' && url.pathname === '/login') return await login(env, url);
       if(request.method === 'GET' && url.pathname === '/callback') return await callback(env, url);
-      if(request.method === 'GET' && url.pathname === '/me') return json(await me(env, request), 200, h);
-      if(request.method === 'POST' && url.pathname === '/save') return json(await save(env, request), 200, h);
+      if(request.method === 'GET' && url.pathname === '/me') return json(withSession(await me(env, request, ctx)), 200, h);
+      if(request.method === 'POST' && url.pathname === '/save') return json(withSession(await save(env, request, ctx)), 200, h);
       return json({error: 'not found'}, 404, h);
     }catch(e){
       const status = e.status || 500;
-      return json({error: status === 500 ? 'the save service failed.' : e.message}, status, h);
+      return json(withSession({error: status === 500 ? 'the save service failed.' : e.message}), status, h);
     }
   }
 };

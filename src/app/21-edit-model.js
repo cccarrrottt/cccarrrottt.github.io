@@ -187,11 +187,18 @@ function isDirty(){ return savedParts !== null && partsDiffer(savedParts); }
 let draftLooked = false, draftTimer = 0;
 /* What the saved chart was the last time the page was clean. */
 let draftBase = null;
+/* A Save made on the site with no connection, kept on this device until it
+   can be sent — see the outbox in 36-site-owner. Declared here for the same
+   reason as the draft's state: the first refresh comes before that part. */
+let sitePending = false;
 function refreshSaveUI(){
   const d = isDirty();
   saveBtn.disabled = !d;
   saveBtn.textContent = d ? 'Save' : 'Saved';
   if(d) setSaveState('dirty', 'Unsaved changes');
+  /* Clean, but not yet on the site: said for as long as it is true, since
+     a closed laptop or a phone put away is exactly when it matters. */
+  else if(sitePending) setSaveState('ok', 'Saved on this device \u2014 it goes to the site when there is a connection');
   else setSaveState(null);
   /* …and keeps the copy that outlives a power cut in step. */
   scheduleDraft();

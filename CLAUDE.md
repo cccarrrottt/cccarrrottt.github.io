@@ -172,6 +172,14 @@ site") and `build_guard`:
   pushed trees, so any other file in the push runs everything.
 - **On the site a chart in localStorage is never restored** — it could only
   be a reader's edit from the days the site served an editor.
+- **With no connection the owner still edits, and Save goes to an outbox**
+  (IndexedDB, beside the draft; `36-site-owner.js`), sent when the
+  connection returns. The service worker (`src/site/sw.js`) is network-first
+  for the page on purpose: a cached page that is behind must not become the
+  page the owner saves from. Sessions renew through GitHub's refresh token,
+  which is good once — so the page's requests to the service go one at a
+  time (`siteRequest`), and every answer, a refusal included, may carry the
+  new session.
 - Read-only is still a flag (`body.read-only`, `readOnlyView`), and
   `markEditable` is its way back; lifting it means drawing again, because
   some parts ask `readOnlyView` while they draw.
