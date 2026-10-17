@@ -15944,6 +15944,46 @@ async function main(){
         hb.guided && hb.landed, JSON.stringify({ys: hb.ys, level: hb.level}));
   check('a pinned stretch does not drop towards an entry carried up to it', hb.neverDown, JSON.stringify(hb.tops));
   });
+  await scenario("the router asks only the lines a segment can share", async () => {
+  /* scorePath looks the routed segments up by the line they stand on
+     (routedNear) instead of walking all of them. Routing is order-sensitive
+     and every connector steers round the ones before it, so the only
+     acceptable answer is the same picture: every route on a crowded chart
+     drawn both ways, compared point for point. */
+  const eq = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const linear = function(pts, obstacles){
+      let score = pathLength(pts) + countBends(pts)*PENALTY_BEND;
+      for(let i = 0; i < pts.length-1; i++){
+        const a = pts[i], b = pts[i+1];
+        for(const rect of obstacles){ if(segIntersectsRect(a.x, a.y, b.x, b.y, rect)) score += PENALTY_NODE; }
+        const seg = {x1:a.x, y1:a.y, x2:b.x, y2:b.y};
+        for(const other of routedSegments){ if(segmentsOverlap(seg, other) > 8) score += PENALTY_OVERLAP; }
+      }
+      return score;
+    };
+    const snap = ()=>{ const m = {}; drawnRoutes.forEach((r, k)=>{ m[k] = JSON.stringify((r.pts || []).map(q=> [+q.x.toFixed(3), +q.y.toFixed(3)])); }); return m; };
+    let seed = 3; const rnd = ()=> (seed = (seed*16807) % 2147483647) / 2147483647;
+    const M = 200, cols = Math.ceil(Math.sqrt(M));
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      for(let i = 0; i < M; i++) workingNodes.push(['rq' + i, 'Entry ' + i,
+        i > 0 ? 'rq' + Math.max(0, i - 1 - Math.floor(rnd()*cols*1.5)) : null, null, null, null,
+        {pos:[(i % cols)*170 + (rnd()-0.5)*40, Math.floor(i / cols)*90 + (rnd()-0.5)*30]}]); });
+    redrawEdges();
+    const filed = snap();
+    const keep = window.scorePath;
+    window.scorePath = linear;
+    try{ redrawEdges(); } finally { window.scorePath = keep; }
+    const walked = snap();
+    const keys = Object.keys(walked);
+    const differ = keys.filter(k=> filed[k] !== walked[k]);
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
+  });
+  check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

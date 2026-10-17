@@ -36,6 +36,9 @@ Releases before 0.9.0 were not numbered.
   the lines takes longer than a frame, they are redrawn a few times a second
   while the entries follow the hand at full rate. Writing the coordinates no
   longer makes the page lay itself out on every movement of the view.
+- Connectors are routed about twice as fast on a large chart: a candidate
+  route is checked only against the lines it could lie on top of, and every
+  route comes out exactly as before.
 
 ## 0.13.0 — "On the home screen" (2026-10-16)
 
