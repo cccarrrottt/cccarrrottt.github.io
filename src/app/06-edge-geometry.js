@@ -696,10 +696,17 @@ function waveOffsetPoints(samples, amp, lam, from, to, closed){
        end, so the visible line meets whatever covers the rest — an
        arrowhead, usually — on its baseline rather than half-way up a
        crest. */
+    /* …and it is held flat for a quarter of a wave before that end, so
+       the line runs into the head along the head's own axis. Faded right
+       up to the end it still swung into the head from one side — on a
+       curve, where the head's axis and the wave's last swing disagree
+       most, the end of the line stood off the back of the head as a gap
+       with a hook in it. */
+    const hold = lam / 4;
     let k = 1;
     if(!closed){
-      if(lo > 0.01) k = Math.min(k, Math.max(0, (p.s - lo) / fade));
-      if(hi < total - 0.01) k = Math.min(k, Math.max(0, (hi - p.s) / fade));
+      if(lo > 0.01) k = Math.min(k, Math.max(0, (p.s - lo - hold) / fade));
+      if(hi < total - 0.01) k = Math.min(k, Math.max(0, (hi - p.s - hold) / fade));
     }
     const off = waveOffsetAt(p.s, amp, lam) * k;
     out.push({x: p.x - dy*off, y: p.y + dx*off, s: p.s, bx: p.x, by: p.y});

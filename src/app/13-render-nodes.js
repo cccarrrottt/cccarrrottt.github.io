@@ -797,7 +797,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
          stylesheet reads them out of the keyframes. */
       const outer = own + HUB_ECHOES * HUB_ECHO_STEP;
       // The echo is drawn in the scenery's own pattern, as the stack is.
-      const echoDash = (BORDER_STYLES[decorStyleOf(n)] || BORDER_STYLES.solid).dash;
+      const echoStyle = decorStyleOf(n);
+      const echoDash = (BORDER_STYLES[echoStyle] || BORDER_STYLES.solid).dash;
+      // The rails of a double echo, as far apart as a double sheet's.
+      const HUB_ECHO_GAP = 2.4;
       {
         const band = HUB_ECHOES * HUB_ECHO_STEP;
         const mid = own + band / 2;
@@ -810,10 +813,23 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         const sy0 = rh > 0 ? (h + own*2) / rh : 1;
         const sx1 = rw > 0 ? (n.w + outer*2) / rw : 1;
         const sy1 = rh > 0 ? (h + outer*2) / rh : 1;
-        el('rect', {
-          x: n.x - grow, y: n.y - grow,
-          width: rw, height: rh,
-          rx: rad(cornerR + grow), stroke: c, class: 'hub-echo',
+        /* A double echo and a rippled one are a path: both rails of a
+           double ring in ONE element, so they travel out as one ring under
+           the one animation rather than as two that would have to be kept
+           in step; a ripple is the stack's own wavy outline. Plain and
+           dashed stay the rectangle they always were. */
+        const x0 = n.x - grow, y0 = n.y - grow, r0 = cornerR + grow;
+        const shape = echoStyle === 'wavy'
+          ? {tag:'path', a:{d: wavyRectPath(x0, y0, rw, rh, 0)}}
+          : echoStyle === 'double'
+          ? {tag:'path', a:{d: roundedRectPath(x0, y0, rw, rh, r0) + ' ' +
+                              roundedRectPath(x0 + HUB_ECHO_GAP, y0 + HUB_ECHO_GAP,
+                                              Math.max(0, rw - HUB_ECHO_GAP*2),
+                                              Math.max(0, rh - HUB_ECHO_GAP*2),
+                                              Math.max(0, r0 - HUB_ECHO_GAP))}}
+          : {tag:'rect', a:{x: x0, y: y0, width: rw, height: rh, rx: rad(r0)}};
+        el(shape.tag, {
+          ...shape.a, stroke: c, class: 'hub-echo',
           ...(echoDash ? {'stroke-dasharray': echoDash} : {}),
           style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
                  `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +

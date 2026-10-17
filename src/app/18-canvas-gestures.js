@@ -217,9 +217,50 @@ function applyTransform(){
     syncNodeEditorLook();
     positionNodeEditor();
   }
-  document.getElementById('coord').textContent =
-    `x${Math.round(-vx/vs)} · y${Math.round(-vy/vs)} · z${vs.toFixed(2)}`;
+  /* Where the middle of the view stands on the chart — the same point the
+     ⌖ beside it goes back to. The zoom is not shown: it is a number nobody
+     works with, and the chart says how near it is by itself. */
+  const mid = viewCentre();
+  document.getElementById('coord').textContent = `x${Math.round(mid.x)} · y${Math.round(mid.y)}`;
+  rememberView();
 }
+/* The chart point at the middle of the view, and the view put back on one. */
+function viewCentre(){
+  const r = svg.getBoundingClientRect();
+  return {x: (r.width/2 - vx) / vs, y: (r.height/2 - vy) / vs};
+}
+function centreViewOn(x, y, s){
+  const r = svg.getBoundingClientRect();
+  vs = s;
+  vx = r.width/2 - x * vs;
+  vy = r.height/2 - y * vs;
+  applyTransform();
+}
+/* The view is kept between visits, as its middle and its zoom — not as
+   the offsets, which mean a different place in a window of another size.
+   A reload used to fit the whole chart to the window, and whoever was
+   working on one corner of it had to find that corner again. The first
+   visit opens on the origin, in the middle of the screen. */
+const VIEW_KEY = 'rhizome.view';
+function rememberView(){
+  clearTimeout(rememberView.timer);
+  rememberView.timer = setTimeout(()=>{
+    const mid = viewCentre();
+    try{ localStorage.setItem(VIEW_KEY, JSON.stringify({x: +mid.x.toFixed(1), y: +mid.y.toFixed(1),
+                                                        s: +vs.toFixed(4)})); }catch(e){}
+  }, 250);
+}
+function openingView(){
+  let v = null;
+  try{ v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); }catch(e){ v = null; }
+  if(v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.s) && v.s > 0)
+    centreViewOn(v.x, v.y, Math.min(3, Math.max(0.08, v.s)));
+  else centreViewOn(0, 0, 1);
+}
+document.getElementById('coordHome').addEventListener('click', ev=>{
+  ev.stopPropagation();
+  centreViewOn(0, 0, vs);
+});
 
 /* While the view moves under a finger, nothing on the chart glows.
  *

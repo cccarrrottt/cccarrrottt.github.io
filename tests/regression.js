@@ -1890,8 +1890,8 @@ async function main(){
     const box = document.querySelector('[data-hex-for="nodeEditorText"]');
     const swatch = ()=>{
       const rc = box.getBoundingClientRect();
-      box.dispatchEvent(new MouseEvent('mousedown',
-        {bubbles:true, cancelable:true, clientX:rc.left+4, clientY:rc.top+8}));
+      { /* A click on the square puts its colour on the words. */ const q = box._hexSquare.square;
+      q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     };
     const firstText = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT).nextNode();
     const r1 = document.createRange(); r1.setStart(firstText, 0); r1.setEnd(firstText, 5);
@@ -1985,8 +1985,8 @@ async function main(){
     const sel0 = window.getSelection(); sel0.removeAllRanges(); sel0.addRange(rg);
     hexBox.value = '#c23b22';
     const hb = hexBox.getBoundingClientRect();
-    hexBox.dispatchEvent(new MouseEvent('mousedown',
-      {bubbles:true, cancelable:true, clientX:hb.left+4, clientY:hb.top+8}));
+    { /* A click on the square puts its colour on the words. */ const q = hexBox._hexSquare.square;
+      q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     await new Promise(r=> setTimeout(r, 1200));
     out.storedColour = workingNodes.find(x=> x[0]==='clr')[1];
     out.paintedOnChart = [...document.querySelectorAll('[data-id="clr"] text tspan')]
@@ -2595,13 +2595,13 @@ async function main(){
     const hexBox = document.querySelector('[data-hex-for="nodeEditorText"]');
     hexBox.value = '#c23b22';
     const hb = hexBox.getBoundingClientRect();
-    hexBox.dispatchEvent(new MouseEvent('mousedown',
-      {bubbles:true, cancelable:true, clientX:hb.left+4, clientY:hb.top+8}));
+    { /* A click on the square puts its colour on the words. */ const q = hexBox._hexSquare.square;
+      q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     await new Promise(r=> setTimeout(r, 900));
     pickRange(6, 10);
     hexBox.value = '#2f6fb5';
-    hexBox.dispatchEvent(new MouseEvent('mousedown',
-      {bubbles:true, cancelable:true, clientX:hb.left+4, clientY:hb.top+8}));
+    { /* A click on the square puts its colour on the words. */ const q = hexBox._hexSquare.square;
+      q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     await new Promise(r=> setTimeout(r, 900));
     out.twoColours = /c23b22/.test(richHtmlToMarkup(surf)) && /2f6fb5/.test(richHtmlToMarkup(surf));
     // One press of the reset, with only ONE of them selected.
@@ -12014,9 +12014,12 @@ async function main(){
          the buttons are greyed (the owner's rule) — the square ones are
          kept for when the frame comes back. */
       press('corners', 'round');
-      press('frame', 'bare');
+      // The frame is one button, lit while there is one: pressed, it goes.
+      out.frameOneButton = bar.querySelectorAll('[data-group="frame"] button').length === 1 &&
+        bar.querySelector('[data-group="frame"] button').classList.contains('on');
+      press('frame', 'frame');
       await wait(150);
-      out.noteBare = !!plate() && plate().classList.contains('bare') && !plate().style.stroke &&
+      out.noteBare = out.frameOneButton && !!plate() && plate().classList.contains('bare') && !plate().style.stroke &&
         +plate().getAttribute('rx') === 0 &&
         /noteFrame:false/.test(serializeEdgeStyles(EDGE_STYLES)) &&
         /noteSquare:true/.test(serializeEdgeStyles(EDGE_STYLES));
@@ -14495,7 +14498,8 @@ async function main(){
       const sb = shelf && shelf.getBBox();
       out.shelf = !!shelf && Math.abs(sb.y + sb.height/2 - sy) < 0.05 &&
                   Math.abs(y2 - sy) < 0.05 && x2 > k.x - 0.05 && x2 < k.x + k.w + 0.05 &&
-                  !!lit && lit.dataset.value === 'shelf' && entryOpts(workingEntry('tiS').entry).leader.shelf === true;
+                  !!lit && lit.dataset.value === 'shelf' && entryOpts(workingEntry('tiS').entry).leader.shelf === true &&
+                  styleBar.querySelectorAll('.style-bar-group[data-group="leaderForm"] button').length === 1;
       closeStyleBar();
     }
 
@@ -15193,17 +15197,18 @@ async function main(){
         const rows = ['fan-fiction', 'unreleased'].map(t=> document.querySelector(`#tagsList .legend-item[data-tag="${t}"]`));
         g.squaresFirst = rows.every(r=> left(r, '.ground-swatch') < left(r, '.name'));
         g.resetColumn = rows.map(r=> Math.round(left(r, '.ground-reset')));
-        /* …at the end of the row, by the ✕; and every row, ground or not,
-           keeps its name, its count and its ✕ in the same columns. */
+        /* …after the name and before the count; and every row, ground or
+           not, keeps its name, its count (by its right edge — it is
+           right-aligned) and its ✕ in the same columns. */
         g.resetByDel = rows.every(r=>{
           const a = r.querySelector('.ground-reset').getBoundingClientRect();
-          const d = r.querySelector('.legend-tag-del').getBoundingClientRect();
-          return a.right <= d.left + 0.5 && d.left - a.right < 10 &&
-                 a.left > r.querySelector('.count').getBoundingClientRect().right - 0.5;
+          const c = r.querySelector('.count').getBoundingClientRect();
+          return a.right <= c.left + 0.5 && a.left > r.querySelector('.name').getBoundingClientRect().right - 0.5;
         });
         const all = [...document.querySelectorAll('#tagsList .legend-item')].filter(r=> r.querySelector('.legend-tag-del'));
         const cols = sel=> new Set(all.map(r=> Math.round(left(r, sel)))).size;
-        g.columns = {rows: all.length, name: cols('.name'), del: cols('.legend-tag-del')};
+        const rights = sel=> new Set(all.map(r=> Math.round(r.querySelector(sel).getBoundingClientRect().right))).size;
+        g.columns = {rows: all.length, name: cols('.name'), del: cols('.legend-tag-del'), count: rights('.count')};
         undoLastEdit(); await wait(250);
       }
       squares()[0].click();
@@ -15224,7 +15229,7 @@ async function main(){
       redoLastEdit(); await wait(250);
       out.ground = g;
       out.groundOk = g.before === 2 && g.resetGreyed && g.squaresFirst && g.resetByDel &&
-        g.columns.rows >= 4 && g.columns.name === 1 && g.columns.del === 1 &&
+        g.columns.rows >= 4 && g.columns.name === 1 && g.columns.del === 1 && g.columns.count === 1 &&
         g.resetColumn[0] === g.resetColumn[1] && g.inkSet === 'rgb(46, 134, 222)' && g.saved &&
         g.squareShows === 'rgb(46, 134, 222)' && g.glowKept && g.inkBack === g.ink0 && g.cleared &&
         g.undone === 'rgb(46, 134, 222)';
@@ -15692,6 +15697,152 @@ async function main(){
         late.after.plus === 0 && late.after.refTools === 0 && late.after.refColour === 0 && late.after.tagDel === 0, JSON.stringify(late.after));
   check('and the functions behind them refuse a reader', !late.pending && late.refsBefore === late.refsAfter, JSON.stringify(late));
   check('the way back gives them back', late.back.plus === 4 && late.back.refColour === 1, JSON.stringify(late.back));
+  });
+  await scenario("squares, scenery, clusters and the view as of 2026-10-17", async () => {
+  const r17 = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const keepColors = SETTINGS.tagColors ? Object.assign({}, SETTINGS.tagColors) : null;
+    const keep = {vs, vx, vy};
+    const out = {};
+    applyEdit(()=>{
+      workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['q1','One',null,null,null,null,{pos:[0,0], tags:['zq-a']}]);
+      workingNodes.push(['q2','Two',null,null,null,null,{pos:[0,120], tags:['zq-b']}]);
+      workingNodes.push(['qH','Hub',null,null,null,null,{pos:[400,0], tags:[HUB_TAG], decor:'double'}]);
+      workingNodes.push(['qW','Hub',null,null,null,null,{pos:[400,200], tags:[HUB_TAG], decor:'wavy'}]);
+    });
+    await wait(500);
+    document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, true));
+    await wait(200);
+
+    /* Pressing another square while a code is open keeps the open one —
+       when it is a colour — and opens the one pressed. */
+    const pick = t=> document.querySelector(`#tagsList .legend-item[data-tag="${t}"] .swatch-pick`);
+    const press = el=> el.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, cancelable:true}));
+    pick('zq-a').click();
+    await wait(50);
+    let box = document.querySelector('#tagsList .legend-item[data-tag="zq-a"] .hex-box');
+    out.firstOpen = !!box;
+    if(box){ box.value = '#123456'; box.dispatchEvent(new Event('input', {bubbles:true})); }
+    press(pick('zq-b'));
+    await wait(150);
+    out.firstKept = tagColorOf('zq-a');
+    out.secondOpen = !!document.querySelector('#tagsList .legend-item[data-tag="zq-b"] .hex-box') &&
+                     !document.querySelector('#tagsList .legend-item[data-tag="zq-a"] .hex-box');
+    // …and one that is not a colour is not kept.
+    box = document.querySelector('#tagsList .legend-item[data-tag="zq-b"] .hex-box');
+    if(box){ box.value = '#12'; box.dispatchEvent(new Event('input', {bubbles:true})); }
+    press(pick('zq-a'));
+    await wait(150);
+    out.badDropped = tagColorOf('zq-b') || null;
+    const still = document.activeElement && document.activeElement.classList.contains('hex-box') ? document.activeElement : null;
+    if(still) still.blur();
+    /* A press that brings no click of its own — as a synthetic one does —
+       must not leave the swallow waiting for somebody else's. */
+    { const b = document.createElement('button'); let got = 0;
+      b.addEventListener('click', ()=> got++); document.body.appendChild(b);
+      b.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true})); b.click(); b.remove();
+      out.nextClickHeard = got === 1; }
+    await wait(100);
+
+    /* One square for the citation colour, and every square one size. */
+    out.refSquares = document.querySelectorAll('#refColorRow .hex-square').length;
+    const size = el=>{ const b = el && el.getBoundingClientRect(); return b ? Math.round(b.width) + 'x' + Math.round(b.height) : null; };
+    out.sizes = {ref: size(document.querySelector('#refColorRow .hex-square')),
+                 tag: size(pick('zq-a'))};
+    document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, false));
+
+    // A hub's echo takes a double line and a ripple too.
+    const echo = id=> [...document.querySelectorAll(`.node-aura[data-id="${id}"] .hub-echo`)];
+    out.doubleEcho = echo('qH').length > 0 &&
+      echo('qH').every(p=> p.tagName === 'path' && (p.getAttribute('d').match(/M/g) || []).length === 2);
+    out.wavyEcho = echo('qW').length > 0 &&
+      echo('qW').every(p=> p.tagName === 'path' && /[CQ]/.test(p.getAttribute('d')));
+
+    // The clusters can be turned off from the bar, and stay off.
+    const lodBtn = document.getElementById('lodToggle');
+    vs = 0.05; applyTransform();
+    out.lodOnFar = lodLevelNow();
+    lodBtn.click();
+    out.lodOffFar = lodLevelNow();
+    out.lodStored = localStorage.getItem('rhizome.lod');
+    out.lodBtnOff = !lodBtn.classList.contains('active');
+    lodBtn.click();
+    out.lodBack = lodLevelNow() > 0 && lodBtn.classList.contains('active');
+
+    // The view: no zoom shown, kept between visits, and a way home.
+    centreViewOn(1234, -567, 1.25);
+    await wait(400);
+    out.coord = document.getElementById('coord').textContent;
+    let saved = null; try{ saved = JSON.parse(localStorage.getItem('rhizome.view')); }catch(e){}
+    out.saved = saved;
+    vs = 0.3; vx = 0; vy = 0; applyTransform();
+    await wait(50);
+    localStorage.setItem('rhizome.view', JSON.stringify({x:1234, y:-567, s:1.25}));
+    openingView();
+    const c1 = viewCentre();
+    out.restored = Math.abs(c1.x - 1234) < 1 && Math.abs(c1.y + 567) < 1 && Math.abs(vs - 1.25) < 1e-6;
+    document.getElementById('coordHome').click();
+    const c2 = viewCentre();
+    out.home = Math.abs(c2.x) < 1 && Math.abs(c2.y) < 1 && Math.abs(vs - 1.25) < 1e-6;
+    localStorage.removeItem('rhizome.view');
+    openingView();
+    const c3 = viewCentre();
+    out.fresh = Math.abs(c3.x) < 1 && Math.abs(c3.y) < 1 && vs === 1;
+
+    /* An amalgam whose middle parent is level with it gets a straight
+       stem, not a step the size of the corner it could not fit. */
+    const orig = window.amalgamStem; const stems = [];
+    window.amalgamStem = function(geo, from, pn){ const s = orig(geo, from, pn); stems.push(s.pts); return s; };
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['p1','One',null,null,null,null,{pos:[0,0], colors:['#4444dd']}]);
+      workingNodes.push(['p2','Two',null,null,null,null,{pos:[0,120], colors:['#cccc33']}]);
+      workingNodes.push(['p3','Three',null,null,null,null,{pos:[0,240], colors:['#dd33cc']}]);
+      workingNodes.push(['m','Merged',['p1','p2','p3'],null,null,'amalgam',{pos:[300,153]}]);
+    });
+    await wait(400);
+    window.amalgamStem = orig;
+    const last = stems[stems.length - 1] || [];
+    out.stem = last.map(p=> [Math.round(p.x), Math.round(p.y)]);
+    out.stemStraight = last.length === 2 && Math.abs(last[0].y - last[1].y) < 0.01;
+
+    /* A wave is held flat for a quarter wave before a trimmed end, so the
+       line runs into the arrowhead along its axis. */
+    const line = []; for(let s = 0; s <= 200; s++) line.push({x:s, y:0, s});
+    const wp = waveOffsetPoints(line, 3, 20, 0, 180);
+    out.heldFlat = wp.filter(p=> p.s >= 175).every(p=> Math.abs(p.y) < 1e-9) &&
+                   wp.some(p=> Math.abs(p.y) > 1);
+
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x));
+                    if(keepColors) SETTINGS.tagColors = keepColors; else delete SETTINGS.tagColors; });
+    vs = keep.vs; vx = keep.vx; vy = keep.vy; applyTransform();
+    await wait(300);
+    return out;
+  });
+  check('pressing another square keeps the open colour and opens the one pressed',
+        r17.firstOpen && r17.firstKept === '#123456' && r17.secondOpen, JSON.stringify(r17));
+  check('…and a code that is not a colour is not kept', r17.badDropped === null, r17.badDropped);
+  check('the next press\'s click is its own', r17.nextClickHeard);
+  check('the citation colour has one square', r17.refSquares === 1, r17.refSquares);
+  check('a square in a menu is the size of a tag\'s', r17.sizes.ref === '11x11' && r17.sizes.tag === '11x11',
+        JSON.stringify(r17.sizes));
+  check('a hub\'s echo can be double', r17.doubleEcho);
+  check('a hub\'s echo can ripple', r17.wavyEcho);
+  check('the clusters can be turned off from the bar, and it is remembered',
+        r17.lodOnFar > 0 && r17.lodOffFar === 0 && r17.lodStored === '0' && r17.lodBtnOff && r17.lodBack,
+        JSON.stringify({on:r17.lodOnFar, off:r17.lodOffFar, stored:r17.lodStored}));
+  check('the coordinates say where the middle of the view is, with no zoom',
+        r17.coord === 'x1234 · y-567', r17.coord);
+  check('the view is kept for the next visit, and put back',
+        r17.saved && r17.saved.x === 1234 && r17.saved.y === -567 && r17.saved.s === 1.25 && r17.restored,
+        JSON.stringify(r17.saved));
+  check('⌖ goes to x 0, y 0 at the same zoom', r17.home);
+  check('a first visit opens on the origin, in the middle', r17.fresh);
+  check('an amalgam level with its middle parent has a straight stem', r17.stemStraight, JSON.stringify(r17.stem));
+  check('a wave runs flat into a trimmed end', r17.heldFlat);
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

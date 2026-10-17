@@ -441,6 +441,14 @@ function amalgamStem(geo, from, pnodes){
   const pLo = Math.min(...corners.map(perp)), pHi = Math.max(...corners.map(perp));
   const jA = along(from), jP = perp(from);
   const cA = (aLo + aHi)/2, cP = (pLo + pHi)/2;
+  /* How far in from a corner the arrow may meet a side — never more than
+     a quarter of that side. A flat margin of a corner's radius and a bit
+     was MORE than half the height of an ordinary one-line entry, so the
+     window for a straight run in front of it was empty: a merged arrow
+     level with its entry still took two turns, and showed a step of under
+     a unit in the middle — a break in the line, more visible the more
+     colours it carried. */
+  const mA = Math.min(M, (aHi - aLo) / 4), mP = Math.min(M, (pHi - pLo) / 4);
   // A port at a given place along a given side.
   const portAt = (s, coord)=>{
     const lo = sideIsVertical(s) ? b.x : b.y, len = sideIsVertical(s) ? b.w : b.h;
@@ -449,7 +457,7 @@ function amalgamStem(geo, from, pnodes){
   };
   const toward = (dir)=> ux ? (dir > 0 ? 'left' : 'right') : (dir > 0 ? 'top' : 'bottom');
   // In front of the junction: one straight run.
-  if(jA >= aLo + M && jA <= aHi - M && jP > pHi){
+  if(jA >= aLo + mA && jA <= aHi - mA && jP > pHi){
     const port = portAt(side, ux ? from.x : from.y);
     return {pts: [from, {x: port.x, y: port.y}], port};
   }
@@ -457,7 +465,7 @@ function amalgamStem(geo, from, pnodes){
   const lineagesBeyond = pnodes.length &&
     pnodes.reduce((t, p)=> t + perp({x: p.x + p.w/2, y: p.y + p.h/2}), 0) / pnodes.length > jP;
   // Level with the bar: straight along its line into the near side.
-  if(jP >= pLo + M && jP <= pHi - M && (dir > 0 ? jA < aLo : jA > aHi)){
+  if(jP >= pLo + mP && jP <= pHi - mP && (dir > 0 ? jA < aLo : jA > aHi)){
     const port = portAt(toward(dir), ux ? from.y : from.x);
     return {pts: [from, {x: port.x, y: port.y}], port};
   }
@@ -473,8 +481,8 @@ function amalgamStem(geo, from, pnodes){
     return {pts: [from, pt(along(port), jP), {x: port.x, y: port.y}], port};
   }
   // Two turns, through the middle of the gap, into the facing side.
-  const port = portAt(side, ux ? Math.max(aLo + M, Math.min(aHi - M, from.x))
-                               : Math.max(aLo + M, Math.min(aHi - M, from.y)));
+  const port = portAt(side, ux ? Math.max(aLo + mA, Math.min(aHi - mA, from.x))
+                               : Math.max(aLo + mA, Math.min(aHi - mA, from.y)));
   const mid = (jP + perp(port)) / 2;
   return {pts: [from, pt(jA, mid), pt(along(port), mid), {x: port.x, y: port.y}], port};
 }
