@@ -8,6 +8,35 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Every colour square is one size and look, the Tags drawer's. The
+  citation colour has one square, not two. Pressing another square while a
+  code is open keeps that code, when it is a colour, and opens the square
+  pressed.
+- In the Tags drawer the colour reset stands before the count, and each
+  has its own column.
+- A multiversal hub's echo takes a double line and a ripple, as the rest
+  of the scenery does.
+- An amalgam carried level with its middle parent has a straight stem, not
+  a small step; a curved, rippled connector runs flat into its arrowhead
+  instead of leaving a gap.
+- The bar has a button that turns the far-off clusters on and off, and the
+  choice is kept.
+- The view is kept between visits. The coordinates say where the middle of
+  the view is, without the zoom, and ⌖ beside them goes to x 0, y 0. A
+  first visit opens with the origin in the middle of the screen.
+- A callout's leader form and a note's frame are one button each, pressed
+  again to turn them off.
+- A corner pulled onto another connector's level with Shift lands there
+  even when the hand drifts a little to one side, and the axis no guide
+  catches keeps the grid. A stretch pinned by hand no longer drops a few
+  units towards an entry carried up to it. A corner's mark stands where the
+  line turns.
+- Carrying many entries at once is faster: a connector with both ends
+  carried is moved with them instead of routed again, and when redrawing
+  the lines takes longer than a frame, they are redrawn a few times a second
+  while the entries follow the hand at full rate. Writing the coordinates no
+  longer makes the page lay itself out on every movement of the view.
+
 ## 0.13.0 — "On the home screen" (2026-10-16)
 
 - Every colour on the page is a square, as a tag's is: pressing it turns

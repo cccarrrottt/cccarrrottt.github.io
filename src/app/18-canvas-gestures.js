@@ -225,12 +225,26 @@ function applyTransform(){
   rememberView();
 }
 /* The chart point at the middle of the view, and the view put back on one. */
+/* The chart's size on the screen, kept rather than asked for: asked for
+   on every movement of the view, it made the browser lay the page out
+   again on every wheel notch just to write the coordinates. */
+function svgSize(){
+  if(!svgSize.memo){
+    const r = svg.getBoundingClientRect();
+    svgSize.memo = {width: r.width, height: r.height};
+    if(window.ResizeObserver && !svgSize.watch){
+      svgSize.watch = new ResizeObserver(()=>{ svgSize.memo = null; });
+      svgSize.watch.observe(svg);
+    }
+  }
+  return svgSize.memo;
+}
 function viewCentre(){
-  const r = svg.getBoundingClientRect();
+  const r = svgSize();
   return {x: (r.width/2 - vx) / vs, y: (r.height/2 - vy) / vs};
 }
 function centreViewOn(x, y, s){
-  const r = svg.getBoundingClientRect();
+  const r = svgSize();
   vs = s;
   vx = r.width/2 - x * vs;
   vy = r.height/2 - y * vs;
@@ -273,6 +287,10 @@ document.getElementById('coordHome').addEventListener('click', ev=>{
  * frame rate went. The glow comes back a moment after the view stops.
  * The timer lives on the function because applyTransform runs during boot,
  * before a `let` in this part would exist. */
+/* Measured again on a desktop, with a hundred and fifty entries picked on
+ * a chart of four hundred: there, taking the glow off costs more than it
+ * saves — the class that takes it off restyles every element on the chart
+ * as it comes and goes — so the desktop keeps its glow. */
 function markViewMoving(){
   const b = document.body;
   if(!b.classList.contains('touch-input')) return;
@@ -848,11 +866,26 @@ window.addEventListener('mousemove', e=>{
      show, so that is how often it is done. */
   queueDragRedraw(st);
 });
-let dragRedrawFrame = 0;
+/* …and no more often than the chart can afford. A redraw that takes
+   longer than a frame, done every frame, holds the page up for as long as
+   it takes, and the carried entries — which cost nothing to move — stood
+   still with the lines: a large chart dragged at four frames a second.
+   So a redraw that took long is followed by a pause as long as it took,
+   and in that pause the entries go on following the hand at the screen's
+   own rate while the lines catch up a few times a second. */
+let dragRedrawFrame = 0, dragRedrawTimer = 0;
+const DRAG_REDRAW_BUDGET = 24;
 function queueDragRedraw(st){
-  if(dragRedrawFrame) return;
+  if(dragRedrawFrame || dragRedrawTimer) return;
+  const owed = st && st.redrawCost > DRAG_REDRAW_BUDGET
+    ? Math.min(250, st.redrawCost) - (performance.now() - st.redrawEnd) : 0;
+  if(owed > 0){
+    dragRedrawTimer = setTimeout(()=>{ dragRedrawTimer = 0; queueDragRedraw(st); }, owed);
+    return;
+  }
   dragRedrawFrame = requestAnimationFrame(()=>{
     dragRedrawFrame = 0;
+    const began = performance.now();
     // Where the carried entries stood when these routes were drawn; see
     // connectorAlignments, which has to allow for the pointer being ahead.
     if(st && st.node) st.drawnOff = {x: st.node.x - st.originX, y: st.node.y - st.originY};
@@ -876,6 +909,7 @@ function queueDragRedraw(st){
          const n = m.node;
          return n && ((m.id === bioCardNodeId) || ((n.shape || '') === 'ellipse' && n.bioCard));
        })) drawBioCard();
+    if(st){ st.redrawEnd = performance.now(); st.redrawCost = st.redrawEnd - began; }
   });
 }
 
@@ -885,8 +919,9 @@ window.addEventListener('mouseup', ()=>{
   if(!st) return;
   // A frame still owing from the drag would draw over what settling the
   // drag is about to draw, from a state that no longer exists.
-  if(dragRedrawFrame){
+  if(dragRedrawFrame || dragRedrawTimer){
     cancelAnimationFrame(dragRedrawFrame); dragRedrawFrame = 0;
+    clearTimeout(dragRedrawTimer); dragRedrawTimer = 0;
     /* But the drawing it owed is what tells the callouts on these
        connectors where their anchors ended up, and that has to be written
        down before the chart is rebuilt from the entries — a rebuild starts

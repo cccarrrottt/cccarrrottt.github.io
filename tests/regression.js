@@ -1889,7 +1889,6 @@ async function main(){
     const surface = richFields.get('nodeEditorText').surface;
     const box = document.querySelector('[data-hex-for="nodeEditorText"]');
     const swatch = ()=>{
-      const rc = box.getBoundingClientRect();
       { /* A click on the square puts its colour on the words. */ const q = box._hexSquare.square;
       q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     };
@@ -1984,7 +1983,6 @@ async function main(){
     const rg = document.createRange(); rg.setStart(t0, 0); rg.setEnd(t0, 5);
     const sel0 = window.getSelection(); sel0.removeAllRanges(); sel0.addRange(rg);
     hexBox.value = '#c23b22';
-    const hb = hexBox.getBoundingClientRect();
     { /* A click on the square puts its colour on the words. */ const q = hexBox._hexSquare.square;
       q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     await new Promise(r=> setTimeout(r, 1200));
@@ -2594,7 +2592,6 @@ async function main(){
     pickRange(0, 5);
     const hexBox = document.querySelector('[data-hex-for="nodeEditorText"]');
     hexBox.value = '#c23b22';
-    const hb = hexBox.getBoundingClientRect();
     { /* A click on the square puts its colour on the words. */ const q = hexBox._hexSquare.square;
       q.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); q.click(); }
     await new Promise(r=> setTimeout(r, 900));
@@ -15815,6 +15812,31 @@ async function main(){
     out.heldFlat = wp.filter(p=> p.s >= 175).every(p=> Math.abs(p.y) < 1e-9) &&
                    wp.some(p=> Math.abs(p.y) > 1);
 
+    /* A connector with both its entries carried is moved with them, not
+       routed again; one with a single end carried is routed. */
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['c1','One',null,null,null,null,{pos:[0,0]}]);
+      workingNodes.push(['c2','Two','c1',null,null,null,{pos:[200,80]}]);
+      workingNodes.push(['c3','Three','c2',null,null,null,{pos:[420,0]}]);
+    });
+    await wait(200);
+    {
+      const routeOf = (f, t)=> drawnRoutes.get(calloutEdgeKey(f, t)).pts.map(q=> [q.x, q.y]);
+      const memo = new Map(), moving = new Set(['c1','c2']);
+      const shift = (d)=>{ ['c1','c2'].forEach(id=>{ const n = nodes.get(id); n.x += d; n.y += d; }); };
+      dragRouteHold = {memo, moving}; redrawEdges(); dragRouteHold = null;
+      const was = routeOf('c1','c2');
+      shift(10);
+      const orig = window.routeEdge; const asked = [];
+      window.routeEdge = function(a, b){ asked.push(a.id + '>' + b.id); return orig.apply(this, arguments); };
+      try{ dragRouteHold = {memo, moving}; redrawEdges(); }
+      finally{ dragRouteHold = null; window.routeEdge = orig; }
+      const now = routeOf('c1','c2');
+      out.carried = now.length === was.length && now.every((q, i)=> Math.abs(q[0] - was[i][0] - 10) < 1e-6 && Math.abs(q[1] - was[i][1] - 10) < 1e-6);
+      out.asked = asked;
+      shift(-10); redrawEdges();
+    }
+
     applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
                     EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x));
                     if(keepColors) SETTINGS.tagColors = keepColors; else delete SETTINGS.tagColors; });
@@ -15843,6 +15865,8 @@ async function main(){
   check('a first visit opens on the origin, in the middle', r17.fresh);
   check('an amalgam level with its middle parent has a straight stem', r17.stemStraight, JSON.stringify(r17.stem));
   check('a wave runs flat into a trimmed end', r17.heldFlat);
+  check('a connector carried at both ends is moved, not routed again; one carried at one end is routed',
+        r17.carried && !r17.asked.includes('c1>c2') && r17.asked.includes('c2>c3'), JSON.stringify(r17.asked));
   });
   await scenario("hand bends that keep to a guide and to their place", async () => {
   const hb = await page.evaluate(async ()=>{
