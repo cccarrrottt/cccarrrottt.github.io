@@ -15844,6 +15844,82 @@ async function main(){
   check('an amalgam level with its middle parent has a straight stem', r17.stemStraight, JSON.stringify(r17.stem));
   check('a wave runs flat into a trimmed end', r17.heldFlat);
   });
+  await scenario("hand bends that keep to a guide and to their place", async () => {
+  const hb = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const keep = {vs, vx, vy};
+    const out = {};
+    const W = (x,y)=>{ const sr = svg.getBoundingClientRect(); return {x: sr.left + vx + x*vs, y: sr.top + vy + y*vs}; };
+    const rt = (f,t)=> drawnRoutes.get(calloutEdgeKey(f,t)).pts;
+    const mark = e=>{ const m = e.querySelector('.bend-mark'); return {x:+m.getAttribute('cx'), y:+m.getAttribute('cy')}; };
+
+    /* A corner pulled down onto another connector's level with Shift, the
+       hand a few units off to one side, lands on that level. */
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['hbB','Beast Wars: Uprising',null,null,null,null,{pos:[0,0]}]);
+      workingNodes.push(['hbA','Wars: Uprising','hbB',null,null,null,{pos:[-300,0]}]);
+      workingNodes.push(['hbC','sdafs','hbB',null,null,null,{pos:[260,160]}]);
+    });
+    await wait(300);
+    const b = nodes.get('hbB'), a = nodes.get('hbA'), c = nodes.get('hbC');
+    const low = b.y + b.h, level = low + 60;
+    applyEdit(()=>{
+      setBendList('hbB','hbA', [[b.x + b.w/2 - 20, low + 40], [a.x + a.w/2, low + 40]]);
+      setBendList('hbB','hbC', [[b.x + b.w/2 + 20, level], [c.x + c.w/2, level]]);
+    });
+    await wait(200);
+    vs = 1.5; vx = 600; vy = 300; applyTransform();
+    bendHoverTarget = null; showBendsFor('hbB','hbA');
+    await wait(50);
+    const hs = [...document.querySelectorAll('#bendLayer .bend-handle')];
+    const h = hs.sort((p, q)=> mark(q).x - mark(p).x)[0];
+    const m0 = mark(h);
+    // The mark is on the line it moves.
+    out.markOnLine = rt('hbB','hbA').some(q=> Math.abs(q.x - m0.x) < 0.6 && Math.abs(q.y - m0.y) < 0.6);
+    const p0 = W(m0.x, m0.y);
+    h.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p0.x, clientY:p0.y}));
+    for(let s = 1; s <= 10; s++){
+      const p = W(m0.x + 5, m0.y + (level - m0.y) * s / 10);
+      window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:p.x, clientY:p.y, shiftKey:true}));
+    }
+    out.guided = document.querySelectorAll('#guideLayer .align-guide-line').length > 0;
+    window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+    await wait(100);
+    const ys = rt('hbB','hbA').map(q=> q.y);
+    out.landed = ys.some(y=> Math.abs(y - level) < 0.01);
+    out.ys = ys.map(y=> +y.toFixed(2)); out.level = +level.toFixed(2);
+    bendHoverTarget = null; drawBendHandles();
+
+    /* A stretch pinned above an entry stays where it was put while the
+       entry is carried up towards it, until the run-out reaches it. */
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['hbP','Пролл',null,null,null,null,{pos:[0,0]}]);
+      workingNodes.push(['hbT','Гаягкягкч','hbP',null,null,null,{pos:[120,-20]}]);
+    });
+    const p = nodes.get('hbP');
+    applyEdit(()=> setBendList('hbP','hbT', [[p.x + p.w/2, -12], [-15, -60]], ['top','top']));
+    const tops = [];
+    for(let y = -20; y >= -60; y -= 2){
+      applyEdit(()=>{ const f = workingEntry('hbT'); const o = entryOpts(f.entry); o.pos = [120, y]; putEntry(f.index, f.entry, o); });
+      tops.push(Math.min(...rt('hbP','hbT').map(q=> q.y)));
+    }
+    // Never further down than it was, and only ever pushed up.
+    out.tops = tops.map(t=> +t.toFixed(1));
+    out.neverDown = tops.every((t, i)=> t <= -60 + 0.01 && (!i || t <= tops[i-1] + 0.01));
+
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    vs = keep.vs; vx = keep.vx; vy = keep.vy; applyTransform();
+    await wait(300);
+    return out;
+  });
+  check('a corner\'s mark is on the line it moves', hb.markOnLine);
+  check('a corner pulled onto a guide with the hand a little off to one side lands on it',
+        hb.guided && hb.landed, JSON.stringify({ys: hb.ys, level: hb.level}));
+  check('a pinned stretch does not drop towards an entry carried up to it', hb.neverDown, JSON.stringify(hb.tops));
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
