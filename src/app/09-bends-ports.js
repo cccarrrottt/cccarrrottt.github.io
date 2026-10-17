@@ -31,21 +31,41 @@ function handBends(style){
  * is never a statement anybody made with a bend, so the route squares it
  * away when it is drawn, every time, rather than once when it is dropped. */
 const BEND_ABSORB = GRID - 0.5;
-function absorbBendOffsets(s1, bends, s2){
+/* …and only ACROSS the target's run-out. A last corner standing a little
+ * further out than the target's stub, along the line the stub runs on, is
+ * no step at all: the last leg crosses over to the stub's line and comes
+ * straight down it into the port, the run-out simply longer. Squared away
+ * all the same, it was pulled down onto the stub — so a stretch pinned
+ * above an entry dropped a few units TOWARDS the entry as the entry was
+ * carried up to it, before clearOfPort began pushing it away. */
+function absorbBendOffsets(s1, bends, s2, n1, n2){
   const out = bends.map(b=> ({x:b.x, y:b.y}));
   const near = (u, v)=> Math.abs(u - v) > 0.01 && Math.abs(u - v) <= BEND_ABSORB;
   // Forward from the source's run-out, each point against the one before…
   let prev = s1;
-  out.forEach(b=>{
-    if(near(b.x, prev.x)) b.x = prev.x;
-    if(near(b.y, prev.y)) b.y = prev.y;
+  out.forEach((b, i)=>{
+    /* The same holds at the source for a first corner standing straight
+       out past the stub, on the stub's own line: the run-out goes on out
+       to it, and there is no step to square away. */
+    const along = i === 0 && n1 ? (n1.x ? 'x' : 'y') : null;
+    if(!along){
+      if(near(b.x, prev.x)) b.x = prev.x;
+      if(near(b.y, prev.y)) b.y = prev.y;
+    } else {
+      const across = along === 'x' ? 'y' : 'x';
+      if(near(b[across], prev[across])) b[across] = prev[across];
+      const straightOut = ((b.x - s1.x) * n1.x + (b.y - s1.y) * n1.y) > 0 &&
+                          Math.abs(b[across] - s1[across]) < 0.01;
+      if(near(b[along], prev[along]) && !straightOut) b[along] = prev[along];
+    }
     prev = b;
   });
   // …and the last against the target's, which it has to arrive in line with.
   const last = out[out.length - 1];
   if(last){
-    if(near(last.x, s2.x)) last.x = s2.x;
-    if(near(last.y, s2.y)) last.y = s2.y;
+    const beyond = !!n2 && ((last.x - s2.x) * n2.x + (last.y - s2.y) * n2.y) > 0;
+    if(near(last.x, s2.x) && !(beyond && n2.x)) last.x = s2.x;
+    if(near(last.y, s2.y) && !(beyond && n2.y)) last.y = s2.y;
   }
   return out;
 }
@@ -247,9 +267,9 @@ function handRouteBroken(pts, p1, p2){
 function bentRoute(p1, p2, handBendsList){
   const s1 = stubPoint(p1, handBendsList[0]);
   const s2 = stubPoint(p2, handBendsList[handBendsList.length - 1]);
-  const bends = absorbBendOffsets(s1, handBendsList, s2);
   const n1 = SIDE_NORMAL[p1.side] || {x:0, y:-1};
   const n2 = SIDE_NORMAL[p2.side] || {x:0, y:-1};
+  const bends = absorbBendOffsets(s1, handBendsList, s2, n1, n2);
   /* A bend standing ON a run-out, between the border and the stub, is
      the stub. The run-out is the straight piece every connector leaves
      and arrives by; a point in the middle of it can only be reached by

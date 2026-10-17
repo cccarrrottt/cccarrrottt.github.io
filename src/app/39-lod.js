@@ -35,6 +35,18 @@ var LOD_REACH = 150, LOD_CAT_REACH = 1000;
 var LOD_PAD = 26;
 var LOD_INK = '#8a8f98';
 var lodLevel = 0, lodStale = true, lodLayerEl = null, lodHeightMemo = null;
+/* The patches can be turned off from the bar, for whoever wants the
+   entries themselves at every distance; kept between visits. */
+var LOD_KEY = 'rhizome.lod';
+var lodOn = true;
+try{ lodOn = localStorage.getItem(LOD_KEY) !== '0'; }catch(e){}
+function setLod(on){
+  lodOn = !!on;
+  try{ localStorage.setItem(LOD_KEY, lodOn ? '1' : '0'); }catch(e){}
+  const btn = document.getElementById('lodToggle');
+  if(btn) btn.classList.toggle('active', lodOn);
+  markLodStale();
+}
 
 function lodLayer(){
   if(!lodLayerEl){
@@ -61,7 +73,7 @@ function lodEntryHeight(){
   return (lodHeightMemo = hs[hs.length >> 1] || 40);
 }
 function lodLevelNow(){
-  if(typeof nodes === 'undefined' || !nodes.size) return 0;
+  if(!lodOn || typeof nodes === 'undefined' || !nodes.size) return 0;
   const px = vs * lodEntryHeight();
   return px < LOD_CAT_PX ? 2 : px < LOD_TAG_PX ? 1 : 0;
 }
@@ -283,3 +295,10 @@ function zoomToPatch(x0, y0, x1, y1){
   applyTransform();
 }
 syncLod();
+{
+  const btn = document.getElementById('lodToggle');
+  if(btn){
+    btn.classList.toggle('active', lodOn);
+    btn.addEventListener('click', ()=> setLod(!lodOn));
+  }
+}

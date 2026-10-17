@@ -125,7 +125,20 @@ function drawBendHandles(){
     g.addEventListener('mousedown', ev=> beginBendDrag(ev, target, mid, -1, pts));
     g.addEventListener('click', ev=> ev.stopPropagation());
   }
-  bends.forEach((b, i)=>{
+  /* A corner's mark stands where the line turns, not where the corner was
+     written down. The two part company by design — the corner nearest a
+     port follows the port (levelWithPorts), and one a hair off the run-out
+     is squared onto it (absorbBendOffsets) — and a mark left at the
+     written place floated a few units off the line, as if the line had
+     failed to reach it, and was taken hold of there. */
+  const turns = arms.slice(1, -1);
+  const drawnAt = (b)=>{
+    let best = null, d = GRID + 2;
+    turns.forEach(q=>{ const k = Math.hypot(q.x - b[0], q.y - b[1]); if(k <= d){ d = k; best = q; } });
+    return best ? [best.x, best.y] : b;
+  };
+  bends.forEach((b0, i)=>{
+    const b = drawnAt(b0);
     const g = el('g', {class:'bend-handle', 'data-i':i}, host);
     el('circle', {cx:b[0].toFixed(2), cy:b[1].toFixed(2), r:BEND_R + 4, class:'bend-hit'}, g);
     el('circle', {cx:b[0].toFixed(2), cy:b[1].toFixed(2), r:BEND_R, class:'bend-mark'}, g);
@@ -424,6 +437,11 @@ window.addEventListener('mousemove', ev=>{
       return best;
     };
     const gx = movesX && near(x, xs), gy = movesY && near(y, ys);
+    /* An axis that finds no guide keeps the grid, as an entry's does. Left
+       free it followed every wobble of the hand, and a corner pulled down
+       onto a neighbour's level came a few units sideways with it. */
+    if(!gx) x = snapToGrid(x);
+    if(!gy) y = snapToGrid(y);
     if(gx){
       x = gx.at;
       el('line', {class:'align-guide align-guide-line', x1:x.toFixed(2), x2:x.toFixed(2),
@@ -437,6 +455,25 @@ window.addEventListener('mousemove', ev=>{
   } else if(!free){
     x = snapToGrid(x); y = snapToGrid(y);
   } else { x = Math.round(x); y = Math.round(y); }
+  /* A stretch out of a port, moved less than a grid step off the port's
+     own line, is drawn ON that line — the step would be squared away
+     (absorbBendOffsets). So it is asked for there. Asked for where the hand
+     was, the drawn line could not follow the shape, the whole move was
+     refused as one the router cannot draw, and a corner pulled straight
+     down onto a guide with the hand a few units off to one side stayed
+     where it was, the guide drawn and the line nowhere near it. */
+  const lastArm = st.P.length - 2;
+  const hug = (k, port)=>{
+    if(armIsVertical(st.P[k], st.P[k + 1])){ if(Math.abs(x - port.x) <= BEND_ABSORB) x = port.x; }
+    else if(Math.abs(y - port.y) <= BEND_ABSORB) y = port.y;
+  };
+  if(st.corner > 0){
+    if(st.corner === 1) hug(0, st.p1);
+    if(st.corner === lastArm) hug(lastArm, st.p2);
+  } else {
+    if(st.arm === 0) hug(0, st.p1);
+    if(st.arm === lastArm) hug(lastArm, st.p2);
+  }
   if(!movesX) x = st.at.x;
   if(!movesY) y = st.at.y;
   if(x === st.at.x && y === st.at.y && st.tried) return;

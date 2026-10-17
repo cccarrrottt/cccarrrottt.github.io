@@ -50,7 +50,8 @@ const STYLE_BAR_BORDERS = [
 /* One button, not two: lit, the corners are rounded; dark, they are
    square. Two buttons for one yes-or-no was one more thing on the bar. */
 const STYLE_BAR_CORNERS = [['round', '╭', 'Rounded corners — press again for square ones']];
-const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note'], ['bare', '⌧', 'No frame']];
+/* One button for the frame, as for the corners: lit, the note has one. */
+const STYLE_BAR_FRAMES = [['frame', '▭', 'A frame round the note — press again to take it off']];
 const STYLE_BAR_TURN = [['quarter', '⟳', 'Turn a quarter clockwise']];
 /* One button for the stack, the same bargain the corners make: lit, the
    thing is behind the chart; dark, it is over it. Furniture has never had
@@ -78,8 +79,7 @@ const STYLE_BAR_LEADER = [
 /* And what the leader leads to: a card, or — as on an engineering
    drawing — a shelf the words stand on, the leader meeting its near end. */
 const STYLE_BAR_LEADER_FORM = [
-  ['card', '▭', 'Leader to a card round the words'],
-  ['shelf', '⎽', 'Drafting leader: the words on a shelf, the leader to its end']
+  ['shelf', '⎽', 'Drafting leader: the words on a shelf, the leader to its end — press again for a card round them']
 ];
 /* A connector's own line, and its two ends. */
 const STYLE_BAR_EDGE_LINE = [
@@ -331,7 +331,7 @@ function syncStyleBar(){
   if(callout){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     light(rows.leader, callout.leader.line || 'solid');
-    light(rows.leaderForm, callout.leader.shelf ? 'shelf' : 'card');
+    light(rows.leaderForm, callout.leader.shelf ? 'shelf' : '');
     styleBar.hidden = false;
     positionStyleBar();
     return;
@@ -360,7 +360,7 @@ function syncStyleBar(){
   } else {
     rows.border.hidden = true;
     rows.frame.hidden = false;
-    light(rows.frame, style.noteFrame === false ? 'bare' : 'frame');
+    light(rows.frame, style.noteFrame === false ? '' : 'frame');
     /* A note with its frame taken off has no corners left to choose: the
        button is greyed rather than left to look as if it did nothing. */
     light(rows.corners, style.noteSquare ? '' : 'round', ()=> style.noteFrame === false);
@@ -492,7 +492,8 @@ function applyStyleBar(group, value){
       } else if(group === 'leaderForm'){
         if(!opts.leader) return;
         opts.leader = Object.assign({}, opts.leader);
-        if(value === 'shelf') opts.leader.shelf = true; else delete opts.leader.shelf;
+        // A toggle: a card is the absence of the flag.
+        if(opts.leader.shelf) delete opts.leader.shelf; else opts.leader.shelf = true;
       }
       putEntry(found.index, found.entry, opts);
     });
@@ -516,7 +517,8 @@ function applyStyleBar(group, value){
       if(group === 'noteSide'){
         o.notePos = value;
       } else if(group === 'frame'){
-        if(value === 'bare') o.noteFrame = false; else delete o.noteFrame;
+        // A toggle: framed is the absence of the flag.
+        if(o.noteFrame === false) delete o.noteFrame; else o.noteFrame = false;
       } else if(group === 'corners'){
         if(o.noteSquare) delete o.noteSquare; else o.noteSquare = true;
       }

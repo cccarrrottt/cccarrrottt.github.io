@@ -261,14 +261,18 @@ again:
   is redundant in principle — `renderNodes` already knows what is hidden —
   and it is 2%.
 
-**The ceiling is `routeEdge`, and it is quadratic twice over.** `scorePath`
-(`07-router-ortho.js`) walks every obstacle and every already-routed segment
+**The ceiling was `routeEdge`, quadratic twice over.** `scorePath`
+(`07-router-ortho.js`) walked every obstacle and every already-routed segment
 for each candidate path, and `routedSegments` grows as the chart is drawn.
-At 200 entries that is 19.6 ms and at 600 it is 152 ms. The cure is a
-spatial index on both, and the bar for attempting it is high: routing is
-order-sensitive by design, so the score has to come out identical or every
-connector on the chart moves. Nobody should start it without a chart big
-enough to need it and an equivalence check over the drawn routes.
+The routed half now has its index: segments are filed by orientation and by
+the line they stand on (`routedNear`), because only collinear segments within
+`OVERLAP_TOL` can be charged and the charge is a sum, so the score — and
+every route — is identical. The suite draws a 200-entry chart both ways and
+compares every route ("the router asks only the lines a segment can share").
+A full `redrawEdges` at 600 entries went from 566 ms to 233 ms, at 200 from
+77 to 45. The obstacle half (`segIntersectsRect` over every box) is still a
+walk; it is a smaller share and the next thing to measure.
+
 - **A two-phase render — measure everything, then build the DOM — was the
   other half of this and is not worth doing.** Its whole gain was collapsing
   those forced layouts into one, and measurement is now 1–2% of a rebuild.

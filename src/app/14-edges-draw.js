@@ -114,7 +114,9 @@ let dragRouteHold = null;   // {memo: Map, moving: Set} while a drag draws
 function heldRoute(e, a, b, style, rec){
   const hold = dragRouteHold;
   if(!hold || !rec || !rec.p1 || !rec.p2) return null;
-  if(hold.moving.has(e.from) || hold.moving.has(e.to)) return null;
+  const inFrom = hold.moving.has(e.from), inTo = hold.moving.has(e.to);
+  if(inFrom && inTo) return carriedRoute(e, a, b, style, rec, hold);
+  if(inFrom || inTo) return null;
   const key = edgePairKey(e.from, e.to);
   const sig = [rec.p1.x, rec.p1.y, rec.p2.x, rec.p2.y, rec.lane || 0]
                 .map(v=> (+v).toFixed(2)).join(',') + '|' + JSON.stringify(style);
@@ -132,6 +134,36 @@ function heldRoute(e, a, b, style, rec){
   const before = routedSegments.length;
   const result = routeEdge(a, b, style, rec);
   hold.memo.set(key, {sig, result, pts: result.pts, registered: routedSegments.length > before});
+  return result;
+}
+/* …and a connector with BOTH its entries carried is carried with them.
+ *
+ * Its two ends move by the same step, so the route it had is still its
+ * route, moved by that step — and routing it again, against every other
+ * line on the chart, is by far the dearest thing a drag does: with a
+ * hundred and fifty entries picked up together the drag was re-routing a
+ * hundred and fifty connectors per frame, at a quarter of a second a
+ * frame. It is moved instead, as long as both ports moved by one and the
+ * same step and nothing about its look but its carried bends has changed;
+ * otherwise it is routed afresh. The drop redraws everything from nothing,
+ * so whatever a moved route steps over is settled there. */
+function carriedRoute(e, a, b, style, rec, hold){
+  const key = edgePairKey(e.from, e.to) + '|carried';
+  const look = JSON.stringify(Object.assign({}, style, {bends: undefined}));
+  const kept = hold.memo.get(key);
+  if(kept && kept.look === look && (rec.lane || 0) === kept.lane){
+    const dx = rec.p1.x - kept.p1.x, dy = rec.p1.y - kept.p1.y;
+    if(Math.abs(rec.p2.x - kept.p2.x - dx) < 0.01 && Math.abs(rec.p2.y - kept.p2.y - dy) < 0.01){
+      const pts = kept.pts.map(q=> ({x: q.x + dx, y: q.y + dy}));
+      if(kept.registered) registerRoutedSegments(pts);
+      const d = style.sinusoid ? wavyPath(pts, 0, 0, false, edgeCornerR(style)) : roundedPath(pts, edgeCornerR(style));
+      return {d, angleDeg: kept.result.angleDeg, pts};
+    }
+  }
+  const before = routedSegments.length;
+  const result = routeEdge(a, b, style, rec);
+  hold.memo.set(key, {look, lane: rec.lane || 0, p1: {x: rec.p1.x, y: rec.p1.y}, p2: {x: rec.p2.x, y: rec.p2.y},
+                      result, pts: result.pts.map(q=> ({x: q.x, y: q.y})), registered: routedSegments.length > before});
   return result;
 }
 function redrawEdges(){
