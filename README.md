@@ -205,9 +205,12 @@ read-only for everybody, the owner included.
    New). Homepage: the site. Callback URL:
    `https://cccarrrottt-github-io.wowwodptr2.workers.dev/callback`. Keep *Expire user
    authorization tokens* on. Webhook: off. Repository permissions:
-   **Contents — Read and write**, nothing else. Installable only on this
-   account. Generate a client secret, then **Install** it on this repository
-   only.
+   **Contents — Read and write** and **Issues — Read and write**, nothing
+   else. Installable only on this account. Generate a client secret, then
+   **Install** it on this repository only. (An app made before suggestions
+   existed has Contents alone: add Issues on the app's Permissions page, and
+   GitHub then asks the installation to accept it — until it does, the
+   service names the missing permission when somebody posts.)
 3. **Deploying.** Either of two ways, not both:
    - *From CI.* A Cloudflare API token from the *Edit Cloudflare Workers*
      template, and the account id, as the repository secrets
@@ -355,6 +358,38 @@ rather than presenting a control that fails after the click.
 One wrinkle: `.html` sits in the viewer's *extended* download set and is not always enabled. When
 it is refused, the same bytes are offered as `.html.txt` with a note to rename it — a file you
 have to rename beats no file.
+
+## Suggestions
+
+On the published site a reader can say that an entry is wrong, missing or
+not wanted: the speech-bubble button in the top bar, or the same button beside an entry's
+title. A suggestion is not kept in the chart. It becomes an **issue in this
+repository**, written under the reader's own GitHub account, which is why
+posting one asks the reader to sign in with GitHub — the same sign-in the
+owner uses, asked for as a reader's.
+
+Kept in the chart, every suggestion would be a commit: a rebuild of the
+site, and the owner's open page suddenly behind the repository and refused
+at Save. As an issue it disturbs nothing, GitHub tells the owner, and
+somebody who misuses it is blocked with GitHub's own button.
+
+- A reader's session opens the suggestions and nothing else. The write
+  service checks on every request that Save and closing a suggestion come
+  from a login in `OWNERS`, and Owner sign-in with any other account still
+  gets no session at all.
+- What makes an issue a suggestion is a marker at the end of its text,
+  naming the entry and the kind of change — not a label, because GitHub
+  drops the labels of anyone who cannot push. An ordinary issue about the
+  code is never listed, and never closed from the chart.
+- The owner sees the open suggestions in the same panel, with **Done** and
+  **Decline** (closed as completed or as not planned), and a small numbered
+  mark on every entry that has one open.
+- Off the site — a disk, claude.ai — there is no service to carry a
+  suggestion, so neither button is shown.
+
+The `COMMENTS` region is what the earlier, claude.ai-era suggestions were
+kept in. Save, Export and Import still carry it, so a chart that has some
+keeps them, but nothing writes to it any more.
 
 ## Tags and categories
 

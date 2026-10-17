@@ -712,6 +712,7 @@ function rebuildChart(){
   paintMultiSelection();
   if(bioCardNodeId && !nodes.has(bioCardNodeId)) closeBioCard();
   else drawBioCard();
+  paintSuggestionMarks();
 }
 
 /* The add button is positioned against whatever part of the canvas the

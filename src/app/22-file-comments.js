@@ -506,154 +506,162 @@ if(HOSTED){
   try{ if(localStorage.getItem(READONLY_KEY) === '1') markReadOnly(true); }catch(e){}
 }
 
-// Comments panel.
 /* ---------------------------------------------------------------------
    Suggestions.
 
-   Every suggestion is signed with a name and labelled as a correction, an
-   addition or a deletion, and the owner can relabel, resolve or remove any
-   of them. They are stored with the chart and published by the same Save
-   button as the drawing.
+   A reader who thinks an entry is wrong, missing or not wanted says so here,
+   and the suggestion becomes an issue in the chart's repository, written
+   under the reader's own GitHub account. It is not stored in the chart:
+   kept there, every suggestion would be a commit, a rebuild of the site,
+   and an owner's open page suddenly behind the repository and refused at
+   Save. The write service (worker/index.js) does the writing; this is the
+   form and the list.
 
-   One thing this panel cannot do, and says so plainly rather than
-   pretending otherwise: a reader without edit access cannot post into the
-   list. Writing to this page means publishing a new version of it, and the
-   platform only lets its owner and editors do that — no arrangement of
-   code here can change that, because the refusal happens on the server
-   side of the publish, not in this page. So a read-only reader gets the
-   next best thing: the same form, and a button that hands them their
-   suggestion already signed and labelled, ready to paste into the comment
-   thread the viewer keeps beside this page. The owner can then post it
-   into the list with one paste of their own.
+   So it exists only on the published site, where the write service is.
+   Anywhere else — a disk, claude.ai — there is nobody to carry a
+   suggestion, and the button is not shown rather than shown and failing.
+
+   A reader signs in to suggest, with the same GitHub sign-in the owner
+   uses, asked for as a reader's (`as=reader`). That session can read and
+   write suggestions and nothing else; the service checks it on every
+   request, and Save still asks for an owner. The owner sees the same list
+   with a way to close each one, and a mark on every entry that has one
+   open.
+
+   The COMMENTS region is still carried by Save, Export and Import as it
+   always was. It is what the earlier, claude.ai-era suggestions were kept
+   in, and a chart that has some keeps them; nothing here writes to it.
    ------------------------------------------------------------------ */
-const SUGGESTIONS_ENABLED = false;
 const commentsOverlay = document.getElementById('commentsOverlay');
-const commentNick = document.getElementById('commentNick');
+const commentsToggle = document.getElementById('commentsToggle');
 const commentKind = document.getElementById('commentStatus');
 const commentText = document.getElementById('commentText');
 const commentList = document.getElementById('commentList');
 const commentMsgEl = document.getElementById('commentStatusMsg');
+const suggestAbout = document.getElementById('suggestAbout');
+const suggestSignInBtn = document.getElementById('suggestSignIn');
+const suggestSubmitBtn = document.getElementById('commentSubmit');
+const suggestNote = document.getElementById('suggestNote');
+const detailSuggest = document.getElementById('detailSuggest');
 const COMMENT_KINDS = ['correction','addition','deletion'];
-const COMMENT_NICK_KEY = carryOverKey('axiomNexus.nick', 'rhizome.nick');
-let commentFilter = 'open';
+const SUGGESTIONS_ON = ON_SITE && !!SITE_API;
+/* The entry the next suggestion is about, or null for the chart as a whole. */
+let suggestEntry = null;
+let suggestBusy = false;
 
 function setCommentMsg(kind, msg){
   commentMsgEl.className = 'editor-status show ' + kind;
   commentMsgEl.textContent = msg;
 }
 function clearCommentMsg(){ commentMsgEl.className = 'editor-status'; commentMsgEl.textContent = ''; }
-
-function applyCommentEdit(mutate){
-  if(readOnlyView) return;
-  pushUndo();
-  mutate();
-  renderComments();
-  refreshSaveUI();
+function suggestionsOpen(){ return commentsOverlay.classList.contains('open'); }
+function suggestSignedIn(){ return !!(siteSession() && (siteOwner || siteReader)); }
+function entryName(id){
+  const n = id && nodes.get(id);
+  return n ? (stripMarkup(n.label || '').replace(/\s+/g, ' ').trim() || id) : null;
 }
 
-// A stable-enough id without a clock the page can rely on being unique.
-function newCommentId(){
-  let id, n = 0;
-  const taken = new Set(COMMENTS.map(c=>c.id));
-  do { id = 'c' + (Date.now().toString(36)) + (n ? '-' + n : ''); n++; } while(taken.has(id));
-  return id;
-}
-function todayStamp(){
-  const d = new Date();
-  const p = v=> String(v).padStart(2,'0');
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
-}
-
-function readComposer(){
-  const nick = commentNick.value.trim();
-  const text = commentText.value.trim();
-  const kind = COMMENT_KINDS.includes(commentKind.value) ? commentKind.value : 'correction';
-  if(!nick){ setCommentMsg('err', 'Sign it with a name first — the owner needs to know who a suggestion came from.'); return null; }
-  if(!text){ setCommentMsg('err', 'Say what should change.'); return null; }
-  try{ localStorage.setItem(COMMENT_NICK_KEY, nick); }catch(e){}
-  return {nick, text, kind};
-}
-
-/* The same bargain as the rich fields: Enter posts, Shift+Enter breaks the
-   line. A plain textarea answers Enter with a newline of its own, so the
-   default has to be taken away before the button is pressed. */
-commentText.addEventListener('keydown', ev=>{
-  if(ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
-  ev.preventDefault();
-  const btn = document.getElementById('commentSubmit');
-  commentText.blur();
-  if(btn && !btn.disabled) btn.click();
-});
-document.getElementById('commentSubmit').onclick = ()=>{
-  clearCommentMsg();
-  const c = readComposer();
-  if(!c) return;
-  applyCommentEdit(()=>{
-    COMMENTS.unshift({id:newCommentId(), nick:c.nick, kind:c.kind, at:todayStamp(), text:c.text});
-  });
-  commentText.value = '';
-  commentFilter = 'open';
-  paintCommentFilter();
-  renderComments();
-  setCommentMsg('ok', 'Added — press Save in the top bar to publish it with the chart.');
-};
-
-document.getElementById('commentCopy').onclick = async ()=>{
-  clearCommentMsg();
-  const c = readComposer();
-  if(!c) return;
-  const block = `[${c.kind.toUpperCase()}] ${c.nick}\n\n${c.text}`;
-  try{
-    await navigator.clipboard.writeText(block);
-    setCommentMsg('ok', 'Copied. Paste it into the comment thread in the viewer around this page.');
-  }catch(e){
-    // Clipboard access can be refused inside the sandboxed frame; falling
-    // back to selecting the text is better than a dead button.
-    commentText.value = block;
-    commentText.focus(); commentText.select();
-    setCommentMsg('ok', 'Selected below — copy it and paste it into the comment thread in the viewer around this page.');
+/* What the form says it is about, and what can be done from it — signed
+   in or not, and whether the service has answered yet. */
+function paintSuggestForm(){
+  const name = entryName(suggestEntry);
+  suggestAbout.textContent = '';
+  const lead = document.createElement('span');
+  lead.textContent = name ? 'About ' : 'About the chart as a whole';
+  suggestAbout.appendChild(lead);
+  if(name){
+    const b = document.createElement('b');
+    b.textContent = name;
+    const clear = document.createElement('button');
+    clear.type = 'button'; clear.className = 'editor-btn';
+    clear.textContent = 'The whole chart instead';
+    clear.onclick = ()=>{ suggestEntry = null; paintSuggestForm(); };
+    suggestAbout.append(b, clear);
   }
-};
-
-function paintCommentFilter(){
-  document.querySelectorAll('#commentFilter .editor-btn').forEach(b=>{
-    b.classList.toggle('on', b.dataset.filter === commentFilter);
-  });
+  const signed = suggestSignedIn();
+  suggestSignInBtn.hidden = signed;
+  suggestSubmitBtn.hidden = !signed;
+  suggestSubmitBtn.disabled = suggestBusy;
+  commentKind.disabled = commentText.disabled = !signed;
+  suggestNote.textContent = signed
+    ? `Posted as ${siteOwner || siteReader}, as an issue in the chart’s repository on GitHub — you can follow it there, and the owner is told.`
+    : 'Suggestions are kept as issues in the chart’s repository on GitHub, so posting one takes a GitHub account. Signing in lets you suggest and nothing else.';
 }
-document.querySelectorAll('#commentFilter .editor-btn').forEach(b=>{
-  b.addEventListener('click', ()=>{ commentFilter = b.dataset.filter; paintCommentFilter(); renderComments(); });
-});
 
-function renderComments(){
+function openSuggestions(entry){
+  if(!SUGGESTIONS_ON) return;
+  suggestEntry = entry && nodes.has(entry) ? entry : null;
+  clearCommentMsg();
+  paintSuggestForm();
+  commentsOverlay.classList.add('open');
+  loadSuggestions();
+}
+
+/* The open suggestions, from the service. Signed out there is nothing to
+   ask with — the list is read with the reader's own sign-in — so the panel
+   says so instead. */
+async function loadSuggestions(){
+  if(!SUGGESTIONS_ON) return;
+  if(!suggestSignedIn()){
+    siteSuggestions = null;
+    renderSuggestions('Sign in to see what has been suggested already.');
+    paintSuggestionMarks();
+    return;
+  }
+  let answer = null;
+  try{ answer = await siteRequest('/suggestions'); }catch(e){}
+  if(!answer){ renderSuggestions('The suggestions could not be fetched — no connection to the service.'); return; }
+  const {res, body} = answer;
+  if(res.status === 401){ forgetSiteSession(); paintSuggestForm(); renderSuggestions('Your sign-in has run out. Sign in again to see the suggestions.'); return; }
+  if(!res.ok || !body || !Array.isArray(body.suggestions)){
+    renderSuggestions((body && body.error) ? 'The service said: ' + body.error : 'The suggestions could not be fetched.');
+    return;
+  }
+  siteSuggestions = body.suggestions;
+  renderSuggestions();
+  paintSuggestionMarks();
+}
+
+/* Every string here came from a GitHub account that is not this page's
+   owner, so all of it goes in as text — none of it as markup. */
+function renderSuggestions(empty){
   commentList.innerHTML = '';
-  const shown = COMMENTS.filter(c=>
-    commentFilter === 'all' ? true : commentFilter === 'done' ? !!c.done : !c.done);
-  if(!shown.length){
+  const list = siteSuggestions || [];
+  if(empty || !list.length){
     const p = document.createElement('div');
     p.className = 'comment-empty';
-    p.textContent = commentFilter === 'done'
-      ? 'Nothing resolved yet.'
-      : COMMENTS.length ? 'Nothing open — everything here has been resolved.' : 'No suggestions yet.';
+    p.textContent = empty || 'Nothing open — no suggestions waiting.';
     commentList.appendChild(p);
     return;
   }
-  shown.forEach(c=>{
+  list.forEach(c=>{
+    const kind = COMMENT_KINDS.includes(c.kind) ? c.kind : 'correction';
     const item = document.createElement('div');
-    item.className = 'comment-item k-' + (COMMENT_KINDS.includes(c.kind) ? c.kind : 'correction') + (c.done ? ' done' : '');
+    item.className = 'comment-item k-' + kind;
 
     const head = document.createElement('div');
     head.className = 'comment-head';
     const who = document.createElement('span');
-    who.className = 'comment-who'; who.textContent = c.nick || 'anonymous';
-    const kind = document.createElement('span');
-    kind.className = 'comment-kind'; kind.textContent = c.kind || 'correction';
+    who.className = 'comment-who'; who.textContent = c.login || 'someone';
+    const kindEl = document.createElement('span');
+    kindEl.className = 'comment-kind'; kindEl.textContent = kind;
     const when = document.createElement('span');
     when.textContent = c.at || '';
-    head.append(who, kind, when);
-    if(c.done){
-      const done = document.createElement('span');
-      done.textContent = '· resolved';
-      head.appendChild(done);
+    head.append(who, kindEl, when);
+
+    const about = document.createElement('div');
+    about.className = 'comment-about';
+    const name = entryName(c.entry);
+    if(name){
+      const go = document.createElement('button');
+      go.type = 'button'; go.className = 'comment-entry';
+      go.textContent = name;
+      go.title = 'Show this entry on the chart';
+      go.onclick = ()=>{ commentsOverlay.classList.remove('open'); selectNode(c.entry); flyToNode(c.entry); };
+      about.append('About ', go);
+    } else {
+      // An entry since deleted or renamed out of existence reads as what it was.
+      about.textContent = c.entry ? `About an entry no longer on the chart (${c.entry})` : 'About the chart as a whole';
     }
 
     const body = document.createElement('div');
@@ -662,52 +670,107 @@ function renderComments(){
 
     const actions = document.createElement('div');
     actions.className = 'comment-actions';
-    const sel = document.createElement('select');
-    COMMENT_KINDS.forEach(k=>{
-      const o = document.createElement('option');
-      o.value = k; o.textContent = k;
-      sel.appendChild(o);
-    });
-    sel.value = COMMENT_KINDS.includes(c.kind) ? c.kind : 'correction';
-    sel.title = 'Relabel this suggestion';
-    sel.addEventListener('change', ()=>{
-      applyCommentEdit(()=>{ const t = COMMENTS.find(x=>x.id===c.id); if(t) t.kind = sel.value; });
-    });
-    const resolve = document.createElement('button');
-    resolve.type = 'button'; resolve.className = 'editor-btn';
-    resolve.textContent = c.done ? 'Reopen' : 'Resolve';
-    resolve.onclick = ()=>{
-      applyCommentEdit(()=>{
-        const t = COMMENTS.find(x=>x.id===c.id);
-        if(t){ if(t.done) delete t.done; else t.done = true; }
-      });
-    };
-    const del = document.createElement('button');
-    del.type = 'button'; del.className = 'editor-btn';
-    del.textContent = 'Delete';
-    del.onclick = ()=>{
-      applyCommentEdit(()=>{
-        const i = COMMENTS.findIndex(x=>x.id===c.id);
-        if(i>=0) COMMENTS.splice(i,1);
-      });
-    };
-    actions.append(sel, resolve, del);
-    item.append(head, body, actions);
+    if(/^https:\/\/github\.com\//.test(c.url || '')){
+      const link = document.createElement('a');
+      link.href = c.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      link.className = 'editor-btn'; link.textContent = 'On GitHub';
+      actions.appendChild(link);
+    }
+    if(siteOwner){
+      const done = document.createElement('button');
+      done.type = 'button'; done.className = 'editor-btn';
+      done.textContent = 'Done'; done.title = 'Close it as done';
+      done.onclick = ()=> resolveSuggestion(c, 'completed', done);
+      const no = document.createElement('button');
+      no.type = 'button'; no.className = 'editor-btn';
+      no.textContent = 'Decline'; no.title = 'Close it as not planned';
+      no.onclick = ()=> resolveSuggestion(c, 'not_planned', no);
+      actions.append(done, no);
+    }
+    item.append(head, about, body, actions);
     commentList.appendChild(item);
   });
 }
 
-document.getElementById('commentsToggle').onclick = ()=>{
-  if(!SUGGESTIONS_ENABLED) return;
-  clearCommentMsg();
+async function resolveSuggestion(c, reason, btn){
+  btn.disabled = true;
+  let answer = null;
   try{
-    const saved = localStorage.getItem(COMMENT_NICK_KEY);
-    if(saved && !commentNick.value) commentNick.value = saved;
+    answer = await siteRequest('/resolve', {method:'POST', headers:{'Content-Type':'application/json'},
+                                            body: JSON.stringify({number: c.number, reason})});
   }catch(e){}
-  paintCommentFilter();
-  renderComments();
-  commentsOverlay.classList.add('open');
+  if(!answer || !answer.res.ok){
+    btn.disabled = false;
+    setCommentMsg('err', (answer && answer.body && answer.body.error) ? 'Not closed: ' + answer.body.error : 'Not closed — no connection to the service.');
+    return;
+  }
+  siteSuggestions = (siteSuggestions || []).filter(x=> x.number !== c.number);
+  renderSuggestions();
+  paintSuggestionMarks();
+}
+
+/* The same bargain as the rich fields: Enter posts, Shift+Enter breaks the
+   line. A plain textarea answers Enter with a newline of its own, so the
+   default has to be taken away before the button is pressed. */
+commentText.addEventListener('keydown', ev=>{
+  if(ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
+  ev.preventDefault();
+  if(!suggestSubmitBtn.hidden && !suggestSubmitBtn.disabled) suggestSubmitBtn.click();
+});
+suggestSubmitBtn.onclick = async ()=>{
+  clearCommentMsg();
+  const text = commentText.value.trim();
+  const kind = COMMENT_KINDS.includes(commentKind.value) ? commentKind.value : 'correction';
+  if(!text){ setCommentMsg('err', 'Say what should change.'); return; }
+  suggestBusy = true; paintSuggestForm();
+  let answer = null;
+  try{
+    answer = await siteRequest('/suggest', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({kind, text, entry: suggestEntry, label: entryName(suggestEntry) || ''})});
+  }catch(e){}
+  suggestBusy = false;
+  if(answer && answer.res.status === 401) forgetSiteSession();
+  paintSuggestForm();
+  if(!answer){ setCommentMsg('err', 'Not posted — no connection to the service. What you wrote is still here.'); return; }
+  const {res, body} = answer;
+  if(!res.ok){ setCommentMsg('err', 'Not posted: ' + ((body && body.error) || 'the service refused it.')); return; }
+  commentText.value = '';
+  if(body && body.suggestion && body.suggestion.number) siteSuggestions = [body.suggestion].concat(siteSuggestions || []);
+  renderSuggestions();
+  paintSuggestionMarks();
+  setCommentMsg('ok', 'Posted. Thank you — the owner has been told.');
 };
+suggestSignInBtn.onclick = ()=> siteSignIn('reader');
+
+/* A small mark on every entry with something open about it, so the owner
+   sees where the suggestions are without opening the list. Drawn into a
+   layer of its own over the chart, after every rebuild, since the entries
+   it sits on may have moved. Nothing to press: the list is where they are
+   read. */
+function paintSuggestionMarks(){
+  const old = document.getElementById('suggestionLayer');
+  if(old) old.remove();
+  if(!siteSuggestions || !siteSuggestions.length) return;
+  const count = new Map();
+  siteSuggestions.forEach(c=>{ if(c.entry && nodes.has(c.entry)) count.set(c.entry, (count.get(c.entry) || 0) + 1); });
+  if(!count.size) return;
+  const layer = el('g', {id:'suggestionLayer', style:'pointer-events:none;'}, viewport);
+  count.forEach((k, id)=>{
+    const n = nodes.get(id);
+    if(nodeHidden(n)) return;
+    const g = el('g', {class:'suggestion-mark', 'data-id': id, transform:`translate(${n.x + n.w},${n.y})`}, layer);
+    el('circle', {r: 6}, g);
+    const t = el('text', {y: 3, 'text-anchor':'middle'}, g);
+    t.textContent = String(k);
+  });
+}
+
+if(SUGGESTIONS_ON){
+  commentsToggle.style.display = '';
+  if(detailSuggest) detailSuggest.hidden = false;
+}
+commentsToggle.onclick = ()=> openSuggestions(null);
+if(detailSuggest) detailSuggest.onclick = ()=> openSuggestions(selectedId);
 document.getElementById('commentsClose').onclick = ()=> commentsOverlay.classList.remove('open');
 commentsOverlay.addEventListener('click', e=>{ if(e.target===commentsOverlay) commentsOverlay.classList.remove('open'); });
 

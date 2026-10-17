@@ -13,6 +13,10 @@
  * And the one thing it does, it has to do exactly as the page and build.py
  * do it: a save of the chart as it already is changes nothing, and a save
  * of an edit changes that region and no other byte of src/data.js.
+ *
+ * Readers sign in too, to suggest — and a reader's session is the newest
+ * thing a mistake could turn into a key. So the suggestion checks are
+ * mostly what a reader still cannot do.
  */
 const fs = require('fs'), path = require('path'), nodeCrypto = require('crypto');
 
@@ -39,7 +43,10 @@ const SVC = 'https://rhizome-edit.test.workers.dev';
 /* ---- GitHub, in memory ---- */
 function fakeGitHub(){
   const gh = {blobs: new Map(), trees: new Map(), commits: new Map(), head: null,
-              users: {'tok-owner': 'TheOwner', 'tok-other': 'someone'}, refUpdates: 0, raceNext: false,
+              users: {'tok-owner': 'TheOwner', 'tok-other': 'someone', 'tok-reader': 'a-reader'}, refUpdates: 0, raceNext: false,
+              // The repository's issues, and whether the app was given the
+              // Issues permission (without it GitHub answers 403).
+              issues: [], issuesAllowed: true,
               // Refresh tokens GitHub will still take. Each is good once.
               refresh: new Set(['rt-first']), issued: 0};
   const pair = () => { const rt = 'rt-' + (++gh.issued); gh.refresh.add(rt);
@@ -67,13 +74,33 @@ function fakeGitHub(){
     }
     if(u.host === 'github.com' && u.pathname === '/login/oauth/access_token'){
       return ok(body.code === 'code-owner' ? pair()
-              : body.code === 'code-other' ? {access_token: 'tok-other'} : {error: 'bad_verification_code'});
+              : body.code === 'code-other' ? {access_token: 'tok-other'}
+              : body.code === 'code-reader' ? {access_token: 'tok-reader'} : {error: 'bad_verification_code'});
     }
     if(!gh.users[auth]) return new Response('{}', {status: 401});
     const p = u.pathname.replace('/repos/owner/site', '');
     if(p === '/user') return ok({login: gh.users[auth]});
     if(p === '/git/ref/heads/main') return ok({object: {sha: gh.head}});
     let m;
+    if(p === '/issues' || /^\/issues\/\d+$/.test(p)){
+      if(!gh.issuesAllowed) return new Response('{}', {status: 403});
+      if(p === '/issues' && method === 'GET'){
+        const n = Number(u.searchParams.get('page') || 1);
+        const open = gh.issues.filter(i => i.state === 'open').slice().reverse();
+        return ok(open.slice((n - 1) * 100, n * 100));
+      }
+      if(p === '/issues' && method === 'POST'){
+        const issue = {number: gh.issues.length + 1, state: 'open', title: body.title, body: body.body,
+                       user: {login: gh.users[auth]}, created_at: '2026-10-17T12:00:00Z',
+                       html_url: 'https://github.com/owner/site/issues/' + (gh.issues.length + 1)};
+        gh.issues.push(issue);
+        return ok(issue);
+      }
+      const issue = gh.issues[Number(p.split('/')[2]) - 1];
+      if(!issue) return new Response('{}', {status: 404});
+      if(method === 'PATCH'){ Object.assign(issue, body); return ok(issue); }
+      return ok(issue);
+    }
     if((m = /^\/git\/commits\/(.+)$/.exec(p))) return ok({tree: {sha: gh.commits.get(m[1]).tree}});
     if((m = /^\/git\/trees\/(.+)$/.exec(p))) return ok({tree: gh.trees.get(m[1])});
     if((m = /^\/git\/blobs\/(.+)$/.exec(p))){
@@ -189,6 +216,14 @@ function partsOf(text){
         r.status + ' ' + JSON.stringify(renewed));
   r = await call('/me', auth(old));
   check('the refresh token it was renewed with is not good twice', r.status === 401);
+  const lapsedReader = await w.seal(ENV, 'session', {login: 'a-reader', as: 'reader', gh: 'tok-lapsed', ghExp: Date.now() - 1000,
+                                                     rt: [...gh.refresh][0], exp: Date.now() + 86400000});
+  r = await call('/me', auth(lapsedReader));
+  body = await r.json();
+  const renewedReader = body.session ? await w.unseal(ENV, 'session', body.session) : null;
+  check('a reader\'s session renewed is still a reader\'s, and still not an owner\'s',
+        r.status === 200 && body.owner === false && !!renewedReader && renewedReader.as === 'reader' && renewedReader.login === 'a-reader',
+        r.status + ' ' + JSON.stringify(renewedReader));
   r = await call('/me', auth(s));
   body = await r.json();
   check('a session whose token is good is not renewed', r.status === 200 && !('session' in body));
@@ -238,6 +273,89 @@ function partsOf(text){
   body = await r.json();
   check('but that same save sent again on the old base — its answer lost on the way — is not a conflict',
         r.status === 200 && body.unchanged && body.sha === gitSha(after) && gh.head === headBefore, r.status + ' ' + JSON.stringify(body));
+
+  /* Suggestions. A reader signs in by asking to; the same account through
+     Owner sign-in is still turned away above. */
+  r = await call('/login?as=reader&origin=' + encodeURIComponent(SITE));
+  const rto = r.status === 302 ? new URL(r.headers.get('Location')) : null;
+  r = await call(`/callback?code=code-reader&state=${rto && rto.searchParams.get('state')}`);
+  const rhtml = await r.text();
+  const rhanded = /"rhizomeSession":"([^"]+)"/.exec(rhtml);
+  const reader = rhanded ? rhanded[1] : '';
+  const rreal = reader ? await w.unseal(ENV, 'session', reader) : null;
+  check('a reader who asks to sign in gets a session marked as a reader\'s',
+        r.status === 200 && !!rreal && rreal.login === 'a-reader' && rreal.as === 'reader', r.status + ' ' + rhtml.slice(0, 200));
+  r = await call('/login?as=reader&origin=' + encodeURIComponent(SITE));
+  const oto = new URL(r.headers.get('Location'));
+  r = await call(`/callback?code=code-owner&state=${oto.searchParams.get('state')}`);
+  const ohanded = /"rhizomeSession":"([^"]+)"/.exec(await r.text());
+  const oreal = ohanded ? await w.unseal(ENV, 'session', ohanded[1]) : null;
+  check('the owner signing in to suggest is signed in as the owner', !!oreal && oreal.login === 'TheOwner' && !oreal.as);
+
+  r = await call('/me', auth(reader));
+  body = await r.json();
+  check('/me tells a reader they are a reader, and nothing about data.js',
+        r.status === 200 && body.owner === false && body.login === 'a-reader' && !('sha' in body), JSON.stringify(body));
+  const headNow = gh.head;
+  r = await post(reader, {base: gitSha(after), parts: {...partsOf(after), REFS: partsOf(after).REFS + '\n/* a reader */'}});
+  check('a reader cannot save', r.status === 403 && gh.head === headNow);
+
+  const suggest = (tok, payload) => call('/suggest', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
+                                         'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+  r = await call('/suggestions', {headers: {Origin: SITE}});
+  check('with no session there are no suggestions to read', r.status === 401);
+  r = await suggest(await session('someone'), {kind: 'correction', text: 'x'});
+  check('nor to write, for a session that was never a reader\'s', r.status === 403 && gh.issues.length === 0);
+  r = await suggest(reader, {kind: 'complaint', text: 'x'});
+  check('a suggestion of no known kind is refused', r.status === 400 && gh.issues.length === 0);
+  r = await suggest(reader, {kind: 'addition', text: '   '});
+  check('and one that says nothing', r.status === 400 && gh.issues.length === 0);
+  r = await suggest(reader, {kind: 'addition', text: 'x'.repeat(4001)});
+  check('and one too long to be a suggestion', r.status === 413 && gh.issues.length === 0);
+
+  const oddId = 'odd --> id <!-- with "quotes"';
+  r = await suggest(reader, {kind: 'correction', text: 'The year is wrong.\n\nIt came out in 1986.', entry: oddId, label: 'Beast Wars:\n Uprising'});
+  body = await r.json();
+  const made = gh.issues[0];
+  check('a suggestion becomes an issue written by the reader',
+        r.status === 200 && !!made && made.user.login === 'a-reader' && made.title === 'Correction: Beast Wars: Uprising',
+        r.status + ' ' + JSON.stringify(made && {t: made.title, u: made.user}));
+  check('which reads on GitHub as the reader\'s words, the marker hidden after them',
+        !!made && made.body.startsWith('The year is wrong.\n\nIt came out in 1986.\n\n<!-- ') && made.body.endsWith(' -->')
+        && made.body.indexOf('-->') === made.body.length - 3, made && made.body);
+  check('and the page is told what it made, entry and all, however odd the entry\'s id',
+        body.suggestion && body.suggestion.entry === oddId && body.suggestion.kind === 'correction' && body.suggestion.mine === true
+        && body.suggestion.text === 'The year is wrong.\n\nIt came out in 1986.', JSON.stringify(body));
+  await suggest(await session('TheOwner'), {kind: 'deletion', text: 'Drop it.'});
+  // An issue about the code, and a pull request, are not suggestions.
+  gh.issues.push({number: gh.issues.length + 1, state: 'open', title: 'A bug', body: 'The build fails.', user: {login: 'someone'}});
+  gh.issues.push({number: gh.issues.length + 1, state: 'open', title: 'A PR', pull_request: {}, user: {login: 'someone'},
+                  body: made.body});
+  r = await call('/suggestions', auth(reader));
+  body = await r.json();
+  check('the list holds the suggestions and nothing else, each saying whose it is',
+        r.status === 200 && body.suggestions.length === 2 && body.owner === false
+        && body.suggestions.map(x => x.number + ':' + x.mine).join(',') === '2:false,1:true', JSON.stringify(body).slice(0, 300));
+
+  const resolveIt = (tok, payload) => call('/resolve', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
+                                           'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+  r = await resolveIt(reader, {number: 1});
+  check('a reader cannot close a suggestion, their own included', r.status === 403 && gh.issues[0].state === 'open');
+  r = await resolveIt(s, {number: 3});
+  check('the owner\'s page cannot close an issue that is not a suggestion', r.status === 400 && gh.issues[2].state === 'open');
+  r = await resolveIt(s, {number: 1, reason: 'not_planned'});
+  check('the owner closes a suggestion, saying why',
+        r.status === 200 && gh.issues[0].state === 'closed' && gh.issues[0].state_reason === 'not_planned');
+  r = await call('/suggestions', auth(s));
+  body = await r.json();
+  check('and it leaves the list', body.owner === true && body.suggestions.map(x => x.number).join() === '2');
+
+  gh.issuesAllowed = false;
+  r = await suggest(reader, {kind: 'addition', text: 'More, please.'});
+  body = await r.json();
+  check('an app without the Issues permission is named as the reason, not reported as a failure',
+        r.status === 403 && /Issues permission/.test(body.error), r.status + ' ' + JSON.stringify(body));
+  gh.issuesAllowed = true;
 
   /* The configuration. The three secrets live in Cloudflare; written into
      wrangler.toml they would be public, and would collide with the real

@@ -44,6 +44,9 @@ const ownerBtn = document.getElementById('ownerBtn');
    site has caught up is still a save on top of the first. */
 let siteBase = DATA_SHA;
 let siteOwner = null;
+/* A reader signed in to make suggestions (22-file-comments). A reader's
+   session opens nothing else; see worker/index.js. */
+let siteReader = null;
 
 function siteSession(){
   try{ return localStorage.getItem(SITE_SESSION_KEY) || null; }catch(e){ return null; }
@@ -67,6 +70,7 @@ function forgetSiteSession(){
   setSiteSession(null);
   rememberOwner(null);
   siteOwner = null;
+  siteReader = null;
   updateOwnerBtn();
 }
 function siteApiOrigin(){
@@ -113,9 +117,11 @@ function siteError(code, message){
 function updateOwnerBtn(){
   if(!ownerBtn) return;
   ownerBtn.hidden = !(ON_SITE && SITE_API);
-  ownerBtn.textContent = siteOwner ? 'Sign out' : 'Owner sign-in';
+  ownerBtn.textContent = (siteOwner || siteReader) ? 'Sign out' : 'Owner sign-in';
   ownerBtn.title = siteOwner
     ? `Signed in as ${siteOwner}. Sign out to see the chart as readers do.`
+    : siteReader
+    ? `Signed in as ${siteReader}, to make suggestions. Sign out to leave.`
     : 'Sign in with GitHub to edit this chart. Only its owner can.';
 }
 
@@ -136,7 +142,13 @@ async function checkSiteOwner(){
     if(sitePending) setSaveState('err', SITE_SIGN_IN_TO_SEND);
     return false;
   }
+  if(res.ok && me && me.owner === false && me.login){
+    siteReader = me.login;
+    updateOwnerBtn();
+    return false;
+  }
   if(!res.ok || !me || !me.owner) return false;
+  siteReader = null;
   siteOwner = me.login || 'owner';
   rememberOwner(siteOwner);
   updateOwnerBtn();
@@ -170,15 +182,19 @@ function workOffline(){
 /* A popup rather than a redirect, so that unsaved work in this tab is still
    here when the sign-in comes back — a session that expired mid-edit is
    renewed without losing the edit. A browser that refuses the popup gets
-   the redirect, which returns to this address. */
-function siteSignIn(){
-  const base = SITE_API + '/login?origin=' + encodeURIComponent(location.origin);
+   the redirect, which returns to this address. A reader signing in to
+   suggest asks for a reader's session; the service hands one out only
+   when asked, so Owner sign-in with the wrong account still gets nothing. */
+function siteSignIn(as){
+  const base = SITE_API + '/login?origin=' + encodeURIComponent(location.origin) + (as === 'reader' ? '&as=reader' : '');
   const w = window.open(base, 'rhizome-sign-in', 'width=520,height=720');
   if(w) return;
   location.href = base + '&return=' + encodeURIComponent(location.origin + location.pathname);
 }
 function siteSignOut(){
   forgetSiteSession();
+  siteSuggestions = null;
+  paintSuggestionMarks();
   markReadOnly(false);
   updateOwnerBtn();
   describeWhereItSaves();
@@ -189,7 +205,7 @@ window.addEventListener('message', ev=>{
   const token = ev.data && ev.data.rhizomeSession;
   if(typeof token !== 'string' || !token) return;
   setSiteSession(token);
-  checkSiteOwner();
+  checkSiteOwner().then(()=>{ if(suggestionsOpen()){ paintSuggestForm(); loadSuggestions(); } });
 });
 
 /* Save, when the page is on the site. The regions go as the same text the
@@ -319,7 +335,7 @@ document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible' && sitePending) siteReconnected();
 });
 
-if(ownerBtn) ownerBtn.onclick = ()=>{ if(siteOwner) siteSignOut(); else siteSignIn(); };
+if(ownerBtn) ownerBtn.onclick = ()=>{ if(siteOwner || siteReader) siteSignOut(); else siteSignIn(); };
 
 /* The redirect path hands the session back in the fragment, which never
    reaches any server. It is taken out of the address at once, so it is not
