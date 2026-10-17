@@ -2,15 +2,30 @@
 
    The published site is a static page on GitHub Pages, and a static page
    cannot be written to. This is the one place a write can go. It does three
-   things and nothing else:
+   things and nothing else: it signs people in, it saves the owner's chart,
+   and it carries readers' suggestions to the repository's issues.
 
-     GET  /login     sends the owner to GitHub to sign in
-     GET  /callback  where GitHub sends them back; hands the page a session
-     GET  /me        "who is this session, and which data.js is current?"
-     POST /save      commits the chart's regions into src/data.js
+     GET  /login        sends the owner (or, with as=reader, a reader) to
+                        GitHub to sign in
+     GET  /callback     where GitHub sends them back; hands the page a session
+     GET  /me           "who is this session, and which data.js is current?"
+     POST /save         commits the chart's regions into src/data.js
+     GET  /suggestions  the open suggestions, read from the issues
+     POST /suggest      opens an issue, as the reader who signed in
+     POST /resolve      closes one, as the owner
 
    The commit is the publish: CI builds the page from it and puts it on the
    site, the same as for any other change to the repository.
+
+   A SUGGESTION is an issue, not part of the chart. Kept in the chart, every
+   one would be a commit — a rebuild of the site, and an owner's open page
+   suddenly behind the repository and unable to save. As an issue it is
+   written under the reader's own GitHub account, GitHub notifies the owner,
+   and blocking somebody who misuses it is GitHub's own button. The issue
+   carries a marker (suggestionBody) naming the entry and the kind of
+   change; it is that marker, not a label, that makes an issue a suggestion
+   — GitHub drops the labels of anyone who cannot push, which is every
+   reader.
 
    WHO MAY WRITE is decided twice, and neither time by the page. Here, the
    GitHub account that signed in has to be one of OWNERS. And the commit is
@@ -18,6 +33,13 @@
    service signs in through — so GitHub itself refuses it unless the account
    can push to the repository AND the app is installed on it with Contents
    write. Nothing the page does or says can change either answer.
+
+   A READER who signs in to suggest gets a session too, marked as a
+   reader's. It opens /me, /suggestions and /suggest and nothing else:
+   /save and /resolve ask for an owner on every request, as they always did,
+   and a reader's token could not write the file anyway. Signing in through
+   Owner sign-in with an account that is not an owner still gets no session
+   at all — a reader's session is only handed out when it was asked for.
 
    A SESSION is the GitHub token, encrypted with SESSION_SECRET (AES-GCM,
    which also makes it tamper-evident) together with the login and an
@@ -55,6 +77,14 @@ const STATE_MINUTES = 10;
 // The page is ~2.5 MB with its pictures inlined; this is room for growth
 // without being an invitation to post anything at all.
 const MAX_BODY = 25 * 1024 * 1024;
+// What a suggestion may say. A paragraph or three is a suggestion; past
+// this it is an essay, and the issue is still there to write it in.
+const SUGGESTION_KINDS = ['correction', 'addition', 'deletion'];
+const MAX_SUGGESTION = 4000;
+const SUGGESTION_MARK = 'rhizome-suggestion:';
+// Issues read per /suggestions, a hundred to a page. The open ones come
+// newest first, so this is the newest three hundred open issues.
+const SUGGESTION_PAGES = 3;
 
 const enc = new TextEncoder(), dec = new TextDecoder();
 
@@ -153,7 +183,7 @@ export async function blobSha(text){
 
 function httpError(status, message){ const e = new Error(message); e.status = status; return e; }
 
-async function gh(token, path, init){
+async function gh(token, path, init, refused){
   const res = await fetch('https://api.github.com' + path, Object.assign({}, init, {
     headers: Object.assign({
       'Accept': 'application/vnd.github+json',
@@ -163,7 +193,7 @@ async function gh(token, path, init){
     }, init && init.body ? {'Content-Type': 'application/json'} : {})
   }));
   if(res.status === 401) throw httpError(401, 'GitHub no longer accepts this sign-in.');
-  if(res.status === 403 || res.status === 404) throw httpError(403, 'GitHub refused: this account or app cannot write to the repository.');
+  if(res.status === 403 || res.status === 404) throw httpError(403, refused || 'GitHub refused: this account or app cannot write to the repository.');
   if(!res.ok) throw httpError(502, `GitHub answered ${res.status} to ${path.split('?')[0]}.`);
   return res.json();
 }
@@ -237,13 +267,14 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;',
 
 /* What a session holds, from what GitHub answered — to a sign-in or to a
    renewal, which answer in the same shape. */
-export function sessionValue(login, got){
+export function sessionValue(login, got, as){
   const now = Date.now();
   const ghExp = now + (Number(got.expires_in) || SESSION_HOURS * 3600) * 1000;
-  if(!got.refresh_token) return {login, gh: got.access_token, exp: Math.min(ghExp, now + SESSION_HOURS * 3600000)};
+  const who = as === 'reader' ? {login, as} : {login};
+  if(!got.refresh_token) return Object.assign(who, {gh: got.access_token, exp: Math.min(ghExp, now + SESSION_HOURS * 3600000)});
   const rtExp = now + (Number(got.refresh_token_expires_in) || SESSION_DAYS * 86400) * 1000;
-  return {login, gh: got.access_token, ghExp, rt: got.refresh_token,
-          exp: Math.min(rtExp, now + SESSION_DAYS * 86400000)};
+  return Object.assign(who, {gh: got.access_token, ghExp, rt: got.refresh_token,
+          exp: Math.min(rtExp, now + SESSION_DAYS * 86400000)});
 }
 
 /* A refresh token is good for one renewal: GitHub hands a new one with the
@@ -260,33 +291,42 @@ async function renew(env, s, ctx){
   });
   const got = res.ok ? await res.json() : null;
   if(!got || !got.access_token) throw httpError(401, 'the sign-in has run out.');
-  const next = sessionValue(s.login, got);
+  const next = sessionValue(s.login, got, s.as);
   ctx.session = await seal(env, 'session', next);
   return next;
 }
 
-async function session(env, request, ctx){
+function isOwner(env, login){
+  return list(env.OWNERS).map(x => x.toLowerCase()).indexOf(String(login).toLowerCase()) >= 0;
+}
+
+/* `who` is what the request needs: 'owner', or 'reader' for the three
+   things a reader may do. The answer carries `owner`, worked out here and
+   never taken from the session — the session only says it was a reader's. */
+async function session(env, request, ctx, who){
   const m = /^Bearer\s+(.+)$/.exec(request.headers.get('Authorization') || '');
   const s = m && await unseal(env, 'session', m[1]);
   if(!s) throw httpError(401, 'not signed in.');
   // Checked again on every request, so taking a login out of OWNERS takes
   // effect at once rather than when its sessions run out.
-  if(list(env.OWNERS).map(x => x.toLowerCase()).indexOf(String(s.login).toLowerCase()) < 0){
+  const owner = isOwner(env, s.login);
+  if(!owner && !(who === 'reader' && s.as === 'reader')){
     throw httpError(403, 'this account may not edit the chart.');
   }
-  if(s.rt && typeof s.ghExp === 'number' && s.ghExp - RENEW_MARGIN < Date.now()) return renew(env, s, ctx);
-  return s;
+  const live = (s.rt && typeof s.ghExp === 'number' && s.ghExp - RENEW_MARGIN < Date.now()) ? await renew(env, s, ctx) : s;
+  return Object.assign({}, live, {owner});
 }
 
 async function login(env, url){
   const origin = url.searchParams.get('origin') || '';
   const back = url.searchParams.get('return') || '';
+  const as = url.searchParams.get('as') === 'reader' ? 'reader' : 'owner';
   // Where the session is going to be handed has to be the site. Anything
   // else would be an open door: a link to /login?origin=elsewhere would
   // deliver the owner's session to whoever wrote the link.
   if(list(env.ALLOWED_ORIGINS).indexOf(origin) < 0) return page('<p>This sign-in is only for the chart\'s own site.</p>', 400);
   if(back && back !== origin && back.indexOf(origin + '/') !== 0) return page('<p>That return address is not the chart\'s site.</p>', 400);
-  const state = await seal(env, 'state', {origin, back, exp: Date.now() + STATE_MINUTES * 60000});
+  const state = await seal(env, 'state', {origin, back, as, exp: Date.now() + STATE_MINUTES * 60000});
   const to = new URL('https://github.com/login/oauth/authorize');
   to.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
   to.searchParams.set('redirect_uri', url.origin + '/callback');
@@ -307,10 +347,13 @@ async function callback(env, url){
   const got = res.ok ? await res.json() : null;
   if(!got || !got.access_token) return page('<p>GitHub did not complete the sign-in. Close this window and try again.</p>', 502);
   const user = await gh(got.access_token, '/user');
-  if(list(env.OWNERS).map(x => x.toLowerCase()).indexOf(String(user.login).toLowerCase()) < 0){
+  const owner = isOwner(env, user.login);
+  if(!owner && state.as !== 'reader'){
     return page(`<p>Signed in as ${esc(user.login)}, who is not this chart's owner. Nothing was changed; you can close this window.</p>`, 403);
   }
-  const token = await seal(env, 'session', sessionValue(user.login, got));
+  // An owner who signs in to suggest is signed in as the owner: there is
+  // nothing a reader's session could do that theirs cannot.
+  const token = await seal(env, 'session', sessionValue(user.login, got, owner ? undefined : 'reader'));
   // Opened as a popup: hand the session to the page that opened it, and
   // only if that page is the site. Opened as a redirect: go back to the
   // site with the session in the fragment, which never reaches a server.
@@ -324,13 +367,14 @@ async function callback(env, url){
 }
 
 async function me(env, request, ctx){
-  const s = await session(env, request, ctx);
+  const s = await session(env, request, ctx, 'reader');
+  if(!s.owner) return {owner: false, login: s.login};
   const now = await currentData(env, s.gh);
   return {owner: true, login: s.login, sha: now.sha};
 }
 
 async function save(env, request, ctx){
-  const s = await session(env, request, ctx);
+  const s = await session(env, request, ctx, 'owner');
   const size = Number(request.headers.get('Content-Length') || 0);
   if(size > MAX_BODY) throw httpError(413, 'the chart is too large to save.');
   let body;
@@ -354,6 +398,83 @@ async function save(env, request, ctx){
   return commitData(env, s.gh, now, next, s.login);
 }
 
+/* ---- suggestions ----------------------------------------------------- */
+
+/* The marker goes last, as an HTML comment, so GitHub shows the issue as
+   the words the reader wrote and nothing else. What it names is URI-encoded
+   JSON: an entry id comes from the chart's own content and can hold
+   anything, and encoded it cannot close the comment it sits in. */
+export function suggestionBody(text, entry, kind){
+  return text + '\n\n<!-- ' + SUGGESTION_MARK + encodeURIComponent(JSON.stringify({entry: entry || null, kind})) + ' -->';
+}
+/* An issue as the page wants it, or null when it is not a suggestion. The
+   last marker counts: the one this service wrote is at the end, and one a
+   reader typed into their own words could only ever relabel their own. */
+export function readSuggestion(issue){
+  if(!issue || issue.pull_request || typeof issue.body !== 'string') return null;
+  const at = issue.body.lastIndexOf('<!-- ' + SUGGESTION_MARK);
+  if(at < 0) return null;
+  const end = issue.body.indexOf(' -->', at);
+  let mark;
+  try{ mark = JSON.parse(decodeURIComponent(issue.body.slice(at + 5 + SUGGESTION_MARK.length, end < 0 ? undefined : end))); }
+  catch(e){ return null; }
+  if(!mark || SUGGESTION_KINDS.indexOf(mark.kind) < 0) return null;
+  return {number: issue.number, kind: mark.kind, entry: typeof mark.entry === 'string' ? mark.entry : null,
+          text: issue.body.slice(0, at).replace(/\s+$/, ''), login: issue.user && issue.user.login,
+          at: String(issue.created_at || '').slice(0, 10), url: issue.html_url};
+}
+
+async function suggestions(env, request, ctx){
+  const s = await session(env, request, ctx, 'reader');
+  const out = [];
+  for(let n = 1; n <= SUGGESTION_PAGES; n++){
+    const got = await gh(s.gh, `/repos/${env.REPO}/issues?state=open&per_page=100&page=${n}`, undefined,
+                         'GitHub refused: the sign-in app may not read this repository\'s issues.');
+    for(const issue of got){
+      const one = readSuggestion(issue);
+      if(one) out.push(Object.assign(one, {mine: String(one.login).toLowerCase() === String(s.login).toLowerCase()}));
+    }
+    if(got.length < 100) break;
+  }
+  return {owner: s.owner, login: s.login, suggestions: out};
+}
+
+async function suggest(env, request, ctx){
+  const s = await session(env, request, ctx, 'reader');
+  let body;
+  try{ body = await request.json(); }catch(e){ throw httpError(400, 'the suggestion is not JSON.'); }
+  const text = body && typeof body.text === 'string' ? body.text.trim() : '';
+  if(!body || SUGGESTION_KINDS.indexOf(body.kind) < 0) throw httpError(400, 'a suggestion is a correction, an addition or a deletion.');
+  if(!text) throw httpError(400, 'the suggestion says nothing.');
+  if(text.length > MAX_SUGGESTION) throw httpError(413, `a suggestion is at most ${MAX_SUGGESTION} characters.`);
+  const entry = typeof body.entry === 'string' && body.entry ? body.entry.slice(0, 300) : null;
+  // The entry's name is only for the title, so the issue list reads well on
+  // GitHub: one line, and short enough to be a title.
+  const label = String(typeof body.label === 'string' ? body.label : '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const kind = body.kind[0].toUpperCase() + body.kind.slice(1);
+  const issue = await gh(s.gh, `/repos/${env.REPO}/issues`, {method: 'POST', body: JSON.stringify({
+    title: `${kind}: ${entry && label ? label : 'the chart'}`,
+    body: suggestionBody(text, entry, body.kind)
+  })}, 'GitHub refused: the sign-in app may not open issues here. It needs the Issues permission.');
+  return {suggestion: Object.assign(readSuggestion(issue) || {}, {mine: true})};
+}
+
+async function resolve(env, request, ctx){
+  const s = await session(env, request, ctx, 'owner');
+  let body;
+  try{ body = await request.json(); }catch(e){ throw httpError(400, 'the request is not JSON.'); }
+  const number = body && Number(body.number);
+  if(!Number.isInteger(number) || number < 1) throw httpError(400, 'which suggestion?');
+  const reason = body.reason === 'not_planned' ? 'not_planned' : 'completed';
+  const path = `/repos/${env.REPO}/issues/${number}`;
+  // Looked at first, so a page holding the wrong number closes nothing that
+  // is not a suggestion — an issue about the code included.
+  if(!readSuggestion(await gh(s.gh, path))) throw httpError(400, 'that issue is not a suggestion.');
+  await gh(s.gh, path, {method: 'PATCH', body: JSON.stringify({state: 'closed', state_reason: reason})},
+           'GitHub refused: the sign-in app may not close issues here. It needs the Issues permission.');
+  return {closed: number, reason};
+}
+
 export default {
   async fetch(request, env){
     const url = new URL(request.url);
@@ -368,6 +489,9 @@ export default {
       if(request.method === 'GET' && url.pathname === '/callback') return await callback(env, url);
       if(request.method === 'GET' && url.pathname === '/me') return json(withSession(await me(env, request, ctx)), 200, h);
       if(request.method === 'POST' && url.pathname === '/save') return json(withSession(await save(env, request, ctx)), 200, h);
+      if(request.method === 'GET' && url.pathname === '/suggestions') return json(withSession(await suggestions(env, request, ctx)), 200, h);
+      if(request.method === 'POST' && url.pathname === '/suggest') return json(withSession(await suggest(env, request, ctx)), 200, h);
+      if(request.method === 'POST' && url.pathname === '/resolve') return json(withSession(await resolve(env, request, ctx)), 200, h);
       return json({error: 'not found'}, 404, h);
     }catch(e){
       const status = e.status || 500;
