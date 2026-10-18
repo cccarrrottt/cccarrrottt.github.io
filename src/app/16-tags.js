@@ -1058,8 +1058,8 @@ function buildTagRow(tag, catName){
   /* A ground has no colour to give its entries, but it is drawn in two of
      its own — the ruling and the light that crosses it — and those are the
      author's to choose. Two squares where the tag's one would be, in front
-     of the name as every tag's square is, and at the end of the row, by
-     the ✕, a button that puts both back. Every row keeps room for both
+     of the name as every tag's square is, and after the name, before the
+     count, a button that puts both back. Every row keeps room for both
      — two squares' width in front, a button's width at the end — so the
      names, the counts and the ✕ each stand in one column whether a row
      has a ground's controls or not. The button stays when there is
@@ -1094,11 +1094,11 @@ function buildTagRow(tag, catName){
     });
     const slot = row.querySelector('.swatch-none');
     if(slot) slot.replaceWith(box); else row.insertBefore(box, row.querySelector('.name'));
-    row.appendChild(reset);
+    row.insertBefore(reset, row.querySelector('.count'));
   } else if(!readOnlyView){
     const room = document.createElement('span');
     room.className = 'ground-reset-room';
-    row.appendChild(room);
+    row.insertBefore(room, row.querySelector('.count'));
   }
   /* The Untagged bucket is not a tag anyone wrote — it is where entries
      with no tags at all show up — so it cannot be filed or deleted. Nor

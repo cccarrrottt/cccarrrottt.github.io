@@ -721,6 +721,6 @@ function rebuildChart(){
    it read as handled, and doing nothing: resize a window with the drawer
    open and the control sat where the old edge used to be, under it. */
 window.addEventListener('resize', ()=> updateAddFabPosition());
-fitToView();
+openingView();
 applyVisibility();
 

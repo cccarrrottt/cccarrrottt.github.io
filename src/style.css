@@ -1155,6 +1155,9 @@
   /* Closer set than other lists: a tag row carries two more columns. */
   #tagsList .legend-item{gap:5px;}
   .legend-item .ground-reset-room{flex:0 0 16px;}
+  /* The count is a column of its own, right-aligned, so a one-digit count
+     and a three-digit one end in the same place. */
+  #tagsList .legend-item .count{flex:0 0 3ch;text-align:right;}
   .legend-item .ground-default{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .legend-item .ground-reset{
     flex:0 0 16px;width:16px;height:16px;padding:0;line-height:1;font-size:11px;
@@ -1685,7 +1688,8 @@
   .swatch-strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:16px;}
   .field-with-reset .swatch-strip{flex:1;min-width:0;}
   .swatch-chip{
-    width:16px;height:16px;border-radius:4px;border:1px solid var(--line);flex:0 0 auto;
+    width:11px;height:11px;border-radius:2.5px;flex:0 0 auto;box-sizing:border-box;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;
   }
 
   /* ---------- The round + in the corner ----------
@@ -1775,6 +1779,12 @@
     transition:left 180ms ease;
   }
   body.side-tab-open .coord{left:300px;}
+  .coord{display:flex;align-items:center;gap:7px;}
+  .coord .coord-home{
+    padding:0;margin:-3px -4px -3px 0;width:18px;height:18px;line-height:1;font-size:13px;
+    background:none;border:none;color:var(--ink-faint);cursor:pointer;
+  }
+  .coord .coord-home:hover{color:var(--accent);}
 
   .about-overlay{
     position:absolute;inset:0;z-index:80;
@@ -2348,7 +2358,6 @@
      row beside the choice, with the gradient's switch after them. */
   .style-colors{display:flex;align-items:center;gap:2px;flex:0 0 auto;}
   .style-colors[hidden]{display:none;}
-  .edge-popover .hex-square.hex-square{width:18px;height:18px;}
   .style-colors .style-grad{flex:0 0 auto;width:24px;height:24px;padding:0;margin-left:3px;line-height:1;}
   .style-colors .style-grad.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
   .style-colors .style-grad:disabled{opacity:0.4;cursor:default;}
@@ -2748,7 +2757,7 @@
   [hidden]{display:none !important;}
 
   /* An unset border colour: an empty square in the swatch row. */
-  .swatch-blank{background:transparent !important;border-style:dashed;}
+  .swatch-blank{background:transparent !important;box-shadow:none;border:1px dashed var(--ink-faint);}
 
   /* Item: formatting must not reach an atomic token.
      The serializer already keeps wrappers from enclosing one, but while
@@ -3019,9 +3028,12 @@
   /* Doubled for the same reason, and box-sizing set outright: on a toolbar
      `.mini-toolbar button` gives every button padding of 9px a side, which
      made this square a bar. */
+  /* The same square as a tag's in the Tags drawer (.legend-item .swatch):
+     its size, its corners, its hairline — one look for a colour wherever
+     it is set. */
   .hex-square.hex-square{
-    flex:0 0 auto;width:14px;height:14px;padding:0;margin:0 2px;cursor:pointer;
-    border:none;border-radius:3px;background:var(--panel-2);box-sizing:border-box;
+    flex:0 0 auto;width:11px;height:11px;padding:0;margin:0 3px;cursor:pointer;
+    border:none;border-radius:2.5px;background:var(--panel-2);box-sizing:border-box;
     box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;vertical-align:middle;
   }
   .hex-square.hex-square:hover:not(:disabled){box-shadow:0 0 0 1.5px var(--accent);}
@@ -3029,7 +3041,7 @@
     border:1px dashed var(--ink-faint);}
   .hex-square.hex-square:disabled{opacity:0.3;cursor:default;}
   .style-bar .hex-square.hex-square,
-  .mini-toolbar .hex-square.hex-square{width:18px;height:18px;align-self:center;}
+  .mini-toolbar .hex-square.hex-square{align-self:center;}
   input.hex-box.hex-box{
     flex:0 0 74px;width:74px;height:20px;cursor:text;box-sizing:border-box;
     background:var(--panel-2);border:1px solid var(--accent);color:var(--ink);
@@ -3041,6 +3053,6 @@
   input.hex-box.hex-box:focus{outline:none;}
   input.hex-box.hex-box.bad{background-color:rgba(194,59,34,0.08);}
   .swatch-strip .swatch-pick{cursor:pointer;}
-  .swatch-strip .swatch-pick:hover{border-color:var(--accent);}
-  .swatch-strip .swatch-blank.swatch-pick:hover{border-style:dashed;}
+  .swatch-strip .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
+  .swatch-strip .swatch-blank.swatch-pick:hover{border-color:var(--accent);box-shadow:none;}
   .key-own-colour{display:flex;align-items:center;}
