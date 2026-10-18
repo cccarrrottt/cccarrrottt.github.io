@@ -38,10 +38,50 @@ const PENALTY_BEND = 22;       // each extra corner
 // Segments of every connector routed so far this pass. redrawEdges() clears
 // this before it starts, so it only ever describes the picture being drawn.
 let routedSegments = [];
-function resetRoutedSegments(){ routedSegments = []; }
+/* …and the same segments filed by the line they lie on.
+ *
+ * scorePath asked every candidate segment about every segment already
+ * routed, and the list grows as the chart is drawn: quadratic, and at
+ * six hundred entries the larger half of a whole redraw. But the only
+ * segments that can be charged are ones lying along the same line, within
+ * OVERLAP_TOL — a vertical one beside a vertical one, a horizontal one
+ * beside a horizontal one. Anything at an angle, and anything of no
+ * length, shares nothing with anything (segmentsOverlap answers 0 for
+ * them). So the routed segments are filed by orientation and by the line
+ * they stand on, in bands wider than the tolerance either side, and a
+ * candidate is asked only about the two bands its line can reach. Every
+ * segment that could be charged is still asked, by the same test, and the
+ * charge is a sum, so the order they are asked in does not matter: the
+ * score comes out the same to the last unit, and so does every route. */
+const ROUTED_BAND = 8;
+let routedByLine = {v: new Map(), h: new Map()};
+function resetRoutedSegments(){ routedSegments = []; routedByLine = {v: new Map(), h: new Map()}; }
+function routedLineOf(seg){
+  const vert = Math.abs(seg.x1-seg.x2) < 0.5, horz = Math.abs(seg.y1-seg.y2) < 0.5;
+  if(vert === horz) return null;    // a point, or a slant: overlaps nothing
+  return vert ? {map: 'v', at: seg.x1} : {map: 'h', at: seg.y1};
+}
 function registerRoutedSegments(pts){
   for(let i=0;i<pts.length-1;i++){
-    routedSegments.push({x1:pts[i].x, y1:pts[i].y, x2:pts[i+1].x, y2:pts[i+1].y});
+    const seg = {x1:pts[i].x, y1:pts[i].y, x2:pts[i+1].x, y2:pts[i+1].y};
+    routedSegments.push(seg);
+    const line = routedLineOf(seg);
+    if(!line) continue;
+    const band = Math.floor(line.at / ROUTED_BAND), map = routedByLine[line.map];
+    if(!map.has(band)) map.set(band, []);
+    map.get(band).push(seg);
+  }
+}
+// Every routed segment that could share a line with this one.
+function routedNear(seg, visit){
+  const line = routedLineOf(seg);
+  if(!line) return;
+  const map = routedByLine[line.map];
+  const lo = Math.floor((line.at - OVERLAP_TOL) / ROUTED_BAND);
+  const hi = Math.floor((line.at + OVERLAP_TOL) / ROUTED_BAND);
+  for(let band = lo; band <= hi; band++){
+    const list = map.get(band);
+    if(list) for(const other of list) visit(other);
   }
 }
 // Two axis-aligned segments "overlap" when they're collinear on the same
@@ -89,12 +129,12 @@ function scorePath(pts, obstacles){
       if(segIntersectsRect(a.x,a.y,b.x,b.y,rect)) score += PENALTY_NODE;
     }
     const seg = {x1:a.x,y1:a.y,x2:b.x,y2:b.y};
-    for(const other of routedSegments){
+    routedNear(seg, other=>{
       const shared = segmentsOverlap(seg, other);
       // Short shared stretches (a few px where two lanes graze) aren't worth
       // reshaping a whole connector over.
       if(shared > 8) score += PENALTY_OVERLAP;
-    }
+    });
   }
   return score;
 }

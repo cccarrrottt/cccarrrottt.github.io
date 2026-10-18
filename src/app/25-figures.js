@@ -645,6 +645,7 @@ function openHexBox(anchor, o){
   const finish = keep=>{
     if(done) return;
     done = true;
+    if(openHexBox.current && openHexBox.current.box === box) openHexBox.current = null;
     const v = box.value.trim();
     if(box.isConnected) box.replaceWith(anchor);
     if(keep && (v === '' || HEX_RE.test(v))) o.onCommit(v || null);
@@ -659,6 +660,7 @@ function openHexBox(anchor, o){
     if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
   });
   box.addEventListener('blur', ()=> finish(true));
+  openHexBox.current = {box, close: keep=> finish(keep)};
   box.focus();
   box.select();
   return box;
@@ -695,6 +697,9 @@ function squareForHexInput(input, o){
   const isOpen = ()=> !input.classList.contains('hex-shut');
   const open = ()=>{
     if(isOpen()) return;
+    const cur = openHexBox.current;
+    if(cur && cur.box !== input) cur.close(true);
+    openHexBox.current = {box: input, close: keep=> close(keep)};
     was = input.value;
     sq.classList.add('hex-shut');
     input.classList.remove('hex-shut');
@@ -703,6 +708,10 @@ function squareForHexInput(input, o){
   };
   const close = keep=>{
     if(!isOpen()) return;
+    if(openHexBox.current && openHexBox.current.box === input) openHexBox.current = null;
+    // Kept only when it is a colour, or empty; anything else is put back.
+    const v = input.value.trim();
+    if(keep && v !== '' && !HEX_RE.test(v)) keep = false;
     if(!keep && was !== null && input.value !== was){
       input.value = was;
       input.dispatchEvent(new Event('input', {bubbles:true}));
@@ -744,6 +753,59 @@ function squareForHexInput(input, o){
   paint();
   return rec;
 }
+/* One code open at a time. Pressing another square while a code is being
+ * typed keeps that code — when it is a colour — and opens the square that
+ * was pressed.
+ *
+ * Left to the browser, the press took focus from the open box, the box
+ * committed on its blur, and the commit redrew the list the pressed square
+ * stood in — so by the time the click came the square it was meant for was
+ * gone, and the press only closed the box. Here the press is taken before
+ * it can move focus: the open code is kept, the square is found again in
+ * whatever was drawn in its place (by its path from the nearest element
+ * with an id, which a redraw keeps), and opened. The click that follows is
+ * swallowed — it has already been answered. */
+function pathToSquare(el){
+  const steps = [];
+  let at = el;
+  while(at && at.parentElement && !at.id){
+    steps.unshift(Array.prototype.indexOf.call(at.parentElement.children, at));
+    at = at.parentElement;
+  }
+  const root = at && at.id ? at.id : null;
+  return ()=>{
+    let n = root ? document.getElementById(root) : null;
+    for(const i of steps){ if(!n) return null; n = n.children[i]; }
+    return n;
+  };
+}
+const HEX_SQUARE_SEL = '.hex-square, .swatch-pick';
+document.addEventListener('pointerdown', ev=>{
+  const cur = openHexBox.current;
+  const sq = cur && ev.target.closest && ev.target.closest(HEX_SQUARE_SEL);
+  if(!sq || sq.disabled) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const find = pathToSquare(sq);
+  cur.close(true);
+  const again = find();
+  if(again && again.matches(HEX_SQUARE_SEL)){
+    const field = again.classList.contains('hex-square') ? again.nextElementSibling : null;
+    if(field && field._hexSquare) field._hexSquare.open();
+    else again.click();
+  }
+  /* Only after the square was opened, or this would swallow that click;
+     and only the click of THIS press — a press that ended somewhere else
+     brings no click, and the next press's click is its own. */
+  const swallow = e=>{ e.stopPropagation(); e.preventDefault(); drop(); };
+  const drop = ()=>{
+    document.removeEventListener('click', swallow, {capture: true});
+    document.removeEventListener('pointerdown', drop, {capture: true});
+  };
+  document.addEventListener('click', swallow, {capture: true});
+  setTimeout(()=> document.addEventListener('pointerdown', drop, {capture: true}), 0);
+  setTimeout(drop, 600);
+}, true);
 /* The square follows its field: repainted after the field was written to
    by the program, and shown or hidden with it. */
 function paintHexSquare(input){
@@ -788,7 +850,7 @@ function wireSwatchStrip(inputId, stripId){
       const ok = HEX_RE.test(c);
       chip.style.background = ok ? c : 'transparent';
       chip.title = (ok ? c : c + ' — not a valid hex color') + '; press to change, empty to remove';
-      if(!ok) chip.style.borderColor = 'var(--accent)';
+      if(!ok) chip.style.boxShadow = '0 0 0 1px var(--accent) inset';
       chip.addEventListener('mousedown', ev=> ev.stopPropagation());
       chip.addEventListener('click', ev=>{
         ev.stopPropagation();
@@ -884,7 +946,7 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
 /* Black, like every other "no colour set yet" field on the chart. The old
    default was the accent, which meant the box always suggested a change. */
 const DEFAULT_TEXT_COLOR = '#20242b';
-document.querySelectorAll('.tb-hex').forEach(box=>{
+document.querySelectorAll('.tb-hex[data-hex-for]').forEach(box=>{
   const paint = ()=>{
     const v = box.value.trim();
     const ok = HEX_RE.test(v);
@@ -916,19 +978,6 @@ document.querySelectorAll('.tb-hex').forEach(box=>{
     paintHeldSelection(null); });
   box.addEventListener('click', ev=> ev.stopPropagation());
 
-  /* Pressing the swatch is what applies the colour — the separate "A"
-     button beside it is gone. The swatch is the leftmost 18px of the box;
-     anywhere else is the text field, so a value can still be typed. */
-  box.addEventListener('mousedown', ev=>{
-    const onSwatch = (ev.clientX - box.getBoundingClientRect().left) < 18;
-    if(!onSwatch) return;               // let the caret land in the text
-    /* Not preventing the default here would move focus into this box and
-       collapse the selection in the text being coloured — which is the
-       whole thing the colour is meant to apply to. */
-    ev.preventDefault();
-    ev.stopPropagation();
-    applyHexFromBox(box, box.value.trim());
-  });
   /* Focusing the hex box must not throw away the selection either: a value
      is often typed AFTER choosing the words it is for. The surface's own
      selection is remembered on the way in and restored on the way out. */
