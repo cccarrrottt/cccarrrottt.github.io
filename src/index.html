@@ -104,6 +104,7 @@
       <div class="detail-head">
         <div class="swatch" id="detailSwatch"></div>
         <h2 id="detailTitle">—</h2>
+        <button class="detail-edit-btn" id="detailSuggest" title="Suggest a change to this entry" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg></button>
         <button class="detail-edit-btn" id="detailEditToggle" title="Edit this entry">✎</button>
         <button class="detail-close" id="detailClose">✕</button>
       </div>
@@ -338,10 +339,10 @@
       </div>
     </div>
 
-    <!-- Suggestions are switched off for now: SUGGESTIONS_ENABLED below
-         hides the entry point and the panel. Everything they need — the
-         COMMENTS data region, the list, the moderation controls — is left
-         in place so turning them back on is one flag. -->
+    <!-- Suggestions: a reader's word on an entry, kept as an issue in the
+         chart's repository rather than in the chart. Only on the published
+         site, where the write service is that carries it there; the button
+         that opens this is shown by 22-file-comments.js. -->
     <div class="about-overlay" id="commentsOverlay">
       <div class="about-card comments-card">
         <div class="detail-head" style="border-bottom:1px solid var(--line);">
@@ -351,29 +352,23 @@
         <div class="about-body">
 
           <div class="comment-compose">
+            <div class="comment-about" id="suggestAbout"></div>
             <div class="comment-compose-row">
-              <input id="commentNick" type="text" maxlength="28" placeholder="Your name" title="Signed on the suggestion so the owner knows who it came from">
               <select id="commentStatus" title="What kind of change this is">
                 <option value="correction">Correction</option>
                 <option value="addition">Addition</option>
                 <option value="deletion">Deletion</option>
               </select>
             </div>
-            <textarea id="commentText" rows="3" placeholder="What should change, and why?" spellcheck="false"></textarea>
+            <textarea id="commentText" rows="3" maxlength="4000" placeholder="What should change, and why?" spellcheck="false"></textarea>
             <div class="editor-status" id="commentStatusMsg"></div>
             <div class="comment-compose-row">
-              <button type="button" class="editor-btn primary" id="commentSubmit">Post</button>
-              <button type="button" class="editor-btn" id="commentCopy">Copy for the comment thread</button>
+              <button type="button" class="editor-btn primary" id="commentSubmit" hidden>Post</button>
+              <button type="button" class="editor-btn primary" id="suggestSignIn">Sign in with GitHub to suggest</button>
             </div>
-            <p class="comment-note" id="commentViewerNote">This chart is read-only for you, and a page like this one can only be written to by its owner — so a suggestion typed here cannot save itself into the chart. Write it above, press <b>Copy for the comment thread</b>, and paste it into the comment control in the viewer around this page; it arrives already signed and labelled, and the owner can post it into the list below.</p>
-            <p class="comment-note" id="commentOwnerNote">You own this chart, so <b>Post</b> adds a suggestion to the list straight away. It is stored with the chart and published the next time you press Save.</p>
+            <p class="comment-note" id="suggestNote"></p>
           </div>
 
-          <div class="comment-filter" id="commentFilter">
-            <button type="button" class="editor-btn on" data-filter="open">Open</button>
-            <button type="button" class="editor-btn" data-filter="done">Resolved</button>
-            <button type="button" class="editor-btn" data-filter="all">All</button>
-          </div>
           <div class="comment-list" id="commentList"></div>
         </div>
       </div>

@@ -408,11 +408,13 @@ async function main(){
     check(`panel opens, and Escape shuts it: ${panel}`, ok === true, ok === true ? '' : String(ok));
   }
 
-  /* Suggestions were switched off by request, so the comments button is
-     deliberately inert. Assert the deliberate part, not the opening. */
-  check('comments stay switched off', await page.evaluate(async () => {
-    if(eval('SUGGESTIONS_ENABLED')) return false;
-    document.getElementById('commentsToggle').click();
+  /* Suggestions live on the published site, where the write service can
+     carry them to the repository. Anywhere else there is nobody to carry
+     one, so neither way in is shown, and the bar's button stays inert. */
+  check('off the site there are no suggestions to make', await page.evaluate(async () => {
+    const t = document.getElementById('commentsToggle'), d = document.getElementById('detailSuggest');
+    if(getComputedStyle(t).display !== 'none' || !d.hidden) return false;
+    t.click();
     await new Promise(r => setTimeout(r, 200));
     return !document.getElementById('commentsOverlay').classList.contains('open');
   }));
@@ -9084,7 +9086,6 @@ async function main(){
     }catch(e){ out.carryThrew = String(e); }
     out.keysRenamed = STORE_PREFIX === 'rhizome.chart:' &&
                       ALIGN_GRID_KEY.indexOf('rhizome.') === 0 &&
-                      COMMENT_NICK_KEY.indexOf('rhizome.') === 0 &&
                       CLIP_KEY.indexOf('rhizome.') === 0 &&
                       READONLY_KEY.indexOf('rhizome.') === 0;
     out.fileName  = chartFileName();
@@ -10355,6 +10356,190 @@ async function main(){
   await site.evaluate(() => document.getElementById('ownerBtn').click());
   const out = await site.evaluate(() => ({readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')}));
   check('signing out makes the tab a reader again', out.readOnly && out.stored === null, JSON.stringify(out));
+  check('and none of it raised an error', errs.length === 0, errs.join(' | '));
+  await c.close();
+  });
+
+  /* ---- 32b. suggestions on the published site ----
+   *
+   * A reader's suggestion is an issue in the repository, carried there by
+   * the write service under the reader's own GitHub sign-in. What is driven
+   * here is the page's half: a reader signs in AS a reader and stays one,
+   * the suggestion names the entry it is about, everything GitHub hands
+   * back is shown as text, and only the owner is offered a way to close
+   * one. The service is answered from here, as in the scenario above. */
+  await scenario("suggestions on the published site", async () => {
+  if(MODE === 'src'){
+    check('the site serves the built file, so there is nothing to check from src', true);
+    return;
+  }
+  const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
+  const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
+  const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
+  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
+  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
+  const dataSha = require('crypto').createHash('sha1')
+    .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
+  const api = {asked: 0, loginAs: [], posted: [], resolved: [], list: []};
+  const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
+  await c.route(SITE_API + '/**', async r => {
+    const q = r.request(), u = new URL(q.url());
+    const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN,
+                  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
+    const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
+    if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
+    if(u.pathname === '/login'){
+      const as = u.searchParams.get('as');
+      api.loginAs.push(as || 'owner');
+      const token = as === 'reader' ? 'reader-session' : 'good-session';
+      return r.fulfill({status: 200, contentType: 'text/html', body:
+        `<script>opener.postMessage({rhizomeSession:${JSON.stringify(token)}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
+    }
+    api.asked++;
+    const who = {'Bearer reader-session': 'reader', 'Bearer good-session': 'owner'}[q.headers()['authorization']];
+    if(!who) return reply(401, {error: 'not signed in.'});
+    if(u.pathname === '/me') return reply(200, who === 'owner' ? {owner: true, login: 'the-owner', sha: dataSha}
+                                                                : {owner: false, login: 'a-reader'});
+    if(u.pathname === '/suggestions') return reply(200, {owner: who === 'owner', suggestions: api.list});
+    if(u.pathname === '/suggest'){
+      const b = JSON.parse(q.postData());
+      api.posted.push(b);
+      const made = {number: 100 + api.posted.length, kind: b.kind, entry: b.entry, text: b.text, login: 'a-reader',
+                    at: '2026-10-17', url: 'https://github.com/x/y/issues/' + (100 + api.posted.length), mine: true};
+      api.list = [made].concat(api.list);
+      return reply(200, {suggestion: made});
+    }
+    if(u.pathname === '/resolve'){
+      if(who !== 'owner') return reply(403, {error: 'this account may not edit the chart.'});
+      const b = JSON.parse(q.postData());
+      api.resolved.push(b);
+      api.list = api.list.filter(x => x.number !== b.number);
+      return reply(200, {closed: b.number, reason: b.reason});
+    }
+    return reply(404, {error: 'not found'});
+  });
+  const errs = [];
+  const site = await c.newPage();
+  site.on('pageerror', e => errs.push(e.message));
+  await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+  await site.waitForFunction(() => typeof rebuildChart === 'function');
+  await wait(300);
+  /* Two entries: one already has a suggestion open about it, and the other
+     is the one the reader suggests something about. The waiting one's
+     words are the kind of thing GitHub will hand back from a stranger. */
+  const ids = await site.evaluate(() => [...nodes.keys()].filter(id => !nodeHidden(nodes.get(id))).slice(0, 2));
+  api.list = [{number: 7, kind: 'deletion', entry: ids[0], login: 'someone-else', at: '2026-10-16',
+               text: 'Not canon. <img src=x onerror="window.__owned=1">', url: 'https://github.com/x/y/issues/7', mine: false}];
+
+  /* ---- signed out ---- */
+  const r0 = await site.evaluate(async (id) => {
+    const shown = el => !!el && !el.hidden && getComputedStyle(el).display !== 'none';
+    const out = {toolbar: shown(document.getElementById('commentsToggle'))};
+    selectNode(id);
+    await new Promise(res => setTimeout(res, 100));
+    out.detailBtn = shown(document.getElementById('detailSuggest'));
+    document.getElementById('detailSuggest').click();
+    await new Promise(res => setTimeout(res, 200));
+    out.open = document.getElementById('commentsOverlay').classList.contains('open');
+    out.about = document.getElementById('suggestAbout').textContent;
+    out.signIn = shown(document.getElementById('suggestSignIn'));
+    out.post = shown(document.getElementById('commentSubmit'));
+    out.readOnly = readOnlyView;
+    return out;
+  }, ids[1]);
+  const name1 = await site.evaluate(id => stripMarkup(nodes.get(id).label).replace(/\s+/g, ' ').trim(), ids[1]);
+  check('on the site a reader is offered Suggestions, in the bar and on an entry', r0.toolbar && r0.detailBtn, JSON.stringify(r0));
+  check('opened from an entry, the form says which entry it is about', r0.open && r0.about.includes(name1), r0.about);
+  check('signed out, it offers a GitHub sign-in instead of Post', r0.signIn && !r0.post);
+  check('and the page has asked the service nothing yet', api.asked === 0, `${api.asked} requests`);
+
+  /* ---- a reader signs in ---- */
+  const popup = c.waitForEvent('page');
+  await site.click('#suggestSignIn');
+  await popup;
+  await site.waitForFunction(() => !document.getElementById('commentSubmit').hidden, null, {timeout: 5000}).catch(() => {});
+  await wait(300);
+  const r1 = await site.evaluate(() => ({
+    readOnly: readOnlyView,
+    saveShown: getComputedStyle(document.getElementById('saveBtn')).display !== 'none',
+    button: document.getElementById('ownerBtn').textContent,
+    post: !document.getElementById('commentSubmit').hidden,
+    items: document.querySelectorAll('#commentList .comment-item').length,
+    imgs: document.querySelectorAll('#commentList img').length,
+    text: (document.querySelector('#commentList .comment-body') || {}).textContent || '',
+    closers: [...document.querySelectorAll('#commentList .comment-actions button')].length,
+    github: !!document.querySelector('#commentList .comment-actions a[href^="https://github.com/"]'),
+    marks: [...document.querySelectorAll('#suggestionLayer .suggestion-mark')].map(g => g.dataset.id),
+    owned: !!window.__owned
+  }));
+  check('the reader signs in as a reader', api.loginAs.join() === 'reader', api.loginAs.join());
+  check('and stays a reader: no Save, still read-only, and a way to sign out',
+        r1.readOnly && !r1.saveShown && r1.button === 'Sign out', JSON.stringify(r1));
+  check('signed in, the form offers Post and lists what is open', r1.post && r1.items === 1, JSON.stringify(r1));
+  check('what GitHub hands back is shown as text, never run as markup',
+        r1.imgs === 0 && !r1.owned && r1.text.includes('<img src=x'), JSON.stringify({imgs: r1.imgs, text: r1.text}));
+  check('a reader is offered the issue on GitHub, and nothing that closes it', r1.github && r1.closers === 0);
+  check('the entry a suggestion is about wears a mark', r1.marks.join() === ids[0], JSON.stringify(r1.marks));
+
+  const r2 = await site.evaluate(async () => {
+    document.getElementById('commentStatus').value = 'addition';
+    document.getElementById('commentText').value = '  It had a sequel in 1987.  ';
+    document.getElementById('commentSubmit').click();
+    await new Promise(res => setTimeout(res, 500));
+    return {msg: document.getElementById('commentStatusMsg').textContent,
+            left: document.getElementById('commentText').value,
+            items: document.querySelectorAll('#commentList .comment-item').length,
+            marks: document.querySelectorAll('#suggestionLayer .suggestion-mark').length};
+  });
+  const sent = api.posted[0];
+  check('Post sends the suggestion with the entry it is about, its name and its kind',
+        !!sent && sent.entry === ids[1] && sent.label === name1 && sent.kind === 'addition' && sent.text === 'It had a sequel in 1987.',
+        JSON.stringify(sent));
+  check('and the list and the marks take it in at once', /Posted/.test(r2.msg) && r2.left === '' && r2.items === 2 && r2.marks === 2,
+        JSON.stringify(r2));
+
+  /* ---- the reader leaves ---- */
+  const r3 = await site.evaluate(() => {
+    document.getElementById('commentsClose').click();
+    document.getElementById('ownerBtn').click();
+    return {stored: localStorage.getItem('rhizome.site.session'), button: document.getElementById('ownerBtn').textContent,
+            marks: document.querySelectorAll('#suggestionLayer .suggestion-mark').length};
+  });
+  check('signing out forgets the reader and takes the marks away',
+        r3.stored === null && r3.button === 'Owner sign-in' && r3.marks === 0, JSON.stringify(r3));
+
+  /* ---- the owner closes one ---- */
+  const popup2 = c.waitForEvent('page');
+  await site.click('#ownerBtn');
+  await popup2;
+  await site.waitForFunction(() => !readOnlyView, null, {timeout: 5000}).catch(() => {});
+  const r4 = await site.evaluate(async () => {
+    document.getElementById('commentsToggle').click();
+    for(let i = 0; i < 40 && !document.querySelector('#commentList .comment-actions button'); i++) await new Promise(res => setTimeout(res, 50));
+    const out = {readOnly: readOnlyView, about: document.getElementById('suggestAbout').textContent,
+                 marks: document.querySelectorAll('#suggestionLayer .suggestion-mark').length};
+    const item = [...document.querySelectorAll('#commentList .comment-item')].find(x => x.textContent.includes('Not canon'));
+    const done = item && [...item.querySelectorAll('button')].find(b => b.textContent === 'Done');
+    out.offered = !!done;
+    if(done) done.click();
+    await new Promise(res => setTimeout(res, 400));
+    out.items = document.querySelectorAll('#commentList .comment-item').length;
+    out.marksAfter = [...document.querySelectorAll('#suggestionLayer .suggestion-mark')].map(g => g.dataset.id);
+    return out;
+  });
+  check('the owner signs in as the owner, from the same page', api.loginAs.join() === 'reader,owner' && !r4.readOnly,
+        api.loginAs.join() + ' ' + JSON.stringify(r4));
+  check('opened from the bar, the form is about the chart as a whole', /chart as a whole/.test(r4.about), r4.about);
+  check('the owner is offered Done on a suggestion, and it closes it as done',
+        r4.offered && api.resolved.length === 1 && api.resolved[0].number === 7 && api.resolved[0].reason === 'completed',
+        JSON.stringify({r4, resolved: api.resolved}));
+  check('it leaves the list, and its entry\'s mark goes with it', r4.items === 1 && r4.marksAfter.join() === ids[1],
+        JSON.stringify(r4));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   await c.close();
   });

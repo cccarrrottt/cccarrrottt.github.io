@@ -44,6 +44,17 @@ Releases before 0.9.0 were not numbered.
 - Connectors are routed about twice as fast on a large chart: a candidate
   route is checked only against the lines it could lie on top of, and every
   route comes out exactly as before.
+- Suggestions are back, on the published site. A reader signs in with
+  GitHub, as a reader, and suggests a correction, an addition or a deletion
+  — about an entry, from the mark beside its title, or about the chart as a
+  whole from the top bar. Each suggestion is an issue in the repository,
+  under the reader's own account; the owner sees the open ones in the same
+  panel, closes them as done or declined, and finds a numbered mark on every
+  entry that has one open. Nothing is stored in the chart, so a suggestion
+  never makes the owner's page fall behind the repository.
+- The write service lets a reader's session list and post suggestions and
+  nothing else; Save and closing a suggestion still ask for an owner on
+  every request. The GitHub App needs the Issues permission for this.
 
 ## 0.13.0 — "On the home screen" (2026-10-16)
 
