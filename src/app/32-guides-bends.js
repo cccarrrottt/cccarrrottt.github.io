@@ -550,7 +550,14 @@ window.addEventListener('mouseup', ()=>{
  * next move of either entry dragged the line through them. Same number of
  * corners, turning the same ways, each within BEND_SAME_TOL of its
  * counterpart, is the same line. */
-const BEND_SAME_TOL = GRID + 2;
+/* …but within HALF a step, not a whole one. A corner put back on the grid
+ * lands at most half a step from where it came from, and that is all this
+ * has to forgive. A whole step forgave a deliberate one too: a stretch
+ * pulled one grid step off the line the router would draw — a small step
+ * into the port, a run a notch above the automatic one — counted as that
+ * line, every bend was dropped as said already, and the line jumped back
+ * the moment the hand let go. */
+const BEND_SAME_TOL = GRID / 2 + 0.5;
 function samePolyline(a, b, tol){
   const t = (typeof tol === 'number') ? tol : 0.6;
   const norm = (pts)=> tidyPoints((pts || []).map(q=> ({x:q.x, y:q.y})));

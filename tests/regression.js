@@ -15933,6 +15933,38 @@ async function main(){
     out.tops = tops.map(t=> +t.toFixed(1));
     out.neverDown = tops.every((t, i)=> t <= -60 + 0.01 && (!i || t <= tops[i-1] + 0.01));
 
+    /* A stretch pulled a grid step off the automatic line is what the
+       hand asked for: let go, the bends stay and the line stays where it
+       was let go — the chart's own Пролл → Гаягкягкч, as the owner had it. */
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['hb5','Пролл',null,null,null,null,{pos:[-142.71, 243.63]}]);
+      workingNodes.push(['hb6','Гаягкягкч','hb5',null,null,null,{pos:[-72.14, 220.79], size:[54.13, 12.05]}]);
+      EDGE_STYLES.push({from:'hb5', to:'hb6', routing:'orthogonal', dash:'solid', arrow:true,
+                        bends:[[-100.7, 201.4]], fromSide:'top', toSide:'top', square:true});
+    });
+    await wait(200);
+    {
+      const ptsOf = ()=> rt('hb5','hb6').map(q=> ({x:q.x, y:q.y}));
+      const xs = ptsOf().map(q=> q.x), ys = ptsOf().map(q=> q.y);
+      const r = svg.getBoundingClientRect();
+      vs = 2.5; vx = r.width/2 - (Math.min(...xs) + Math.max(...xs))/2*vs; vy = r.height/2 - (Math.min(...ys) + Math.max(...ys))/2*vs;
+      applyTransform();
+      bendHoverTarget = null; showBendsFor('hb5','hb6');
+      const h = document.querySelector('#bendLayer .bend-handle');
+      const m = mark(h), p0 = W(m.x, m.y);
+      h.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:p0.x, clientY:p0.y}));
+      for(let s = 1; s <= 6; s++){
+        window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:p0.x - 77*s/6, clientY:p0.y - 50*s/6}));
+      }
+      const held = ptsOf();
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+      await wait(50);
+      out.letGoApart = +routeApart(held, ptsOf()).toFixed(2);
+      out.bendsKept = bendListOf('hb5','hb6').length > 0;
+      out.held = JSON.stringify(held.map(q=> [Math.round(q.x), Math.round(q.y)]));
+      bendHoverTarget = null; drawBendHandles();
+    }
+
     applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
                     EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
     vs = keep.vs; vx = keep.vx; vy = keep.vy; applyTransform();
@@ -15940,6 +15972,8 @@ async function main(){
     return out;
   });
   check('a corner\'s mark is on the line it moves', hb.markOnLine);
+  check('a stretch let go a step off the automatic line stays where it was let go',
+        hb.bendsKept && hb.letGoApart < 0.6, JSON.stringify({apart: hb.letGoApart, kept: hb.bendsKept, held: hb.held}));
   check('a corner pulled onto a guide with the hand a little off to one side lands on it',
         hb.guided && hb.landed, JSON.stringify({ys: hb.ys, level: hb.level}));
   check('a pinned stretch does not drop towards an entry carried up to it', hb.neverDown, JSON.stringify(hb.tops));
