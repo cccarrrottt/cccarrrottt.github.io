@@ -53,7 +53,7 @@ const NODES = [
   ['node-3', 'Прчоао', null, null, null, null, {pos:[-130.91, 134.02]}],
   ['node-4', 'Човьлы', 'node-3', null, null, null, {pos:[-191.38, 134.02]}],
   ['node-5', 'Пролл', null, null, null, null, {pos:[-142.71, 243.63]}],
-  ['node-6', 'Гаягкягкч', 'node-5', null, null, null, {pos:[-52, 251], size:[54.13, 12.05]}],
+  ['node-6', 'Гаягкягкч', 'node-5', null, null, null, {pos:[-72.14, 220.79], size:[54.13, 12.05]}],
   ['node-7', 'фывфыв', null, null, null, null, {pos:[-654.55, 174.3], colors:['#22cc']}],
   ['node-copy', 'фывфыв', null, null, null, null, {pos:[-654.55, 220.26], colors:['#ccc']}],
   ['node-copy-2', 'фывфыв', null, null, null, null, {pos:[-654.55, 266.21], colors:['#cc2c']}],
