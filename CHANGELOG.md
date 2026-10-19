@@ -8,6 +8,11 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A corner or stretch let go a grid step away from where the router would
+  draw the connector stays where it was let go. Such a line used to count
+  as the automatic one: every bend was dropped and the line jumped back as
+  the hand let go.
+
 - Every colour square is one size and look, the Tags drawer's. The
   citation colour has one square, not two. Pressing another square while a
   code is open keeps that code, when it is a colour, and opens the square
