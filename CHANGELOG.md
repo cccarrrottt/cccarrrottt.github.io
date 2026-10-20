@@ -8,6 +8,11 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A rippled connector no longer freezes the page while it is pointed at,
+  open or dragged. The marks for bending it were placed by sampling the
+  drawn path point by point, which on a wavy line cost half a second on
+  every hover and every redraw; the path is now read directly, in about
+  two milliseconds.
 - The text cursor is drawn by the page — a black beam with a white edge —
   wherever words are typed, and words that are only read show an arrow.
   The system's beam is an inverting cursor, and Chromium on Windows can
