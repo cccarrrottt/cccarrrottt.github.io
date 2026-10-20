@@ -793,6 +793,7 @@ const commentList = document.getElementById('commentList');
 const commentMsgEl = document.getElementById('commentStatusMsg');
 const suggestAbout = document.getElementById('suggestAbout');
 const suggestSignInBtn = document.getElementById('suggestSignIn');
+const suggestSwitchBtn = document.getElementById('suggestSwitch');
 const suggestSubmitBtn = document.getElementById('commentSubmit');
 const suggestNote = document.getElementById('suggestNote');
 const detailSuggest = document.getElementById('detailSuggest');
@@ -833,6 +834,7 @@ function paintSuggestForm(){
   }
   const signed = suggestSignedIn();
   suggestSignInBtn.hidden = signed;
+  if(suggestSwitchBtn) suggestSwitchBtn.hidden = !signed;
   suggestSubmitBtn.hidden = !signed;
   suggestSubmitBtn.disabled = suggestBusy;
   commentKind.disabled = commentText.disabled = !signed;
@@ -994,6 +996,15 @@ suggestSubmitBtn.onclick = async ()=>{
   setCommentMsg('ok', 'Posted. Thank you — the owner has been told.');
 };
 suggestSignInBtn.onclick = ()=> siteSignIn('reader');
+/* Whoever is signed in on this page stays signed in until they leave —
+   the owner included — so a second account has to be asked for: the
+   page lets go of the one it has, and GitHub is asked to offer a choice
+   of account rather than quietly use the one the browser is signed in to. */
+if(suggestSwitchBtn) suggestSwitchBtn.onclick = ()=>{
+  siteSignOut();
+  paintSuggestForm();
+  siteSignIn('reader');
+};
 
 /* A small mark on every entry with something open about it, so the owner
    sees where the suggestions are without opening the list. Drawn into a

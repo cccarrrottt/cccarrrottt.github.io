@@ -6,6 +6,12 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## Unreleased
+
+- Signing in to suggest asks GitHub which account to use, instead of
+  quietly taking the one the browser is signed in to; and the suggestion
+  form, while someone is signed in, offers another GitHub account.
+
 ## 0.14.0 — "The whole map" (2026-10-20)
 
 - Search looks in every text an entry can show, its language tabs

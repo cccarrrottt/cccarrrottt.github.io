@@ -10452,6 +10452,7 @@ async function main(){
     out.open = document.getElementById('commentsOverlay').classList.contains('open');
     out.about = document.getElementById('suggestAbout').textContent;
     out.signIn = shown(document.getElementById('suggestSignIn'));
+    out.switchShown = shown(document.getElementById('suggestSwitch'));
     out.post = shown(document.getElementById('commentSubmit'));
     out.readOnly = readOnlyView;
     return out;
@@ -10459,7 +10460,7 @@ async function main(){
   const name1 = await site.evaluate(id => stripMarkup(nodes.get(id).label).replace(/\s+/g, ' ').trim(), ids[1]);
   check('on the site a reader is offered Suggestions, in the bar and on an entry', r0.toolbar && r0.detailBtn, JSON.stringify(r0));
   check('opened from an entry, the form says which entry it is about', r0.open && r0.about.includes(name1), r0.about);
-  check('signed out, it offers a GitHub sign-in instead of Post', r0.signIn && !r0.post);
+  check('signed out, it offers a GitHub sign-in instead of Post', r0.signIn && !r0.post && !r0.switchShown);
   check('and the page has asked the service nothing yet', api.asked === 0, `${api.asked} requests`);
 
   /* ---- a reader signs in ---- */
@@ -10544,6 +10545,22 @@ async function main(){
         JSON.stringify({r4, resolved: api.resolved}));
   check('it leaves the list, and its entry\'s mark goes with it', r4.items === 1 && r4.marksAfter.join() === ids[1],
         JSON.stringify(r4));
+  /* ---- a second account, from a page the owner is signed in to ----
+     The owner trying a reader's account found the page still posting as
+     the owner: whoever is signed in stays signed in. The form offers
+     another account, which lets go of this one and asks again. */
+  const popup3 = c.waitForEvent('page');
+  const r5a = await site.evaluate(() => {
+    const b = document.getElementById('suggestSwitch');
+    const shown = !!b && !b.hidden && getComputedStyle(b).display !== 'none';
+    if(b) b.click();
+    return {shown, readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')};
+  });
+  await popup3;
+  await site.waitForFunction(() => !document.getElementById('commentSubmit').hidden, null, {timeout: 5000}).catch(() => {});
+  check('signed in, the form offers another GitHub account', r5a.shown, JSON.stringify(r5a));
+  check('which lets go of the owner and signs in again as a reader',
+        r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,owner,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   await c.close();
   });
