@@ -684,11 +684,35 @@ function waveOffsetPoints(samples, amp, lam, from, to, closed){
   const lo = Math.max(0, from || 0);
   const hi = Math.min(total, (typeof to === 'number') ? to : total);
   const fade = lam / 2;
+  /* A trimmed end lands exactly where it was asked to, not on the last
+     sample short of it. Samples are a sixth of a wave apart, and dropping
+     whatever lay past the last whole one ended the line up to that much
+     before its arrowhead — a gap behind the head that came and went as the
+     route changed length, since a move or a new bend shifts where the
+     samples fall. The end point is put on the stretch between the two
+     samples either side of it, and takes that stretch's direction. */
+  const between = (s)=>{
+    for(let i = 1; i < samples.length; i++){
+      const a = samples[i-1], b = samples[i];
+      if(b.s < s - 1e-6) continue;
+      const t = b.s > a.s ? (s - a.s) / (b.s - a.s) : 0;
+      return {x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, s, a, b};
+    }
+    return null;
+  };
+  const list = [];
+  if(!closed && lo > 1e-6){ const q = between(lo); if(q) list.push(q); }
+  samples.forEach((p, i)=>{
+    if(p.s < lo + (list.length ? 1e-6 : -1e-6) || p.s > hi + 1e-6) return;
+    if(!closed && hi < total - 1e-6 && p.s > hi - 1e-6) return;
+    list.push({x: p.x, y: p.y, s: p.s,
+               a: samples[Math.max(0, i-1)], b: samples[Math.min(samples.length-1, i+1)]});
+  });
+  if(!closed && hi < total - 1e-6){ const q = between(hi); if(q) list.push(q); }
   const out = [];
-  for(let i = 0; i < samples.length; i++){
-    const p = samples[i];
-    if(p.s < lo - 1e-6 || p.s > hi + 1e-6) continue;
-    const a = samples[Math.max(0, i-1)], b = samples[Math.min(samples.length-1, i+1)];
+  for(let i = 0; i < list.length; i++){
+    const p = list[i];
+    const a = p.a, b = p.b;
     let dx = b.x - a.x, dy = b.y - a.y;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;

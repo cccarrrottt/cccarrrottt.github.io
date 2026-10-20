@@ -435,11 +435,13 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
   let hand = style.bendSides ? pinnedHandBends(style, q1, q2)
     : usableHandBends(style, nodes.get(p1 && p1.owner), nodes.get(p2 && p2.owner));
   let bent = hand.length ? bentRoute(q1, q2, hand) : null;
-  /* Bends that cannot be honoured cleanly are not honoured at all. They
-     stay where they were put — the handles still show them, and moving an
-     entry or a bend can make them good again — but the line is drawn as
-     though they were not there. */
-  if(bent && handRouteBroken(bent, q1, q2)){ hand = []; bent = null; }
+  /* Bends that cannot be honoured cleanly are not honoured at all: the
+     line is drawn as though they were not there. They are taken out when
+     the edit that broke them is settled (dropIgnoredBends) — until then,
+     in the middle of a drag, a hand that carries on may make them good
+     again. */
+  let ignored = false;
+  if(bent && handRouteBroken(bent, q1, q2)){ hand = []; bent = null; ignored = true; }
   const pts = sinkEnds(
     bent ? bent
       : style.routing === 'straight' ? [p1,p2]
@@ -447,7 +449,9 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
     r1, r2);
   if(style.routing !== 'straight' || hand.length) registerRoutedSegments(pts);
   const d = style.sinusoid ? wavyPath(pts, 0, 0, false, edgeCornerR(style)) : roundedPath(pts, edgeCornerR(style));
-  return { d, angleDeg: endAngleDeg(pts), pts };
+  /* `ignored` says the route was drawn without bends it was given — see
+     dropIgnoredBends, which takes such bends out when an edit settles. */
+  return { d, angleDeg: endAngleDeg(pts), pts, ignored };
 }
 // ports is {p1, p2, lane} from resolvePorts(); when absent, fall back to
 // the automatic sides at each side's midpoint.

@@ -17,6 +17,25 @@ Releases before 0.9.0 were not numbered.
   entries wear their marks for everyone. Signed out, the page reads them
   from GitHub's API directly; signing out reads them again from there
   instead of taking the marks away.
+- A rippled connector ends under its arrowhead wherever its entries stand.
+  The line used to stop at the last point it was drawn through short of
+  the head, up to a sixth of a wave before it, so a gap behind the head
+  came and went as an entry or a bend was moved.
+- A curved connector's marks stand on the curve rather than on the route
+  it is drawn over. A corner the line cannot pass through is taken out by
+  the edit that made it unreachable, in that edit's step of undo; one
+  saved before that is drawn hollow and dashed, as a corner set aside,
+  until an edit reaches its connector.
+- A colour square showing a default colour wears the dashed edge a
+  ground's square wears in the Tags drawer, and a reset stands right
+  beside the square it resets.
+- The connector's panel has no guide and no Delete button; a connector is
+  deleted with the Delete key or the long-press menu.
+- On a phone a long press on an entry opens cut, copy, paste and delete
+  at once, picking the entry if it was not picked; on a connector it
+  offers Delete.
+- A language tab named by a country's two- or three-letter code (DE, DEU,
+  RUS, UK) wears that country's flag.
 
 ## 0.14.0 — "The whole map" (2026-10-20)
 

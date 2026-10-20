@@ -206,11 +206,11 @@ function openEdgeStylePopover(from, to, evt){
     }
   }
   /* The merged arrow's paint is every lineage's colour, and it is not a
-     connector anybody drew, so it cannot be deleted on its own either:
-     it goes when the merge does. The rows are taken away rather than
-     greyed — there is nothing in either it could ever offer. */
+     connector anybody drew, so it cannot be deleted on its own either
+     (see deleteOpenConnector): it goes when the merge does. The row is
+     taken away rather than greyed — there is nothing in it it could ever
+     offer. */
   document.getElementById('styleFillRow').hidden = mergedOut;
-  styleDeleteBtn.hidden = mergedOut;
   if(mergedEdge && style.gradient){
     // Data can carry one even though the control cannot set it.
     style = Object.assign({}, style, {gradient: null, color: style.color || style.gradient[0]});

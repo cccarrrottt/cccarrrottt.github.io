@@ -247,7 +247,7 @@ document.getElementById('styleClose').onclick = ()=> closeEdgePopover();
    entries, another connector, empty ground — puts it away. */
 const MENU_SURFACES = ['#stickerPicker', '#refPicker', '.ask-overlay', '.crop-overlay',
   '.detail', '.side-tabs', '.file-popover', '.about-overlay',
-  '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar'].join(',');
+  '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar', '.touch-menu'].join(',');
 function inPopoverSatellite(target){
   return !!(target && target.closest && target.closest(MENU_SURFACES));
 }
@@ -276,13 +276,16 @@ document.addEventListener('click', e=>{
   closeEdgePopover();
 }, true);
 
-styleDeleteBtn.onclick = ()=>{
-  if(!currentEdgeStyleTarget) return;
+/* The connector whose panel is open, deleted — by the Delete key or the
+   long-press menu; the panel itself no longer carries a button for it. */
+function deleteOpenConnector(){
+  if(!currentEdgeStyleTarget) return false;
   const {from,to} = currentEdgeStyleTarget;
   // The merged arrow goes with its merge, never on its own.
-  if(isMergedArrow(from, to)) return;
+  if(isMergedArrow(from, to)) return false;
   clearStyleStatus();
   if(deleteEdge(from, to)) closeEdgePopover();
-};
+  return true;
+}
 
 

@@ -957,8 +957,10 @@ window.addEventListener('mouseup', ()=>{
      the same step of undo as the move itself. */
   const ids = new Set(st.members.map(m=> m.id));
   redrawEdges();
-  pruneHandBends(structEdges.filter(e=> ids.has(e.from) || ids.has(e.to))
-                            .map(e=> ({from: e.from, to: e.to})));
+  const touched = structEdges.filter(e=> ids.has(e.from) || ids.has(e.to))
+                             .map(e=> ({from: e.from, to: e.to}));
+  dropIgnoredBends(new Set(touched.map(e=> calloutEdgeKey(e.from, e.to))));
+  pruneHandBends(touched);
   // One step of undo for the whole gesture.
   saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
 });
