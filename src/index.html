@@ -105,6 +105,7 @@
         <div class="swatch" id="detailSwatch"></div>
         <h2 id="detailTitle">—</h2>
         <button class="detail-edit-btn" id="detailSuggest" title="Suggest a change to this entry" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg></button>
+        <button class="detail-edit-btn" id="detailLink" title="Copy a link to this entry"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg></button>
         <button class="detail-edit-btn" id="detailEditToggle" title="Edit this entry">✎</button>
         <button class="detail-close" id="detailClose">✕</button>
       </div>
@@ -299,6 +300,16 @@
       <button type="button" data-act="undo" title="Undo (Ctrl+Z)">↶</button>
       <button type="button" data-act="redo" title="Redo (Ctrl+Y)">↷</button>
     </div>
+    <!-- The whole chart, small, in a drawer at the right edge: the same tab
+         and the same panel as the drawers on the left, mirrored. The frame
+         on it is the view; press or drag on it to go there. -->
+    <section class="side-tab minimap" id="minimapPanel">
+      <button type="button" class="side-tab-handle" id="minimapTab" aria-expanded="false"
+              aria-controls="minimapCanvas" title="Overview — the whole chart, and where the view is on it" aria-label="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="11" y="10" width="7" height="6" rx="0.5"/></svg></button>
+      <div class="side-tab-body">
+        <canvas id="minimapCanvas" class="minimap-canvas"></canvas>
+      </div>
+    </section>
     <div class="add-fab" id="addFab">
       <div class="add-fab-styles" id="addFabStyles" role="menu"></div>
       <button type="button" class="add-fab-btn" id="addFabBtn" aria-haspopup="menu"
@@ -524,6 +535,8 @@
       <div class="file-actions">
         <button type="button" class="editor-btn primary" id="fileExport">Export a standalone page</button>
         <button type="button" class="editor-btn" id="fileExportData">Export just the contents</button>
+        <button type="button" class="editor-btn" id="fileExportPng">Export a picture (PNG)</button>
+        <button type="button" class="editor-btn" id="fileExportSvg">Export a picture (SVG)</button>
         <button type="button" class="editor-btn" id="fileImport">Import a chart file…</button>
         <button type="button" class="editor-btn" id="fileForget">Discard changes saved here</button>
       </div>

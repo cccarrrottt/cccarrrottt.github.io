@@ -302,3 +302,124 @@ syncLod();
     btn.addEventListener('click', ()=> setLod(!lodOn));
   }
 }
+
+/* =========================================================================
+   THE OVERVIEW
+   -----------------------------------------------------------------------
+   The whole chart drawn small in the drawer at the bottom right, with a
+   frame for the part of it the view is showing. Pressing or dragging on it
+   moves the view there, at the zoom it already had.
+
+   It is a canvas and draws boxes only — no text, no lines — because it is
+   read for where things ARE, and because it is drawn again on every
+   movement of the view: six hundred filled rectangles are nothing to a
+   canvas, where a second copy of the SVG would be the whole chart again.
+   It is drawn only while its drawer is open, and at most once a frame.
+
+   `var` and function declarations, like the rest of this part: the view
+   asks for a redraw on its very first move, before this part has run.
+   ========================================================================= */
+var MINIMAP_KEY = 'rhizome.minimap';
+var MINIMAP_PAD = 30;                 // chart units round the outermost entries
+var minimapFrame = 0, minimapFit = null;
+function minimapOpen(){
+  const p = document.getElementById('minimapPanel');
+  return !!(p && p.classList.contains('open'));
+}
+function syncMinimap(){
+  if(minimapFrame || !minimapOpen()) return;
+  minimapFrame = requestAnimationFrame(()=>{ minimapFrame = 0; drawMinimap(); });
+}
+/* The chart's extent, and with it how chart units map onto the canvas. The
+   view's own frame is taken in too, so the frame never falls off the edge
+   when the view wanders beyond the last entry. */
+function minimapLayout(cw, ch){
+  const b = computeBounds();
+  const r = svgSize();
+  const v = {x0: -vx / vs, y0: -vy / vs, x1: (r.width - vx) / vs, y1: (r.height - vy) / vs};
+  let x0 = Math.min(Number.isFinite(b.minX) ? b.minX - MINIMAP_PAD : v.x0, v.x0);
+  let y0 = Math.min(Number.isFinite(b.minY) ? b.minY - MINIMAP_PAD : v.y0, v.y0);
+  let x1 = Math.max(Number.isFinite(b.maxX) ? b.maxX + MINIMAP_PAD : v.x1, v.x1);
+  let y1 = Math.max(Number.isFinite(b.maxY) ? b.maxY + MINIMAP_PAD : v.y1, v.y1);
+  const k = Math.min(cw / Math.max(1, x1 - x0), ch / Math.max(1, y1 - y0));
+  // Centred in the canvas along whichever axis has room to spare.
+  const ox = (cw - (x1 - x0) * k) / 2 - x0 * k, oy = (ch - (y1 - y0) * k) / 2 - y0 * k;
+  return {k, ox, oy, view: v};
+}
+function drawMinimap(){
+  const cv = document.getElementById('minimapCanvas');
+  if(!cv || !minimapOpen()) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cw = cv.clientWidth, ch = cv.clientHeight;
+  if(!cw || !ch) return;
+  if(cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)){
+    cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  }
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, cw, ch);
+  const css = getComputedStyle(document.documentElement);
+  const ink = (css.getPropertyValue('--ink-faint') || '').trim() || LOD_INK;
+  const accent = (css.getPropertyValue('--accent') || '').trim() || '#c23b22';
+  const fit = minimapFit = minimapLayout(cw, ch);
+  nodes.forEach(n=>{
+    if(nodeHidden(n)) return;
+    const free = isFreeShape(n.shape || '');
+    c.globalAlpha = free ? 0.3 : 0.75;
+    c.fillStyle = (typeof n.color === 'string' && n.color) || ink;
+    // Never thinner than a pixel, or a far-out chart's entries vanish.
+    c.fillRect(n.x * fit.k + fit.ox, n.y * fit.k + fit.oy,
+               Math.max(1, n.w * fit.k), Math.max(1, n.h * fit.k));
+  });
+  c.globalAlpha = 1;
+  const v = fit.view;
+  c.strokeStyle = accent;
+  c.lineWidth = 1.5;
+  c.strokeRect(v.x0 * fit.k + fit.ox + 0.75, v.y0 * fit.k + fit.oy + 0.75,
+               Math.max(2, (v.x1 - v.x0) * fit.k - 1.5), Math.max(2, (v.y1 - v.y0) * fit.k - 1.5));
+}
+function setMinimap(open){
+  const p = document.getElementById('minimapPanel');
+  if(!p) return;
+  p.classList.toggle('open', !!open);
+  const h = document.getElementById('minimapTab');
+  if(h) h.setAttribute('aria-expanded', open ? 'true' : 'false');
+  try{ localStorage.setItem(MINIMAP_KEY, open ? '1' : '0'); }catch(e){}
+  if(open) drawMinimap();
+}
+{
+  const p = document.getElementById('minimapPanel');
+  const cv = document.getElementById('minimapCanvas');
+  if(p && cv){
+    document.getElementById('minimapTab').addEventListener('click', ev=>{
+      ev.stopPropagation();
+      setMinimap(!minimapOpen());
+    });
+    /* The point pressed becomes the middle of the view. The layout is the
+       one the canvas was last drawn with, so where the press lands is
+       where the reader saw the chart — not where a redraw since might
+       have moved it to. */
+    const goTo = ev=>{
+      const fit = minimapFit;
+      if(!fit) return;
+      const r = cv.getBoundingClientRect();
+      centreViewOn((ev.clientX - r.left - fit.ox) / fit.k, (ev.clientY - r.top - fit.oy) / fit.k, vs);
+    };
+    let held = false;
+    cv.addEventListener('pointerdown', ev=>{
+      ev.stopPropagation(); ev.preventDefault();
+      held = true;
+      try{ cv.setPointerCapture(ev.pointerId); }catch(e){}
+      goTo(ev);
+    });
+    cv.addEventListener('pointermove', ev=>{ if(held) goTo(ev); });
+    const letGo = ()=>{ held = false; drawMinimap(); };
+    cv.addEventListener('pointerup', letGo);
+    cv.addEventListener('pointercancel', letGo);
+    p.addEventListener('click', ev=> ev.stopPropagation());
+    window.addEventListener('resize', ()=> syncMinimap());
+    let was = false;
+    try{ was = localStorage.getItem(MINIMAP_KEY) === '1'; }catch(e){}
+    if(was) setMinimap(true);
+  }
+}

@@ -144,8 +144,10 @@ function applyVisibility(opts){
   const edgesOnly = !!(opts && opts.edgesOnly);
   if(!edgesOnly){
     syncTagLiveliness();
-    // What is shown has changed, so the patches drawn for it are stale.
+    // What is shown has changed, so the patches drawn for it are stale,
+    // and so is the overview.
     markLodStale();
+    syncMinimap();
     qNodes('.node').forEach(g=>{
       const n = nodes.get(g.dataset.id);
       g.style.display = (n && nodeHidden(n)) ? 'none' : '';
@@ -223,6 +225,7 @@ function applyTransform(){
   const mid = viewCentre();
   document.getElementById('coord').textContent = `x${Math.round(mid.x)} · y${Math.round(mid.y)}`;
   rememberView();
+  syncMinimap();
 }
 /* The chart point at the middle of the view, and the view put back on one. */
 /* The chart's size on the screen, kept rather than asked for: asked for

@@ -8,6 +8,19 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Search looks in every text an entry can show, its language tabs
+  included. A hit shows which tab it was found on, by the tab's own mark,
+  beside the entry's tags, and picking it opens the entry on that tab.
+- An entry has a link of its own: the chain button in its panel copies an
+  address that opens the chart on that entry, and on the tab it was
+  showing.
+- The chart can be exported as a picture, PNG or SVG, from the file menu:
+  framed on the whole drawing, at full detail whatever the zoom, with the
+  faces it is set in carried inside.
+- An overview of the whole chart opens from a tab at the bottom right, with
+  a frame for the view; pressing or dragging on it moves the view there.
+- A link's tab wears the icon of the site it goes to, once that has come,
+  in place of the arrow.
 - A corner or stretch let go a grid step away from where the router would
   draw the connector stays where it was let go. Such a line used to count
   as the automatic one: every bend was dropped and the line jumped back as

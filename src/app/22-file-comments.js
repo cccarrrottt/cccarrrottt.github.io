@@ -415,6 +415,259 @@ document.getElementById('fileClose').onclick = ()=> filePopover.classList.remove
 filePopover.addEventListener('click', ev=> ev.stopPropagation());
 document.getElementById('fileExport').onclick = (ev)=>{ ev.stopPropagation(); exportChart(); };
 document.getElementById('fileExportData').onclick = (ev)=>{ ev.stopPropagation(); exportChartData(); };
+/* ---------------------------------------------------------------------
+   The chart as a picture
+   ---------------------------------------------------------------------
+   What is on the screen is already an SVG, so a picture is that SVG cut
+   loose from the page: framed on everything drawn rather than on the
+   window, with what the stylesheet gives each element written onto the
+   element itself — a lone SVG file has no stylesheet, and without this
+   every box would come out black. Only what differs from a bare element
+   of the same kind is written, which keeps a large chart's file to a
+   fraction of what writing every property would.
+
+   Left out: whatever is there to be pressed or dragged rather than looked
+   at (the handles, the bends, the guides), the patches drawn from far
+   away, and the marks of suggestions. The entries are drawn as they are
+   at full size whatever the zoom, and nothing is picked.
+
+   The faces the chart is set in are carried inside the file, but only the
+   pieces of them that hold a character the chart actually uses: a PNG is
+   painted from the SVG as an image, and an image may not fetch anything,
+   so a face left outside would come out as the system's. If the fonts
+   cannot be fetched, the picture is still made, in the system's faces. */
+const PICTURE_SKIP = '#lodLayer, #bendLayer, #guideLayer, #leaderPickLayer, #leaderHitLayer, ' +
+  '#alignGrid, #suggestionLayer, .node-handles, .marquee, .connector-rubber, title';
+const PICTURE_PROPS = ['fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity',
+  'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
+  'opacity', 'visibility', 'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor',
+  'dominant-baseline', 'letter-spacing', 'text-decoration', 'paint-order', 'marker-start', 'marker-mid',
+  'marker-end', 'filter', 'mask', 'clip-path', 'mix-blend-mode', 'vector-effect', 'color',
+  'transform', 'transform-origin', 'transform-box'];
+function pictureBounds(){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  [bgLayer, backLayer, edgeLayer, nodeLayer, arrowLayer, frontLayer, bioCardLayer].forEach(layer=>{
+    let b = null;
+    try{ b = layer.getBBox(); }catch(e){ b = null; }
+    if(!b || !(b.width || b.height)) return;
+    x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+  });
+  if(!Number.isFinite(x0)) return null;
+  const pad = 40;
+  return {x: Math.floor(x0 - pad), y: Math.floor(y0 - pad),
+          w: Math.ceil(x1 - x0 + pad*2), h: Math.ceil(y1 - y0 + pad*2)};
+}
+function pictureGround(){
+  for(let e = svg; e && e.nodeType === 1; e = e.parentElement){
+    const c = getComputedStyle(e).backgroundColor;
+    if(c && c !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(c)) return c;
+  }
+  return '#ffffff';
+}
+/* What a bare element of each kind computes to, to compare against. */
+function pictureDefaults(probe, tag){
+  if(!pictureDefaults.memo) pictureDefaults.memo = new Map();
+  let d = pictureDefaults.memo.get(tag);
+  if(!d){
+    const e = document.createElementNS(NS, tag);
+    probe.appendChild(e);
+    const cs = getComputedStyle(e);
+    d = {};
+    PICTURE_PROPS.forEach(p=>{ d[p] = cs.getPropertyValue(p); });
+    e.remove();
+    pictureDefaults.memo.set(tag, d);
+  }
+  return d;
+}
+/* The drawing as it stands, as one self-contained SVG document. Taken in
+   one go, with nothing in between that could redraw the chart under it:
+   the patches seen from far away are put aside for the moment it takes,
+   and put back. */
+function chartPictureSvg(){
+  const bounds = pictureBounds();
+  if(!bounds) throw new Error('there is nothing on the chart to draw.');
+  const body = document.body;
+  const lod = body.classList.contains('lod');
+  if(lod) body.classList.remove('lod');
+  /* A site's icon is fetched from elsewhere and cannot go into the
+     picture, so the arrow it stands in for is drawn instead. */
+  const iconed = Array.from(svg.querySelectorAll('.node-link.has-icon'));
+  iconed.forEach(g=> g.classList.remove('has-icon'));
+  const probe = document.createElementNS(NS, 'g');
+  svg.appendChild(probe);
+  let out;
+  try{
+    const copy = svg.cloneNode(true);
+    const live = [svg, ...svg.querySelectorAll('*')];
+    const dead = [copy, ...copy.querySelectorAll('*')];
+    // Hidden things are dropped rather than carried with display:none.
+    for(let i = 0; i < live.length; i++){
+      const a = live[i], b = dead[i];
+      if(a === probe){ b.remove(); continue; }
+      if(i && a.matches && a.matches(PICTURE_SKIP)){ b.remove(); continue; }
+      const cs = getComputedStyle(a);
+      if(i && cs.display === 'none'){ b.remove(); continue; }
+      b.removeAttribute('class');
+      /* The chart's own bookkeeping is not part of the picture — and some
+         of it is joined with a NUL, which no XML file may contain. */
+      Array.from(b.attributes).forEach(at=>{ if(at.name.startsWith('data-')) b.removeAttribute(at.name); });
+      if(i === 0) continue;
+      const d = pictureDefaults(probe, a.localName);
+      const style = [];
+      /* An element placed by its transform ATTRIBUTE keeps that, and the
+         view's own pan and zoom is not carried at all — computed, it
+         comes back as a matrix that would move the whole drawing. */
+      const placed = a === viewport || a.hasAttribute('transform');
+      PICTURE_PROPS.forEach(p=>{
+        if(placed && p.startsWith('transform')) return;
+        const v = cs.getPropertyValue(p);
+        if(v && v !== d[p]) style.push(p + ':' + v);
+      });
+      if(style.length) b.setAttribute('style', style.join(';'));
+      else b.removeAttribute('style');
+    }
+    // Anything fetched from elsewhere: a picture may not fetch.
+    copy.querySelectorAll('image').forEach(im=>{
+      const href = im.getAttribute('href') || im.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+      if(!/^data:/i.test(href)) im.remove();
+    });
+    const vp = copy.querySelector('#viewport');
+    if(vp) vp.removeAttribute('transform');
+    copy.removeAttribute('id');
+    copy.removeAttribute('style');
+    copy.setAttribute('xmlns', NS);
+    copy.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    copy.setAttribute('viewBox', `${bounds.x} ${bounds.y} ${bounds.w} ${bounds.h}`);
+    copy.setAttribute('width', bounds.w);
+    copy.setAttribute('height', bounds.h);
+    const ground = document.createElementNS(NS, 'rect');
+    ground.setAttribute('x', bounds.x); ground.setAttribute('y', bounds.y);
+    ground.setAttribute('width', bounds.w); ground.setAttribute('height', bounds.h);
+    ground.setAttribute('fill', pictureGround());
+    copy.insertBefore(ground, copy.firstChild);
+    out = {copy, bounds};
+  } finally {
+    probe.remove();
+    iconed.forEach(g=> g.classList.add('has-icon'));
+    if(lod) body.classList.add('lod');
+  }
+  return out;
+}
+/* Which characters of which faces the picture uses. */
+function pictureFaces(copy){
+  const used = new Map();
+  copy.querySelectorAll('text, tspan').forEach(t=>{
+    const fam = ((t.getAttribute('style') || '').match(/font-family:([^;]*)/) || [])[1];
+    if(!fam) return;
+    fam.split(',').forEach(f=>{
+      const name = f.trim().replace(/^["']|["']$/g, '');
+      if(!name) return;
+      if(!used.has(name)) used.set(name, new Set());
+      const set = used.get(name);
+      for(const ch of t.textContent) set.add(ch.codePointAt(0));
+    });
+  });
+  return used;
+}
+function inUnicodeRange(range, cps){
+  if(!range) return true;
+  const spans = range.split(',').map(r=>{
+    const m = r.trim().replace(/^U\+/i, '').split('-');
+    const a = parseInt(m[0].replace(/\?/g, '0'), 16), b = parseInt((m[1] || m[0]).replace(/\?/g, 'F'), 16);
+    return [a, b];
+  });
+  for(const cp of cps) if(spans.some(([a, b])=> cp >= a && cp <= b)) return true;
+  return false;
+}
+async function pictureFontCss(copy){
+  const link = document.querySelector('link[rel="stylesheet"][href*="fonts.googleapis.com"]');
+  if(!link) return '';
+  const used = pictureFaces(copy);
+  if(!used.size) return '';
+  let css;
+  try{
+    const r = await fetch(link.href);
+    if(!r.ok) return '';
+    css = await r.text();
+  }catch(e){ return ''; }
+  const blocks = css.match(/@font-face\s*{[^}]*}/g) || [];
+  const keep = [];
+  for(const block of blocks){
+    const fam = ((block.match(/font-family:\s*['"]?([^;'"]+)/) || [])[1] || '').trim();
+    const cps = used.get(fam);
+    if(!cps || !cps.size) continue;
+    if(!inUnicodeRange((block.match(/unicode-range:\s*([^;]+)/) || [])[1], cps)) continue;
+    const url = (block.match(/url\(([^)]+)\)/) || [])[1];
+    if(!url) continue;
+    try{
+      const r = await fetch(url.replace(/^['"]|['"]$/g, ''));
+      if(!r.ok) continue;
+      const blob = await r.blob();
+      const data = await new Promise((ok, no)=>{
+        const fr = new FileReader();
+        fr.onload = ()=> ok(fr.result); fr.onerror = no;
+        fr.readAsDataURL(blob);
+      });
+      keep.push(block.replace(/url\([^)]+\)/, 'url(' + data + ')'));
+    }catch(e){}
+  }
+  return keep.join('\n');
+}
+async function chartPictureText(){
+  const {copy, bounds} = chartPictureSvg();
+  const fonts = await pictureFontCss(copy);
+  if(fonts){
+    const st = document.createElementNS(NS, 'style');
+    st.textContent = fonts;
+    copy.insertBefore(st, copy.firstChild);
+  }
+  // Whatever else XML forbids that a text on the chart might hold.
+  const xml = new XMLSerializer().serializeToString(copy).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  return {text: '<?xml version="1.0" encoding="UTF-8"?>\n' + xml, bounds};
+}
+/* Twice the chart's own size, unless that is more than a browser will
+   paint onto one canvas — then as large as it will. */
+function pictureScale(w, h){
+  return Math.max(0.1, Math.min(2, 16000 / w, 16000 / h, Math.sqrt(120e6 / (w * h))));
+}
+async function chartPicturePng(){
+  const {text, bounds} = await chartPictureText();
+  const url = URL.createObjectURL(new Blob([text], {type:'image/svg+xml'}));
+  try{
+    const img = new Image();
+    await new Promise((ok, no)=>{ img.onload = ok; img.onerror = ()=> no(new Error('the browser could not paint the drawing.')); img.src = url; });
+    const k = pictureScale(bounds.w, bounds.h);
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(bounds.w * k); cv.height = Math.round(bounds.h * k);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    return await new Promise((ok, no)=> cv.toBlob(b=> b ? ok(b) : no(new Error('the picture is too large to paint.')), 'image/png'));
+  } finally { URL.revokeObjectURL(url); }
+}
+function saveBlobViaLink(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 30000);
+}
+async function exportPicture(kind){
+  clearFileStatus();
+  setFileStatus('', 'Drawing the picture…');
+  const name = chartFileName().replace(/\.html$/, '.' + kind);
+  try{
+    const blob = kind === 'png' ? await chartPicturePng()
+      : new Blob([(await chartPictureText()).text], {type:'image/svg+xml'});
+    saveBlobViaLink(blob, name);
+    setFileStatus(HOSTED ? '' : 'ok', HOSTED
+      ? 'If no download appeared, this copy cannot hand you a file; open the chart outside claude.ai and export the picture there.'
+      : 'Exported as ' + name + '.');
+  }catch(e){
+    setFileStatus('err', 'The picture was not made: ' + ((e && e.message) || 'unknown error'));
+  }
+}
+document.getElementById('fileExportPng').onclick = (ev)=>{ ev.stopPropagation(); exportPicture('png'); };
+document.getElementById('fileExportSvg').onclick = (ev)=>{ ev.stopPropagation(); exportPicture('svg'); };
 document.getElementById('fileImport').onclick = (ev)=>{ ev.stopPropagation(); fileImportInput.click(); };
 document.getElementById('fileForget').onclick = (ev)=>{
   ev.stopPropagation();
