@@ -39,6 +39,7 @@ const MIME = {'.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-
 
 let pass = 0, fail = 0;
 const results = [];
+const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGP4z8DwnwEIGP4zMDAwAAAj7AT8W4yTIQAAAABJRU5ErkJggg==', 'base64');
 function check(name, ok, detail){
   (ok ? pass++ : fail++);
   results.push({name, ok, detail});
@@ -216,6 +217,9 @@ async function main(){
   const noFonts = r => { fontsAsked++; return r.fulfill({status: 200, contentType: 'text/css', body: ''}); };
   await ctx.route('https://fonts.googleapis.com/**', noFonts);
   await ctx.route('https://fonts.gstatic.com/**', noFonts);
+  /* The site icon an entry's link wears is asked of a public service;
+     answered here with a two-pixel picture, for the reason the fonts are. */
+  await ctx.route('https://icons.duckduckgo.com/**', r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
 
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
@@ -13001,16 +13005,16 @@ async function main(){
       return !!(at && at.closest('#' + id));
     };
     out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
-    /* Three drawers down the left edge: the tabs stand still whatever is
-       open, every drawer is the same size, any of them can be open at
-       once, and no two ever overlap. */
-    const tabIds = ['tagsTab', 'refsTab', 'keyTab'];
-    const panels = ['tagsPanel', 'refsPanel', 'keyPanel'].map(id=> document.getElementById(id));
+    /* Four drawers down the left edge, the overview the lowest: the tabs
+       stand still whatever is open, every drawer is the same size, any of
+       them can be open at once, and no two ever overlap. */
+    const tabIds = ['tagsTab', 'refsTab', 'keyTab', 'minimapTab'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'].map(id=> document.getElementById(id));
     const tabRects = ()=> tabIds.map(id=>{ const r = rect(document.getElementById(id)); return [r.top, r.height].map(v=> Math.round(v)); });
     const shutRects = JSON.stringify(tabRects());
     const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const states = [];
-    for(const mask of [[1,0,0],[0,1,0],[0,0,1],[1,1,0],[0,1,1],[1,1,1]]){
+    for(const mask of [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[1,1,0,0],[0,1,1,1],[1,1,1,1]]){
       panels.forEach((p, i)=> setSideTab(p, !!mask[i]));
       await wait(60);
       const bodies = panels.map(p=> p.querySelector('.side-tab-body'));
@@ -13036,7 +13040,7 @@ async function main(){
         return {svg: !!b.querySelector('svg'), text: b.textContent.trim(), label: b.getAttribute('aria-label')}; });
       out.tabSigns = JSON.stringify(signs);
       out.tabsBySign = signs.every(t=> t.svg && !t.text && t.label) &&
-        signs.map(t=> t.label).join() === 'Tags,References,Legend';
+        signs.map(t=> t.label).join() === 'Tags,References,Legend,Overview';
       const cite = document.querySelector('.mini-toolbar .tb-ref-btn');
       out.citeIsSign = !!cite && !!cite.querySelector('svg') && !cite.textContent.trim();
       buildSideTabs();
@@ -13110,9 +13114,9 @@ async function main(){
   check('an empty remark, pinned or not, is one grid step square', rT.emptyIsStep, JSON.stringify(rT.empty));
   check('and a step snapped to comes out clean', rT.snapClean);
   check('the top bar has no menu for tags and references', rT.noToolbarButton);
-  check('tags, references and the legend are three drawers that open together and never move or overlap',
+  check('tags, references, the legend and the overview are four drawers that open together and never move or overlap',
         rT.tabsApart, JSON.stringify(rT.tabStates));
-  check('and the three tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
+  check('and the four tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
   check('each tab is marked by a sign, not a word', rT.tabsBySign, rT.tabSigns);
   check('the cite button on a text toolbar is the [1] sign', rT.citeIsSign);
   check('the + for a reference is made as the tag\'s and the category\'s are', rT.refAddLike, rT.refAddBoxes);
@@ -16202,6 +16206,117 @@ async function main(){
     return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
+  await scenario("search in every language, a link to an entry, a picture and an overview", async () => {
+  /* An entry whose second text only exists on a language tab, and whose
+     link names a site: everything below is asked of it. */
+  const r = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['lq_one', 'Langprobe main', null, null, null, null,
+        {pos:[400, -600], tags:['probe-tag'], multiLang:true, langTabs:[{tag:'JP', text:'Zzkanaprobe title'}], link:'https://example.org/page'}]);
+      workingNodes.push(['lq two', 'Langprobe other', null, null, null, null, {pos:[700, -600]}]);
+    });
+    await pause(400);
+    // Search finds the tab's text, says which tab and carries the tags.
+    const box = document.getElementById('searchInput');
+    box.value = 'zzkanaprobe';
+    box.dispatchEvent(new Event('input'));
+    const row = document.querySelector('#searchResults .row');
+    out.rows = document.querySelectorAll('#searchResults .row').length;
+    out.chip = row && row.querySelector('.sr-tab') && row.querySelector('.sr-tab').textContent;
+    out.tags = row && row.querySelector('.cl').textContent;
+    if(row) row.click();
+    await pause(100);
+    out.opened = selectedId;
+    out.tab = activeLangTab.get('lq_one');
+    out.drawn = (document.querySelector('[data-id="lq_one"] text') || {}).textContent || '';
+    // The main text is found too, as the main one.
+    box.value = 'langprobe main';
+    box.dispatchEvent(new Event('input'));
+    const main = document.querySelector('#searchResults .row .sr-tab');
+    out.mainChip = main && main.classList.contains('main');
+    document.getElementById('searchResults').classList.remove('show');
+    // A link carries the entry and the tab it shows, and opens on both.
+    out.link = entryLink('lq_one');
+    activeLangTab.set('lq_one', null);
+    deselect();
+    location.hash = out.link.split('#')[1];
+    await pause(150);
+    out.fromLink = selectedId;
+    out.fromLinkTab = activeLangTab.get('lq_one');
+    location.hash = 'entry=' + encodeURIComponent('lq two');
+    await pause(150);
+    out.spaced = selectedId;
+    location.hash = 'entry=nobody-by-that-name';
+    await pause(150);
+    out.unknownKeeps = selectedId;
+    window.history.replaceState(null, '', location.href.split('#')[0]);
+    deselect();
+    // The link's tab wears the site's icon instead of the arrow.
+    await pause(300);
+    out.icon = !!document.querySelector('[data-id="lq_one"] .node-link.has-icon image.node-link-icon');
+    // The picture: well-formed, framed on the drawing, nothing to press.
+    const pic = await chartPictureText();
+    const doc = new DOMParser().parseFromString(pic.text, 'image/svg+xml');
+    out.wellFormed = !doc.querySelector('parsererror');
+    out.hasProbe = pic.text.includes('Zzkanaprobe') || pic.text.includes('Langprobe main');
+    out.noHandles = !doc.querySelector('.node-handles, #bendLayer, #lodLayer');
+    out.noViewMove = !(doc.querySelector('#viewport') || {getAttribute(){return null;}}).getAttribute('transform') &&
+      !/translate|matrix/.test(((doc.querySelector('#viewport') || {}).getAttribute || (()=>''))
+        .call(doc.querySelector('#viewport') || {getAttribute(){return '';}}, 'style') || '');
+    out.noRemote = !Array.from(doc.querySelectorAll('image')).some(im=> !/^data:/.test(
+      im.getAttribute('href') || im.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || ''));
+    const b = pic.bounds;
+    const lq = nodes.get('lq_one');
+    out.framed = b.x <= lq.x && b.y <= lq.y && b.x + b.w >= lq.x + lq.w && b.y + b.h >= lq.y + lq.h;
+    out.liveIconKept = !!document.querySelector('[data-id="lq_one"] .node-link.has-icon');
+    const png = await chartPicturePng();
+    out.png = png.type + ':' + (png.size > 1000);
+    // The overview: shut until asked, drawn when open, and a press moves the view.
+    setMinimap(false);
+    out.shut = !minimapOpen();
+    setMinimap(true);
+    await pause(100);
+    const cv = document.getElementById('minimapCanvas');
+    const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let ink = 0; for(let i = 3; i < px.length; i += 4) if(px[i]) ink++;
+    out.inked = ink > 50;
+    const before = viewCentre();
+    const rc = cv.getBoundingClientRect();
+    const fit = minimapFit;
+    const tx = lq.x + lq.w/2, ty = lq.y + lq.h/2;
+    const cx = rc.left + tx*fit.k + fit.ox, cy = rc.top + ty*fit.k + fit.oy;
+    cv.dispatchEvent(new PointerEvent('pointerdown', {clientX: cx, clientY: cy, pointerId: 1, bubbles: true}));
+    cv.dispatchEvent(new PointerEvent('pointerup', {clientX: cx, clientY: cy, pointerId: 1, bubbles: true}));
+    const after = viewCentre();
+    out.moved = Math.hypot(after.x - tx, after.y - ty) < 3 / fit.k + 2 && Math.hypot(before.x - tx, before.y - ty) > 5;
+    out.remembered = localStorage.getItem('rhizome.minimap');
+    setMinimap(false);
+    applyEdit(()=>{
+      for(let i = workingNodes.length - 1; i >= 0; i--) if(/^lq/.test(workingNodes[i][0])) workingNodes.splice(i, 1);
+    });
+    centreViewOn(before.x, before.y, vs);
+    return out;
+  });
+  check('search finds a text that is only on a language tab', r.rows === 1, JSON.stringify(r));
+  eq('a hit names the tab it was found on', r.chip, 'JP');
+  check('a hit carries the entry’s tags', /probe-tag/.test(r.tags || ''), r.tags);
+  check('picking it opens the entry on that tab', r.opened === 'lq_one' && r.tab === 0 && /Zzkanaprobe/.test(r.drawn), JSON.stringify(r));
+  check('the main text is found as the main one', r.mainChip === true);
+  check('a link names the entry and its tab', /#entry=lq_one&tab=1$/.test(r.link), r.link);
+  check('a link opens the entry on its tab', r.fromLink === 'lq_one' && r.fromLinkTab === 0, JSON.stringify(r));
+  check('an id with a space survives the link', r.spaced === 'lq two', r.spaced);
+  check('a link to nothing changes nothing', r.unknownKeeps === 'lq two', r.unknownKeeps);
+  check('a link wears its site’s icon once it has come', r.icon);
+  check('the picture is well-formed XML', r.wellFormed);
+  check('the picture holds the chart and nothing to press', r.hasProbe && r.noHandles && r.noRemote, JSON.stringify(r));
+  check('the picture is framed on the drawing, not the window', r.framed && r.noViewMove, JSON.stringify(r));
+  check('making the picture leaves the live icon alone', r.liveIconKept);
+  eq('a PNG comes out', r.png, 'image/png:true');
+  check('the overview opens, draws the chart and moves the view', r.shut && r.inked && r.moved, JSON.stringify(r));
+  eq('the overview remembers being open', r.remembered, '1');
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

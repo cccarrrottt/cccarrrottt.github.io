@@ -12,6 +12,34 @@
    …and they are tabs in shape as well as in place: see tabOutline. */
 const CHIP_TAB_H = 9;
 const LINK_TAB = CHIP_TAB_H;
+/* The site a link goes to, shown by its own icon in the link's tab rather
+   than by the same arrow on every entry — a reader can tell a wiki from a
+   shop before pressing it. The icon is asked of a public icon service by
+   the site's NAME only (never the whole address), and until it arrives,
+   or if it never does, the arrow stays. What each site answered is
+   remembered for the page's life, so a redraw neither asks again nor
+   flickers between the two. `var`: renderNodes runs before this part's
+   `let`s would exist on some paths. */
+var SITE_ICON_HOST = 'https://icons.duckduckgo.com/ip3/';
+var siteIconState = new Map();       // host -> 'ok' | 'bad'
+function siteHost(link){
+  const href = safeUrl(link);
+  if(!href) return '';
+  try{
+    const u = new URL(href);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.hostname : '';
+  }catch(e){ return ''; }
+}
+function siteIconInto(g, link, dy){
+  const host = siteHost(link);
+  if(!host || siteIconState.get(host) === 'bad') return;
+  const S = LINK_TAB - 2.2;
+  const img = el('image', {class:'node-link-icon', href: SITE_ICON_HOST + encodeURIComponent(host) + '.ico',
+    x: -S/2, y: -S/2 + (dy || 0), width: S, height: S, preserveAspectRatio:'xMidYMid meet'}, g);
+  if(siteIconState.get(host) === 'ok'){ g.classList.add('has-icon'); return; }
+  img.addEventListener('load', ()=>{ siteIconState.set(host, 'ok'); g.classList.add('has-icon'); });
+  img.addEventListener('error', ()=>{ siteIconState.set(host, 'bad'); img.remove(); });
+}
 /* Where the tabs stand: the outer edge of the outermost border line, so a
    ringed or rippled entry's tabs clear all of it. */
 function tabBaseOf(n){
@@ -1492,7 +1520,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
                class:'node-link-arrow'}, lg);
     if(base.sink) arrow.setAttribute('transform', `translate(0,${-base.sink/2})`);
     if(linkInk) lg.style.setProperty('--tab-ink', linkInk);
-    el('title',{},lg).textContent = 'Open linked page ↗';
+    siteIconInto(lg, n.link, -base.sink/2);
+    el('title',{},lg).textContent = 'Open linked page ↗' + (siteHost(n.link) ? ' — ' + siteHost(n.link) : '');
     /* And while another entry is open this one's link does not fire: the
        page it would open belongs to a box the reader has stepped away
        from. The press falls through to the box instead, which opens it —
