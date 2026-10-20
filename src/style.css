@@ -1092,11 +1092,12 @@
      open, fills it beside the tab. */
   .side-tab{
     position:absolute;left:0;
-    height:calc((100% - var(--side-tab-gap) * 2) / 3);
+    height:calc((100% - var(--side-tab-gap) * 3) / 4);
   }
   #tagsPanel{top:0;}
-  #refsPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap));}
-  #keyPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2);}
+  #refsPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 + var(--side-tab-gap));}
+  #keyPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 2 + var(--side-tab-gap) * 2);}
+  #minimapPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 3 + var(--side-tab-gap) * 3);}
   .side-tab-body{
     position:absolute;left:25px;top:0;bottom:0;
     width:252px;
@@ -1109,16 +1110,7 @@
     pointer-events:auto;
   }
   .side-tab.open .side-tab-body{visibility:visible;}
-  /* The overview: one drawer at the right edge, low down by the add
-     button, opening leftwards. Its tab and its panel are the left drawers'
-     own, turned round, so it reads as one of them. */
-  .side-tab.minimap{left:auto;right:0;top:auto;bottom:76px;height:168px;width:26px;z-index:24;}
-  .minimap .side-tab-handle{left:auto;right:0;top:auto;bottom:0;border-left:1px solid var(--line);
-    border-right:none;border-radius:6px 0 0 6px;}
-  .minimap.open .side-tab-handle{border-left:none;border-radius:0;}
-  .minimap .side-tab-body{left:auto;right:25px;width:252px;border-radius:6px 0 0 6px;}
-  .minimap.shifted{right:334px;}
-  .minimap.shifted .side-tab-handle{border-right:1px solid var(--line);border-radius:6px;}
+  /* The overview is drawn on a canvas that fills its drawer. */
   .minimap-canvas{display:block;width:100%;height:100%;cursor:pointer;touch-action:none;}
   .side-tab-handle{
     position:absolute;left:0;top:0;
@@ -3014,8 +3006,6 @@
     .add-fab{right:12px;bottom:12px;}
     /* Under the open sheet there is nowhere for it to stand. */
     .add-fab.shifted{display:none;}
-    .minimap.shifted{display:none;}
-    .minimap .side-tab-body{width:min(252px, calc(100vw - 60px));}
     .coord{display:none;}
     .about-card{width:calc(100vw - 16px);max-height:calc(100% - 16px);}
     /* A fingertip, not a cursor, has to find the way out. */

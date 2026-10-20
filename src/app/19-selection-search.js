@@ -425,9 +425,6 @@ document.getElementById('detailClose').onclick = (e)=>{ e.stopPropagation(); des
 function updateAddFabPosition(){
   const open = document.getElementById('detail').classList.contains('open');
   document.getElementById('addFab').classList.toggle('shifted', open);
-  // The overview stands beside the drawer for the same reason.
-  const mini = document.getElementById('minimapPanel');
-  if(mini) mini.classList.toggle('shifted', open);
 }
 
 /* ---------------------------------------------------------------------
@@ -448,7 +445,7 @@ function closeToolbarMenus(keep){
     if(elm) elm.classList.remove('open');
   });
 }
-const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel'];
+const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
 function sideTabsOpen(){
   return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
 }
@@ -462,6 +459,7 @@ function setSideTab(panel, open){
   if(handle) handle.setAttribute('aria-expanded', open ? 'true' : 'false');
   document.body.classList.toggle('side-tab-open', sideTabsOpen().length > 0);
   if(open && panel.id === 'keyPanel') buildKeyTab();
+  if(panel.id === 'minimapPanel') minimapOpened(open);
 }
 SIDE_TABS.forEach(id=>{
   const panel = document.getElementById(id);

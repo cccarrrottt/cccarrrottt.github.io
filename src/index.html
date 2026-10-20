@@ -62,8 +62,9 @@
     </svg>
 
 
-    <!-- The tags the chart filters by, the references it cites and what its
-         marks mean, as three drawers spaced down the left edge. Each opens
+    <!-- The tags the chart filters by, the references it cites, what its
+         marks mean and the whole chart in small, as four drawers spaced down
+         the left edge. Each opens
          and shuts on its own, into its own third of the edge, so any of
          them can be open together and no tab ever moves. -->
     <div class="side-tabs" id="sideTabs">
@@ -86,6 +87,15 @@
                 aria-controls="keyList" title="Legend — what the marks on the chart mean" aria-label="Legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 6.4 8.8 4l6.4 2.4 6-2.4v13.6l-6 2.4-6.4-2.4-6 2.4z"/><path d="M8.8 4v13.6M15.2 6.4V20"/></svg></button>
         <div class="side-tab-body">
           <div class="legend-list" id="keyList"></div>
+        </div>
+      </section>
+      <!-- The whole chart, small, with a frame for the view; press or drag on
+           it to go there. -->
+      <section class="side-tab" id="minimapPanel">
+        <button type="button" class="side-tab-handle" id="minimapTab" aria-expanded="false"
+                aria-controls="minimapCanvas" title="Overview — the whole chart, and where the view is on it" aria-label="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="11" y="10" width="7" height="6" rx="0.5"/></svg></button>
+        <div class="side-tab-body">
+          <canvas id="minimapCanvas" class="minimap-canvas"></canvas>
         </div>
       </section>
       <!-- Belongs to the references, and is moved in under their heading on
@@ -300,16 +310,6 @@
       <button type="button" data-act="undo" title="Undo (Ctrl+Z)">↶</button>
       <button type="button" data-act="redo" title="Redo (Ctrl+Y)">↷</button>
     </div>
-    <!-- The whole chart, small, in a drawer at the right edge: the same tab
-         and the same panel as the drawers on the left, mirrored. The frame
-         on it is the view; press or drag on it to go there. -->
-    <section class="side-tab minimap" id="minimapPanel">
-      <button type="button" class="side-tab-handle" id="minimapTab" aria-expanded="false"
-              aria-controls="minimapCanvas" title="Overview — the whole chart, and where the view is on it" aria-label="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="11" y="10" width="7" height="6" rx="0.5"/></svg></button>
-      <div class="side-tab-body">
-        <canvas id="minimapCanvas" class="minimap-canvas"></canvas>
-      </div>
-    </section>
     <div class="add-fab" id="addFab">
       <div class="add-fab-styles" id="addFabStyles" role="menu"></div>
       <button type="button" class="add-fab-btn" id="addFabBtn" aria-haspopup="menu"

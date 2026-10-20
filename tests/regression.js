@@ -13005,16 +13005,16 @@ async function main(){
       return !!(at && at.closest('#' + id));
     };
     out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
-    /* Three drawers down the left edge: the tabs stand still whatever is
-       open, every drawer is the same size, any of them can be open at
-       once, and no two ever overlap. */
-    const tabIds = ['tagsTab', 'refsTab', 'keyTab'];
-    const panels = ['tagsPanel', 'refsPanel', 'keyPanel'].map(id=> document.getElementById(id));
+    /* Four drawers down the left edge, the overview the lowest: the tabs
+       stand still whatever is open, every drawer is the same size, any of
+       them can be open at once, and no two ever overlap. */
+    const tabIds = ['tagsTab', 'refsTab', 'keyTab', 'minimapTab'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'].map(id=> document.getElementById(id));
     const tabRects = ()=> tabIds.map(id=>{ const r = rect(document.getElementById(id)); return [r.top, r.height].map(v=> Math.round(v)); });
     const shutRects = JSON.stringify(tabRects());
     const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const states = [];
-    for(const mask of [[1,0,0],[0,1,0],[0,0,1],[1,1,0],[0,1,1],[1,1,1]]){
+    for(const mask of [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[1,1,0,0],[0,1,1,1],[1,1,1,1]]){
       panels.forEach((p, i)=> setSideTab(p, !!mask[i]));
       await wait(60);
       const bodies = panels.map(p=> p.querySelector('.side-tab-body'));
@@ -13040,7 +13040,7 @@ async function main(){
         return {svg: !!b.querySelector('svg'), text: b.textContent.trim(), label: b.getAttribute('aria-label')}; });
       out.tabSigns = JSON.stringify(signs);
       out.tabsBySign = signs.every(t=> t.svg && !t.text && t.label) &&
-        signs.map(t=> t.label).join() === 'Tags,References,Legend';
+        signs.map(t=> t.label).join() === 'Tags,References,Legend,Overview';
       const cite = document.querySelector('.mini-toolbar .tb-ref-btn');
       out.citeIsSign = !!cite && !!cite.querySelector('svg') && !cite.textContent.trim();
       buildSideTabs();
@@ -13114,9 +13114,9 @@ async function main(){
   check('an empty remark, pinned or not, is one grid step square', rT.emptyIsStep, JSON.stringify(rT.empty));
   check('and a step snapped to comes out clean', rT.snapClean);
   check('the top bar has no menu for tags and references', rT.noToolbarButton);
-  check('tags, references and the legend are three drawers that open together and never move or overlap',
+  check('tags, references, the legend and the overview are four drawers that open together and never move or overlap',
         rT.tabsApart, JSON.stringify(rT.tabStates));
-  check('and the three tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
+  check('and the four tabs are the same length', new Set(rT.tabLengths).size === 1, JSON.stringify(rT.tabLengths));
   check('each tab is marked by a sign, not a word', rT.tabsBySign, rT.tabSigns);
   check('the cite button on a text toolbar is the [1] sign', rT.citeIsSign);
   check('the + for a reference is made as the tag\'s and the category\'s are', rT.refAddLike, rT.refAddBoxes);

@@ -11,9 +11,16 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.13.0';
+const APP_VERSION = '0.14.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.14.0', date:'2026-10-20', title:'The whole map', notes:[
+'Search looks in every text an entry can show, its language tabs included: a hit says which tab it was found on, beside the entry\u2019s tags, and opens the entry on that tab. An entry has a link of its own \u2014 the chain in its panel copies an address that opens the chart on that entry and that tab.',
+'The chart can be exported as a picture, PNG or SVG, from the file menu: the whole drawing at full detail whatever the zoom, with its faces carried inside. A fourth drawer on the left holds an overview of the whole chart with a frame for the view, and a press on it goes there. A link\u2019s tab wears its site\u2019s icon.',
+'Suggestions are back on the published site. A reader signs in with GitHub and suggests a correction, an addition or a deletion; each is an issue under the reader\u2019s own account, and the owner closes them from the same panel. Nothing is stored in the chart, so a suggestion never puts the owner\u2019s page behind.',
+'A connector bent by hand keeps to a guide and to where it was let go. Carrying many entries is faster, and connectors are routed about twice as fast on a large chart, every route coming out exactly as before.',
+'Along the way: every colour square is one size, the far-off clusters can be switched off from the bar, and the view is kept between visits.',
+  ]},
   {v:'0.13.0', date:'2026-10-16', title:'On the home screen', notes:[
 'The site can be put on a phone\u2019s home screen and opens there like an app, with no signal too. Save with no connection keeps the chart on the phone, says so, and sends it by itself when the connection comes back; the owner\u2019s sign-in renews itself instead of running out after eight hours.',
 'Every colour is a square, as a tag\u2019s is: pressed, it turns into the box its code is typed in, where it stands. On a text toolbar a click puts the square\u2019s colour on the chosen words and a double click opens its code. A connector\u2019s Fill is Inherited or Custom, and Custom is two squares with a gradient switch. Colouring words that already have a colour now gives them the new one.',

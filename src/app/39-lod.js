@@ -306,7 +306,7 @@ syncLod();
 /* =========================================================================
    THE OVERVIEW
    -----------------------------------------------------------------------
-   The whole chart drawn small in the drawer at the bottom right, with a
+   The whole chart drawn small in the lowest drawer on the left, with a
    frame for the part of it the view is showing. Pressing or dragging on it
    moves the view there, at the zoom it already had.
 
@@ -378,23 +378,19 @@ function drawMinimap(){
   c.strokeRect(v.x0 * fit.k + fit.ox + 0.75, v.y0 * fit.k + fit.oy + 0.75,
                Math.max(2, (v.x1 - v.x0) * fit.k - 1.5), Math.max(2, (v.y1 - v.y0) * fit.k - 1.5));
 }
-function setMinimap(open){
-  const p = document.getElementById('minimapPanel');
-  if(!p) return;
-  p.classList.toggle('open', !!open);
-  const h = document.getElementById('minimapTab');
-  if(h) h.setAttribute('aria-expanded', open ? 'true' : 'false');
+/* The drawer itself opens and shuts like the others (setSideTab); this is
+   what the overview adds to that: drawn as it opens, and remembered. */
+function minimapOpened(open){
   try{ localStorage.setItem(MINIMAP_KEY, open ? '1' : '0'); }catch(e){}
   if(open) drawMinimap();
+}
+function setMinimap(open){
+  setSideTab(document.getElementById('minimapPanel'), open);
 }
 {
   const p = document.getElementById('minimapPanel');
   const cv = document.getElementById('minimapCanvas');
   if(p && cv){
-    document.getElementById('minimapTab').addEventListener('click', ev=>{
-      ev.stopPropagation();
-      setMinimap(!minimapOpen());
-    });
     /* The point pressed becomes the middle of the view. The layout is the
        one the canvas was last drawn with, so where the press lands is
        where the reader saw the chart — not where a redraw since might
@@ -416,7 +412,6 @@ function setMinimap(open){
     const letGo = ()=>{ held = false; drawMinimap(); };
     cv.addEventListener('pointerup', letGo);
     cv.addEventListener('pointercancel', letGo);
-    p.addEventListener('click', ev=> ev.stopPropagation());
     window.addEventListener('resize', ()=> syncMinimap());
     let was = false;
     try{ was = localStorage.getItem(MINIMAP_KEY) === '1'; }catch(e){}
