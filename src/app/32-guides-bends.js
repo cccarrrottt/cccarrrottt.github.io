@@ -159,22 +159,21 @@ function drawBendHandles(){
     turns.forEach(q=>{ const k = Math.hypot(q.x - b[0], q.y - b[1]); if(k <= d){ d = k; best = q; } });
     return best ? [best.x, best.y] : b;
   };
-  /* A corner the line does not turn at is one the router could not honour
-     — see pathFromPorts: bends that cannot be followed cleanly are kept,
-     unused, in case a move makes them good again. Its mark is drawn
-     hollow and dashed, as a corner put aside rather than one the line has
-     somehow failed to reach; a solid mark off the line read as exactly
-     that. A curve's corners are never on the line, so there the question
-     is not asked. */
+  /* Corners the router could not honour (see pathFromPorts) are taken out
+     when the edit that broke them settles — but a chart can arrive with
+     some, saved before that was so, and they stay until an edit reaches
+     their connector. Their marks are drawn hollow and dashed, as corners set
+     aside; a solid mark off the line read as a corner the line had failed
+     to reach. */
+  const parked = !!(redrawEdges.ignored && redrawEdges.ignored.has(calloutEdgeKey(target.from, target.to)));
   bends.forEach((b0, i)=>{
-    const b = drawnAt(b0);
-    const parked = !curve && b === b0;
+    const b = parked ? b0 : drawnAt(b0);
     const m = onLine({x:b[0], y:b[1]});
     const g = el('g', {class:'bend-handle' + (parked ? ' bend-parked' : ''), 'data-i':i}, host);
     el('circle', {cx:m.x.toFixed(2), cy:m.y.toFixed(2), r:BEND_R + 4, class:'bend-hit'}, g);
     el('circle', {cx:m.x.toFixed(2), cy:m.y.toFixed(2), r:BEND_R, class:'bend-mark'}, g);
     el('title', {}, g).textContent = parked
-      ? 'The line cannot pass through this corner, so it is set aside. Drag it to where the line can reach, or double-click to take it out'
+      ? 'The line cannot pass through this corner, so it is set aside and goes with the next change to this connector or its entries. Double-click to take it out now'
       : 'Drag to move this corner; Shift lines it up with the other connectors; double-click to take it out';
     g.addEventListener('mousedown', ev=> beginBendDrag(ev, target, {x:b[0], y:b[1]}, i, pts));
     g.addEventListener('click', ev=> ev.stopPropagation());
@@ -637,6 +636,46 @@ function routeWithBends(from, to, bends){
     else if(now >= 0) EDGE_STYLES.splice(now, 1);
   }
   return out;
+}
+/* Bends the line was drawn without are taken out — the owner's call: a
+ * corner nobody can see the line take is not a corner worth keeping, and
+ * one kept in case a later move made it good again read as a mark the line
+ * had simply failed to reach. Done when an edit settles, never in the
+ * middle of a drag, where the hand may yet carry the line back through
+ * them; and inside that edit's own step of undo.
+ *
+ * Only on connectors the edit reached. `was` is what ignoredBendRoutes
+ * said before it: a connector that was already drawn without its bends,
+ * and is drawn along exactly the same line after, was not touched — and an
+ * edit to one entry's name must not rewrite a connector across the chart,
+ * which a Save would then send as a change nobody made. `only`, instead,
+ * names the connectors outright. Answers whether anything was taken out,
+ * and redraws if so. */
+function ignoredBendRoutes(){
+  const out = new Map();
+  (redrawEdges.ignored || new Set()).forEach(k=>{
+    // The line it is drawn along, and the bends it is given: either changing is the edit reaching it.
+    const r = drawnRoutes.get(k);
+    out.set(k, (r && r.pts ? JSON.stringify(r.pts.map(q=> [q.x, q.y])) : '') + '|' +
+               (r ? JSON.stringify(bendListOf(r.from, r.to)) : ''));
+  });
+  return out;
+}
+function dropIgnoredBends(only, was){
+  const ignored = redrawEdges.ignored;
+  if(!ignored || !ignored.size) return false;
+  try{ if(bendDrag) return false; }catch(e){ return false; }
+  const now = was ? ignoredBendRoutes() : null;
+  let changed = false;
+  ignored.forEach(k=>{
+    const e = structEdges.find(x=> calloutEdgeKey(x.from, x.to) === k);
+    if(!e || (only && !only.has(k)) || !bendListOf(e.from, e.to).length) return;
+    if(was && was.has(k) && was.get(k) === now.get(k)) return;
+    setBendList(e.from, e.to, []);
+    changed = true;
+  });
+  if(changed) rebuildChart();
+  return changed;
 }
 function pruneHandBends(pairs){
   const seen = new Set();

@@ -16290,8 +16290,11 @@ async function main(){
     });
     await wait(200);
     const pa = nodes.get('pkA');
-    applyEdit(()=> setEdgeStyleOverride('pkA','pkB', Object.assign({}, edgeStyleFor('pkA','pkB'),
-      {routing:'orthogonal', fromSide:'top', toSide:'top', bends:[[pa.x + pa.w/2 - 5, pa.y + pa.h + 45]]})));
+    const unreachable = Object.assign({}, edgeStyleFor('pkA','pkB'),
+      {routing:'orthogonal', fromSide:'top', toSide:'top', bends:[[pa.x + pa.w/2 - 5, pa.y + pa.h + 45]]});
+    // As a chart saved before such corners were dropped arrives with one.
+    setEdgeStyleOverride('pkA','pkB', unreachable);
+    rebuildChart();
     await wait(200);
     bendHoverTarget = null; showBendsFor('pkA','pkB');
     const pl = line('pkA','pkB');
@@ -16300,6 +16303,19 @@ async function main(){
     out.parked = document.querySelectorAll('#bendLayer .bend-handle.bend-parked').length;
     out.solidOnLine = solid.every(d=> d < 0.6);
     bendHoverTarget = null; drawBendHandles();
+    /* The next edit takes it out, in that edit's own step of undo; and an
+       edit that puts one there itself keeps nothing of it. */
+    // (The stack's length says nothing here: a long run fills it to its cap.)
+    applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'pkB'); it[1] = 'other one'; });
+    await wait(100);
+    out.droppedOnEdit = bendListOf('pkA','pkB').length === 0;
+    undoLastEdit();
+    await wait(100);
+    // One undo puts back the name and the corner together: they were one step.
+    out.undoBrings = bendListOf('pkA','pkB').length === 1 && nodes.get('pkB').label === 'other';
+    applyEdit(()=> setEdgeStyleOverride('pkA','pkB', Object.assign({}, unreachable, {bends:[[pa.x + pa.w/2 + 3, pa.y + pa.h + 45]]})));
+    await wait(100);
+    out.neverKept = bendListOf('pkA','pkB').length === 0;
 
     /* The connector's panel carries no guide and no Delete; the Delete
        key still deletes the connector it is open on. */
@@ -16372,6 +16388,9 @@ async function main(){
   check('a curve\'s marks stand on the curve', r20.curveOnLine, JSON.stringify(r20.curveMarks));
   check('a corner the line cannot pass through is drawn set aside, and every other mark is on the line',
         r20.parked === 1 && r20.solidOnLine, JSON.stringify({parked: r20.parked, on: r20.solidOnLine}));
+  check('and is taken out by the next edit, in its step of undo, or never kept at all',
+        r20.droppedOnEdit && r20.undoBrings && r20.neverKept,
+        JSON.stringify({drop: r20.droppedOnEdit, undo: r20.undoBrings, never: r20.neverKept}));
   check('a connector\'s panel has no guide and no Delete, and the Delete key still deletes it',
         r20.panelLean && r20.keyDeletes, JSON.stringify({lean: r20.panelLean, del: r20.keyDeletes}));
   check('a square showing a default colour wears the dashed edge, as in the Tags drawer',

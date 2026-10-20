@@ -13,9 +13,10 @@ Releases before 0.9.0 were not numbered.
   the head, up to a sixth of a wave before it, so a gap behind the head
   came and went as an entry or a bend was moved.
 - A curved connector's marks stand on the curve rather than on the route
-  it is drawn over. A corner the line cannot pass through is drawn hollow
-  and dashed, as a corner set aside, rather than as a solid mark off the
-  line.
+  it is drawn over. A corner the line cannot pass through is taken out by
+  the edit that made it unreachable, in that edit's step of undo; one
+  saved before that is drawn hollow and dashed, as a corner set aside,
+  until an edit reaches its connector.
 - A colour square showing a default colour wears the dashed edge a
   ground's square wears in the Tags drawer, and a reset stands right
   beside the square it resets.

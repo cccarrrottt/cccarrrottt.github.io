@@ -215,8 +215,10 @@ function refreshSaveUI(){
 function applyEdit(mutate, before){
   if(readOnlyView) return;
   pushUndo(before);
+  const was = ignoredBendRoutes();
   mutate();
   rebuildChart();
+  dropIgnoredBends(null, was);
   refreshSaveUI();
 }
 // Every edit records where it started, and abandons any forward history.
