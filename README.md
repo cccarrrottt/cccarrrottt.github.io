@@ -373,6 +373,11 @@ site, and the owner's open page suddenly behind the repository and refused
 at Save. As an issue it disturbs nothing, GitHub tells the owner, and
 somebody who misuses it is blocked with GitHub's own button.
 
+- **The GitHub App has to be public** (its settings → Advanced → Make
+  public). A private app can be authorized only by its owner; anyone else
+  pressing Sign in gets GitHub's 404. Public means anyone may sign in
+  through it, not that it reaches more: what it can touch is still decided
+  by where it is installed, and that is this repository alone.
 - A reader's session opens the suggestions and nothing else. The write
   service checks on every request that Save and closing a suggestion come
   from a login in `OWNERS`, and Owner sign-in with any other account still

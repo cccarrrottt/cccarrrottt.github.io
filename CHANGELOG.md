@@ -11,6 +11,8 @@ Releases before 0.9.0 were not numbered.
 - Signing in to suggest asks GitHub which account to use, instead of
   quietly taking the one the browser is signed in to; and the suggestion
   form, while someone is signed in, offers another GitHub account.
+- README says the GitHub App must be public for readers to sign in: a
+  private one answers everybody but its owner with a 404.
 
 ## 0.14.0 — "The whole map" (2026-10-20)
 
