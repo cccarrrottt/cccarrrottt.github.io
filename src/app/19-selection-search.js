@@ -488,7 +488,7 @@ function searchHits(q){
     texts.forEach(({tab, text})=>{
       const plain = stripMarkup(text || '');
       if(plain.toLowerCase().includes(q))
-        hits.push({n, tab, text: text || '', plain, chip: tabs.length ? (tab === null ? DEFAULT_LANG_CHIP : tabs[tab].tag) : null});
+        hits.push({n, tab, text: text || '', plain, chip: tabs.length ? (tab === null ? DEFAULT_LANG_CHIP : (flagForCode(tabs[tab].tag) || tabs[tab].tag)) : null});
     });
   });
   hits.sort((a,b)=> a.plain.length - b.plain.length);
@@ -648,7 +648,7 @@ document.addEventListener('focusin', ev=>{
 function deletePicked(){
   if(readOnlyView) return false;
   if(edgePopover.classList.contains('open') && currentEdgeStyleTarget){
-    styleDeleteBtn.click();
+    deleteOpenConnector();
     return true;
   }
   if(multiSelection.size > 1){

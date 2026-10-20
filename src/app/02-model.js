@@ -476,6 +476,56 @@ const EMOJI_FAMILY = "'Noto Color Emoji','Apple Color Emoji','Segoe UI Emoji',sa
  * dozen bytes of SVG that look the same everywhere. */
 const DEFAULT_LANG_CHIP = '\uD83C\uDDFA\uD83C\uDDF8';   // 🇺🇸
 
+/* A language tab named by a country's code wears that country's flag.
+ *
+ * Typing a flag on a phone is a trip through the emoji keyboard; typing
+ * "DE" or "DEU" is two or three keys. So a tab whose name is a country's
+ * two- or three-letter ISO 3166 code is shown, and kept, as the flag those
+ * letters spell — the regional-indicator pair, which is all a flag emoji
+ * is. Every code in the standard, the three-letter ones each paired with
+ * the two letters of the flag. A name that is not a country stays words:
+ * EN, ENG and JA name languages and no country, so they are left alone. */
+const COUNTRY_CODES = (()=>{
+  const two = new Map();
+  ('ABWAW AFGAF AGOAO AIAAI ALAAX ALBAL ANDAD AREAE ARGAR ARMAM ASMAS ' +
+  'ATAAQ ATFTF ATGAG AUSAU AUTAT AZEAZ BDIBI BELBE BENBJ BESBQ BFABF ' +
+  'BGDBD BGRBG BHRBH BHSBS BIHBA BLMBL BLRBY BLZBZ BMUBM BOLBO BRABR ' +
+  'BRBBB BRNBN BTNBT BVTBV BWABW CAFCF CANCA CCKCC CHECH CHLCL CHNCN ' +
+  'CIVCI CMRCM CODCD COGCG COKCK COLCO COMKM CPVCV CRICR CUBCU CUWCW ' +
+  'CXRCX CYMKY CYPCY CZECZ DEUDE DJIDJ DMADM DNKDK DOMDO DZADZ ECUEC ' +
+  'EGYEG ERIER ESHEH ESPES ESTEE ETHET FINFI FJIFJ FLKFK FRAFR FROFO ' +
+  'FSMFM GABGA GBRGB GEOGE GGYGG GHAGH GIBGI GINGN GLPGP GMBGM GNBGW ' +
+  'GNQGQ GRCGR GRDGD GRLGL GTMGT GUFGF GUMGU GUYGY HKGHK HMDHM HNDHN ' +
+  'HRVHR HTIHT HUNHU IDNID IMNIM INDIN IOTIO IRLIE IRNIR IRQIQ ISLIS ' +
+  'ISRIL ITAIT JAMJM JEYJE JORJO JPNJP KAZKZ KENKE KGZKG KHMKH KIRKI ' +
+  'KNAKN KORKR KWTKW LAOLA LBNLB LBRLR LBYLY LCALC LIELI LKALK LSOLS ' +
+  'LTULT LUXLU LVALV MACMO MAFMF MARMA MCOMC MDAMD MDGMG MDVMV MEXMX ' +
+  'MHLMH MKDMK MLIML MLTMT MMRMM MNEME MNGMN MNPMP MOZMZ MRTMR MSRMS ' +
+  'MTQMQ MUSMU MWIMW MYSMY MYTYT NAMNA NCLNC NERNE NFKNF NGANG NICNI ' +
+  'NIUNU NLDNL NORNO NPLNP NRUNR NZLNZ OMNOM PAKPK PANPA PCNPN PERPE ' +
+  'PHLPH PLWPW PNGPG POLPL PRIPR PRKKP PRTPT PRYPY PSEPS PYFPF QATQA ' +
+  'REURE ROURO RUSRU RWARW SAUSA SDNSD SENSN SGPSG SGSGS SHNSH SJMSJ ' +
+  'SLBSB SLESL SLVSV SMRSM SOMSO SPMPM SRBRS SSDSS STPST SURSR SVKSK ' +
+  'SVNSI SWESE SWZSZ SXMSX SYCSC SYRSY TCATC TCDTD TGOTG THATH TJKTJ ' +
+  'TKLTK TKMTM TLSTL TONTO TTOTT TUNTN TURTR TUVTV TWNTW TZATZ UGAUG ' +
+  'UKRUA UMIUM URYUY USAUS UZBUZ VATVA VCTVC VENVE VGBVG VIRVI VNMVN ' +
+  'VUTVU WLFWF WSMWS YEMYE ZAFZA ZMBZM ZWEZW ').trim().split(' ').forEach(p=>{
+    two.set(p.slice(3), p.slice(3));
+    two.set(p.slice(0, 3), p.slice(3));
+  });
+  // Not in the standard's list, but flags all the same, and what is typed.
+  two.set('UK', 'GB');
+  two.set('EU', 'EU');
+  return two;
+})();
+function flagForCode(text){
+  const t = String(text || '').trim().toUpperCase();
+  if(!/^[A-Z]{2,3}$/.test(t)) return null;
+  const two = COUNTRY_CODES.get(t);
+  if(!two) return null;
+  return String.fromCodePoint(...[...two].map(c=> 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
 const nodes = new Map();   // id -> node record
 const structEdges = [];    // {from,to,color,label}
 const componentMeta = []; // [{ids, origin:{x,y}, bbox}]

@@ -167,6 +167,9 @@ function carriedRoute(e, a, b, style, rec, hold){
   return result;
 }
 function redrawEdges(){
+  /* The connectors this pass draws without the bends they were given;
+     read by the bend handles and by dropIgnoredBends. */
+  redrawEdges.ignored = new Set();
   silenceEdgeFade();
   while(edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
   while(leaderHitLayer.firstChild) leaderHitLayer.removeChild(leaderHitLayer.firstChild);
@@ -250,8 +253,9 @@ function redrawEdges(){
     const a = nodes.get(e.from), b = nodes.get(e.to);
     if(!a||!b) return;
     const style = edgeStyleFor(e.from, e.to);
-    const { d, angleDeg, pts } = heldRoute(e, a, b, style, ports.get(e)) ||
+    const { d, angleDeg, pts, ignored } = heldRoute(e, a, b, style, ports.get(e)) ||
                                  routeEdge(a,b,style,ports.get(e));
+    if(ignored) redrawEdges.ignored.add(calloutEdgeKey(e.from, e.to));
     const dash = DASH_PATTERNS[style.dash];
     const grad = style.gradient;
     /* The colour a connector takes when it was not given one: the border

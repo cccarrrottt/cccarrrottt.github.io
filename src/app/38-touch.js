@@ -97,11 +97,14 @@ if(touchTools){
   syncTouchTools();
 }
 /* Cut, copy, paste and delete, as a phone offers them over selected text:
- * a long press on what is selected brings up a row of them above the
- * finger. A long press on an entry that is NOT selected still adds it to
- * the selection, as a held tap always has (it stands for Ctrl) — so
- * picking several and then holding one of them is the whole gesture. On
- * empty canvas the row offers only Paste. Any other touch puts it away. */
+ * a long press on an entry brings up a row of them above the finger. An
+ * entry that is NOT selected yet is added to the selection first, as a
+ * held tap always has (it stands for Ctrl), and the row comes up over the
+ * whole selection — so picking several is holding them one after another.
+ * It used to add the entry and stop there, and the menu came only on a
+ * second hold: a long press on a thing that answered with nothing. A long
+ * press on a connector opens its panel and offers Delete; on empty canvas
+ * the row offers only Paste. Any other touch puts it away. */
 const touchMenu = (()=>{
   const m = document.createElement('div');
   m.className = 'touch-menu';
@@ -134,9 +137,13 @@ const touchMenu = (()=>{
   if(host) host.appendChild(m);
   return m;
 })();
-function openTouchMenu(x, y, onSelection){
+/* `kind` is what was held: 'selection' (or true) offers everything, a
+   connector ('edge') only Delete, and anything else only Paste. */
+function openTouchMenu(x, y, kind){
+  const offers = (kind === true || kind === 'selection') ? null
+    : kind === 'edge' ? ['delete'] : ['paste'];
   touchMenu.querySelectorAll('button').forEach(b=>{
-    b.hidden = !onSelection && b.dataset.act !== 'paste';
+    b.hidden = !!offers && !offers.includes(b.dataset.act);
   });
   touchMenu.hidden = false;
   const host = document.querySelector('.main').getBoundingClientRect();
@@ -152,14 +159,19 @@ document.addEventListener('touchstart', ev=>{
   if(!touchMenu.hidden && !touchMenu.contains(ev.target)) closeTouchMenu();
 }, {passive: true, capture: true});
 /* Whether a held tap here asks for the menu, and which one: on an entry
-   that is part of the selection, the whole menu; on empty canvas, Paste. */
+   that is part of the selection, the whole menu; on one that is not,
+   the same once it has been added ('add'); on a connector, Delete; on
+   empty canvas, Paste. */
 function touchMenuFor(st){
   if(readOnlyView || !st.held) return null;
   const g = st.target.closest && st.target.closest('.node');
   if(g){
     const id = g.dataset.id;
-    return (id && (selectedId === id || multiSelection.has(id))) ? 'selection' : null;
+    if(!id) return null;
+    return (selectedId === id || multiSelection.has(id)) ? 'selection' : 'add';
   }
+  const line = st.target.closest && st.target.closest('.edge-hit');
+  if(line && line.dataset.to && !isMergedArrow(line.dataset.from, line.dataset.to)) return 'edge';
   const thing = '.edge-hit, .amalgam-bar-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
   return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
@@ -483,11 +495,28 @@ function touchFinish(ev, cancelled){
     return;
   }
   if(cancelled) return;
-  /* A held tap on the selection, or on empty canvas: the menu. */
+  /* A held tap on an entry, a connector or empty canvas: the menu. What
+     was held is first taken hold of the way a tap would — an entry added
+     to the selection (a held tap is Ctrl), a connector's panel opened —
+     so the menu's Delete has something to act on. */
   const menu = touchMenuFor(st);
   if(menu){
     touchLastTap = null;
-    openTouchMenu(st.x0, st.y0, menu === 'selection');
+    if(menu === 'add' || menu === 'edge'){
+      const mods = menu === 'add' ? {ctrl: true} : null;
+      touchPress(st, mods);
+      touchMouse('mouseup', under, st.x0, st.y0, mods, 1);
+      touchMouse('click', touchClickTarget(st.target, under), st.x0, st.y0, mods, 1);
+      /* Only over what the tap really took hold of. A dimmed connector
+         behind a selection answers a tap by letting the selection go,
+         and a Delete offered then would have nothing to delete — or,
+         worse, the wrong thing. */
+      const id = st.target.closest('.node') && st.target.closest('.node').dataset.id;
+      const got = menu === 'add' ? (selectedId === id || multiSelection.has(id))
+        : edgePopover.classList.contains('open') && !!currentEdgeStyleTarget;
+      if(!got) return;
+    }
+    openTouchMenu(st.x0, st.y0, menu === 'edge' ? 'edge' : menu === 'canvas' ? 'canvas' : 'selection');
     return;
   }
   /* A tap — or a held tap, which is a Ctrl-click. The whole press is sent
