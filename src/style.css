@@ -178,6 +178,12 @@
   .search-results .row:last-child{border-bottom:none;}
   .search-results .row:hover{background:var(--panel-2);}
   .search-results .dot{width:8px;height:8px;border-radius:2px;flex:0 0 auto;}
+  /* Which of an entry's texts the hit was found in, drawn the way its chip
+     stands on the entry: the flag for the main text, the tab's own mark
+     for the rest. */
+  .search-results .sr-tab{flex:0 0 auto;min-width:18px;padding:1px 4px;border:1px solid var(--line);
+    border-radius:3px;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    line-height:14px;text-align:center;color:var(--ink-dim);background:var(--panel-2);}
   .search-results .cl{color:var(--ink-faint);font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;margin-left:auto;white-space:nowrap;}
 
   .topbar-stats{
@@ -932,6 +938,11 @@
   .node-link{cursor:pointer;}
   .node-link-bg{fill:var(--paper);stroke:var(--tab-ink,var(--accent));stroke-width:0.9;stroke-linejoin:round;}
   .node-link-arrow{stroke:var(--tab-ink,var(--accent));stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
+  /* The site's icon takes the arrow's place once it has arrived; until
+     then it is hidden (not undisplayed, which would stop it loading), so a slow or refused icon never leaves a hole. */
+  .node-link-icon{visibility:hidden;pointer-events:none;}
+  .node-link.has-icon .node-link-icon{visibility:visible;}
+  .node-link.has-icon .node-link-arrow{display:none;}
   /* Lit by a wash of its own ink, not filled with it: the tab's outline
      is the border's colour whether it is lit or not. */
   .node-link:hover .node-link-bg{fill:color-mix(in srgb, var(--tab-ink,var(--accent)) 22%, var(--paper));}
@@ -1082,11 +1093,12 @@
      open, fills it beside the tab. */
   .side-tab{
     position:absolute;left:0;
-    height:calc((100% - var(--side-tab-gap) * 2) / 3);
+    height:calc((100% - var(--side-tab-gap) * 3) / 4);
   }
   #tagsPanel{top:0;}
-  #refsPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap));}
-  #keyPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2);}
+  #refsPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 + var(--side-tab-gap));}
+  #keyPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 2 + var(--side-tab-gap) * 2);}
+  #minimapPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 3 + var(--side-tab-gap) * 3);}
   .side-tab-body{
     position:absolute;left:25px;top:0;bottom:0;
     width:252px;
@@ -1099,6 +1111,8 @@
     pointer-events:auto;
   }
   .side-tab.open .side-tab-body{visibility:visible;}
+  /* The overview is drawn on a canvas that fills its drawer. */
+  .minimap-canvas{display:block;width:100%;height:100%;cursor:pointer;touch-action:none;}
   .side-tab-handle{
     position:absolute;left:0;top:0;
     width:26px;height:min(var(--side-tab-len), 100%);padding:0;
@@ -2121,7 +2135,8 @@
   }
   /* Post and Sign in take turns, and a class that gives a button its display
      would otherwise outrank the hidden attribute. */
-  .comment-compose [hidden], #detailSuggest[hidden]{display:none;}
+  .comment-compose [hidden], #detailSuggest[hidden], #detailLink[hidden]{display:none;}
+  #detailLink.done{color:var(--accent);}
 
   .comment-list{display:flex;flex-direction:column;gap:9px;}
   .comment-item{

@@ -445,7 +445,7 @@ function closeToolbarMenus(keep){
     if(elm) elm.classList.remove('open');
   });
 }
-const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel'];
+const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
 function sideTabsOpen(){
   return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
 }
@@ -459,6 +459,7 @@ function setSideTab(panel, open){
   if(handle) handle.setAttribute('aria-expanded', open ? 'true' : 'false');
   document.body.classList.toggle('side-tab-open', sideTabsOpen().length > 0);
   if(open && panel.id === 'keyPanel') buildKeyTab();
+  if(panel.id === 'minimapPanel') minimapOpened(open);
 }
 SIDE_TABS.forEach(id=>{
   const panel = document.getElementById(id);
@@ -473,14 +474,47 @@ SIDE_TABS.forEach(id=>{
    ------------------------------------------------------------------ */
 const searchInput = document.getElementById('searchInput');
 const searchResults = document.getElementById('searchResults');
+/* Every text an entry can show is searched, not only its main one: a
+   title kept on a language tab is as much the entry's name as the one it
+   opens with, and a reader looking for it by that name used to find
+   nothing. A hit says which text it was found in — the tab's own chip, as
+   it stands on the entry — and picking it opens the entry ON that text,
+   so what the reader typed is what they then see. */
+function searchHits(q){
+  const hits = [];
+  nodes.forEach(n=>{
+    const tabs = (n.multiLang && Array.isArray(n.langTabs)) ? n.langTabs : [];
+    const texts = [{tab:null, text:n.label}].concat(tabs.map((t, i)=>({tab:i, text:t && t.text})));
+    texts.forEach(({tab, text})=>{
+      const plain = stripMarkup(text || '');
+      if(plain.toLowerCase().includes(q))
+        hits.push({n, tab, text: text || '', plain, chip: tabs.length ? (tab === null ? DEFAULT_LANG_CHIP : (flagForCode(tabs[tab].tag) || tabs[tab].tag)) : null});
+    });
+  });
+  hits.sort((a,b)=> a.plain.length - b.plain.length);
+  return hits;
+}
+/* Opening an entry on one of its texts: the tab is switched first, so the
+   box is drawn with that text in it before the view flies there. */
+function openEntryOn(id, tab){
+  const n = nodes.get(id);
+  if(!n) return;
+  const tabs = (n.multiLang && Array.isArray(n.langTabs)) ? n.langTabs : [];
+  const want = (tab != null && tab >= 0 && tab < tabs.length) ? tab : null;
+  if(tabs.length && (activeLangTab.get(id) ?? null) !== want){
+    activeLangTab.set(id, want);
+    renderNodes();
+    applyVisibility();
+  }
+  selectNode(id); flyToNode(id);
+}
 searchInput.addEventListener('input', ()=>{
   const q = searchInput.value.trim().toLowerCase();
   if(q.length<2){ searchResults.classList.remove('show'); return; }
-  const matches = [];
-  nodes.forEach(n=>{ if(stripMarkup(n.label).toLowerCase().includes(q)) matches.push(n); });
-  matches.sort((a,b)=>stripMarkup(a.label).length-stripMarkup(b.label).length);
+  const matches = searchHits(q);
   searchResults.innerHTML='';
-  matches.slice(0,30).forEach(n=>{
+  matches.slice(0,30).forEach(hit=>{
+    const n = hit.n;
     const tagsLabel = (n.tags && n.tags.length) ? n.tags.join(', ') : '';
     const row = document.createElement('div');
     row.className='row';
@@ -488,15 +522,74 @@ searchInput.addEventListener('input', ()=>{
        the chart's data rather than from anything typed in this box, and a
        file brought in from elsewhere is not obliged to have put a real
        colour there at all. */
-    row.innerHTML = `<div class="dot" style="background:${escapeHtml(n.color || '')}"></div><div>${inlineToHtml(n.label)}</div><div class="cl">${escapeHtml(tagsLabel)}</div>`;
+    const chip = hit.chip == null ? '' :
+      `<span class="sr-tab${hit.tab === null ? ' main' : ''}" title="${hit.tab === null ? 'The main text' : escapeHtml('The \u201c' + hit.chip + '\u201d text')}">${escapeHtml(hit.chip)}</span>`;
+    row.innerHTML = `<div class="dot" style="background:${escapeHtml(n.color || '')}"></div>${chip}<div>${inlineToHtml(hit.text)}</div><div class="cl">${escapeHtml(tagsLabel)}</div>`;
     row.addEventListener('click', ()=>{
-      selectNode(n.id); flyToNode(n.id);
-      searchResults.classList.remove('show'); searchInput.value = stripMarkup(n.label);
+      openEntryOn(n.id, hit.tab);
+      searchResults.classList.remove('show'); searchInput.value = hit.plain;
     });
     searchResults.appendChild(row);
   });
   searchResults.classList.toggle('show', matches.length>0);
 });
+/* ---------------------------------------------------------------------
+   A link to one entry
+   ------------------------------------------------------------------ */
+/* The page's own address with the entry after the #, and the tab it is
+   showing if it is not the main one — so a link sent to somebody opens
+   the entry the way the sender was looking at it. The fragment never
+   reaches a server, and the page reads it on the way in (below), so the
+   same link works on the site, from a disk and from a copy elsewhere.
+   Inside claude.ai the address is the viewer's sandbox, which is nobody's
+   link, so the button is not offered there. */
+function entryLink(id){
+  const n = nodes.get(id);
+  if(!n) return '';
+  const tab = activeLangTab.get(id);
+  return location.href.split('#')[0] + '#entry=' + encodeURIComponent(id) +
+    (tab != null && n.multiLang && Array.isArray(n.langTabs) && n.langTabs[tab] ? '&tab=' + (tab + 1) : '');
+}
+function entryFromHash(hash){
+  const h = String(hash || '').replace(/^#/, '');
+  const out = {};
+  h.split('&').forEach(part=>{
+    const at = part.indexOf('=');
+    if(at < 0) return;
+    let v = part.slice(at + 1);
+    try{ v = decodeURIComponent(v); }catch(e){ return; }
+    out[part.slice(0, at)] = v;
+  });
+  if(!out.entry) return null;
+  const tab = /^[1-9][0-9]*$/.test(out.tab || '') ? +out.tab - 1 : null;
+  return {id: out.entry, tab};
+}
+function openEntryFromHash(){
+  const want = entryFromHash(location.hash);
+  if(want && nodes.has(want.id)) openEntryOn(want.id, want.tab);
+}
+window.addEventListener('hashchange', openEntryFromHash);
+const detailLink = document.getElementById('detailLink');
+if(detailLink){
+  detailLink.hidden = HOSTED;
+  detailLink.addEventListener('click', async ev=>{
+    ev.stopPropagation();
+    if(!selectedId) return;
+    const url = entryLink(selectedId);
+    let copied = false;
+    try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
+    /* Where the clipboard is refused (an insecure origin, an old browser),
+       the address bar is the next best place to hand it over from. */
+    if(!copied){ try{ window.history.replaceState(null, '', url); }catch(e){} }
+    detailLink.classList.add('done');
+    detailLink.title = copied ? 'Link copied' : 'The link is in the address bar';
+    clearTimeout(detailLink.timer);
+    detailLink.timer = setTimeout(()=>{
+      detailLink.classList.remove('done');
+      detailLink.title = 'Copy a link to this entry';
+    }, 1600);
+  });
+}
 searchInput.addEventListener('blur', ()=> setTimeout(()=>searchResults.classList.remove('show'),150));
 /* Whether the keyboard currently belongs to something being typed in. The
    shortcuts below all defer to it: a key that means "delete the entry" or
@@ -723,4 +816,7 @@ function rebuildChart(){
 window.addEventListener('resize', ()=> updateAddFabPosition());
 openingView();
 applyVisibility();
+/* After the whole program has run, not here: opening an entry reaches into
+   parts that come later and whose state does not exist yet at this line. */
+setTimeout(openEntryFromHash, 0);
 
