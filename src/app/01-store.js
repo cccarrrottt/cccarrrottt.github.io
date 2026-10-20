@@ -74,6 +74,11 @@ const HOSTED = typeof claude !== 'undefined' && claude && typeof claude.use === 
    ------------------------------------------------------------------------- */
 const SITE_ORIGINS = ['https://cccarrrottt.github.io'];
 const SITE_API = 'https://cccarrrottt-github-io.wowwodptr2.workers.dev';
+/* The repository the site is published from, and where suggestions are
+   kept as issues. The same as REPO in worker/wrangler.toml: the page reads
+   the open ones from GitHub itself, so a reader who has not signed in sees
+   them too. */
+const SITE_REPO = 'cccarrrottt/cccarrrottt.github.io';
 const ON_SITE = !HOSTED && SITE_ORIGINS.indexOf(location.origin) >= 0;
 /* The open suggestions the write service last listed (22-file-comments),
    or null before it has been asked. Declared here, ahead of everything,

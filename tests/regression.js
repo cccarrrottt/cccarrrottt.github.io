@@ -10063,6 +10063,10 @@ async function main(){
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
   await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
+  /* Signed out, the page reads the open suggestions from GitHub itself;
+     here there are none. */
+  await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'},
+    contentType: 'application/json', body: '[]'}));
   await c.route(SITE_API + '/**', async r => {
     const q = r.request(), u = new URL(q.url());
     const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN,
@@ -10384,12 +10388,24 @@ async function main(){
   const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
-  const api = {asked: 0, loginAs: [], posted: [], resolved: [], list: []};
+  const api = {asked: 0, loginAs: [], posted: [], resolved: [], list: [], ghAsked: 0};
   const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
   await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
+  /* GitHub's own API, which a signed-out page reads the open issues from:
+     the same suggestions the service lists, as GitHub holds them — the
+     marker at the end of the text — beside an ordinary issue and a pull
+     request, neither of which is a suggestion. */
+  await c.route('https://api.github.com/**', r => {
+    api.ghAsked++;
+    const raw = api.list.map(x => ({number: x.number, html_url: x.url, user: {login: x.login}, created_at: x.at + 'T10:00:00Z',
+      body: x.text + '\n\n<!-- rhizome-suggestion:' + encodeURIComponent(JSON.stringify({entry: x.entry, kind: x.kind})) + ' -->'}))
+      .concat([{number: 1, body: 'The build is slow.', user: {login: 'dev'}},
+               {number: 2, body: '<!-- rhizome-suggestion:%7B%22kind%22%3A%22deletion%22%7D -->', pull_request: {}, user: {login: 'dev'}}]);
+    return r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'application/json', body: JSON.stringify(raw)});
+  });
   await c.route(SITE_API + '/**', async r => {
     const q = r.request(), u = new URL(q.url());
     const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN,
@@ -10453,6 +10469,12 @@ async function main(){
     out.about = document.getElementById('suggestAbout').textContent;
     out.signIn = shown(document.getElementById('suggestSignIn'));
     out.switchShown = shown(document.getElementById('suggestSwitch'));
+    for(let i = 0; i < 40 && !document.querySelector('#commentList .comment-item'); i++) await new Promise(res => setTimeout(res, 50));
+    out.items = [...document.querySelectorAll('#commentList .comment-item')].map(x => x.querySelector('.comment-who').textContent);
+    out.imgs = document.querySelectorAll('#commentList img').length;
+    out.closers = document.querySelectorAll('#commentList .comment-actions button').length;
+    out.github = !!document.querySelector('#commentList .comment-actions a[href^="https://github.com/"]');
+    out.marks = [...document.querySelectorAll('#suggestionLayer .suggestion-mark')].map(g => g.dataset.id);
     out.post = shown(document.getElementById('commentSubmit'));
     out.readOnly = readOnlyView;
     return out;
@@ -10462,6 +10484,11 @@ async function main(){
   check('opened from an entry, the form says which entry it is about', r0.open && r0.about.includes(name1), r0.about);
   check('signed out, it offers a GitHub sign-in instead of Post', r0.signIn && !r0.post && !r0.switchShown);
   check('and the page has asked the service nothing yet', api.asked === 0, `${api.asked} requests`);
+  check('signed out, the open suggestions are listed all the same, read from GitHub',
+        api.ghAsked > 0 && r0.items.join() === 'someone-else' && r0.github && r0.closers === 0, JSON.stringify(r0));
+  check('only issues carrying the marker are listed, never an ordinary issue or a pull request', r0.items.length === 1);
+  check('and what GitHub hands back is still shown as text', r0.imgs === 0, JSON.stringify(r0));
+  check('signed out, the entry a suggestion is about wears its mark', r0.marks.join() === ids[0], JSON.stringify(r0.marks));
 
   /* ---- a reader signs in ---- */
   const popup = c.waitForEvent('page');
@@ -10509,14 +10536,20 @@ async function main(){
         JSON.stringify(r2));
 
   /* ---- the reader leaves ---- */
-  const r3 = await site.evaluate(() => {
+  const ghBefore = api.ghAsked;
+  const r3 = await site.evaluate(async () => {
     document.getElementById('commentsClose').click();
     document.getElementById('ownerBtn').click();
+    const marksAt = () => document.querySelectorAll('#suggestionLayer .suggestion-mark').length;
+    const right = marksAt();
+    for(let i = 0; i < 40 && !marksAt(); i++) await new Promise(res => setTimeout(res, 50));
     return {stored: localStorage.getItem('rhizome.site.session'), button: document.getElementById('ownerBtn').textContent,
-            marks: document.querySelectorAll('#suggestionLayer .suggestion-mark').length};
+            right, marks: marksAt()};
   });
-  check('signing out forgets the reader and takes the marks away',
-        r3.stored === null && r3.button === 'Owner sign-in' && r3.marks === 0, JSON.stringify(r3));
+  check('signing out forgets the reader, and what the session listed goes with it',
+        r3.stored === null && r3.button === 'Owner sign-in' && r3.right === 0, JSON.stringify(r3));
+  check('and the marks come back as any reader sees them, read from GitHub again',
+        r3.marks === 2 && api.ghAsked > ghBefore, JSON.stringify(r3));
 
   /* ---- the owner closes one ---- */
   const popup2 = c.waitForEvent('page');

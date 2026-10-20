@@ -857,12 +857,7 @@ function openSuggestions(entry){
    says so instead. */
 async function loadSuggestions(){
   if(!SUGGESTIONS_ON) return;
-  if(!suggestSignedIn()){
-    siteSuggestions = null;
-    renderSuggestions('Sign in to see what has been suggested already.');
-    paintSuggestionMarks();
-    return;
-  }
+  if(!suggestSignedIn()){ await loadPublicSuggestions(); return; }
   let answer = null;
   try{ answer = await siteRequest('/suggestions'); }catch(e){}
   if(!answer){ renderSuggestions('The suggestions could not be fetched — no connection to the service.'); return; }
@@ -873,6 +868,59 @@ async function loadSuggestions(){
     return;
   }
   siteSuggestions = body.suggestions;
+  renderSuggestions();
+  paintSuggestionMarks();
+}
+
+/* Signed out, the list is read from GitHub directly. The repository is
+   public, and so are its issues; nobody has to sign in to read what the
+   site is being asked to change, only to ask. GitHub allows a browser
+   sixty such reads an hour, which a reader opening the panel will not
+   come near, so nothing is kept between visits.
+ *
+   An issue is taken for a suggestion by the same rule the write service
+   applies (readSuggestion in worker/index.js): the LAST marker in its
+   text, naming a kind it knows. Kept in step by hand — the suite feeds
+   both the same issues. */
+const SUGGESTION_MARK = 'rhizome-suggestion:';
+const SUGGESTION_PAGES = 3;
+function readSuggestionIssue(issue){
+  if(!issue || issue.pull_request || typeof issue.body !== 'string') return null;
+  const at = issue.body.lastIndexOf('<!-- ' + SUGGESTION_MARK);
+  if(at < 0) return null;
+  const end = issue.body.indexOf(' -->', at);
+  let mark;
+  try{ mark = JSON.parse(decodeURIComponent(issue.body.slice(at + 5 + SUGGESTION_MARK.length, end < 0 ? undefined : end))); }
+  catch(e){ return null; }
+  if(!mark || COMMENT_KINDS.indexOf(mark.kind) < 0) return null;
+  return {number: issue.number, kind: mark.kind, entry: typeof mark.entry === 'string' ? mark.entry : null,
+          text: issue.body.slice(0, at).replace(/\s+$/, ''), login: issue.user && issue.user.login,
+          at: String(issue.created_at || '').slice(0, 10), url: issue.html_url};
+}
+async function loadPublicSuggestions(){
+  const out = [];
+  try{
+    for(let n = 1; n <= SUGGESTION_PAGES; n++){
+      const res = await fetch(`https://api.github.com/repos/${SITE_REPO}/issues?state=open&per_page=100&page=${n}`,
+                              {headers: {'Accept': 'application/vnd.github+json'}});
+      if(!res.ok){
+        renderSuggestions(res.status === 403 || res.status === 429
+          ? 'GitHub is not answering this browser for a while. Sign in to see the suggestions now.'
+          : 'The suggestions could not be fetched from GitHub.');
+        return;
+      }
+      const page = await res.json();
+      if(!Array.isArray(page)) break;
+      page.forEach(i=>{ const s = readSuggestionIssue(i); if(s) out.push(s); });
+      if(page.length < 100) break;
+    }
+  }catch(e){
+    renderSuggestions('The suggestions could not be fetched — no connection to GitHub.');
+    return;
+  }
+  // Signed in while this was on its way: the service's answer is the one.
+  if(suggestSignedIn()) return;
+  siteSuggestions = out;
   renderSuggestions();
   paintSuggestionMarks();
 }

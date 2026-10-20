@@ -386,6 +386,12 @@ somebody who misuses it is blocked with GitHub's own button.
   naming the entry and the kind of change — not a label, because GitHub
   drops the labels of anyone who cannot push. An ordinary issue about the
   code is never listed, and never closed from the chart.
+- **The open suggestions are public**, and so are their marks. A reader who
+  is not signed in gets the list straight from GitHub's API, the same
+  issues anyone can open on github.com, without the write service in
+  between. GitHub answers an anonymous browser sixty times an hour, and
+  past that the panel says so and offers sign-in, which lists them through
+  the service instead. Posting still needs a sign-in.
 - The owner sees the open suggestions in the same panel, with **Done** and
   **Decline** (closed as completed or as not planned), and a small numbered
   mark on every entry that has one open.

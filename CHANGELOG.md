@@ -13,6 +13,10 @@ Releases before 0.9.0 were not numbered.
   form, while someone is signed in, offers another GitHub account.
 - README says the GitHub App must be public for readers to sign in: a
   private one answers everybody but its owner with a 404.
+- Open suggestions are listed for every reader, signed in or not, and
+  entries wear their marks for everyone. Signed out, the page reads them
+  from GitHub's API directly; signing out reads them again from there
+  instead of taking the marks away.
 
 ## 0.14.0 — "The whole map" (2026-10-20)
 
