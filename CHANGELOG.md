@@ -64,6 +64,20 @@ Releases before 0.9.0 were not numbered.
   offers Delete.
 - A language tab named by a country's two- or three-letter code (DE, DEU,
   RUS, UK) wears that country's flag.
+- Undo after typing into a connector's note goes back to the note as it
+  was. The field previews by writing into the chart, and the step undo
+  kept was taken after that, so undo skipped the edit altogether.
+- A double click on a note opens its field once; it was wired twice.
+- A reader's pointer over a note is an arrow, not a text beam.
+- While a group is carried, a head on an entry's outermost border stays
+  under the entry instead of jumping above it until the drop.
+- A chart opened from a file that gives its citations no colour has the
+  default one, not the colour of the chart it replaced.
+- A font face that arrives after the page has drawn (the Cyrillic part of
+  a font, fetched the first time such a letter is drawn) re-measures the
+  chart; only the first batch of faces did.
+- Comments that described code no longer there are gone or corrected, and
+  two routing helpers with one body are one.
 
 ## 0.14.0 — "The whole map" (2026-10-20)
 

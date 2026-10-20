@@ -489,10 +489,16 @@ function commitNodeEditorText(){
   if(!t || readOnlyView) return;
   const text = nodeEditorText.value;
   if(t.kind === 'note'){
+    /* The preview below has usually written this text into EDGE_STYLES
+       already, so an unchanged note is not a reason to skip the save
+       state: the chart may still differ from what was saved. */
     const kept = edgeStyleFor(t.from, t.to);
-    if((kept.note || '') === text) return;
+    if((kept.note || '') === text){ refreshSaveUI(); return; }
     if(!nodeEditorUndoPushed){ pushUndo(); nodeEditorUndoPushed = true; }
-    applyEdit(()=>{
+    /* commitEntry, not applyEdit: the snapshot was taken once, before the
+       first keystroke reached the chart, and a second one here would be of
+       the preview — undo would land on half-typed text. */
+    commitEntry(()=>{
       /* A note written down to nothing is not a note: it goes the way an
          emptied note goes anywhere else, taking its placement with it. */
       const bare = Object.assign({}, edgeStyleFor(t.from, t.to));
@@ -598,6 +604,11 @@ if(window.visualViewport) window.visualViewport.addEventListener('resize', ()=>{
       if(!nodeEditorTarget || nodeEditorTarget.kind !== 'note') return;
       const t = nodeEditorTarget;
       const kept = edgeStyleFor(t.from, t.to);
+      /* The preview writes into EDGE_STYLES, which is a saved region, so
+         the chart as it was has to be on the undo stack before the first
+         letter lands in it — otherwise the snapshot the commit takes is of
+         the typed text, and undo has nothing to go back to. */
+      if(!nodeEditorUndoPushed){ pushUndo(); nodeEditorUndoPushed = true; }
       setEdgeStyleOverride(t.from, t.to,
         Object.assign({}, kept, {note: nodeEditorText.value || ' '}));
       redrawEdges();

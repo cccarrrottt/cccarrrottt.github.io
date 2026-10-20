@@ -665,12 +665,12 @@ function resolvePorts(edgesList, sideOverrides){
 // the fixed ink color; 'amalgam' paints the border/text with a gradient
 // built from the node's colors (falls back to a flat color with <2 colors).
 const svgDefs = document.getElementById('svgDefs');
-// Defs created once per page-load node render (the amalgam-shape node
-// border gradients) live directly in svgDefs and are never cleared. Defs
-// created every time edges are (re)drawn — the merge-stem gradient and
-// every edge's arrowhead marker — live in this nested group instead, so
-// redrawEdges() can wipe just this group each call without also deleting
-// the node-render-time gradients nodes still reference.
+// svgDefs itself holds only what is made once. What the connectors make
+// each time they are drawn — their gradients, the clips that cut a head
+// to its entry's outline — goes into this group, which redrawEdges()
+// empties on every pass; what the entries make goes into nodeDefs below,
+// emptied by every render. Neither pass can then delete what the other
+// still points at.
 const edgeDefs = el('g', {id:'edgeDefs'}, svgDefs);
 /* And the clips the ENTRIES make — one per picture, one per overlong
    label — in a group of their own, cleared with every render.

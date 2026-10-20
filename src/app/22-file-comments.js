@@ -325,6 +325,11 @@ function importChartFromText(text){
     if(settingsIn && typeof settingsIn.refColor === 'string' &&
        /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(settingsIn.refColor)){
       SETTINGS.refColor = settingsIn.refColor;
+    } else {
+      /* Like the legend below: a file that names no colour for its
+         citations has the default one, not whatever the chart it
+         replaced had been given. */
+      SETTINGS.refColor = DEFAULT_REF_COLOR;
     }
     /* The legend's words belong to the chart they describe: brought in
        with it, and not left over from the chart it replaced. */

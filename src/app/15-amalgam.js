@@ -9,15 +9,6 @@
    shaft between them, so it still reads as an arrow. It was 24, which
    gave way a whole step before it had to; see amalgamGeometry. */
 const AMALGAM_GAP = 18, AMALGAM_LEAD = 34, AMALGAM_PITCH = 2 * 6 + 3;
-// The furthest the shared bar may stand off its entry, and the furthest
-// along that bar a lineage may land.
-/* The span cap stops the bar growing across the chart — but it is also
-   what forces a lineage to step sideways before it can drop onto its
-   landing, because the landing is no longer under the parent. At 150 that
-   step showed up on quite ordinary layouts. Wide enough now that a normal
-   arrangement lands each lineage straight below its parent and comes down
-   in one clean run; a genuinely sprawling one still gets a bounded bar and
-   a visible, rounded step. */
 /* Where each merge's bar last ran, along its own axis and in chart
    coordinates. Filled in by drawAmalgam; read by a drag that offers to
    centre the entry on its own bar. */
@@ -293,7 +284,7 @@ function amalgamGeometry(list, ports){
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
-          rest: restingNow(side, port, nrm, barDist, sx, sy, resting),
+          rest: restingNow(side, port, nrm, barDist, sx, sy),
           cx: port.x + nrm.x * barDist, cy: port.y + nrm.y * barDist};
 }
 /* Where the bar stands NOW, said the way a fixed bar is stored: the axis,
@@ -543,31 +534,6 @@ function drawAmalgam(list, ports){
      symmetric about the entry's centre, so the merged arrow leaves from the
      bar's true middle. Each member owns the stretch from the midpoint with
      its previous neighbour to the midpoint with the next. */
-  /* Where each lineage lands on the bar.
-   *
-   * These used to be fixed slots spread symmetrically about the entry's
-   * own centre, regardless of where the lineages actually were. That is
-   * right when they sit above the entry, and wrong the moment they do not:
-   * with every parent off to one side, the leftmost slot still sat to the
-   * LEFT of the entry, so the member assigned to it ran past the junction
-   * and doubled back — the stub of bar reaching out to nothing that shows
-   * up as soon as an amalgam is dragged away from its lineages.
-   *
-   * Each member now lands where it actually approaches from, so the bar
-   * spans the ground the lineages really cover, and neighbours keep at
-   * least AMALGAM_PITCH between them, so two lineages arriving from nearly
-   * the same place still get their own stretch of bar.
-   *
-   * `members` is already sorted by approach, so spacing them out is a
-   * single forward pass — and a backward pass to pull the row back inside
-   * the span if the forward one pushed its tail past the end. */
-  /* The cap is never tighter than the ground the lineages themselves
-     cover. It exists to stop the bar chasing an entry dragged away from
-     its lineages — not to pull a lineage off the line it comes down on,
-     which is what a fixed cap did as soon as the parents stood further
-     apart than the cap: the outer ones had to step sideways before they
-     could drop onto their landing. */
-
   /* Where each lineage lands on the bar: under the PORT it leaves by, not
      under the middle of the entry it leaves.
    *
@@ -1000,7 +966,7 @@ function drawAmalgam(list, ports){
     drawnAt.push(jAt);
     const jp = barPt(jAt);
     const r = AMALGAM_JOINT_R;
-    const pair = [amalgamMemberColor(members[i]), amalgamMemberColor(members[i+1])];
+    const pair = pairAt;
     /* A seam is marked whether or not the colour changes across it.
      *
        0.9.17 skipped the ones where the two lineages meeting are the same

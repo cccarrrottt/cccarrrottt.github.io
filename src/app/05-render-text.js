@@ -236,16 +236,30 @@ function measureSpace(opts){
    the real one's. When the fonts land every remembered width is wrong at
    once, so the cache is emptied and the chart redrawn — otherwise entries
    would keep their first-paint sizes for the rest of the session. */
+function fontsLanded(){
+  measureCache.clear();
+  /* And the block cache with it. It is declared further down — the two
+     are emptied for one reason and must be emptied together, so this
+     reaches forward rather than growing a second handler that could be
+     registered, or removed, independently of this one. */
+  blockCache.clear();
+  if(nodes && nodes.size) rebuildChart();
+}
+/* `ready` settles once, for the faces the first paint asked for. A face
+   can still arrive later — a family only one entry uses, or the Cyrillic
+   or Japanese part of a font, which is fetched the first time such a
+   letter is drawn — and every width measured while it was on its way is
+   the fallback's. `loadingdone` says so each time; a burst of them is one
+   redraw. */
+let fontsLandedFrame = 0;
 if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(()=>{
-    measureCache.clear();
-    /* And the block cache with it. It is declared further down — the two
-       are emptied for one reason and must be emptied together, so this
-       reaches forward rather than growing a second fonts.ready handler
-       that could be registered, or removed, independently of this one. */
-    blockCache.clear();
-    if(nodes && nodes.size) rebuildChart();
-  }).catch(()=>{});
+  document.fonts.ready.then(fontsLanded).catch(()=>{});
+  if(document.fonts.addEventListener){
+    document.fonts.addEventListener('loadingdone', ()=>{
+      if(fontsLandedFrame) return;
+      fontsLandedFrame = requestAnimationFrame(()=>{ fontsLandedFrame = 0; fontsLanded(); });
+    });
+  }
 }
 // Lays out one wrapped line's word-tokens into `textEl`, centered on
 // centerX, with each word placed at its real measured width so a ruby
@@ -527,9 +541,6 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
   // back, and a shared one would make the first thing that did so rewrite
   // the remembered answer for every entry that shares it.
   if(hit) return {width: hit.width, height: hit.height, mid: hit.mid, midX: hit.midX};
-  while(measureBlockG.firstChild !== measureBlockText && measureBlockG.firstChild){
-    measureBlockG.removeChild(measureBlockG.firstChild);
-  }
   Array.from(measureBlockG.childNodes).forEach(c=>{
     if(c !== measureBlockText) measureBlockG.removeChild(c);
   });

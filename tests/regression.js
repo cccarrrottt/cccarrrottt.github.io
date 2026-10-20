@@ -292,6 +292,95 @@ async function main(){
   eq('ctrl+z undoes', undo.undone, undo.was);
   eq('ctrl+y redoes', undo.redone, '__UNDO_PROBE__');
 
+  /* A connector's note previews by writing into EDGE_STYLES, which is a
+     saved region. The snapshot used to be taken at commit, after the
+     preview had already written the typed text in, so undo went back past
+     the edit to whatever came before it. */
+  const noteEdge = await page.evaluate(() => {
+    const e = structEdges.find(x => !isMergePart(x.from, x.to));
+    applyEdit(() => setEdgeStyleOverride(e.from, e.to,
+      Object.assign({}, edgeStyleFor(e.from, e.to), {note: 'old'})));
+    openEdgeNoteEditor(e.from, e.to);
+    return {from: e.from, to: e.to};
+  });
+  await page.waitForTimeout(200);
+  await page.keyboard.press('End');
+  await page.keyboard.type('XY');
+  await page.waitForTimeout(700);
+  const noteUndo = await page.evaluate(async e => {
+    closeNodeEditor(true);
+    const typed = edgeStyleFor(e.from, e.to).note;
+    undoLastEdit();
+    await new Promise(r => setTimeout(r, 60));
+    const undone = edgeStyleFor(e.from, e.to).note;
+    undoLastEdit();
+    return {typed, undone};
+  }, noteEdge);
+  eq('a note typed into is kept', noteUndo.typed, 'oldXY');
+  eq('undo after typing into a note goes back to the note as it was', noteUndo.undone, 'old');
+
+  // The plate's gestures are wired in one place; a double click opened the field twice.
+  const opens = await page.evaluate(async e => {
+    applyEdit(() => setEdgeStyleOverride(e.from, e.to,
+      Object.assign({}, edgeStyleFor(e.from, e.to), {note: 'twice?'})));
+    await new Promise(r => setTimeout(r, 60));
+    const plate = document.querySelector(`.edge-note[data-from="${e.from}"][data-to="${e.to}"]`);
+    const real = openEdgeNoteEditor;
+    let n = 0;
+    openEdgeNoteEditor = function(){ n++; };
+    try{ plate.dispatchEvent(new MouseEvent('dblclick', {bubbles:true})); }
+    finally{ openEdgeNoteEditor = real; }
+    undoLastEdit();
+    return n;
+  }, noteEdge);
+  eq('a double click on a note opens its field once', opens, 1);
+
+  });
+  await scenario("a font that arrives late", async () => {
+  /* fonts.ready settles once; a face fetched later — the Cyrillic part of
+     a font, the first time a Cyrillic letter is drawn — used to leave
+     every width measured while it was on its way as the fallback's. */
+  const late = await page.evaluate(async () => {
+    measureCache.set('__LATE_PROBE__', 1);
+    blockCache.set('__LATE_PROBE__', {width:1, height:1});
+    document.fonts.dispatchEvent(new Event('loadingdone'));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return {measure: measureCache.has('__LATE_PROBE__'), block: blockCache.has('__LATE_PROBE__'),
+            drawn: !!document.querySelector('#nodeLayer .node, .node')};
+  });
+  check('a late font empties the width cache', !late.measure);
+  check('…and the block cache with it', !late.block);
+  check('…and the chart is drawn again, not left empty', late.drawn);
+
+  });
+  await scenario("carried connector heads", async () => {
+  /* A head on an entry's outermost border is drawn under the entry. While a
+     group is dragged, a connector between two carried entries is moved
+     rather than routed again, and its moved points had lost the ring they
+     stood on — the head went above the entries until the drop. */
+  const heads = await page.evaluate(() => {
+    const beforeNodes = workingNodes.slice(), beforeStyles = EDGE_STYLES.slice();
+    applyEdit(() => {
+      workingNodes.push(['k7a','A',null,null,null,null,{pos:[52000,-900]}]);
+      workingNodes.push(['k7b','B','k7a',null,null,null,
+                         {pos:[52000,-500], colors:['#111111','#2f6fb5','#c23b22']}]);
+      EDGE_STYLES.push({from:'k7a', to:'k7b', toRing:2});
+    });
+    const where = () => {
+      const h = document.querySelector('.edge-arrow[data-from="k7a"][data-to="k7b"]');
+      return !h ? 'none' : h.closest('#arrowLayer') ? 'above' : h.closest('#edgeLayer') ? 'under' : 'other';
+    };
+    const still = where();
+    dragRouteHold = {memo: new Map(), moving: new Set(['k7a','k7b'])};
+    try{ redrawEdges(); redrawEdges(); } finally { dragRouteHold = null; }
+    const carried = where();
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(() => { workingNodes = beforeNodes; });
+    return {still, carried};
+  });
+  eq('a head on the outermost border is drawn under the entry', heads.still, 'under');
+  eq('…and stays under it while both its entries are carried', heads.carried, 'under');
+
   });
   /* ---- 3. node creation, every archetype ---- */
   await scenario("node creation, every archetype", async () => {
@@ -521,9 +610,18 @@ async function main(){
     let rejected = false;
     const before = workingNodes[0][1];
     try { await importChartFromText('not a chart'); } catch(e){ rejected = true; }
+    /* A file whose settings name no citation colour brings the default
+       one, not the colour the replaced chart had been given. */
+    const noRef = full.replace(/refColor:\s*(['"])[^'"]*\1,?\s*/, '');
+    applyEdit(() => { SETTINGS.refColor = '#123456'; });
+    await importChartFromText(noRef);
+    const refAfter = refColor();
     return {restored, rejected, intact: workingNodes[0][1] === before,
+            stripped: noRef !== full, refAfter, refDefault: DEFAULT_REF_COLOR,
             isDoc: /^<!doctype html>/i.test(full), fragment: !/^<!doctype/i.test(src)};
   });
+  check('the test file really names no citation colour', io.stripped);
+  eq('an import with no citation colour has the default one', io.refAfter, io.refDefault);
   eq('export/import round-trips', io.restored, '__IO_PROBE__');
   check('export is a real document', io.isDoc);
   check('what we publish stays a fragment', io.fragment);

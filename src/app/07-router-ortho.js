@@ -504,11 +504,6 @@ const STUB_MIN = 6;
  * and the connector ran along its border as a second line laid over it. */
 /* Just the extra BORDER rings standing in front of a port — the ripple of a
    pocket reality's single edge is not one of them. See stubLength. */
-function ringClearance(p){
-  if(!p) return 0;
-  const outside = Math.max(0, ((p.rings || 1) - 1) - (p.ring || 0));
-  return outside * (p.step || RING_STEP);
-}
 function portClearance(p){
   if(!p) return 0;
   /* A ripple is not a border to clear. It is ONE border, drawn as a line
@@ -548,7 +543,6 @@ function stubLength(p, other){
      turned late and came back: the same relationship drawn two ways. It
      now takes the ordinary minimum, widened only if the ripple is somehow
      deeper than that. */
-  const rings = ringClearance(p);
   const dec = portClearance(p);
   /* An end that carries an arrowhead needs a straight run at least as long
      as the head, plus the radius of the corner behind it.
@@ -567,7 +561,7 @@ function stubLength(p, other){
      and on a circle the port is not on the box — see portOnSide. */
   const sunk = Math.max(0, p.sunk || 0);
   const floor = sunk + Math.max(headRoom,
-    rings ? dec + EDGE_CORNER_R + ARROW_LEN : Math.max(STUB_MIN, dec + 1));
+    dec ? dec + EDGE_CORNER_R + ARROW_LEN : Math.max(STUB_MIN, dec + 1));
   if(!other) return Math.max(STUB, floor);
   const nrm = SIDE_NORMAL[p.side];
   if(!nrm) return Math.max(STUB, floor);
