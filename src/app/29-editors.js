@@ -523,7 +523,6 @@ function syncColorRow(){
 
 const edgeStyleLabelEl = document.getElementById('edgeStyleLabel');
 const styleStatusEl = document.getElementById('styleStatus');
-const styleDeleteBtn = document.getElementById('styleDelete');
 function setStyleStatus(kind, msg){ styleStatusEl.className = 'editor-status show ' + kind; styleStatusEl.textContent = msg; }
 function clearStyleStatus(){ styleStatusEl.className = 'editor-status'; styleStatusEl.textContent = ''; }
 

@@ -387,6 +387,15 @@ function makeLangTabRow(list, tab){
     preview();
     queueNodeEditCommit();
   });
+  /* A country's code becomes its flag once the name is finished — on
+     leaving the field, not on every key, so that "DE" can still go on to
+     be "DEU", or "EN" to be "ENG", without turning into a flag half-way. */
+  name.addEventListener('change', ()=>{
+    const flag = flagForCode(name.value);
+    if(!flag || flag === name.value) return;
+    name.value = flag;
+    name.dispatchEvent(new Event('input'));
+  });
   // A chip is as wide as the name in it, like every other chip in this row.
   name.addEventListener('input', ()=>{ name.size = Math.max(2, name.value.length + 1); });
   name.size = Math.max(2, name.value.length + 1);

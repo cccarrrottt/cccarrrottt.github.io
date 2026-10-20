@@ -686,8 +686,10 @@ function squareForHexInput(input, o){
     const v = input.value.trim(), ok = HEX_RE.test(v);
     const fb = o.fallback ? o.fallback() : null;
     sq.style.background = ok ? v : (fb || '');
-    // Dashed only when there is no colour at all: an inherited one is shown.
+    // Dashed only when there is no colour at all: an inherited one is shown,
+    // with the dashed edge a default colour wears (.inherited).
     sq.classList.toggle('unset', !ok && !fb);
+    sq.classList.toggle('inherited', (!ok && !!fb) || (ok && !!o.isDefault && !!o.isDefault()));
     sq.title = (ok ? v : fb ? `${fb} — inherited` : 'No colour set') +
                (o.title ? ` — ${o.title}` : '') +
                (o.onClick ? '; click to use it, double-click to change it' : '; press to change');

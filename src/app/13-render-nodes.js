@@ -1299,7 +1299,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        already doing the job of marking which chip is ACTIVE — so the two
        collided, and the default chip looked permanently selected. A flag
        names the language the way every other chip does. */
-    const chipLabels = [DEFAULT_LANG_CHIP, ...langTabList.map(t=>t.tag)];
+    const chipLabels = [DEFAULT_LANG_CHIP, ...langTabList.map(t=> flagForCode(t.tag) || t.tag)];
+    // A flag is drawn in the emoji face, typed or spelt from a code.
+    const isFlag = (lbl)=> lbl === DEFAULT_LANG_CHIP || /^(\uD83C[\uDDE6-\uDDFF]){2}$/.test(lbl);
     /* At the top-left corner, on a card as on anything else. They used to
        sit on the rule above the heading, which put them in a different
        place on two entries standing side by side — and moved them the
@@ -1318,7 +1320,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       const isActive = tabIdx === activeIdxNow;
       const k = isActive ? 1 : CHIP_IDLE;
       const fs = CHIP_FS * k, hh = CHIP_H * k;
-      const textW = measureText(lbl, {fontSize:fs, family: lbl === DEFAULT_LANG_CHIP ? EMOJI_FAMILY : undefined});
+      const textW = measureText(lbl, {fontSize:fs, family: isFlag(lbl) ? EMOJI_FAMILY : undefined});
       const chipW = Math.max(hh, textW + CHIP_PAD*k*2);
       const cx = cursorX + chipW/2;
       // Standing on the border: every tab's foot on the same line, in it.
@@ -1329,7 +1331,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       el('path', {d: tabOutline(chipW, th, CHIP_R), class:'lang-chip-bg',
                   'data-w': +chipW.toFixed(2), 'data-h': +th.toFixed(2), 'data-r': CHIP_R}, chipG);
       const chipLabelEl = el('text', {x:0, y:2.1*k - base.sink/2, 'text-anchor':'middle', 'font-size':fs,
-                                      class:'lang-chip-label' + (lbl === DEFAULT_LANG_CHIP ? ' emoji' : '')}, chipG);
+                                      class:'lang-chip-label' + (isFlag(lbl) ? ' emoji' : '')}, chipG);
       chipLabelEl.textContent = lbl;
       el('title',{},chipG).textContent = idx===0 ? 'Show the default text' : `Show the "${lbl}" text`;
       chipG.addEventListener('click', ev=>{

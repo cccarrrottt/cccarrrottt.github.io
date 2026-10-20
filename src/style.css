@@ -746,6 +746,7 @@
   .bend-mark-new{fill:var(--paper);stroke:var(--accent);stroke-width:1.4;opacity:0.55;}
   .bend-ghost:hover .bend-mark-new{opacity:1;}
   .bend-handle:hover .bend-mark{stroke:var(--accent);stroke-width:2;}
+  .bend-parked .bend-mark{fill:var(--paper);stroke:var(--accent);stroke-width:1.2;stroke-dasharray:1.6 1.2;opacity:0.7;}
   body.read-only #bendLayer{display:none;}
   /* A line of prose inside a popover row, for a control whose whole
      explanation is "it is on the drawing, not in here". */
@@ -1686,7 +1687,9 @@
 
   /* Swatches beside the border-colors field, one per colour listed. */
   .swatch-strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:16px;}
-  .field-with-reset .swatch-strip{flex:1;min-width:0;}
+  /* Only as wide as its squares, so the reset stands beside the colours it
+     resets rather than at the far end of the field. */
+  .field-with-reset .swatch-strip{flex:0 1 auto;min-width:0;}
   .swatch-chip{
     width:11px;height:11px;border-radius:2.5px;flex:0 0 auto;box-sizing:border-box;
     box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;
@@ -2378,8 +2381,6 @@
   .hex-input:focus{outline:none;border-color:var(--accent);}
   .hex-input.bad{border-color:var(--accent);background:rgba(194,59,34,0.08);}
   .style-bar-hex{align-items:center;}
-  .edge-popover-actions{display:flex;gap:6px;margin-top:1px;}
-  .edge-popover-actions .editor-btn{flex:1;padding:6px 4px;font-size:10px;}
 
   /* ---- the crop chooser -------------------------------------------
      A square selection over a scaled preview. The frame's position is
@@ -3040,6 +3041,15 @@
   .hex-square.hex-square.unset{background:transparent !important;box-shadow:none;
     border:1px dashed var(--ink-faint);}
   .hex-square.hex-square:disabled{opacity:0.3;cursor:default;}
+  /* A square showing a colour nobody chose here — the program's, or one
+     handed down — wears the dashed edge a ground's square does in the Tags
+     drawer (.ground-default), so a chosen colour and a default one can be
+     told apart wherever a colour is set. */
+  .hex-square.hex-square.inherited{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
+  /* The reset belongs to the square in front of it, and stands against it:
+     the toolbar's gap and the square's own margin put a whole space
+     between the two, as though they were separate controls. */
+  .hex-box.hex-shut + .hex-reset{margin-left:-3px;}
   .style-bar .hex-square.hex-square,
   .mini-toolbar .hex-square.hex-square{align-self:center;}
   input.hex-box.hex-box{

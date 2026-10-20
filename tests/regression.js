@@ -15158,6 +15158,38 @@ async function main(){
     check('on a phone a tapped connector gets its bar, next to where it was tapped',
           bar.shown && bar.kind === 'edge' && Math.abs(bar.bottom - ep[1]) < 60 && bar.top > 0,
           JSON.stringify({bar, at: ep}));
+    /* A long press on an entry nobody has picked opens the menu at once,
+       with the entry picked; on a connector it offers Delete, and Delete
+       takes the connector away and nothing else. */
+    await pp.evaluate(()=>{ deselect(); closeEdgePopover(); });
+    await wait(200);
+    const a2 = await pp.evaluate(()=>{ const r = document.querySelector('.node[data-id="tkA"] rect').getBoundingClientRect();
+      return [r.left + r.width/2, r.top + r.height/2]; });
+    await hold(a2[0], a2[1]);
+    const sFresh = await state();
+    await pp.evaluate(()=>{ document.getElementById('touchMenu').hidden = true; deselect(); closeEdgePopover(); closeStyleBar(); });
+    await wait(200);
+    // Where the line is now, and nothing else is: a bar left up may stand over the first place.
+    const ep2 = await pp.evaluate(()=>{
+      const e = document.querySelector('.edge-hit[data-from="tkA"][data-to="tkB"]');
+      for(const f of [0.5, 0.35, 0.65, 0.2, 0.8]){
+        const pt = e.getPointAtLength(e.getTotalLength() * f), m = e.getScreenCTM();
+        const x = pt.x*m.a + m.e, y = pt.y*m.d + m.f;
+        if(document.elementFromPoint(x, y) === e) return [x, y];
+      }
+      return null;
+    });
+    await hold(ep2[0], ep2[1]);
+    const sEdge = await state();
+    const edgesBefore = await pp.evaluate(()=> structEdges.filter(e=> e.from === 'tkA' && e.to === 'tkB').length);
+    const sEdgeDel = await tapIn('#touchMenu [data-act="delete"]');
+    const after = await pp.evaluate(()=> ({edge: structEdges.filter(e=> e.from === 'tkA' && e.to === 'tkB').length,
+                                           a: nodes.has('tkA'), b: nodes.has('tkB')}));
+    check('a long press on an entry not yet picked picks it and brings up the menu',
+          sFresh.menu && sFresh.items === 'cut,copy,paste,delete' && sFresh.sel === 'tkA', JSON.stringify(sFresh));
+    check('a long press on a connector offers Delete, which takes the connector and nothing else',
+          sEdge.menu && sEdge.items === 'delete' && edgesBefore === 1 && after.edge === 0 && after.a && after.b && !sEdgeDel.menu,
+          JSON.stringify({sEdge, edgesBefore, after}));
   } finally {
     await phone.close();
   }
@@ -15527,7 +15559,7 @@ async function main(){
     await wait(200);
     out.outGlows = !!document.querySelector('.amalgam-out.edge-picked[data-to="mbM"]') &&
                    document.getElementById('styleFillRow').hidden &&
-                   document.getElementById('styleDelete').hidden;
+                   deleteOpenConnector() === false;
     closeEdgePopover(); await wait(150);
 
     const rec0 = amalgamBars.get('mbM');
@@ -16202,6 +16234,152 @@ async function main(){
     return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
+  await scenario("ends, marks, squares and tabs as of 2026-10-20", async () => {
+  const r20 = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const beforeRef = SETTINGS.refColor;
+    const out = {};
+    const line = (f, t)=> [...document.querySelectorAll('#edgeLayer path.edge.struct')]
+      .find(p=> p.dataset.from === f && p.dataset.to === t);
+    const distTo = (path, x, y)=>{ const L = path.getTotalLength(); let best = 1e9;
+      for(let s = 0; s <= L; s += 0.5){ const q = path.getPointAtLength(s); best = Math.min(best, Math.hypot(q.x - x, q.y - y)); }
+      return best; };
+
+    /* A rippled curve ends under its arrowhead wherever its entries
+       stand: the end used to fall on the last sample short of the head,
+       up to a sixth of a wave before it, so a gap came and went as the
+       route changed length. */
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['wvA','Source',null,null,null,null,{pos:[0,0]}]);
+      workingNodes.push(['wvB','Beast Wars: Uprising','wvA',null,null,null,{pos:[300,200]}]);
+      EDGE_STYLES.push({from:'wvA', to:'wvB', routing:'curve', dash:'solid', arrow:true, sinusoid:true,
+                        fromSide:'left', toSide:'top'});
+    });
+    await wait(200);
+    const ends = [];
+    for(let k = 0; k < 14; k++){
+      applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'wvB'); it[6] = Object.assign({}, it[6], {pos:[300 + k*7.3, 200 + k*3.1]}); });
+      await wait(30);
+      const pts = drawnRoutes.get(calloutEdgeKey('wvA','wvB')).pts, tip = pts[pts.length - 1];
+      const p = line('wvA','wvB'), e = p.getPointAtLength(p.getTotalLength());
+      ends.push(+Math.hypot(e.x - tip.x, e.y - tip.y).toFixed(2));
+    }
+    out.ends = ends;
+    out.endsUnder = ends.every(d=> d >= ARROW_TRIM - 0.6 && d <= ARROW_LEN - 0.6);
+
+    /* A curve's marks stand on the curve, not on the route it is drawn
+       over; and a corner the line cannot pass through is drawn set aside
+       rather than as a corner the line has failed to reach. */
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['cvA','Curve from',null,null,null,null,{pos:[0,0]}]);
+      workingNodes.push(['cvB','Curve to','cvA',null,null,null,{pos:[260,220]}]);
+      EDGE_STYLES.push({from:'cvA', to:'cvB', routing:'curve', dash:'solid', arrow:true, bends:[[60, 140]]});
+    });
+    await wait(200);
+    bendHoverTarget = null; showBendsFor('cvA','cvB');
+    const cl = line('cvA','cvB');
+    const marks = [...document.querySelectorAll('#bendLayer .bend-mark')].map(m=> distTo(cl, +m.getAttribute('cx'), +m.getAttribute('cy')));
+    out.curveMarks = marks.map(d=> +d.toFixed(2));
+    out.curveOnLine = marks.length >= 3 && marks.every(d=> d < 0.6);
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['pkA','asdasd',null,null,null,null,{pos:[0,0]}]);
+      workingNodes.push(['pkB','other','pkA',null,null,null,{pos:[80,-5]}]);
+    });
+    await wait(200);
+    const pa = nodes.get('pkA');
+    applyEdit(()=> setEdgeStyleOverride('pkA','pkB', Object.assign({}, edgeStyleFor('pkA','pkB'),
+      {routing:'orthogonal', fromSide:'top', toSide:'top', bends:[[pa.x + pa.w/2 - 5, pa.y + pa.h + 45]]})));
+    await wait(200);
+    bendHoverTarget = null; showBendsFor('pkA','pkB');
+    const pl = line('pkA','pkB');
+    const solid = [...document.querySelectorAll('#bendLayer g:not(.bend-parked) > .bend-mark')]
+      .map(m=> distTo(pl, +m.getAttribute('cx'), +m.getAttribute('cy')));
+    out.parked = document.querySelectorAll('#bendLayer .bend-handle.bend-parked').length;
+    out.solidOnLine = solid.every(d=> d < 0.6);
+    bendHoverTarget = null; drawBendHandles();
+
+    /* The connector's panel carries no guide and no Delete; the Delete
+       key still deletes the connector it is open on. */
+    openEdgeStylePopover('pkA','pkB', {clientX:500, clientY:400, stopPropagation(){}});
+    await wait(150);
+    const pop = document.getElementById('edgePopover');
+    out.panelLean = !document.getElementById('styleDelete') && !/Drag the marks/.test(pop.textContent);
+    /* An empty colour shows the colour the line takes anyway, with the
+       dashed edge a default colour wears in the Tags drawer. */
+    const mode = document.getElementById('styleFill');
+    mode.value = 'custom'; mode.dispatchEvent(new Event('change', {bubbles:true}));
+    document.getElementById('styleColor').value = '';
+    document.getElementById('styleColor').dispatchEvent(new Event('input', {bubbles:true}));
+    await wait(50);
+    const sq = document.getElementById('styleColor').previousElementSibling;
+    out.inheritedDashed = sq.classList.contains('hex-square') && sq.classList.contains('inherited') &&
+                          getComputedStyle(sq).outlineStyle === 'dashed';
+    deletePicked();
+    await wait(150);
+    out.keyDeletes = !structEdges.some(e=> e.from === 'pkA' && e.to === 'pkB') && nodes.has('pkA') && nodes.has('pkB');
+    closeEdgePopover();
+
+    // The references' colour, at the program's own, is dashed too.
+    applyEdit(()=>{ delete SETTINGS.refColor; });
+    buildSideTabs();
+    await wait(50);
+    const rb = document.getElementById('refColorInput');
+    paintHexSquare(rb);
+    out.refDashed = rb.previousElementSibling.classList.contains('inherited');
+
+    /* A reset stands against the square it resets: in a text toolbar,
+       and after the squares of an entry's colour list rather than at the
+       far end of the field. */
+    openEntrySettings('pkA');
+    await wait(300);
+    const strip = document.getElementById('editColorsSwatches'), rs = document.getElementById('editColorsReset');
+    const lastSq = [...strip.children].pop();
+    out.listGap = lastSq && rs ? +(rs.getBoundingClientRect().left - lastSq.getBoundingClientRect().right).toFixed(1) : null;
+    const tb = document.querySelector('.mini-toolbar [data-hex-reset="nodeEditorText"]');
+    const tsq = document.querySelector('.mini-toolbar [data-hex-square-for="nodeEditorText"]');
+    tb.closest('.mini-toolbar').style.display = 'flex';
+    out.tbGap = +(tb.getBoundingClientRect().left - tsq.getBoundingClientRect().right).toFixed(1);
+    tb.closest('.mini-toolbar').style.display = '';
+
+    /* A tab named by a country's code wears its flag: two letters or
+       three, any case; a language's code that is no country stays words. */
+    out.codes = [flagForCode('de'), flagForCode('DEU'), flagForCode('UK'), flagForCode('EN'), flagForCode('ENG'), flagForCode('Rus')];
+    out.codesOk = out.codes[0] === '🇩🇪' && out.codes[1] === out.codes[0] &&
+                  out.codes[2] === '🇬🇧' && out.codes[3] === null && out.codes[4] === null &&
+                  out.codes[5] === '🇷🇺';
+    applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'pkB');
+      it[6] = Object.assign({}, it[6], {multiLang:true, langTabs:[{tag:'RUS', text:'Другой'}, {tag:'EN', text:'Other'}]}); });
+    await wait(150);
+    out.chips = [...document.querySelectorAll('.node[data-id="pkB"] .lang-chip-label')].map(t=> t.textContent);
+    out.chipFlag = out.chips[1] === '🇷🇺' && out.chips[2] === 'EN';
+    const host = document.createElement('div');
+    makeLangTabRow(host, {tag:'', text:''});
+    const nm = host.querySelector('.lang-tab-name');
+    nm.value = 'jpn'; nm.dispatchEvent(new Event('change'));
+    out.formFlag = nm.value === '🇯🇵';
+
+    deselect();
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x));
+                    if(beforeRef === undefined) delete SETTINGS.refColor; else SETTINGS.refColor = beforeRef; });
+    await wait(200);
+    return out;
+  });
+  check('a rippled curve ends under its arrowhead wherever its entries stand', r20.endsUnder, JSON.stringify(r20.ends));
+  check('a curve\'s marks stand on the curve', r20.curveOnLine, JSON.stringify(r20.curveMarks));
+  check('a corner the line cannot pass through is drawn set aside, and every other mark is on the line',
+        r20.parked === 1 && r20.solidOnLine, JSON.stringify({parked: r20.parked, on: r20.solidOnLine}));
+  check('a connector\'s panel has no guide and no Delete, and the Delete key still deletes it',
+        r20.panelLean && r20.keyDeletes, JSON.stringify({lean: r20.panelLean, del: r20.keyDeletes}));
+  check('a square showing a default colour wears the dashed edge, as in the Tags drawer',
+        r20.inheritedDashed && r20.refDashed, JSON.stringify({edge: r20.inheritedDashed, ref: r20.refDashed}));
+  check('a reset stands against its square, not across the field from it',
+        r20.listGap !== null && r20.listGap <= 8 && r20.tbGap <= 5, JSON.stringify({list: r20.listGap, tb: r20.tbGap}));
+  check('a language tab named by a country\'s code wears its flag, and a language\'s stays words',
+        r20.codesOk && r20.chipFlag && r20.formFlag, JSON.stringify({codes: r20.codes, chips: r20.chips, form: r20.formFlag}));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

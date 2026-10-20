@@ -555,7 +555,7 @@ document.addEventListener('focusin', ev=>{
 function deletePicked(){
   if(readOnlyView) return false;
   if(edgePopover.classList.contains('open') && currentEdgeStyleTarget){
-    styleDeleteBtn.click();
+    deleteOpenConnector();
     return true;
   }
   if(multiSelection.size > 1){
