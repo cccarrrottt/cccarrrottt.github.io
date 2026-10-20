@@ -488,16 +488,6 @@ function unfoldEnds(pts, p1, p2){
    pocket reality is visibly the same line as the edge it leaves. */
 const EDGE_WAVE_LEN = 14;
 const EDGE_WAVE_PEAK = 1.6;
-/* The wave goes quiet well before a bend and only picks up again well
-   after it. A corner is where the eye reads the line's direction, and a
-   crest sitting on it hides that; a plain elbow with the ripple resuming
-   further along still reads as one continuous wavy line. */
-/* The quiet stretches at the ends and around a bend. They exist so a
-   crest never lands exactly on a corner (where it hides the direction the
-   line turns) or on an arrowhead — but they were sized for the old, much
-   longer sine, and against a 7-unit semicircle they read as long bald
-   patches. Cut to about the length of a single arc: enough to keep a
-   corner legible, short enough that the line reads as wavy throughout. */
 /* Nothing stands between the wave and a bend any more: the line is drawn
    first, corners and all, and the wave is run along it — see wavyPath. */
 /* Collinear points are not corners.

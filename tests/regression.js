@@ -292,6 +292,95 @@ async function main(){
   eq('ctrl+z undoes', undo.undone, undo.was);
   eq('ctrl+y redoes', undo.redone, '__UNDO_PROBE__');
 
+  /* A connector's note previews by writing into EDGE_STYLES, which is a
+     saved region. The snapshot used to be taken at commit, after the
+     preview had already written the typed text in, so undo went back past
+     the edit to whatever came before it. */
+  const noteEdge = await page.evaluate(() => {
+    const e = structEdges.find(x => !isMergePart(x.from, x.to));
+    applyEdit(() => setEdgeStyleOverride(e.from, e.to,
+      Object.assign({}, edgeStyleFor(e.from, e.to), {note: 'old'})));
+    openEdgeNoteEditor(e.from, e.to);
+    return {from: e.from, to: e.to};
+  });
+  await page.waitForTimeout(200);
+  await page.keyboard.press('End');
+  await page.keyboard.type('XY');
+  await page.waitForTimeout(700);
+  const noteUndo = await page.evaluate(async e => {
+    closeNodeEditor(true);
+    const typed = edgeStyleFor(e.from, e.to).note;
+    undoLastEdit();
+    await new Promise(r => setTimeout(r, 60));
+    const undone = edgeStyleFor(e.from, e.to).note;
+    undoLastEdit();
+    return {typed, undone};
+  }, noteEdge);
+  eq('a note typed into is kept', noteUndo.typed, 'oldXY');
+  eq('undo after typing into a note goes back to the note as it was', noteUndo.undone, 'old');
+
+  // The plate's gestures are wired in one place; a double click opened the field twice.
+  const opens = await page.evaluate(async e => {
+    applyEdit(() => setEdgeStyleOverride(e.from, e.to,
+      Object.assign({}, edgeStyleFor(e.from, e.to), {note: 'twice?'})));
+    await new Promise(r => setTimeout(r, 60));
+    const plate = document.querySelector(`.edge-note[data-from="${e.from}"][data-to="${e.to}"]`);
+    const real = openEdgeNoteEditor;
+    let n = 0;
+    openEdgeNoteEditor = function(){ n++; };
+    try{ plate.dispatchEvent(new MouseEvent('dblclick', {bubbles:true})); }
+    finally{ openEdgeNoteEditor = real; }
+    undoLastEdit();
+    return n;
+  }, noteEdge);
+  eq('a double click on a note opens its field once', opens, 1);
+
+  });
+  await scenario("a font that arrives late", async () => {
+  /* fonts.ready settles once; a face fetched later — the Cyrillic part of
+     a font, the first time a Cyrillic letter is drawn — used to leave
+     every width measured while it was on its way as the fallback's. */
+  const late = await page.evaluate(async () => {
+    measureCache.set('__LATE_PROBE__', 1);
+    blockCache.set('__LATE_PROBE__', {width:1, height:1});
+    document.fonts.dispatchEvent(new Event('loadingdone'));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return {measure: measureCache.has('__LATE_PROBE__'), block: blockCache.has('__LATE_PROBE__'),
+            drawn: !!document.querySelector('#nodeLayer .node, .node')};
+  });
+  check('a late font empties the width cache', !late.measure);
+  check('…and the block cache with it', !late.block);
+  check('…and the chart is drawn again, not left empty', late.drawn);
+
+  });
+  await scenario("carried connector heads", async () => {
+  /* A head on an entry's outermost border is drawn under the entry. While a
+     group is dragged, a connector between two carried entries is moved
+     rather than routed again, and its moved points had lost the ring they
+     stood on — the head went above the entries until the drop. */
+  const heads = await page.evaluate(() => {
+    const beforeNodes = workingNodes.slice(), beforeStyles = EDGE_STYLES.slice();
+    applyEdit(() => {
+      workingNodes.push(['k7a','A',null,null,null,null,{pos:[52000,-900]}]);
+      workingNodes.push(['k7b','B','k7a',null,null,null,
+                         {pos:[52000,-500], colors:['#111111','#2f6fb5','#c23b22']}]);
+      EDGE_STYLES.push({from:'k7a', to:'k7b', toRing:2});
+    });
+    const where = () => {
+      const h = document.querySelector('.edge-arrow[data-from="k7a"][data-to="k7b"]');
+      return !h ? 'none' : h.closest('#arrowLayer') ? 'above' : h.closest('#edgeLayer') ? 'under' : 'other';
+    };
+    const still = where();
+    dragRouteHold = {memo: new Map(), moving: new Set(['k7a','k7b'])};
+    try{ redrawEdges(); redrawEdges(); } finally { dragRouteHold = null; }
+    const carried = where();
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(() => { workingNodes = beforeNodes; });
+    return {still, carried};
+  });
+  eq('a head on the outermost border is drawn under the entry', heads.still, 'under');
+  eq('…and stays under it while both its entries are carried', heads.carried, 'under');
+
   });
   /* ---- 3. node creation, every archetype ---- */
   await scenario("node creation, every archetype", async () => {
@@ -521,9 +610,18 @@ async function main(){
     let rejected = false;
     const before = workingNodes[0][1];
     try { await importChartFromText('not a chart'); } catch(e){ rejected = true; }
+    /* A file whose settings name no citation colour brings the default
+       one, not the colour the replaced chart had been given. */
+    const noRef = full.replace(/refColor:\s*(['"])[^'"]*\1,?\s*/, '');
+    applyEdit(() => { SETTINGS.refColor = '#123456'; });
+    await importChartFromText(noRef);
+    const refAfter = refColor();
     return {restored, rejected, intact: workingNodes[0][1] === before,
+            stripped: noRef !== full, refAfter, refDefault: DEFAULT_REF_COLOR,
             isDoc: /^<!doctype html>/i.test(full), fragment: !/^<!doctype/i.test(src)};
   });
+  check('the test file really names no citation colour', io.stripped);
+  eq('an import with no citation colour has the default one', io.refAfter, io.refDefault);
   eq('export/import round-trips', io.restored, '__IO_PROBE__');
   check('export is a real document', io.isDoc);
   check('what we publish stays a fragment', io.fragment);
@@ -10401,7 +10499,9 @@ async function main(){
   await c.route('https://api.github.com/**', r => {
     api.ghAsked++;
     const raw = api.list.map(x => ({number: x.number, html_url: x.url, user: {login: x.login}, created_at: x.at + 'T10:00:00Z',
-      body: x.text + '\n\n<!-- rhizome-suggestion:' + encodeURIComponent(JSON.stringify({entry: x.entry, kind: x.kind})) + ' -->'}))
+      title: x.title ? x.kind[0].toUpperCase() + x.kind.slice(1) + ': ' + x.title : 'Untitled',
+      body: x.text + '\n\n<!-- rhizome-suggestion:' + encodeURIComponent(JSON.stringify(
+        Object.assign({entry: x.entry, kind: x.kind}, x.title ? {titled: true} : {}))) + ' -->'}))
       .concat([{number: 1, body: 'The build is slow.', user: {login: 'dev'}},
                {number: 2, body: '<!-- rhizome-suggestion:%7B%22kind%22%3A%22deletion%22%7D -->', pull_request: {}, user: {login: 'dev'}}]);
     return r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'application/json', body: JSON.stringify(raw)});
@@ -10430,6 +10530,7 @@ async function main(){
       const b = JSON.parse(q.postData());
       api.posted.push(b);
       const made = {number: 100 + api.posted.length, kind: b.kind, entry: b.entry, text: b.text, login: 'a-reader',
+                    title: b.title || null,
                     at: '2026-10-17', url: 'https://github.com/x/y/issues/' + (100 + api.posted.length), mine: true};
       api.list = [made].concat(api.list);
       return reply(200, {suggestion: made});
@@ -10521,10 +10622,15 @@ async function main(){
   const r2 = await site.evaluate(async () => {
     document.getElementById('commentStatus').value = 'addition';
     document.getElementById('commentText').value = '  It had a sequel in 1987.  ';
+    document.getElementById('commentTitle').value = ' A sequel ';
     document.getElementById('commentSubmit').click();
     await new Promise(res => setTimeout(res, 500));
+    const list = document.getElementById('commentList');
     return {msg: document.getElementById('commentStatusMsg').textContent,
             left: document.getElementById('commentText').value,
+            titleLeft: document.getElementById('commentTitle').value,
+            titles: [...list.querySelectorAll('.comment-title')].filter(t=> !t.hidden).map(t=> t.textContent),
+            scroll: getComputedStyle(list).overflowY,
             items: document.querySelectorAll('#commentList .comment-item').length,
             marks: document.querySelectorAll('#suggestionLayer .suggestion-mark').length};
   });
@@ -10534,6 +10640,9 @@ async function main(){
         JSON.stringify(sent));
   check('and the list and the marks take it in at once', /Posted/.test(r2.msg) && r2.left === '' && r2.items === 2 && r2.marks === 2,
         JSON.stringify(r2));
+  check('a suggestion may carry a title of its own, which is sent and heads it in the list',
+        !!sent && sent.title === 'A sequel' && r2.titleLeft === '' && r2.titles.join() === 'A sequel', JSON.stringify(r2));
+  check('the list scrolls on its own, with a bar, under the form', r2.scroll === 'scroll', r2.scroll);
 
   /* ---- the reader leaves ---- */
   const ghBefore = api.ghAsked;
@@ -10543,13 +10652,18 @@ async function main(){
     const marksAt = () => document.querySelectorAll('#suggestionLayer .suggestion-mark').length;
     const right = marksAt();
     for(let i = 0; i < 40 && !marksAt(); i++) await new Promise(res => setTimeout(res, 50));
+    const fromGitHub = await fetch('https://api.github.com/repos/' + SITE_REPO + '/issues?state=open')
+      .then(r=> r.json()).then(list=> list.map(readSuggestionIssue).filter(Boolean)).catch(e=> 'failed: ' + e.message);
     return {stored: localStorage.getItem('rhizome.site.session'), button: document.getElementById('ownerBtn').textContent,
-            right, marks: marksAt()};
+            right, marks: marksAt(),
+            ghTitles: Array.isArray(fromGitHub) ? fromGitHub.map(x=> x.title) : String(fromGitHub)};
   });
   check('signing out forgets the reader, and what the session listed goes with it',
         r3.stored === null && r3.button === 'Owner sign-in' && r3.right === 0, JSON.stringify(r3));
   check('and the marks come back as any reader sees them, read from GitHub again',
         r3.marks === 2 && api.ghAsked > ghBefore, JSON.stringify(r3));
+  check('read from GitHub, a suggestion\'s own title comes back without its kind, and an untitled one has none',
+        Array.isArray(r3.ghTitles) && r3.ghTitles.join('|') === 'A sequel|', JSON.stringify(r3.ghTitles));
 
   /* ---- the owner closes one ---- */
   const popup2 = c.waitForEvent('page');
@@ -14522,6 +14636,24 @@ async function main(){
       out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && d.indexOf('Q') < 0 &&
                         line.length > 20 && nearest > 4 * EDGE_CORNER_R;
       out.curveSketch = ptsS.length >= 4 && bowOut < routeOut - 4 && slant > 5 && slant < 85;
+      /* The stretch the head stands on, and the few units the line runs
+         before it, lie on the head's own axis — plain and wavy alike — and
+         the line's last step points the way the head does, so it meets the
+         head's base square, with no notch beside it. */
+      {
+        const tip = ptsS[ptsS.length - 1] || {x:0, y:0}, a = (heads ? heads.out : 0) * Math.PI / 180;
+        const off = (q)=> Math.abs((q.x - tip.x) * Math.sin(a) - (q.y - tip.y) * Math.cos(a));
+        const near = (list)=> list.filter(q=> Math.hypot(q.x - tip.x, q.y - tip.y) < ARROW_TRIM + 3);
+        const plainOff = Math.max(0, ...near(lineS).map(off));
+        const wavyOff = Math.max(0, ...near(drawn(wavyPath(ptsS, 0, ARROW_TRIM, false, CURVE_CORNER_R))).map(off));
+        const e1 = lineS[lineS.length - 1] || tip;
+        const e0 = lineS.slice().reverse().find(q=> Math.hypot(q.x - e1.x, q.y - e1.y) > 1) || tip;
+        const lastDeg = Math.atan2(e1.y - e0.y, e1.x - e0.x) * 180 / Math.PI;
+        const turn = Math.abs(((lastDeg - (heads ? heads.out : 0)) % 360 + 540) % 360 - 180);
+        out.curveTailAt = JSON.stringify({plain: +plainOff.toFixed(2), wavy: +wavyOff.toFixed(2),
+                                          n: near(lineS).length, turn: +turn.toFixed(2)});
+        out.curveTailOnHead = !!heads && near(lineS).length > 1 && plainOff < 0.3 && wavyOff < 0.3 && turn < 1;
+      }
       const option = document.querySelector('#styleRouting option[value="curve"]');
       out.curveOffered = !!option;
     }
@@ -14559,6 +14691,44 @@ async function main(){
       out.lossAt = JSON.stringify({afterEdge, afterEntry});
       out.lossRecentres = afterEdge !== null && Math.abs(afterEdge) < 0.5 &&
                           afterEntry !== null && Math.abs(afterEntry) < 0.5;
+      /* The strips that light up on a merge's border are its gradient, laid
+         across the entry as the border's own is, not its first colour. */
+      const bands = [...document.querySelectorAll('.node[data-id="rdM"] .node-handle-band')];
+      const grads = bands.map(b=> (b.getAttribute('style') || '').match(/url\(#([^)]+)\)/))
+        .map(m=> m && document.getElementById(m[1]));
+      out.bandGradAt = JSON.stringify({bands: bands.length,
+        grads: grads.map(g=> g ? g.getAttribute('gradientUnits') + ':' + g.querySelectorAll('stop').length : null)});
+      out.bandGrad = bands.length > 0 && grads.every(g=> g && g.getAttribute('gradientUnits') === 'userSpaceOnUse' &&
+                                                        g.querySelectorAll('stop').length >= 2);
+
+      /* The bar, carried, shows a guide as it comes level with an entry's
+         edge, and settles on that level rather than on the grid next to it. */
+      const bar0 = amalgamBars.get('rdM');
+      const level = bar0 ? bar0.cross + 13.3 : 0;
+      applyEdit(()=>{
+        workingNodes.push(['rdG','Level',null,null,null,null,{pos:[snapToGrid(X + 1100), level]}]);
+      });
+      await wait(300);
+      const g0 = nodes.get('rdG');
+      const top = g0 ? g0.y : null;
+      const fake = {button:0, clientX:400, clientY:300, stopPropagation(){}, preventDefault(){}};
+      const bar1 = amalgamBars.get('rdM');
+      const spec = barSpecFor('rdM');
+      const sgn = spec && spec.after ? 1 : -1;
+      beginBarDrag(fake, 'rdM');
+      const dy = ((top - bar1.cross) + 1.2) * vs;
+      window.dispatchEvent(new MouseEvent('mousemove', {clientX:400, clientY:300 + dy * sgn * (spec.k === 'y' ? 1 : 0),
+                                                        bubbles:true}));
+      await wait(100);
+      const guideShown = document.querySelectorAll('#guideLayer .align-guide-line').length;
+      window.dispatchEvent(new MouseEvent('mouseup', {clientX:400, clientY:300 + dy, bubbles:true}));
+      await wait(300);
+      const bar2 = amalgamBars.get('rdM');
+      out.barGuideAt = JSON.stringify({k: spec && spec.k, top, before: bar1 && +bar1.cross.toFixed(2),
+                                       after: bar2 && +bar2.cross.toFixed(2), guideShown,
+                                       left: document.querySelectorAll('#guideLayer .align-guide-line').length});
+      out.barGuide = !!spec && spec.k === 'y' && guideShown === 1 && !!bar2 && Math.abs(bar2.cross - top) < 0.01 &&
+                     document.querySelectorAll('#guideLayer .align-guide-line').length === 0;
     }
 
     refill(EDGE_STYLES, beforeStyles);
@@ -14584,8 +14754,14 @@ async function main(){
         rR.curveSmooth && rR.curveOffered, rR.curveAt + rR.curvePts);
   check('a curve from one entry\'s side to the one under it is a bow inside the bracket, met at a slant',
         rR.curveSketch, rR.curveAt);
+  check('a curve arrives along its head\'s axis, so the head meets the line without a notch',
+        rR.curveTailOnHead, rR.curveTailAt);
   check('a merge that loses a lineage, by its connector or its entry, goes back to the middle',
         rR.lossRecentres, rR.lossAt);
+  check('the strips a merge is connected from light up in its border\'s gradient',
+        rR.bandGrad, rR.bandGradAt);
+  check('a merge\'s bar, carried, shows a guide where it comes level with an entry, and lands on that level',
+        rR.barGuide, rR.barGuideAt);
 
   });
 
@@ -16412,7 +16588,124 @@ async function main(){
     const tsq = document.querySelector('.mini-toolbar [data-hex-square-for="nodeEditorText"]');
     tb.closest('.mini-toolbar').style.display = 'flex';
     out.tbGap = +(tb.getBoundingClientRect().left - tsq.getBoundingClientRect().right).toFixed(1);
+    /* Every square showing a colour nobody chose here wears the dashed
+       edge: the border list of an entry coloured by its tags, and the ink
+       of words nobody coloured. */
+    const chips = [...strip.querySelectorAll('.swatch-chip:not(.swatch-blank)')];
+    /* At the default ink — whatever an earlier scenario left the toolbar
+       holding — and away from it again. */
+    const tbox = document.querySelector('.mini-toolbar [data-hex-for="nodeEditorText"]');
+    let customDashed = null;
+    if(tbox){
+      tbox.value = '#ff8800'; tbox.dispatchEvent(new Event('input', {bubbles:true}));
+      customDashed = tsq.classList.contains('inherited');
+      tbox.value = DEFAULT_TEXT_COLOR; tbox.dispatchEvent(new Event('input', {bubbles:true}));
+    }
+    const tboxV = tbox && tbox.value;
+    out.allDashedAt = JSON.stringify({chips: chips.map(c=> c.className), tbox: tboxV, tsq: tsq.className,
+                                      outline: chips[0] && getComputedStyle(chips[0]).outlineStyle});
+    out.allDashed = chips.length > 0 && chips.every(c=> c.classList.contains('inherited')) &&
+                    getComputedStyle(chips[0]).outlineStyle === 'dashed' &&
+                    (tboxV || '').toLowerCase() === DEFAULT_TEXT_COLOR.toLowerCase() && tsq.classList.contains('inherited') &&
+                    customDashed === false;
     tb.closest('.mini-toolbar').style.display = '';
+
+    /* A card whose note is only a figure has no band for it: a figure is
+       not drawn on the chart, and the band stood empty. With words, it has. */
+    applyEdit(()=>{
+      workingNodes.push(['cdFig','Figure only',null,null,'{{m:nothing_here}}',null,{pos:[1400, 0], card:true}]);
+      workingNodes.push(['cdTxt','With words',null,null,'some words',null,{pos:[1600, 0], card:true}]);
+    });
+    await wait(150);
+    const bandsOf = (id)=> document.querySelectorAll(`.node[data-id="${id}"] .card-body, .node[data-id="${id}"] .card-rule`).length;
+    out.figCardAt = JSON.stringify({fig: bandsOf('cdFig'), txt: bandsOf('cdTxt')});
+    out.figCard = bandsOf('cdFig') === 0 && bandsOf('cdTxt') > 0;
+
+    /* The turning handle stands close to the corner it turns, and its
+       reach stops where the corner grip's begins. */
+    applyEdit(()=> workingNodes.push(['rtCap','A caption',null,null,null,'textbox',{pos:[1800, 0]}]));
+    await wait(150);
+    {
+      const cap = nodes.get('rtCap');
+      const g = document.querySelector('.node[data-id="rtCap"]');
+      const hit = g && g.querySelector('.node-rotate .node-rotate-hit');
+      const grip = g && g.querySelector('.node-resize-hit');
+      const m = hit && hit.getCTM(), gm = g && g.getCTM();
+      const toChart = (pt)=>{ const p = svg.createSVGPoint(); p.x = pt.x; p.y = pt.y;
+        return p.matrixTransform(gm.inverse().multiply(m)); };
+      const c = hit ? toChart({x: +hit.getAttribute('cx'), y: +hit.getAttribute('cy')}) : null;
+      const off = c ? Math.hypot(c.x - cap.x, c.y - cap.y) : null;
+      const gap = c && grip ? off - +hit.getAttribute('r') - +grip.getAttribute('r') : null;
+      out.rotCloseAt = JSON.stringify({off: off && +off.toFixed(2), gap: gap && +gap.toFixed(2)});
+      out.rotClose = off !== null && off < 10 && gap !== null && gap >= -0.01;
+    }
+
+    /* A link to an entry of this chart goes to it on this page, from its
+       own address, a bare fragment or the published site's; a link to
+       anywhere else is still a link. */
+    deselect();
+    applyEdit(()=>{
+      workingNodes.push(['lkFrom','Points at the other',null,null,null,null,{pos:[2000, 0], link:'#entry=lkTo'}]);
+      workingNodes.push(['lkTo','The other',null,null,null,null,{pos:[2400, 300]}]);
+    });
+    await wait(150);
+    {
+      const badge = document.querySelector('.node[data-id="lkFrom"] .node-link');
+      let opened = false;
+      const a = badge && badge.closest('a');
+      const stop = ev=>{ opened = !ev.defaultPrevented; ev.preventDefault(); };
+      // Listened for on the link itself, after its own handler: that one stops the click going further.
+      if(a){ a.addEventListener('click', stop); a.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); a.removeEventListener('click', stop); }
+      await wait(100);
+      out.linkGoAt = JSON.stringify({badge: !!badge, selected: selectedId, opened,
+        site: !!entryLinkTarget(SITE_ORIGINS[0] + '/#entry=lkTo&tab=2'),
+        elsewhere: !!entryLinkTarget('https://example.com/#entry=lkTo'),
+        missing: !!entryLinkTarget('#entry=no-such-entry')});
+      out.linkGo = !!badge && selectedId === 'lkTo' && !opened &&
+                   !!entryLinkTarget(SITE_ORIGINS[0] + '/#entry=lkTo&tab=2') &&
+                   !entryLinkTarget('https://example.com/#entry=lkTo') && !entryLinkTarget('#entry=no-such-entry');
+      deselect();
+    }
+
+    /* Languages switched on with every tab taken away go off as the
+       settings are left. */
+    applyEdit(()=> workingNodes.push(['mlA','Tabs',null,null,null,null,{pos:[2800, 0], multiLang:true,
+                                                                       langTabs:[{tag:'EN', text:'Tabs'}]}]));
+    await wait(150);
+    openEntrySettings('mlA');
+    await wait(200);
+    {
+      const chip = document.querySelector('#editLangTabList .lang-tab-chip');
+      if(chip) chip.querySelector('button').click();
+      await wait(50);
+      const stillOn = document.getElementById('editMultiLangCheck').checked;
+      closeEditForm();
+      await wait(150);
+      const f = workingEntry('mlA');
+      const o = f ? entryOpts(f.entry) : {};
+      out.langsOffAt = JSON.stringify({chip: !!chip, stillOn, multiLang: o.multiLang, tabs: o.langTabs,
+                                       live: nodes.get('mlA') && nodes.get('mlA').multiLang,
+                                       check: document.getElementById('editMultiLangCheck').checked});
+      out.langsOff = !!chip && stillOn && !o.multiLang && !o.langTabs && !nodes.get('mlA').multiLang &&
+                     !document.getElementById('editMultiLangCheck').checked;
+      deselect();
+    }
+
+    /* Where words are typed, the text cursor is the page's own drawn one,
+       not the system's inverting beam that Chromium on Windows can draw
+       white. */
+    {
+      const surf = document.querySelector('.node-editor .rich-surface');
+      const cs = (q)=> q ? getComputedStyle(q).cursor : '';
+      const inner = surf && document.createElement('span');
+      if(inner) surf.appendChild(inner);
+      out.ibeamAt = JSON.stringify({surface: cs(surf).slice(0, 40), inner: cs(inner).slice(0, 40),
+                                    search: cs(searchInput).slice(0, 40)});
+      const words = document.querySelector('.legend-item .name') || document.querySelector('h1, h2, .detail-title');
+      out.ibeam = [surf, inner, searchInput].every(q=> /url\(.*svg/.test(cs(q)) && /text$/.test(cs(q))) &&
+                  getComputedStyle(document.body).cursor === 'default' && (!words || cs(words) !== 'auto');
+      if(inner) inner.remove();
+    }
 
     /* A tab named by a country's code wears its flag: two letters or
        three, any case; a language's code that is no country stays words. */
@@ -16451,6 +16744,18 @@ async function main(){
         r20.inheritedDashed && r20.refDashed, JSON.stringify({edge: r20.inheritedDashed, ref: r20.refDashed}));
   check('a reset stands against its square, not across the field from it',
         r20.listGap !== null && r20.listGap <= 8 && r20.tbGap <= 5, JSON.stringify({list: r20.listGap, tb: r20.tbGap}));
+  check('a colour handed down wears the dashed edge in an entry\'s border list and on the words\' ink too',
+        r20.allDashed, r20.allDashedAt);
+  check('a card whose note is only a figure draws no empty band for it',
+        r20.figCard, r20.figCardAt);
+  check('a caption\'s turning handle stands close to its corner without taking the corner grip\'s reach',
+        r20.rotClose, r20.rotCloseAt);
+  check('a link to an entry of this chart goes to it instead of opening a page',
+        r20.linkGo, r20.linkGoAt);
+  check('languages with every tab taken away are switched off when the settings are left',
+        r20.langsOff, r20.langsOffAt);
+  check('the text cursor is the page\'s own, black with a white edge, and only where words are typed',
+        r20.ibeam, r20.ibeamAt);
   check('a language tab named by a country\'s code wears its flag, and a language\'s stays words',
         r20.codesOk && r20.chipFlag && r20.formFlag, JSON.stringify({codes: r20.codes, chips: r20.chips, form: r20.formFlag}));
   });

@@ -336,11 +336,16 @@ function redrawEdges(){
        there. */
     const clipHead = (port)=> (arrowLayerFor(port && port.ring, port) === arrowLayer
                                && port && port.wavy);
-    if(headOut) drawArrowHead(arrowLayerFor(last.ring, rec.p2), tipOut.x, tipOut.y,
+    /* Which layer a head goes to is the PORT's ring, as it is for the cut
+       above. The routed point carries the ring too, but not on every
+       route: a held or carried one (a group being dragged) has points
+       without it, and a head on an outer ring then jumped above the
+       entries for as long as the drag lasted. */
+    if(headOut) drawArrowHead(arrowLayerFor((rec.p2 || last).ring, rec.p2), tipOut.x, tipOut.y,
                               bent ? bent.out : angleDeg, paint, e.from, e.to,
                               clipHead(rec.p2) ? e.to : null,
                               rec.p2 ? rec.p2.ring : 0);
-    if(headIn) drawArrowHead(arrowLayerFor(first.ring, rec.p1), tipIn.x, tipIn.y,
+    if(headIn) drawArrowHead(arrowLayerFor((rec.p1 || first).ring, rec.p1), tipIn.x, tipIn.y,
                              bent ? bent.in : startAngleDeg(pts), paint, e.from, e.to,
                              clipHead(rec.p1) ? e.from : null,
                              rec.p1 ? rec.p1.ring : 0);

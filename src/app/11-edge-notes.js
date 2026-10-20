@@ -620,7 +620,10 @@ function rectBorderPoint(x, y, w, h, cx, cy, fromX, fromY){
    pointing at. */
 function wireNoteEditing(g, from, to, pts){
   g.style.pointerEvents = 'auto';
-  g.style.cursor = readOnlyView ? 'text' : 'grab';
+  /* A reader can neither move a note nor write in it, so it offers no
+     gesture: an I-beam over words nobody can edit is a promise the page
+     does not keep. */
+  g.style.cursor = readOnlyView ? 'default' : 'grab';
   g.addEventListener('mousedown', ev=>{
     ev.stopPropagation();
     beginNoteDrag(ev, from, to, pts);
@@ -781,15 +784,9 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
      opens over it, in the note's own face and size — the same gesture, and
      the same field, that every other piece of text on this chart uses. The
      connector's panel keeps the placement, the ground and the callout
-     button; the box that held a copy of the words is gone from it. */
-  g.style.pointerEvents = 'auto';
-  g.addEventListener('mousedown', ev=> ev.stopPropagation());
-  g.addEventListener('click', ev=> ev.stopPropagation());
-  g.addEventListener('dblclick', ev=>{
-    ev.stopPropagation(); ev.preventDefault();
-    if(readOnlyView) return;
-    openEdgeNoteEditor(from, to);
-  });
+     button; the box that held a copy of the words is gone from it.
+     wireNoteEditing is the one place those gestures are wired: they used
+     to be wired here as well, and a double click opened the field twice. */
   wireNoteEditing(g, from, to, pts);
   /* The plate's frame and corners are the note's own, set from its hover
      bar; a bare note is its words on whatever ground it names. */

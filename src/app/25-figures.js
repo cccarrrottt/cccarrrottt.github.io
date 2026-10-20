@@ -832,7 +832,11 @@ function enableHexSquare(input, on){
    leaves the list. The comma-separated field is still the value the form
    reads and writes, so it stays, hidden, and every change goes through it
    exactly as typing in it did. */
-function wireSwatchStrip(inputId, stripId){
+/* `inherited` says whether what the list shows is a colour handed down
+   rather than one chosen here: the border field shows the colour an entry
+   is drawn in even when that comes from its tags, and those squares wear
+   the dashed edge every inherited square does (.inherited). */
+function wireSwatchStrip(inputId, stripId, inherited){
   const input = document.getElementById(inputId);
   const strip = document.getElementById(stripId);
   if(!input || !strip) return;
@@ -850,6 +854,7 @@ function wireSwatchStrip(inputId, stripId){
       const chip = document.createElement('span');
       chip.className = 'swatch-chip swatch-pick';
       const ok = HEX_RE.test(c);
+      if(ok && inherited && inherited()) chip.classList.add('inherited');
       chip.style.background = ok ? c : 'transparent';
       chip.title = (ok ? c : c + ' — not a valid hex color') + '; press to change, empty to remove';
       if(!ok) chip.style.boxShadow = '0 0 0 1px var(--accent) inset';
@@ -886,7 +891,11 @@ function wireSwatchStrip(inputId, stripId){
   paint();
   return paint;
 }
-const paintEditSwatches = wireSwatchStrip('editColorsInput', 'editColorsSwatches');
+const paintEditSwatches = wireSwatchStrip('editColorsInput', 'editColorsSwatches', ()=>{
+  const n = selectedId && nodes.get(selectedId);
+  const v = document.getElementById('editColorsInput').value.trim().toLowerCase();
+  return !!n && !(n.ownColors && n.ownColors.length) && v === drawnColorText(n).toLowerCase();
+});
 const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
 /* The background field, which behaves the OTHER way round from the border
    one: an entry with no background is a perfectly ordinary entry — it is
@@ -992,6 +1001,9 @@ document.querySelectorAll('.tb-hex[data-hex-for]').forEach(box=>{
   squareForHexInput(box, {
     keepSelection: true,
     title: 'the colour of the chosen words',
+    /* The ink the words have when nobody coloured them is a default like
+       any other, and wears the same dashed edge. */
+    isDefault: ()=> box.value.trim().toLowerCase() === String(DEFAULT_TEXT_COLOR).toLowerCase(),
     onPress: ()=> rememberSurfaceSelection(box),
     onClick: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); },
     onEnter: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); }

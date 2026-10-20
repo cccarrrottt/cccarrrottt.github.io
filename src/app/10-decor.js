@@ -134,7 +134,6 @@ function tagShapeHtml(text, opts){
      either; a tag shape around it said there was a tag called "Untagged"
      and invited the reader to look for it. */
   if(opts && opts.reserved) return `<span class="tag-bucket">${escapeHtml(text)}</span>`;
-  const italic = '';
   /* The star rides INSIDE the label. Set beside it, it was a separate word
      as far as the line was concerned, and on a narrow panel it wrapped to
      a line of its own — a lone asterisk under the tag it was supposed to
@@ -144,7 +143,7 @@ function tagShapeHtml(text, opts){
   /* The words in a span of their own, so a list too narrow for a long
      name can cut it short with an ellipsis rather than push the row's
      count and buttons off the panel. */
-  return `<span class="tag-shape${italic}"><i class="tag-eye"></i><span class="tag-text">${escapeHtml(text)}</span>${star}</span>`;
+  return `<span class="tag-shape"><i class="tag-eye"></i><span class="tag-text">${escapeHtml(text)}</span>${star}</span>`;
 }
 /* How far past the box the weave reaches. It has to clear the box by a
    good margin: the entry's own fill covers the middle of the patch, so
@@ -298,19 +297,16 @@ function makeGradient(colors, vertical, target){
   });
   return `url(#${id})`;
 }
-// Arrowheads are drawn as ordinary paths in the arrow layer above the
-// entries (see drawArrowHead), not as SVG <marker>s: a marker draws in
+// Arrowheads are drawn as ordinary paths, on the layer their ring calls
+// for (see drawArrowHead and arrowLayerFor), not as SVG <marker>s: a marker draws in
 // its own tiny coordinate box, which both broke gradient continuity and
 // pinned the head to its line's stacking position.
 /* ---------------------------------------------------------------------
    A connector painted with a gradient rather than one flat colour.
 
    The line's gradient runs along the path's own bounding box, so it reads
-   as travelling from source to target. The arrowhead needs its own
-   gradient: a marker draws in its own tiny coordinate box and cannot
-   sample the line's, so it gets a matching two-stop fill of its own,
-   oriented along the marker. Both are rebuilt every redraw alongside the
-   markers, which is why they live in edgeDefs.
+   as travelling from source to target. It is rebuilt with every redraw
+   of the connectors, which is why it lives in edgeDefs.
    ------------------------------------------------------------------ */
 let edgeGradSeq = 0;
 function makeEdgeGradient(colors, pts){

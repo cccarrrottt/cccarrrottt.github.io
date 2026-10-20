@@ -372,7 +372,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      frame it shows when pointed at stands the same pixel off them. */
   /* A card that is a heading and nothing else (see below) is drawn the
      way an entry is, so it closes on its words the way an entry does. */
-  const cardBare = isCard && !n.image && !String(n.note || '').trim() && !String(n.medium || '').trim();
+  const cardBare = isCard && !n.image && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
   const closesOnInk = !isBio && !isImage && (!isCard || cardBare);
   const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
@@ -453,7 +453,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const cardBodyFS = fontSize * CARD_BODY_SCALE;
   const cardBodyScale = cardBodyFS / NODE_FS;
   const cardBodyLineH = LINE_H * cardBodyScale;
-  const cardBody = isCard ? String(n.note || '').trim() : '';
+  const cardBody = isCard && drawsOnChart(n.note || '') ? String(n.note).trim() : '';
   const cardBodyFit = { maxWidth: w - 14, fontSize: cardBodyFS, family: fontFamily };
   const cardBodyChars = Math.max(8, Math.round((w - 14) / (cardBodyFS*0.55)));
   const cardHeadH = !isCard ? 0
@@ -480,7 +480,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const cardMedFS = fontSize * CARD_MEDIUM_SCALE;
   const cardMedScale = cardMedFS / NODE_FS;
   const cardMedLineH = LINE_H * cardMedScale;
-  const cardMedium = isCard ? String(n.medium || '').trim() : '';
+  const cardMedium = isCard && drawsOnChart(n.medium || '') ? String(n.medium).trim() : '';
   const cardMedFit = { maxWidth: w - 14, fontSize: cardMedFS, family: fontFamily };
   const cardMedChars = Math.max(8, Math.round((w - 14) / (cardMedFS*0.55)));
   const cardMedH = cardMedium
@@ -1461,10 +1461,13 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        because a box on a chart of right angles has to keep sides a
        connector can meet. It stands off the top-left corner, where a
        corner grip would be, so the two read as one family of handles. */
+    /* As close in as it can stand without taking the corner grip's reach:
+       its own reach ends a hair past the grip's. Further out, it read as a
+       handle belonging to nothing in particular. */
     if(isFree){
-      const rx = n.x - 4, ry = n.y - 4;
+      const rx = n.x - 1.5, ry = n.y - 1.5;
       const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, g);
-      el('circle', {cx:-5, cy:-5, r:8, class:'node-rotate-hit'}, rot);
+      el('circle', {cx:-5, cy:-5, r:5.5, class:'node-rotate-hit'}, rot);
       /* An arc with a head at BOTH ends. Three quarters of a circle with
          one head on it is the mark for a turn in one direction — a
          quarter clockwise, which is what this handle no longer does. A
@@ -1523,7 +1526,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     if(base.sink) arrow.setAttribute('transform', `translate(0,${-base.sink/2})`);
     if(linkInk) lg.style.setProperty('--tab-ink', linkInk);
     siteIconInto(lg, n.link, -base.sink/2);
-    el('title',{},lg).textContent = 'Open linked page ↗' + (siteHost(n.link) ? ' — ' + siteHost(n.link) : '');
+    const inner = entryLinkTarget(n.link);
+    el('title',{},lg).textContent = inner
+      ? 'Go to ' + stripMarkup(nodes.get(inner.id).label || inner.id)
+      : 'Open linked page ↗' + (siteHost(n.link) ? ' — ' + siteHost(n.link) : '');
     /* And while another entry is open this one's link does not fire: the
        page it would open belongs to a box the reader has stepped away
        from. The press falls through to the box instead, which opens it —
@@ -1532,6 +1538,10 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     linkWrap.addEventListener('click', ev=>{
       if(selectedId && selectedId !== n.id){ ev.preventDefault(); return; }
       ev.stopPropagation();
+      /* A link to another entry of this chart goes to it, here: a new tab
+         would open the same chart a second time only to fly to a box that
+         is already on the screen. */
+      if(inner){ ev.preventDefault(); openEntryOn(inner.id, inner.tab); }
     });
   }
 
@@ -1552,6 +1562,21 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      landing on the same edge reads as one line passing through the card.
      The other three sides behave exactly as any entry's do. */
   const takenSide = isCallout ? calloutLeaderSide(n) : null;
+  /* The strip that lights up is the border said again, so on an entry
+     whose border is a gradient it is the same gradient — it lit up in the
+     first colour alone, and the border under the pointer turned flat as it
+     was reached. It is laid in the chart's own units across the entry's
+     width, the way the border's own runs across its box: a strip's box is
+     a few units wide on the left and right sides, and a gradient over that
+     put every colour into the width of a line. */
+  const bandPaint = (isAmalgam && paintColors.length > 1) ? (()=>{
+    const id = 'grad-' + (gradientSeq++);
+    const gr = el('linearGradient', {id, gradientUnits:'userSpaceOnUse',
+                                     x1:n.x, y1:0, x2:n.x + n.w, y2:0}, nodeDefs);
+    paintColors.forEach((c, i)=> el('stop', {offset:`${i / (paintColors.length - 1) * 100}%`,
+                                             'stop-color': c}, gr));
+    return `url(#${id})`;
+  })() : null;
   if(!isFree) SIDES.forEach(side=>{
     if(side === takenSide) return;
     // Innermost ring first, so where two hit strips still graze each other
@@ -1577,9 +1602,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
         const grow = ring*POCKET_RING_STEP;
         el('path', {class:'node-handle-band wave',
                     d: wavySideOpenPath(n.x-grow, n.y-grow, n.w+grow*2, h+grow*2, side, grow),
-                    style:`fill:none;stroke:${ringColor};stroke-width:${BAND_W};`}, hg);
+                    style:`fill:none;stroke:${bandPaint || ringColor};stroke-width:${BAND_W};`}, hg);
       } else {
-        el('rect', Object.assign({class:'node-handle-band', style:`fill:${ringColor};`}, band.show), hg);
+        el('rect', Object.assign({class:'node-handle-band', style:`fill:${bandPaint || ringColor};`}, band.show), hg);
       }
       el('title',{},hg).textContent = ringColors.length > 1
         ? `Drag from this ${side} edge (${ringColor}) to connect`

@@ -9,15 +9,6 @@
    shaft between them, so it still reads as an arrow. It was 24, which
    gave way a whole step before it had to; see amalgamGeometry. */
 const AMALGAM_GAP = 18, AMALGAM_LEAD = 34, AMALGAM_PITCH = 2 * 6 + 3;
-// The furthest the shared bar may stand off its entry, and the furthest
-// along that bar a lineage may land.
-/* The span cap stops the bar growing across the chart — but it is also
-   what forces a lineage to step sideways before it can drop onto its
-   landing, because the landing is no longer under the parent. At 150 that
-   step showed up on quite ordinary layouts. Wide enough now that a normal
-   arrangement lands each lineage straight below its parent and comes down
-   in one clean run; a genuinely sprawling one still gets a bounded bar and
-   a visible, rounded step. */
 /* Where each merge's bar last ran, along its own axis and in chart
    coordinates. Filled in by drawAmalgam; read by a drag that offers to
    centre the entry on its own bar. */
@@ -293,7 +284,7 @@ function amalgamGeometry(list, ports){
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
-          rest: restingNow(side, port, nrm, barDist, sx, sy, resting),
+          rest: restingNow(side, port, nrm, barDist, sx, sy),
           cx: port.x + nrm.x * barDist, cy: port.y + nrm.y * barDist};
 }
 /* Where the bar stands NOW, said the way a fixed bar is stored: the axis,
@@ -543,31 +534,6 @@ function drawAmalgam(list, ports){
      symmetric about the entry's centre, so the merged arrow leaves from the
      bar's true middle. Each member owns the stretch from the midpoint with
      its previous neighbour to the midpoint with the next. */
-  /* Where each lineage lands on the bar.
-   *
-   * These used to be fixed slots spread symmetrically about the entry's
-   * own centre, regardless of where the lineages actually were. That is
-   * right when they sit above the entry, and wrong the moment they do not:
-   * with every parent off to one side, the leftmost slot still sat to the
-   * LEFT of the entry, so the member assigned to it ran past the junction
-   * and doubled back — the stub of bar reaching out to nothing that shows
-   * up as soon as an amalgam is dragged away from its lineages.
-   *
-   * Each member now lands where it actually approaches from, so the bar
-   * spans the ground the lineages really cover, and neighbours keep at
-   * least AMALGAM_PITCH between them, so two lineages arriving from nearly
-   * the same place still get their own stretch of bar.
-   *
-   * `members` is already sorted by approach, so spacing them out is a
-   * single forward pass — and a backward pass to pull the row back inside
-   * the span if the forward one pushed its tail past the end. */
-  /* The cap is never tighter than the ground the lineages themselves
-     cover. It exists to stop the bar chasing an entry dragged away from
-     its lineages — not to pull a lineage off the line it comes down on,
-     which is what a fixed cap did as soon as the parents stood further
-     apart than the cap: the outer ones had to step sideways before they
-     could drop onto their landing. */
-
   /* Where each lineage lands on the bar: under the PORT it leaves by, not
      under the middle of the entry it leaves.
    *
@@ -1000,7 +966,7 @@ function drawAmalgam(list, ports){
     drawnAt.push(jAt);
     const jp = barPt(jAt);
     const r = AMALGAM_JOINT_R;
-    const pair = [amalgamMemberColor(members[i]), amalgamMemberColor(members[i+1])];
+    const pair = pairAt;
     /* A seam is marked whether or not the colour changes across it.
      *
        0.9.17 skipped the ones where the two lineages meeting are the same
@@ -1425,8 +1391,60 @@ function beginBarDrag(ev, id){
   const spec = barSpecFor(id);
   if(!spec) return;
   const b = nodes.get(id);
+  const rec = amalgamBars.get(id);
   amalgamBarDrag = {id, spec, had: !!(b && b.bar), x0: ev.clientX, y0: ev.clientY,
-                    moved: false, before: null, lead: spec.lead};
+                    moved: false, before: null, lead: spec.lead,
+                    cross0: rec ? rec.cross : null};
+}
+/* The levels a bar being carried can be lined up with, and the line that
+ * says so.
+ *
+   Every other thing the hand carries — an entry, a corner — shows a guide
+   when it comes level with something, and the bar was the one that showed
+   nothing: it could only be put on the grid, and lining it up with the
+   bottom of a row of entries or with the run of another merge's bar was a
+   matter of squinting. It is offered the same three places an entry offers
+   on the bar's own level — near edge, middle, far edge of every entry — and
+   the level of every connector run and every other bar lying the same way.
+   The bar's lineages and its own merged arrow are left out: they move with
+   it. The level is a straight function of `lead` (the bar stands `lead`
+   beyond its lineages), so a level found is turned back into a lead. */
+function barGuide(st, lead){
+  clearGuides();
+  const rec = amalgamBars.get(st.id);
+  if(!rec || typeof st.cross0 !== 'number') return null;
+  const k = st.spec.k, sgn = st.spec.after ? 1 : -1;
+  const at = st.cross0 + (lead - st.spec.lead) * sgn;
+  const tol = GUIDE_SNAP_PX / (vs || 1);
+  const len = k === 'x' ? 'w' : 'h', o = k === 'x' ? 'y' : 'x', olen = k === 'x' ? 'h' : 'w';
+  let best = null;
+  const offer = (v, lo, hi)=>{
+    const d = v - at;
+    if(Math.abs(d) > tol || (best && Math.abs(best.d) <= Math.abs(d))) return;
+    const next = st.spec.lead + (v - st.cross0) * sgn;
+    if(next < AMALGAM_LEAD_MIN) return;
+    best = {d, v, lo, hi, lead: next};
+  };
+  nodes.forEach(n=>{
+    if(n.id === st.id || nodeHidden(n)) return;
+    [n[k], n[k] + n[len] / 2, n[k] + n[len]].forEach(v=> offer(v, n[o], n[o] + n[olen]));
+  });
+  amalgamBars.forEach((r, id)=>{
+    if(id !== st.id && r.axis === rec.axis) offer(r.cross, r.lo, r.hi);
+  });
+  drawnRoutes.forEach(r=>{
+    if(!r || !r.pts || r.to === st.id || r.from === st.id) return;
+    routeRuns(r.pts).forEach(run=>{ if(run.axis === k) offer(run.v, run.lo, run.hi); });
+  });
+  if(!best) return null;
+  const lo = Math.min(rec.lo, best.lo), hi = Math.max(rec.hi, best.hi);
+  const flat = k === 'y';
+  el('line', {class:'align-guide align-guide-line',
+              x1: flat ? (lo - GUIDE_OVERHANG).toFixed(2) : best.v.toFixed(2),
+              x2: flat ? (hi + GUIDE_OVERHANG).toFixed(2) : best.v.toFixed(2),
+              y1: flat ? best.v.toFixed(2) : (lo - GUIDE_OVERHANG).toFixed(2),
+              y2: flat ? best.v.toFixed(2) : (hi + GUIDE_OVERHANG).toFixed(2)}, guideLayer);
+  return best;
 }
 let barDragFrame = 0;
 window.addEventListener('mousemove', ev=>{
@@ -1444,6 +1462,15 @@ window.addEventListener('mousemove', ev=>{
   const along = (st.spec.k === 'y' ? dy : dx) / vs;
   const step = dragIsFree(ev) ? Math.round(along) : snapToGrid(along);
   st.lead = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? step : -step));
+  if(dragIsFree(ev)) clearGuides();
+  else {
+    /* Measured from where the hand is, not from the grid step it was
+       rounded to: a level a few units off the grid could otherwise never
+       be reached. */
+    const raw = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? along : -along));
+    const g = barGuide(st, raw);
+    if(g) st.lead = g.lead;
+  }
   const b = nodes.get(st.id);
   if(b) b.bar = Object.assign({}, st.spec, {lead: st.lead});
   if(barDragFrame) return;
@@ -1460,6 +1487,7 @@ window.addEventListener('mouseup', ()=>{
   if(!st || st.swallow) return;
   if(barDragFrame){ cancelAnimationFrame(barDragFrame); barDragFrame = 0; }
   document.body.classList.remove('bar-carrying');
+  clearGuides();
   if(!st.moved){ amalgamBarDrag = null; return; }
   // The click the browser sends after a carry is not a click on the bar.
   st.swallow = true;
