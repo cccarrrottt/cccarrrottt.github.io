@@ -77,22 +77,55 @@ function routeRunsOf(pts){
   }
   return runs;
 }
+/* The drawn line of one connector, as a polyline close enough to the
+   stroke to stand a mark on.
+ *
+ * It was sampled with getPointAtLength, and in Chromium that call walks
+ * the path from its start every time — so a few hundred samples of a
+ * wavy line, which is hundreds of curve pieces, cost half a second, and
+ * the handles are drawn again on every hover and every redraw of a drag.
+ * Any rippled connector froze the page while the pointer was on it. The
+ * path is read here instead, once, from the `d` this program wrote: its
+ * own M, L and C, each cubic cut into a few chords. A path with anything
+ * else in it is a path this did not expect, and gets nothing — the
+ * caller falls back to the geometry the line was drawn over. */
+function flattenPathD(d){
+  const tok = String(d || '').match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi);
+  if(!tok) return null;
+  const out = [];
+  let i = 0, cmd = '', x = 0, y = 0;
+  const num = ()=> +tok[i++];
+  while(i < tok.length){
+    if(/[A-Za-z]/.test(tok[i])) cmd = tok[i++];
+    if(cmd === 'M' || cmd === 'L'){
+      x = num(); y = num();
+      out.push({x, y});
+      if(cmd === 'M') cmd = 'L';
+    } else if(cmd === 'C'){
+      const x1 = num(), y1 = num(), x2 = num(), y2 = num(), x3 = num(), y3 = num();
+      for(let k = 1; k <= 6; k++){
+        const t = k / 6, u = 1 - t;
+        out.push({x: u*u*u*x + 3*u*u*t*x1 + 3*u*t*t*x2 + t*t*t*x3,
+                  y: u*u*u*y + 3*u*u*t*y1 + 3*u*t*t*y2 + t*t*t*y3});
+      }
+      x = x3; y = y3;
+    } else return null;
+    if(!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  }
+  return out.length > 1 ? out : null;
+}
 function drawnLineOf(from, to){
   const sel = `path.edge.struct[data-from="${CSS.escape(from)}"][data-to="${CSS.escape(to)}"]`;
   let best = null, len = 0;
   edgeLayer.querySelectorAll(sel).forEach(p=>{
     if(p.classList.contains('edge-cap') || p.classList.contains('dbl-inner')) return;
-    const L = p.getTotalLength ? p.getTotalLength() : 0;
-    if(L > len){ len = L; best = p; }
+    const line = flattenPathD(p.getAttribute('d'));
+    if(!line) return;
+    let L = 0;
+    for(let i = 1; i < line.length; i++) L += Math.hypot(line[i].x - line[i-1].x, line[i].y - line[i-1].y);
+    if(L > len){ len = L; best = line; }
   });
-  if(!best || len < 1) return null;
-  const n = Math.min(2000, Math.ceil(len / 1.5));
-  const out = [];
-  for(let i = 0; i <= n; i++){
-    const q = best.getPointAtLength(len * i / n);
-    out.push({x: q.x, y: q.y});
-  }
-  return out;
+  return best && len >= 1 ? best : null;
 }
 function drawBendHandles(){
   /* Everything this reaches for is declared further down the file than the

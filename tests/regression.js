@@ -16514,6 +16514,23 @@ async function main(){
     const marks = [...document.querySelectorAll('#bendLayer .bend-mark')].map(m=> distTo(cl, +m.getAttribute('cx'), +m.getAttribute('cy')));
     out.curveMarks = marks.map(d=> +d.toFixed(2));
     out.curveOnLine = marks.length >= 3 && marks.every(d=> d < 0.6);
+    /* …and a WAVY curve's on its wave, read from the path rather than
+       sampled with getPointAtLength: that call walks the path from its
+       start each time, and on a rippled line the marks cost half a second
+       on every hover and every redraw of a drag. */
+    setEdgeStyleOverride('cvA','cvB', Object.assign({}, edgeStyleFor('cvA','cvB'), {sinusoid:true}));
+    rebuildChart();
+    await wait(200);
+    const realAt = SVGGeometryElement.prototype.getPointAtLength;
+    let walked = 0;
+    SVGGeometryElement.prototype.getPointAtLength = function(){ walked++; return realAt.apply(this, arguments); };
+    try{ bendHoverTarget = null; showBendsFor('cvA','cvB'); }
+    finally{ SVGGeometryElement.prototype.getPointAtLength = realAt; }
+    const wl = line('cvA','cvB');
+    const wMarks = [...document.querySelectorAll('#bendLayer .bend-mark')].map(m=> distTo(wl, +m.getAttribute('cx'), +m.getAttribute('cy')));
+    out.waveMarks = wMarks.map(d=> +d.toFixed(2));
+    out.waveOnLine = wMarks.length >= 3 && wMarks.every(d=> d < 0.6);
+    out.waveWalked = walked;
     applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
       workingNodes.push(['pkA','asdasd',null,null,null,null,{pos:[0,0]}]);
       workingNodes.push(['pkB','other','pkA',null,null,null,{pos:[80,-5]}]);
@@ -16733,6 +16750,8 @@ async function main(){
   });
   check('a rippled curve ends under its arrowhead wherever its entries stand', r20.endsUnder, JSON.stringify(r20.ends));
   check('a curve\'s marks stand on the curve', r20.curveOnLine, JSON.stringify(r20.curveMarks));
+  check('a wavy curve\'s marks stand on its wave', r20.waveOnLine, JSON.stringify(r20.waveMarks));
+  eq('…found without walking the path point by point', r20.waveWalked, 0);
   check('a corner the line cannot pass through is drawn set aside, and every other mark is on the line',
         r20.parked === 1 && r20.solidOnLine, JSON.stringify({parked: r20.parked, on: r20.solidOnLine}));
   check('and is taken out by the next edit, in its step of undo, or never kept at all',
