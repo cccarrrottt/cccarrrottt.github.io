@@ -449,12 +449,46 @@ function syncLangTabTexts(n){
   });
 }
 
+/* Languages switched on with every tab taken away is the switch saying
+   something the entry no longer has. Left on, the settings opened again on
+   an empty list under a switch that claimed otherwise, and the entry kept
+   a flag nothing drew. So the switch goes off as the settings are left —
+   not while they are open, where taking the last tab away on the way to
+   adding another is an ordinary step. Asked of the entry the form was
+   opened on, by its id: the selection may already have moved on by the
+   time the form closes. */
+function offWhenNoTabsLeft(){
+  const id = detailEditForm.dataset.entry;
+  delete detailEditForm.dataset.entry;
+  if(detailEditForm.style.display !== 'block' || readOnlyView) return null;
+  if(!editMultiLangCheck.checked || collectLangTabs(editLangTabList).length) return null;
+  /* Off on the form first, so a commit still waiting writes it in the same
+     step as the tab that was taken away; and written here if none was. */
+  editMultiLangCheck.checked = false;
+  editLangTabsField.style.display = 'none';
+  return id || null;
+}
+function writeLanguagesOff(id){
+  const found = workingEntry(id);
+  if(!found) return;
+  const opts = entryOpts(found.entry);
+  if(!opts.multiLang && !opts.langTabs) return;
+  pushUndo();
+  applyEdit(()=>{
+    delete opts.multiLang;
+    delete opts.langTabs;
+    putEntry(found.index, found.entry, opts);
+  });
+  refreshSaveUI();
+}
 function setEditStatus(kind, msg){ detailEditStatusEl.className = 'editor-status show ' + kind; detailEditStatusEl.textContent = msg; }
 function clearEditStatus(){ detailEditStatusEl.className = 'editor-status'; detailEditStatusEl.textContent = ''; }
 function closeEditForm(){
   // A change still sitting in the typing pause is a change the user made;
   // closing settles it rather than throwing it away.
+  const emptied = offWhenNoTabsLeft();
   flushNodeEditCommit();
+  if(emptied) writeLanguagesOff(emptied);
   endLabelPreview(false);
   detailEditForm.style.display = 'none';
   detailEditToggle.classList.remove('active');
@@ -510,6 +544,7 @@ detailEditToggle.onclick = (ev)=>{
     fillLangTabs(editLangTabList, n.langTabs);
     editLangTabsField.style.display = n.multiLang ? '' : 'none';
     detailEditForm.style.display = 'block';
+    detailEditForm.dataset.entry = n.id;
     detailEditToggle.classList.add('active');
     showNoteBlock(false);
     clearEditStatus();

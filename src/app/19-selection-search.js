@@ -564,6 +564,20 @@ function entryFromHash(hash){
   const tab = /^[1-9][0-9]*$/.test(out.tab || '') ? +out.tab - 1 : null;
   return {id: out.entry, tab};
 }
+/* The entry of THIS chart a link names, if it names one: a bare
+   `#entry=…`, this page's own address, or the published site's — the same
+   chart wherever it is opened, which is how a link copied on the site
+   still means this chart inside an artifact or a copy on disk. Anything
+   else, or an entry this chart does not have, is an ordinary link. */
+function entryLinkTarget(raw){
+  if(typeof raw !== 'string' || !raw.trim()) return null;
+  let u;
+  try{ u = new URL(raw.trim(), location.href); }catch(e){ return null; }
+  const want = entryFromHash(u.hash);
+  if(!want || !nodes.has(want.id)) return null;
+  const here = u.origin + u.pathname === location.origin + location.pathname;
+  return (here || raw.trim().startsWith('#') || SITE_ORIGINS.includes(u.origin)) ? want : null;
+}
 function openEntryFromHash(){
   const want = entryFromHash(location.hash);
   if(want && nodes.has(want.id)) openEntryOn(want.id, want.tab);
@@ -591,6 +605,20 @@ if(detailLink){
   });
 }
 searchInput.addEventListener('blur', ()=> setTimeout(()=>searchResults.classList.remove('show'),150));
+/* A press anywhere else puts the search away — the query with it. The
+   blur above only ever ran when the press took the focus, and on the
+   chart it does not (the canvas keeps the press for itself), so the list
+   stayed open over the drawing unless the press landed somewhere near
+   the toolbar. Asked in the capture phase, before anything on the chart
+   can swallow the press. */
+document.addEventListener('pointerdown', ev=>{
+  const t = ev.target;
+  if(t && t.closest && (t.closest('#searchInput') || t.closest('.search-results'))) return;
+  if(!searchResults.classList.contains('show') && !searchInput.value) return;
+  searchResults.classList.remove('show');
+  searchInput.value = '';
+  if(document.activeElement === searchInput) searchInput.blur();
+}, true);
 /* Whether the keyboard currently belongs to something being typed in. The
    shortcuts below all defer to it: a key that means "delete the entry" or
    "jump to search" on the chart means the character itself in a field. */

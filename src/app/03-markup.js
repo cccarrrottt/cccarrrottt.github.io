@@ -471,6 +471,14 @@ function wrapLabel(label, maxChars, fit){
     hasSticker: words.some(w=>w.type==='sticker')
   }));
 }
+/* Whether a text puts anything on the chart. A figure is not drawn there
+   (see tokenizeLabel), so a card's note that is only a video was a band
+   the depth of a line with nothing in it — a container standing empty
+   while the drawer showed what it held. */
+function drawsOnChart(text){
+  return tokenizeLabel(text).some(t=> t.type === 'sticker' || t.type === 'ref' ||
+    (t.type === 'ruby' ? !!String(t.base || '').trim() : !!String(t.text || '').trim()));
+}
 function stripMarkup(label){
   return tokenizeLabel(label).map(t=>{
     if(t.type==='ruby') return t.base;

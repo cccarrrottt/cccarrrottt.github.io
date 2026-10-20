@@ -1425,8 +1425,60 @@ function beginBarDrag(ev, id){
   const spec = barSpecFor(id);
   if(!spec) return;
   const b = nodes.get(id);
+  const rec = amalgamBars.get(id);
   amalgamBarDrag = {id, spec, had: !!(b && b.bar), x0: ev.clientX, y0: ev.clientY,
-                    moved: false, before: null, lead: spec.lead};
+                    moved: false, before: null, lead: spec.lead,
+                    cross0: rec ? rec.cross : null};
+}
+/* The levels a bar being carried can be lined up with, and the line that
+ * says so.
+ *
+   Every other thing the hand carries — an entry, a corner — shows a guide
+   when it comes level with something, and the bar was the one that showed
+   nothing: it could only be put on the grid, and lining it up with the
+   bottom of a row of entries or with the run of another merge's bar was a
+   matter of squinting. It is offered the same three places an entry offers
+   on the bar's own level — near edge, middle, far edge of every entry — and
+   the level of every connector run and every other bar lying the same way.
+   The bar's lineages and its own merged arrow are left out: they move with
+   it. The level is a straight function of `lead` (the bar stands `lead`
+   beyond its lineages), so a level found is turned back into a lead. */
+function barGuide(st, lead){
+  clearGuides();
+  const rec = amalgamBars.get(st.id);
+  if(!rec || typeof st.cross0 !== 'number') return null;
+  const k = st.spec.k, sgn = st.spec.after ? 1 : -1;
+  const at = st.cross0 + (lead - st.spec.lead) * sgn;
+  const tol = GUIDE_SNAP_PX / (vs || 1);
+  const len = k === 'x' ? 'w' : 'h', o = k === 'x' ? 'y' : 'x', olen = k === 'x' ? 'h' : 'w';
+  let best = null;
+  const offer = (v, lo, hi)=>{
+    const d = v - at;
+    if(Math.abs(d) > tol || (best && Math.abs(best.d) <= Math.abs(d))) return;
+    const next = st.spec.lead + (v - st.cross0) * sgn;
+    if(next < AMALGAM_LEAD_MIN) return;
+    best = {d, v, lo, hi, lead: next};
+  };
+  nodes.forEach(n=>{
+    if(n.id === st.id || nodeHidden(n)) return;
+    [n[k], n[k] + n[len] / 2, n[k] + n[len]].forEach(v=> offer(v, n[o], n[o] + n[olen]));
+  });
+  amalgamBars.forEach((r, id)=>{
+    if(id !== st.id && r.axis === rec.axis) offer(r.cross, r.lo, r.hi);
+  });
+  drawnRoutes.forEach(r=>{
+    if(!r || !r.pts || r.to === st.id || r.from === st.id) return;
+    routeRuns(r.pts).forEach(run=>{ if(run.axis === k) offer(run.v, run.lo, run.hi); });
+  });
+  if(!best) return null;
+  const lo = Math.min(rec.lo, best.lo), hi = Math.max(rec.hi, best.hi);
+  const flat = k === 'y';
+  el('line', {class:'align-guide align-guide-line',
+              x1: flat ? (lo - GUIDE_OVERHANG).toFixed(2) : best.v.toFixed(2),
+              x2: flat ? (hi + GUIDE_OVERHANG).toFixed(2) : best.v.toFixed(2),
+              y1: flat ? best.v.toFixed(2) : (lo - GUIDE_OVERHANG).toFixed(2),
+              y2: flat ? best.v.toFixed(2) : (hi + GUIDE_OVERHANG).toFixed(2)}, guideLayer);
+  return best;
 }
 let barDragFrame = 0;
 window.addEventListener('mousemove', ev=>{
@@ -1444,6 +1496,15 @@ window.addEventListener('mousemove', ev=>{
   const along = (st.spec.k === 'y' ? dy : dx) / vs;
   const step = dragIsFree(ev) ? Math.round(along) : snapToGrid(along);
   st.lead = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? step : -step));
+  if(dragIsFree(ev)) clearGuides();
+  else {
+    /* Measured from where the hand is, not from the grid step it was
+       rounded to: a level a few units off the grid could otherwise never
+       be reached. */
+    const raw = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? along : -along));
+    const g = barGuide(st, raw);
+    if(g) st.lead = g.lead;
+  }
   const b = nodes.get(st.id);
   if(b) b.bar = Object.assign({}, st.spec, {lead: st.lead});
   if(barDragFrame) return;
@@ -1460,6 +1521,7 @@ window.addEventListener('mouseup', ()=>{
   if(!st || st.swallow) return;
   if(barDragFrame){ cancelAnimationFrame(barDragFrame); barDragFrame = 0; }
   document.body.classList.remove('bar-carrying');
+  clearGuides();
   if(!st.moved){ amalgamBarDrag = null; return; }
   // The click the browser sends after a carry is not a click on the bar.
   st.swallow = true;

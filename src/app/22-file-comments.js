@@ -789,6 +789,7 @@ const commentsOverlay = document.getElementById('commentsOverlay');
 const commentsToggle = document.getElementById('commentsToggle');
 const commentKind = document.getElementById('commentStatus');
 const commentText = document.getElementById('commentText');
+const commentTitle = document.getElementById('commentTitle');
 const commentList = document.getElementById('commentList');
 const commentMsgEl = document.getElementById('commentStatusMsg');
 const suggestAbout = document.getElementById('suggestAbout');
@@ -838,6 +839,7 @@ function paintSuggestForm(){
   suggestSubmitBtn.hidden = !signed;
   suggestSubmitBtn.disabled = suggestBusy;
   commentKind.disabled = commentText.disabled = !signed;
+  if(commentTitle) commentTitle.disabled = !signed;
   suggestNote.textContent = signed
     ? `Posted as ${siteOwner || siteReader}, as an issue in the chart’s repository on GitHub — you can follow it there, and the owner is told.`
     : 'Suggestions are kept as issues in the chart’s repository on GitHub, so posting one takes a GitHub account. Signing in lets you suggest and nothing else.';
@@ -893,7 +895,10 @@ function readSuggestionIssue(issue){
   try{ mark = JSON.parse(decodeURIComponent(issue.body.slice(at + 5 + SUGGESTION_MARK.length, end < 0 ? undefined : end))); }
   catch(e){ return null; }
   if(!mark || COMMENT_KINDS.indexOf(mark.kind) < 0) return null;
+  const head = mark.kind[0].toUpperCase() + mark.kind.slice(1) + ': ';
+  const t = mark.titled && typeof issue.title === 'string' ? issue.title : '';
   return {number: issue.number, kind: mark.kind, entry: typeof mark.entry === 'string' ? mark.entry : null,
+          title: t ? (t.startsWith(head) ? t.slice(head.length) : t).trim() || null : null,
           text: issue.body.slice(0, at).replace(/\s+$/, ''), login: issue.user && issue.user.login,
           at: String(issue.created_at || '').slice(0, 10), url: issue.html_url};
 }
@@ -967,6 +972,12 @@ function renderSuggestions(empty){
       about.textContent = c.entry ? `About an entry no longer on the chart (${c.entry})` : 'About the chart as a whole';
     }
 
+    /* The reader's own title, when they gave one, heads what they wrote. */
+    const title = document.createElement('div');
+    title.className = 'comment-title';
+    title.textContent = c.title || '';
+    title.hidden = !c.title;
+
     const body = document.createElement('div');
     body.className = 'comment-body';
     body.textContent = c.text || '';
@@ -990,7 +1001,7 @@ function renderSuggestions(empty){
       no.onclick = ()=> resolveSuggestion(c, 'not_planned', no);
       actions.append(done, no);
     }
-    item.append(head, about, body, actions);
+    item.append(head, about, title, body, actions);
     commentList.appendChild(item);
   });
 }
@@ -1015,6 +1026,13 @@ async function resolveSuggestion(c, reason, btn){
 /* The same bargain as the rich fields: Enter posts, Shift+Enter breaks the
    line. A plain textarea answers Enter with a newline of its own, so the
    default has to be taken away before the button is pressed. */
+/* Enter in the title goes on to the words: a suggestion is not finished
+   when its title is. */
+if(commentTitle) commentTitle.addEventListener('keydown', ev=>{
+  if(ev.key !== 'Enter' || ev.isComposing) return;
+  ev.preventDefault();
+  commentText.focus();
+});
 commentText.addEventListener('keydown', ev=>{
   if(ev.key !== 'Enter' || ev.shiftKey || ev.isComposing) return;
   ev.preventDefault();
@@ -1029,7 +1047,8 @@ suggestSubmitBtn.onclick = async ()=>{
   let answer = null;
   try{
     answer = await siteRequest('/suggest', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({kind, text, entry: suggestEntry, label: entryName(suggestEntry) || ''})});
+      body: JSON.stringify({kind, text, entry: suggestEntry, label: entryName(suggestEntry) || '',
+                            title: commentTitle ? commentTitle.value.trim() : ''})});
   }catch(e){}
   suggestBusy = false;
   if(answer && answer.res.status === 401) forgetSiteSession();
@@ -1038,6 +1057,7 @@ suggestSubmitBtn.onclick = async ()=>{
   const {res, body} = answer;
   if(!res.ok){ setCommentMsg('err', 'Not posted: ' + ((body && body.error) || 'the service refused it.')); return; }
   commentText.value = '';
+  if(commentTitle) commentTitle.value = '';
   if(body && body.suggestion && body.suggestion.number) siteSuggestions = [body.suggestion].concat(siteSuggestions || []);
   renderSuggestions();
   paintSuggestionMarks();

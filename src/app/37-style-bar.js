@@ -141,7 +141,11 @@ const styleBar = (()=>{
     input.spellcheck = false;
     input.title = title;
     row.appendChild(input);
-    squareForHexInput(input, {title});
+    /* Blank is the paper, so the square shows the paper — as a colour
+       handed down, with the dashed edge — rather than the empty square of
+       "no colour", which is not what a blank ground means here. */
+    squareForHexInput(input, {title, fallback: ()=>
+      getComputedStyle(document.body).getPropertyValue('--panel').trim() || '#ffffff'});
     input.addEventListener('mousedown', ev=> ev.stopPropagation());
     input.addEventListener('keydown', ev=> ev.stopPropagation());
     input.addEventListener('input', ()=>{

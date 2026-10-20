@@ -329,6 +329,15 @@ function partsOf(text){
   check('and the page is told what it made, entry and all, however odd the entry\'s id',
         body.suggestion && body.suggestion.entry === oddId && body.suggestion.kind === 'correction' && body.suggestion.mine === true
         && body.suggestion.text === 'The year is wrong.\n\nIt came out in 1986.', JSON.stringify(body));
+  r = await suggest(reader, {kind: 'addition', text: 'There is a sequel.', title: '  A  sequel\n is missing '});
+  body = await r.json();
+  const titled = gh.issues[gh.issues.length - 1];
+  check('a title of the reader\'s own heads the issue after its kind, one line, and comes back with it',
+        !!titled && titled.title === 'Addition: A sequel is missing' && body.suggestion && body.suggestion.title === 'A sequel is missing',
+        JSON.stringify({t: titled && titled.title, s: body.suggestion && body.suggestion.title}));
+  check('and one with no title has none, the entry naming the issue as before',
+        made.title === 'Correction: Beast Wars: Uprising' && w.readSuggestion(made).title === null);
+  gh.issues.pop();
   await suggest(await session('TheOwner'), {kind: 'deletion', text: 'Drop it.'});
   // An issue about the code, and a pull request, are not suggestions.
   gh.issues.push({number: gh.issues.length + 1, state: 'open', title: 'A bug', body: 'The build fails.', user: {login: 'someone'}});

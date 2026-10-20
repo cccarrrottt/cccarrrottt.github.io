@@ -8,6 +8,34 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The text cursor is drawn by the page — a black beam with a white edge —
+  wherever words are typed, and words that are only read show an arrow.
+  The system's beam is an inverting cursor, and Chromium on Windows can
+  draw it plain white, which on a white chart was no cursor at all.
+- A press anywhere outside the search puts it away, query and all; the
+  chart kept the press for itself, so the list stayed open over it.
+- A stretch of an orthogonal connector right next to its start or end can
+  be dragged out: it used to give no corner at all.
+- A curve's last head's length runs straight along its arrowhead, so the
+  line meets the head square after any bend or move instead of at a slant
+  with a notch beside it.
+- The marks for bending a connector stand on the line as it is drawn —
+  on the wave of a rippled one, on the round of a rounded corner.
+- The strips that light up on a merge's gradient border are that gradient,
+  not its first colour.
+- Carrying a merge's bar shows a guide when it comes level with an entry's
+  edge or middle, a connector's run or another bar, and lands on it.
+- An entry's border colours inherited from its tags, and the default ink
+  of words on a text toolbar, wear the dashed edge of a default colour; a
+  blank ground on the style bar shows the paper.
+- A card whose note is only a figure draws no empty band for it.
+- A caption's turning handle stands closer to its corner.
+- A link on an entry that points to another entry of the chart goes to it
+  on the same page instead of opening a new one.
+- Languages switched on with every tab taken away are switched off when
+  the entry's settings are left.
+- A suggestion may have a title of its own, which heads the issue after
+  its kind; and the list of suggestions scrolls under the form, with a bar.
 - Signing in to suggest asks GitHub which account to use, instead of
   quietly taking the one the browser is signed in to; and the suggestion
   form, while someone is signed in, offers another GitHub account.

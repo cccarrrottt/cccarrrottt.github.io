@@ -81,6 +81,7 @@ const MAX_BODY = 25 * 1024 * 1024;
 // this it is an essay, and the issue is still there to write it in.
 const SUGGESTION_KINDS = ['correction', 'addition', 'deletion'];
 const MAX_SUGGESTION = 4000;
+const MAX_SUGGESTION_TITLE = 120;
 const SUGGESTION_MARK = 'rhizome-suggestion:';
 // Issues read per /suggestions, a hundred to a page. The open ones come
 // newest first, so this is the newest three hundred open issues.
@@ -411,8 +412,13 @@ async function save(env, request, ctx){
    the words the reader wrote and nothing else. What it names is URI-encoded
    JSON: an entry id comes from the chart's own content and can hold
    anything, and encoded it cannot close the comment it sits in. */
-export function suggestionBody(text, entry, kind){
-  return text + '\n\n<!-- ' + SUGGESTION_MARK + encodeURIComponent(JSON.stringify({entry: entry || null, kind})) + ' -->';
+/* `titled` says the issue's title is the reader's own, after the kind; the
+   title itself is read from the issue, so one corrected on GitHub reads as
+   corrected here too. */
+export function suggestionBody(text, entry, kind, titled){
+  const mark = {entry: entry || null, kind};
+  if(titled) mark.titled = true;
+  return text + '\n\n<!-- ' + SUGGESTION_MARK + encodeURIComponent(JSON.stringify(mark)) + ' -->';
 }
 /* An issue as the page wants it, or null when it is not a suggestion. The
    last marker counts: the one this service wrote is at the end, and one a
@@ -426,7 +432,10 @@ export function readSuggestion(issue){
   try{ mark = JSON.parse(decodeURIComponent(issue.body.slice(at + 5 + SUGGESTION_MARK.length, end < 0 ? undefined : end))); }
   catch(e){ return null; }
   if(!mark || SUGGESTION_KINDS.indexOf(mark.kind) < 0) return null;
+  const head = mark.kind[0].toUpperCase() + mark.kind.slice(1) + ': ';
+  const t = mark.titled && typeof issue.title === 'string' ? issue.title : '';
   return {number: issue.number, kind: mark.kind, entry: typeof mark.entry === 'string' ? mark.entry : null,
+          title: t ? (t.startsWith(head) ? t.slice(head.length) : t).trim() || null : null,
           text: issue.body.slice(0, at).replace(/\s+$/, ''), login: issue.user && issue.user.login,
           at: String(issue.created_at || '').slice(0, 10), url: issue.html_url};
 }
@@ -459,9 +468,11 @@ async function suggest(env, request, ctx){
   // GitHub: one line, and short enough to be a title.
   const label = String(typeof body.label === 'string' ? body.label : '').replace(/\s+/g, ' ').trim().slice(0, 80);
   const kind = body.kind[0].toUpperCase() + body.kind.slice(1);
+  // A title of the reader's own, when they gave one: one line, as a title is.
+  const title = String(typeof body.title === 'string' ? body.title : '').replace(/\s+/g, ' ').trim().slice(0, MAX_SUGGESTION_TITLE);
   const issue = await gh(s.gh, `/repos/${env.REPO}/issues`, {method: 'POST', body: JSON.stringify({
-    title: `${kind}: ${entry && label ? label : 'the chart'}`,
-    body: suggestionBody(text, entry, body.kind)
+    title: `${kind}: ${title || (entry && label ? label : 'the chart')}`,
+    body: suggestionBody(text, entry, body.kind, !!title)
   })}, 'GitHub refused: the sign-in app may not open issues here. It needs the Issues permission.');
   return {suggestion: Object.assign(readSuggestion(issue) || {}, {mine: true})};
 }

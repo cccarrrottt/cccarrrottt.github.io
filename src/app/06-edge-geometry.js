@@ -462,7 +462,49 @@ const CURVE_STEP = 2;
 function curveThrough(raw, step){
   const P = mergeCollinear(raw);
   if(P.length < 3) return P.map(q=> ({x:q.x, y:q.y}));
-  return bsplineOver(P, step);
+  const c = bsplineOver(P, step);
+  return straightenTail(straightenTail(c).reverse()).reverse();
+}
+/* A curve's last arrowhead's length, laid straight along the head.
+ *
+   The head is set on the chord of that stretch (see curveHeads), but the
+   line it meets left the spline still bending: its last few units came in
+   at a slant to the head and the stroke's square end stood a notch off the
+   head's base — the gap that came back after every bend or move, because
+   any change in the route changes how much the spline leans there. Pulling
+   the stretch under the head onto the head's own axis, and easing into it
+   over one more head's length, makes the line arrive along the head at
+   whatever angle the spline had. The cut point lies on that axis already,
+   so the head's direction is the same before and after. Done for both ends
+   and with or without a head: the change is under a dozen units from the
+   tip, and a curve that looks the same either way is what keeps turning a
+   head on from moving the line. */
+function straightenTail(c){
+  if(c.length < 4) return c;
+  let total = 0;
+  for(let i = 1; i < c.length; i++) total += Math.hypot(c[i].x - c[i-1].x, c[i].y - c[i-1].y);
+  /* Held straight a little past the head's base, so the line's own last
+     step before the head is already on the axis — measured along the
+     spline, which straightening shortens by a hair. */
+  const hold = Math.min(ARROW_TRIM + 4, total / 4), ease = Math.min(ARROW_LEN * 1.5, total / 4);
+  const tip = c[c.length - 1];
+  const cut = cutAlong(c, 0, hold);
+  const base = cut[cut.length - 1];
+  const L = Math.hypot(tip.x - base.x, tip.y - base.y);
+  if(!(L > 0.01)) return c;
+  const ux = (tip.x - base.x) / L, uy = (tip.y - base.y) / L;
+  const out = c.slice();
+  let s = 0;
+  for(let i = c.length - 1; i >= 0; i--){
+    if(i < c.length - 1) s += Math.hypot(c[i+1].x - c[i].x, c[i+1].y - c[i].y);
+    if(s >= hold + ease) break;
+    const t = s <= hold ? 1 : 1 - (s - hold) / ease;
+    const w = t * t * (3 - 2 * t);
+    const p = c[i], k = (p.x - tip.x) * ux + (p.y - tip.y) * uy;
+    const qx = tip.x + ux * k, qy = tip.y + uy * k;
+    out[i] = {x: p.x + (qx - p.x) * w, y: p.y + (qy - p.y) * w};
+  }
+  return out;
 }
 function bsplineOver(P, step){
   const p = Math.min(3, P.length - 1), n = P.length - 1;

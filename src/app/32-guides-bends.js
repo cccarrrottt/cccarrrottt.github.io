@@ -77,6 +77,23 @@ function routeRunsOf(pts){
   }
   return runs;
 }
+function drawnLineOf(from, to){
+  const sel = `path.edge.struct[data-from="${CSS.escape(from)}"][data-to="${CSS.escape(to)}"]`;
+  let best = null, len = 0;
+  edgeLayer.querySelectorAll(sel).forEach(p=>{
+    if(p.classList.contains('edge-cap') || p.classList.contains('dbl-inner')) return;
+    const L = p.getTotalLength ? p.getTotalLength() : 0;
+    if(L > len){ len = L; best = p; }
+  });
+  if(!best || len < 1) return null;
+  const n = Math.min(2000, Math.ceil(len / 1.5));
+  const out = [];
+  for(let i = 0; i <= n; i++){
+    const q = best.getPointAtLength(len * i / n);
+    out.push({x: q.x, y: q.y});
+  }
+  return out;
+}
 function drawBendHandles(){
   /* Everything this reaches for is declared further down the file than the
      first draw, so on the very first pass none of it exists yet — and a
@@ -117,8 +134,14 @@ function drawBendHandles(){
      nearest the place it stands for; what it takes hold of is still that
      place (the `at` handed to beginBendDrag), so dragging it moves the
      same stretch it always did. */
-  const curve = edgeStyleFor(target.from, target.to).routing === 'curve'
-    ? curveThrough(pts, CURVE_STEP) : null;
+  /* And on the line as DRAWN, not on the curve it is drawn over: a wavy
+     line swings to either side of that curve, and a rounded corner cuts
+     inside the route's turn, so a mark put on either geometry stood a few
+     units beside the stroke you can see. The drawn path is sampled for the
+     one connector whose marks are up; the curve is the fallback for a line
+     not drawn yet. */
+  const curve = drawnLineOf(target.from, target.to)
+    || (edgeStyleFor(target.from, target.to).routing === 'curve' ? curveThrough(pts, CURVE_STEP) : null);
   const onLine = (q)=>{
     if(!curve) return q;
     let best = q, d = Infinity;
@@ -329,6 +352,30 @@ function shiftArm(P, k, v, p1, p2){
     w[key] = v;
     return [j, w];
   };
+  /* An end's own stretch, moved sideways, steps out of its port: straight
+     out over the run-out, across to where it was taken, and on. But the
+     run-out is usually the WHOLE of that stretch — the next one turns
+     away the moment the run-out ends — so the step had nothing to land
+     on: it came out collinear with the next stretch, was written down as
+     no bend at all, and the stretch near either end could not be moved.
+     There the next stretch is pushed out by one more step of the grid, so
+     the step has a straight piece of its own to land on. Only where that
+     next stretch is free to move: when its far end is the other port,
+     there is nothing to push. */
+  const roomFor = (port, near, far)=>{
+    const nrm = SIDE_NORMAL[port.side];
+    if(!nrm || far === 0 || far === Q.length - 1) return;
+    const along = key === 'x' ? 'y' : 'x';
+    const L = runOutFloor(port);
+    const depth = (Q[near][along] - port[along]) * nrm[along];
+    if(depth >= L + GRID - 0.5) return;
+    if(Math.abs(Q[near][along] - Q[far][along]) > 0.5) return;
+    const lvl = port[along] + nrm[along] * (L + GRID);
+    Q[near][along] = lvl;
+    Q[far][along] = lvl;
+  };
+  if(atStart && Math.abs(v - P[0][key]) > 0.5) roomFor(p1, 1, 2);
+  if(atEnd && Math.abs(v - P[n - 1][key]) > 0.5) roomFor(p2, n - 2, n - 3);
   if(atEnd){ const [j, w] = jogAt(p2); Q.splice(n - 1, 0, w, j); }
   if(atStart){ const [j, w] = jogAt(p1); Q.splice(1, 0, j, w); }
   return Q;
