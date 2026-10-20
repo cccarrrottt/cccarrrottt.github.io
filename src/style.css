@@ -2135,7 +2135,7 @@
   }
   /* Post and Sign in take turns, and a class that gives a button its display
      would otherwise outrank the hidden attribute. */
-  .comment-compose [hidden], #detailSuggest[hidden], #detailLink[hidden]{display:none;}
+  .comment-compose [hidden], #detailSuggest[hidden], #detailLink[hidden], #suggestSwitch[hidden]{display:none;}
   #detailLink.done{color:var(--accent);}
 
   .comment-list{display:flex;flex-direction:column;gap:9px;}

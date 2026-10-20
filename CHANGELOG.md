@@ -8,6 +8,15 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Signing in to suggest asks GitHub which account to use, instead of
+  quietly taking the one the browser is signed in to; and the suggestion
+  form, while someone is signed in, offers another GitHub account.
+- README says the GitHub App must be public for readers to sign in: a
+  private one answers everybody but its owner with a 404.
+- Open suggestions are listed for every reader, signed in or not, and
+  entries wear their marks for everyone. Signed out, the page reads them
+  from GitHub's API directly; signing out reads them again from there
+  instead of taking the marks away.
 - A rippled connector ends under its arrowhead wherever its entries stand.
   The line used to stop at the last point it was drawn through short of
   the head, up to a sixth of a wave before it, so a gap behind the head

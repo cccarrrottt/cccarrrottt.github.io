@@ -331,6 +331,13 @@ async function login(env, url){
   to.searchParams.set('client_id', env.GITHUB_CLIENT_ID);
   to.searchParams.set('redirect_uri', url.origin + '/callback');
   to.searchParams.set('state', state);
+  /* A reader is asked which account to use. Without this GitHub signs in
+     whoever the browser is already signed in to and, once that account
+     has allowed the app, does not even stop to show it — so the owner
+     testing a second account, or two people sharing a computer, got the
+     first account's name on their suggestion with no chance to change it.
+     The owner's own sign-in is left as it was: one account, one click. */
+  if(as === 'reader') to.searchParams.set('prompt', 'select_account');
   return Response.redirect(to.toString(), 302);
 }
 

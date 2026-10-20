@@ -198,6 +198,9 @@ function siteSignOut(){
   markReadOnly(false);
   updateOwnerBtn();
   describeWhereItSaves();
+  /* What was listed came through the session; what any reader may see
+     comes from GitHub, so it is fetched again rather than kept. */
+  loadSuggestions();
 }
 
 window.addEventListener('message', ev=>{
@@ -347,7 +350,10 @@ if(ON_SITE){
     try{ window.history.replaceState(null, '', location.pathname + location.search); }catch(e){}
   }
   updateOwnerBtn();
-  checkSiteOwner();
+  /* The marks of open suggestions are for every reader, signed in or not,
+     so they are asked for as the page opens — through the service once it
+     has said who this is, from GitHub itself when nobody is signed in. */
+  checkSiteOwner().then(()=> loadSuggestions());
 }
 
 /* The site as something a phone can keep: a manifest, so it can be put on

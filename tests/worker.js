@@ -278,6 +278,9 @@ function partsOf(text){
      Owner sign-in is still turned away above. */
   r = await call('/login?as=reader&origin=' + encodeURIComponent(SITE));
   const rto = r.status === 302 ? new URL(r.headers.get('Location')) : null;
+  check('a reader is asked which GitHub account to use', !!rto && rto.searchParams.get('prompt') === 'select_account',
+        rto && rto.toString());
+  check('the owner\'s sign-in is not', !!to && !to.searchParams.has('prompt'), to && to.toString());
   r = await call(`/callback?code=code-reader&state=${rto && rto.searchParams.get('state')}`);
   const rhtml = await r.text();
   const rhanded = /"rhizomeSession":"([^"]+)"/.exec(rhtml);
