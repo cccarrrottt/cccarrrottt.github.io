@@ -203,6 +203,10 @@ if(!HOSTED && !ON_SITE){
     if(Array.isArray(stored.tagCats)) refill(TAG_CATS, stored.tagCats);
     if(Array.isArray(stored.refs)) refill(REFS, stored.refs);
     if(stored.settings && typeof stored.settings === 'object') Object.assign(SETTINGS, stored.settings);
+    /* The kept chart's form is the kept chart's, not the file's: one kept
+       by a page from before the form had a number would otherwise be taken
+       for one in the file's form, and not brought up to it (migrateChart). */
+    if(!(stored.settings && typeof stored.settings.format === 'number')) delete SETTINGS.format;
   }
 }
 
@@ -307,8 +311,10 @@ function edgeStyleFor(from, to){
     fromSide: SIDES.includes(o.fromSide) ? o.fromSide : null,
     toSide: SIDES.includes(o.toSide) ? o.toSide : null,
     // Which border ring each end attaches to on a multi-coloured node.
-    fromRing: typeof o.fromRing === 'number' ? o.fromRing : 0,
-    toRing: typeof o.toRing === 'number' ? o.toRing : 0,
+    // A ring is a count of borders in from the outside: a whole number.
+    // NaN or a fraction would put the end on no border at all.
+    fromRing: Number.isInteger(o.fromRing) && o.fromRing >= 0 ? o.fromRing : 0,
+    toRing: Number.isInteger(o.toRing) && o.toRing >= 0 ? o.toRing : 0,
     /* Square elbows unless asked for rounded ones: only the rounding is
        stored, as square:false — the owner made square the default
        (2026-10-14), as it already was for an entry's corners. */
