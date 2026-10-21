@@ -8,6 +8,11 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The chart's file writes each entry as a record with its fields named —
+  `{id, label, parent, note, shape, pos, colors, …}` — instead of a list
+  by position whose fifth place only the program knew. The settings carry
+  the number of the form (`format: 2`). Charts written as lists still open,
+  and a file from a newer page is refused at import instead of half-read.
 - An edit that cannot move a line no longer re-routes the chart's
   connectors: recolouring, tagging or retyping a note on a 600-entry chart
   goes from about 0.9 s to 0.4 s, the routing in it from 570 ms to 4. The

@@ -368,7 +368,8 @@ function serializeSettings(o){
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
   const extraPart = Object.keys(extra).map(k=> `, ${k}: ${k === 'legendNames' || k === 'tagColors' ? quoted(extra[k]) : jsVal(extra[k])}`).join('');
-  return `const SETTINGS = {refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}${extraPart}};`;
+  // Which form the file's entries are written in: see DATA_FORMAT.
+  return `const SETTINGS = {format: ${DATA_FORMAT}, refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}${extraPart}};`;
 }
 const LEGEND_KEY_RE = /^(shape|border|tag|line|mark):/;
 function cleanTagColors(v){

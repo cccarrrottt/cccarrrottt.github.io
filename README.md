@@ -290,6 +290,22 @@ The build now says the same two things itself — that it had nothing to carry
 from, or that what it carried differs from the sources — so neither case is
 silent.
 
+## How an entry is written
+
+Each entry in `src/data.js` is a record with its fields named:
+
+```js
+{id:'uprising-copy', label:'Beast Wars: Uprising', parent:'uprising', pos:[450, 90], colors:['#20242b'], border:'dashdot'},
+```
+
+`parent` is one id or a list of them, and the entry's options — position,
+colours, tags, link, picture — stand beside the fields rather than in a
+nested object. `SETTINGS.format` is the number of the form (2; the list by
+position that charts were written in before is 1, and is still read). A
+file from a page that writes a higher number is refused at import rather
+than half-read. Inside the page an entry is still the positional list, so
+nothing but reading and writing the file changed.
+
 ## Pictures beside the page
 
 On the site a picture or a clip is a file of its own in `src/media/`, named

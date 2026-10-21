@@ -298,10 +298,11 @@ function readRegionObject(src, name){
   }catch(e){ return null; }
 }
 function importChartFromText(text){
-  const nodesIn = readRegionArray(text, 'NODES');
-  if(!nodesIn || !nodesIn.length){
+  const listed = readRegionArray(text, 'NODES');
+  if(!listed || !listed.length){
     throw new Error('that file has no Rhizome Project chart in it.');
   }
+  const nodesIn = listed.map(entryOfRecord);
   const stylesIn = readRegionArray(text, 'EDGESTYLES') || [];
   const stickersIn = sanitizeStickers(readRegionArray(text, 'STICKERS') || []);
   const mediaIn = sanitizeMedia(readRegionArray(text, 'MEDIA') || []);
@@ -315,6 +316,11 @@ function importChartFromText(text){
      brought in from a file quietly kept the OPEN chart's citation colour
      and lost its own. */
   const settingsIn = readRegionObject(text, 'SETTINGS');
+  /* A file written in a form this page does not know yet is a file from a
+     newer page; read by this one it would come out partly, and wrongly. */
+  if(settingsIn && typeof settingsIn.format === 'number' && settingsIn.format > DATA_FORMAT){
+    throw new Error('that chart was saved by a newer version of the page. Open it there, or update this copy.');
+  }
   // Validate before replacing anything, so a bad file leaves the open
   // chart untouched rather than half-overwritten.
   validateNodes(nodesIn);

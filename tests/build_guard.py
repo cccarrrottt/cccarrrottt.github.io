@@ -74,7 +74,9 @@ def edit_one_label(text):
     m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
                   text, re.S)
     assert m, 'fixture: no NODES region in the built page'
-    body, n = re.subn(r"(\[\s*'[^']*',\s*')([^']*)(')",
+    # An entry is a record now ({id:'…', label:'…'}); a page built before
+    # that writes a list (['…', '…']). Either is a label to rename.
+    body, n = re.subn(r"(\{id:'[^']*',\s*label:'|\[\s*'[^']*',\s*')([^']*)(')",
                       lambda g: g.group(1) + g.group(2) + ' EDITED' + g.group(3),
                       m.group(2), count=1)
     assert n == 1, 'fixture: found no entry label to rename'

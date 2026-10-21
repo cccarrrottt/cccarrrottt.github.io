@@ -10377,8 +10377,11 @@ async function main(){
   const lifted = text => text.replace(/data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g,
     (u, mime, _, b64) => u.length < 2048 || !EXT[mime.toLowerCase()] ? u
       : 'media/' + sha256(Buffer.from(b64, 'base64')) + '.' + EXT[mime.toLowerCase()]);
+  /* …and for the settings of a chart written before entries were records,
+     which gain the number of the form they are now written in. */
+  const formed = (n, t) => n === 'SETTINGS' && !/\bformat:/.test(t) ? t.replace('const SETTINGS = {', 'const SETTINGS = {format: 2, ') : t;
   const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
-    .filter(n => first.parts[n] !== lifted(regionOf(html, n))) : ['everything'];
+    .filter(n => first.parts[n] !== formed(n, lifted(regionOf(html, n)))) : ['everything'];
   check('what it sends for an untouched region is that region, byte for byte, but for its pictures', same.length === 0, same.join(', '));
   const named = first ? Object.keys(first.media || {}) : [];
   check('and each picture it lifted out goes with it, named for what its bytes are',
@@ -13478,7 +13481,7 @@ async function main(){
       document.querySelector('#styleBar [data-group="corners"] button[data-value="round"]').click();
       await wait(150);
       out.roundWritten = entryOpts(workingEntry('feS').entry).square === false &&
-        /square:false/.test(serializeItem(workingEntry('feS').entry)) &&
+        /square:false/.test(serializeNodes([workingEntry('feS').entry])) &&
         !hasSquareCorners(nodes.get('feS'));
       closeStyleBar();
     }
@@ -16544,6 +16547,60 @@ async function main(){
     return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
+  await scenario("entries written with their fields named", async () => {
+  /* The file writes an entry as a record, {id, label, parent, …}, and the
+     page still works on the list it always did. What has to hold: every
+     entry survives the trip there and back, a file of either form opens,
+     and a file from a newer page is refused rather than half-read. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    try{
+      applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+        workingNodes.push(['fa', 'First\nline', null, null, 'A note', null, {pos:[0, 0], tags:['x'], colors:['#cc2222']}]);
+        workingNodes.push(['fb', 'Second', 'fa', 'via', null, 'callout', {pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}}]);
+        workingNodes.push(['fc', 'Third', ['fa', 'fb'], null, null, 'amalgam']);
+        workingNodes.push(['fd', 'Fourth']);
+      });
+      const text = serializeNodes(workingNodes);
+      out.lines = text.split('\n').slice(1, -1);
+      out.records = out.lines.every(l=> /^  \{id:'/.test(l));
+      const norm = it=> { const a = Array.from({length: 6}, (_, i)=> it[i] === undefined ? null : it[i]); if(it[6] && Object.keys(it[6]).length) a.push(it[6]); return JSON.stringify(a); };
+      out.roundTrip = workingNodes.every(it=> norm(entryOfRecord(recordOfEntry(it))) === norm(it));
+      out.trips = workingNodes.filter(it=> norm(entryOfRecord(recordOfEntry(it))) !== norm(it)).map(it=> [norm(it), norm(entryOfRecord(recordOfEntry(it)))]);
+      out.named = out.lines[1] === "  {id:'fb', label:'Second', parent:'fa', edgeLabel:'via', shape:'callout', pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}},";
+      const file = chartDataOnly();
+      out.settingsSay = /const SETTINGS = \{format: 2,/.test(file);
+      // Read back as this file, as the list form older pages wrote, and from a newer page.
+      const listForm = file.replace(/(@@EDIT:NODES:START@@ \*\/\n)[\s\S]*?(\n\/\* @@EDIT:NODES:END)/,
+        (m0, a, b)=> a + 'const NODES = [\n' + workingNodes.map(it=> '  ' + JSON.stringify(it.slice(0, 7)) + ',').join('\n') + '\n];' + b)
+        .replace('{format: 2, ', '{');
+      const newer = file.replace('{format: 2,', '{format: 3,');
+      const wanted = JSON.stringify(workingNodes.map(norm));
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
+      importChartFromText(file);
+      out.readsRecords = JSON.stringify(workingNodes.map(norm)) === wanted;
+      out.got = [wanted, JSON.stringify(workingNodes.map(norm))];
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
+      importChartFromText(listForm);
+      out.readsLists = JSON.stringify(workingNodes.map(norm)) === wanted;
+      try{ importChartFromText(newer); out.newer = 'taken'; }catch(e){ out.newer = e.message; }
+      out.newerLeftAlone = JSON.stringify(workingNodes.map(norm)) === wanted;
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('each entry is written as a record with its fields named, one to a line', r.records && r.named, JSON.stringify(r.lines));
+  check('and comes back from it exactly as it was', r.roundTrip, JSON.stringify(r.trips));
+  check('the settings say which form the entries are written in', r.settingsSay);
+  check('a file of records opens', r.readsRecords, JSON.stringify(r.got));
+  check('and so does one written as lists, before records', r.readsLists);
+  check('a file from a newer page is refused, and the open chart is left as it was',
+        /newer version/.test(r.newer) && r.newerLeftAlone, r.newer);
   });
   await scenario("an edit that moves nothing re-routes nothing", async () => {
   /* A redraw hands back last pass's routes while the chart the router sees

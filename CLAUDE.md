@@ -26,6 +26,17 @@ So:
   run yet. It therefore needs an HTTP server; for double-click use, build
   `dist/nexus.html`.
 
+## How an entry is written
+
+In `src/data.js` an entry is a record with its fields named —
+`{id, label, parent, edgeLabel, note, shape, …}`, every option beside them —
+and `SETTINGS.format` says so (`DATA_FORMAT`, `02-model.js`). Inside the page
+it is still the list it always was, `[id, label, parent, edgeLabel, note,
+shape, opts]`, because every part reads it that way; `entryOfRecord` and
+`recordOfEntry` are the only two places that know both. A list found in a
+file is still read, so older saves, exports and pulls open as before; a
+file whose `format` is higher than the page's is refused at import.
+
 ## Where the chart's contents actually live
 
 **On the published site, in `src/data.js`** — Save there commits the regions
@@ -366,7 +377,11 @@ Do not re-propose these without new evidence:
 - **ES modules / a bundler.** The call graph has 348 boot-reachable forward
   references with cycles; there is no order in which each part only uses what
   came before it. A bundler would also destroy the `@@EDIT@@` markers the page
-  saves itself through.
+  saves itself through. Looked at again in October 2026: the cycles alone
+  would not forbid modules — a module may take part in a cycle as long as it
+  does not read the other side's names while it runs — but the markers stand,
+  and the owner's answer was to keep one scope. The door is not shut: if the
+  chart's data ever leaves the page, the strong reason goes with it.
 - **A full TypeScript migration**, and a **Model/View split as an end in
   itself**. Cost without a measured problem behind it.
 - **Splitting the editor and the viewer into two builds.** Editing and drawing
