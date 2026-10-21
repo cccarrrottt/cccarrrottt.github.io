@@ -16523,6 +16523,22 @@ async function main(){
     centreViewOn(1234, -567, 1.25);
     await wait(400);
     out.coord = document.getElementById('coord').textContent;
+    /* The box round the coordinates is sized from its text and contained,
+       so that new numbers on every frame of a pan do not lay out the page
+       and the drawing with it (showCoord). Whatever the numbers, the text
+       fits it — and only a change in their count resizes it. */
+    {
+      const box = document.querySelector('.coord'), t = document.getElementById('coord');
+      const fits = [];
+      for(const [x, y] of [[0, 0], [-321, 309], [-123456, -654321], [7, 8]]){
+        centreViewOn(x, y, 1);
+        const b = box.getBoundingClientRect(), r = t.getBoundingClientRect(), h = document.getElementById('coordHome').getBoundingClientRect();
+        fits.push(r.left >= b.left && h.right <= b.right + 0.5 && h.left >= r.right && Math.abs((b.right - h.right) - (r.left - b.left)) < 6);
+      }
+      out.coordFits = fits;
+      out.coordContained = /size/.test(getComputedStyle(box).contain) && /layout/.test(getComputedStyle(box).contain);
+      centreViewOn(1234, -567, 1.25);
+    }
     let saved = null; try{ saved = JSON.parse(localStorage.getItem('rhizome.view')); }catch(e){}
     out.saved = saved;
     vs = 0.3; vx = 0; vy = 0; applyTransform();
@@ -16608,6 +16624,8 @@ async function main(){
         JSON.stringify({on:r17.lodOnFar, off:r17.lodOffFar, stored:r17.lodStored}));
   check('the coordinates say where the middle of the view is, with no zoom',
         r17.coord === 'x1234 · y-567', r17.coord);
+  check('the coordinates box fits its numbers, short or long, and keeps them from laying out the page',
+        r17.coordFits.every(Boolean) && r17.coordContained, JSON.stringify([r17.coordFits, r17.coordContained]));
   check('the view is kept for the next visit, and put back',
         r17.saved && r17.saved.x === 1234 && r17.saved.y === -567 && r17.saved.s === 1.25 && r17.restored,
         JSON.stringify(r17.saved));
