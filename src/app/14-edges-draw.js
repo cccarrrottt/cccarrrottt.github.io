@@ -34,8 +34,8 @@ function edgePath(attrs, style, layer){
    head set square met the line at a slant and left a notch beside it. The
    head is laid on the chord the line would have drawn there, and the two
    meet without a step. */
-function curveHeads(pts){
-  const c = curveThrough(pts, CURVE_STEP);
+function curveHeads(pts, headIn, headOut){
+  const c = curveThrough(pts, CURVE_STEP, {start: !!headIn, end: headOut !== false});
   if(c.length < 2) return null;
   const cut = cutAlong(c, ARROW_TRIM, ARROW_TRIM);
   const deg = (a, b)=> Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
@@ -287,11 +287,11 @@ function redrawEdges(){
       : drawPts === pts ? d
       /* A curve is cut where its heads begin by measuring along the CURVE,
          not by shortening the route under it — see curveHeads. */
-      : style.routing === 'curve' ? polylinePath(cutAlong(curveThrough(pts, CURVE_STEP), cutIn, cutOut))
+      : style.routing === 'curve' ? polylinePath(cutAlong(curveThrough(pts, CURVE_STEP, {start: cutIn > 0, end: cutOut > 0}), cutIn, cutOut))
       : style.routing === 'straight'
         ? `M${drawPts[0].x},${drawPts[0].y} L${drawPts[drawPts.length-1].x},${drawPts[drawPts.length-1].y}`
         : roundedPath(drawPts, edgeCornerR(style));
-    const bent = style.routing === 'curve' ? curveHeads(pts) : null;
+    const bent = style.routing === 'curve' ? curveHeads(pts, headIn, headOut) : null;
     const attrs = {class:'edge struct', d: drawD, stroke: paint, 'data-from':e.from,'data-to':e.to};
     if(dash){
       attrs['stroke-dasharray'] = dash;

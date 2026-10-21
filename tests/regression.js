@@ -17273,6 +17273,9 @@ async function main(){
      stand, carried with them and carrying them, with its own look. */
   const pause = ms => wait(ms);
   await page.evaluate(()=>{
+    /* The chart may hold arrays of its own (the owner's does), so what
+       is counted here is only the arrays this scenario makes. */
+    window.__chartArrays = new Set(workingNodes.filter(e=> e[5] === 'array').map(e=> e[0]));
     applyEdit(()=>{
       workingNodes.push(['az_a', 'Array one', null, null, null, null, {pos:[400, -1400]}]);
       workingNodes.push(['az_b', 'Array two', 'az_a', null, null, null, {pos:[400, -1280], colors:['#2f6fb5', '#c23b22']}]);
@@ -17281,7 +17284,7 @@ async function main(){
     setSelection(['az_a'], 'az_a');
     makeArrayOfSelection();
   });
-  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array').length);
+  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array' && !window.__chartArrays.has(e[0])).length);
   eq('one entry picked makes no array', one, 0);
   const a = await page.evaluate(async ()=>{
     const out = {};
@@ -17308,6 +17311,13 @@ async function main(){
     const hit = document.elementFromPoint(px, py);
     out.middleFree = !(hit && hit.closest && hit.closest(`.node[data-id="${out.id}"]`));
     out.tab = !!arrayLayer.querySelector(`.node[data-id="${out.id}"] .array-tab`);
+    /* Its look: black, half see-through, and nothing behind it — a ground
+       written into the entry by hand included. */
+    {
+      const ring = arrayLayer.querySelector(`.node[data-id="${out.id}"] > rect:not(.array-hit):not(.node-hover-pad)`);
+      const cs = ring && getComputedStyle(ring);
+      out.look = cs ? {stroke: ring.getAttribute('stroke'), fill: cs.fill, opacity: cs.strokeOpacity} : null;
+    }
     out.handles = arrayLayer.querySelectorAll(`.node[data-id="${out.id}"] .node-handle`).length;
     out.grips = arrayLayer.querySelectorAll(`.node[data-id="${out.id}"] .node-resize`).length;
     // Its look, from the bar.
@@ -17321,6 +17331,9 @@ async function main(){
     const hatch = g && g.querySelector('.array-hatch');
     const pat = hatch && document.getElementById((hatch.style.fill.match(/#([^"')]+)/) || [])[1]);
     out.hatch = !!pat && /rotate\(-45\)/.test(pat.getAttribute('patternTransform') || '');
+    // The hatching is in the frame's colour, half see-through as the frame is.
+    const line = pat && pat.querySelector('path');
+    out.hatchInk = line ? [line.getAttribute('stroke'), line.getAttribute('stroke-opacity')].join(' ') : '';
     out.dashed = !!(g && g.querySelector('rect[stroke-dasharray]'));
     out.savedLook = JSON.stringify(workingNodes.find(x=> x[0] === out.id)[6]);
     closeStyleBar();
@@ -17334,12 +17347,25 @@ async function main(){
   check('arrays are drawn over a backdrop and under the connectors', a.behind && a.inLayer, JSON.stringify(a));
   check('the router does not go round an array', !a.obstacle);
   check('the middle of an array is the chart’s', a.middleFree, JSON.stringify(a));
-  check('an array has a tab, ports, and no size grips', a.tab && a.handles === 4 && a.grips === 0, JSON.stringify(a));
-  check('the bar offers an array its border, hatching, colour and ground',
-        ['border', 'hatch', 'arrayInk', 'cardBg'].every(r=> a.rows.includes(r)) && !a.rows.includes('turn'), a.rows.join(','));
+  check('an array has ports, no size grips and no tab', !a.tab && a.handles === 4 && a.grips === 0, JSON.stringify(a));
+  check('an array is black, half see-through and hollow', !!a.look && a.look.stroke === '#000000' &&
+        a.look.fill === 'none' && +a.look.opacity === 0.5, JSON.stringify(a.look));
+  check('the bar offers an array its border, hatching and colour, and no ground',
+        ['border', 'hatch', 'arrayInk'].every(r=> a.rows.includes(r)) && !a.rows.includes('turn') && !a.rows.includes('cardBg'), a.rows.join(','));
+  eq('the hatching is the frame’s colour, half see-through', a.hatchInk, '#000000 0.5');
   check('a hatching and a border style are drawn and written down',
         a.hatch && a.dashed && /"hatch":"diag-l"/.test(a.savedLook) && /"border":"dashed"/.test(a.savedLook), JSON.stringify(a));
   check('the legend names an array', a.legend);
+  // An array saved while its colour was its ground's keeps that colour, now on its frame.
+  const old = await page.evaluate(async ()=>{
+    applyEdit(()=> workingNodes.push(['az_old', '', null, null, null, 'array', {members:['az_a', 'az_c'], bg:['#cc22cc']}]));
+    await new Promise(ok => setTimeout(ok, 100));
+    const ring = arrayLayer.querySelector('.node[data-id="az_old"] > rect:not(.array-hit):not(.node-hover-pad)');
+    const got = ring ? [ring.getAttribute('stroke') || ring.style.stroke, getComputedStyle(ring).fill].join(' ') : '';
+    applyEdit(()=>{ const k = workingNodes.findIndex(x=> x[0] === 'az_old'); if(k >= 0) workingNodes.splice(k, 1); });
+    return got;
+  });
+  check('an array that kept its colour as a ground wears it as its frame', /^(#cc22cc|rgb\(204, 34, 204\)) none$/.test(old), old);
 
   // Carrying one member stretches the frame; carrying the tab carries all.
   const before = await page.evaluate(id=>{ const n = nodes.get(id); return {x:n.x, y:n.y, w:n.w, h:n.h}; }, a.id);
@@ -17358,14 +17384,18 @@ async function main(){
   check('the frame follows a member while it is carried', during > before.h + 40, `${before.h} → ${during}`);
   check('…and after it is put down', stretched > before.h + 40, `${before.h} → ${stretched}`);
   await page.evaluate(()=> deselect());
-  const tab = await page.evaluate(id=>{ const r = arrayLayer.querySelector(`.node[data-id="${id}"] .array-tab`).getBoundingClientRect(); return {x: r.x + r.width/2, y: r.y + r.height/2}; }, a.id);
+  // Just outside the frame's left side: the line itself is a port.
+  const tab = await page.evaluate(id=>{ const n = nodes.get(id), r = svg.getBoundingClientRect();
+    return {x: r.left + (n.x - 5) * vs + vx, y: r.top + (n.y + n.h/2) * vs + vy}; }, a.id);
+  const grabs = await page.evaluate(([x, y])=>{ const e = document.elementFromPoint(x, y); return e && e.getAttribute('class'); }, [tab.x, tab.y]);
+  eq('beside its frame an array is taken hold of', grabs, 'array-hit');
   const was = await page.evaluate(()=> [nodes.get('az_a').x, nodes.get('az_b').x]);
   await page.mouse.move(tab.x, tab.y); await page.mouse.down();
   for(let i = 1; i <= 6; i++){ await page.mouse.move(tab.x + i * 10 * scale, tab.y); await pause(30); }
   await page.mouse.up(); await pause(250);
   const moved = await page.evaluate(id=> ({a: nodes.get('az_a').x, b: nodes.get('az_b').x,
     pos: workingNodes.find(x=> x[0] === id)[6].pos}), a.id);
-  check('carrying an array by its tab carries its members', moved.a > was[0] + 40 && Math.abs((moved.a - was[0]) - (moved.b - was[1])) < 0.01, JSON.stringify([was, moved]));
+  check('carrying an array by its frame carries its members', moved.a > was[0] + 40 && Math.abs((moved.a - was[0]) - (moved.b - was[1])) < 0.01, JSON.stringify([was, moved]));
   check('an array keeps no place of its own', moved.pos === undefined, JSON.stringify(moved));
 
   const n = await page.evaluate(async id=>{
@@ -17385,7 +17415,7 @@ async function main(){
     copySelectedNode();
     pasteClipboardNode();
     await pause(100);
-    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer);
+    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer && !window.__chartArrays.has(x[0]));
     out.copy = copy && copy[6].members;
     out.copyOk = !!copy && copy[6].members.length === 2 && copy[6].members.every(m=> !/^az_/.test(m) && nodes.has(m));
     // Deleting a member takes it out; deleting the last takes the array.
@@ -17407,7 +17437,7 @@ async function main(){
     out.membersStay = made.every(m=> workingNodes.some(x=> x[0] === m));
     applyEdit(()=>{
       const doomed = new Set([...made, copy && copy[0]]);
-      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || workingNodes[k][5] === 'array') workingNodes.splice(k, 1);
+      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || (workingNodes[k][5] === 'array' && !window.__chartArrays.has(workingNodes[k][0]))) workingNodes.splice(k, 1);
     });
     return out;
   }, a.id);
@@ -17419,6 +17449,48 @@ async function main(){
         JSON.stringify(n.outerKeeps.members) === '["az_c"]', JSON.stringify(n));
   check('…until that is gone too', n.outerGone, JSON.stringify(n));
   check('Ctrl+G makes an array and Ctrl+Shift+G takes it apart', n.keyed >= 2 && n.unkeyed === 0 && n.membersStay, JSON.stringify(n));
+  });
+  await scenario("a curve's bare end bends as the curve does", async () => {
+  /* An end with no head is the spline as it is: nothing held straight and
+     then made to turn in what is left, which the hand saw as a kink. An
+     end with a head is straight under it and joins the curve without a
+     corner. */
+  const r = await page.evaluate(async ()=>{
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['ck_a', 'Curve from', null, null, null, null, {pos:[2000, -900]}]);
+      workingNodes.push(['ck_b', 'Curve to', 'ck_a', null, null, null, {pos:[2260, -720]}]);
+      EDGE_STYLES.push({from:'ck_a', to:'ck_b', routing:'curve', dash:'solid', arrow:true});
+    });
+    await pause(200);
+    const out = {};
+    const route = drawnRoutes.get(calloutEdgeKey('ck_a', 'ck_b'));
+    const line = document.querySelector('.edge[data-from="ck_a"][data-to="ck_b"]');
+    const pts = (line.getAttribute('d').match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
+    const plain = bsplineOver(mergeCollinear(route.pts), CURVE_STEP);
+    // The first dozen units, point for point.
+    let gap = 0;
+    for(let i = 0; i < 8 && i < pts.length; i++) gap = Math.max(gap, Math.hypot(pts[i].x - plain[i].x, pts[i].y - plain[i].y));
+    out.startGap = +gap.toFixed(3);
+    // No step turns sharply anywhere along the drawn line.
+    let worst = 0;
+    for(let i = 2; i < pts.length; i++){
+      const a1 = Math.atan2(pts[i-1].y - pts[i-2].y, pts[i-1].x - pts[i-2].x);
+      const a2 = Math.atan2(pts[i].y - pts[i-1].y, pts[i].x - pts[i-1].x);
+      const d = Math.abs(((a2 - a1) * 180 / Math.PI + 540) % 360 - 180);
+      const len = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+      if(len > 0.5) worst = Math.max(worst, d);
+    }
+    out.worstTurn = +worst.toFixed(2);
+    out.n = pts.length;
+    applyEdit(()=>{
+      for(let i = workingNodes.length - 1; i >= 0; i--) if(/^ck_/.test(workingNodes[i][0])) workingNodes.splice(i, 1);
+      for(let k = EDGE_STYLES.length - 1; k >= 0; k--) if(/^ck_/.test(EDGE_STYLES[k].from)) EDGE_STYLES.splice(k, 1);
+    });
+    return out;
+  });
+  check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
+  check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

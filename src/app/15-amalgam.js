@@ -1015,7 +1015,7 @@ function drawMergedArrow(b, stem, colors, ring){
     d = wavyPath(route, 0, ARROW_TRIM, false, edgeCornerR(os));
     from = route[route.length - 2];
   } else if(os.routing === 'curve' && route.length > 2){
-    const cut = cutAlong(curveThrough(route, CURVE_STEP), 0, ARROW_TRIM);
+    const cut = cutAlong(curveThrough(route, CURVE_STEP, {end: true}), 0, ARROW_TRIM);
     d = polylinePath(cut);
     from = cut[cut.length - 2] || route[route.length - 2];
   } else {

@@ -4,10 +4,10 @@
  * An array is an entry of its own (shape 'array') whose box is not placed
  * but worked out: the smallest one that holds every entry it lists in
  * opts.members, their outer borders and the tabs on their top edges
- * included, with a margin. It is outlined, coloured and filled as any
- * entry is — its rings, its border style and its ground go through the
- * same drawing as an entry's — and it has ports, so connectors meet it as
- * they meet an entry. What it does not have is words or a position: move
+ * included, with a margin. It is outlined as any entry is — its rings and
+ * its border style go through the same drawing as an entry's — but it has
+ * no ground: its colour is its frame's and its hatching's. It has ports,
+ * so connectors meet it as they meet an entry. What it does not have is words or a position: move
  * its members and it follows them; carry it and its members go along.
  *
  * Its border is its own. An entry inside an array keeps whatever it was
@@ -149,8 +149,9 @@ function arrayHidden(a){
   const ms = a.members || [];
   return !ms.length || ms.every(id=>{ const m = nodes.get(id); return !m || nodeHidden(m); });
 }
-/* The hatching, as a pattern for the array's ground. The lines are drawn
-   in the array's own border colour, over whatever colour the ground is. */
+/* The hatching, as a pattern over the array's middle, in the array's own
+   colour and half see-through, as its frame is. There is no ground under
+   it: the chart shows between the lines. */
 function arrayHatchPaint(a, colour){
   if(!a.hatch) return null;
   const id = defId('hatch-', a.id);
@@ -159,7 +160,7 @@ function arrayHatchPaint(a, colour){
   const p = el('pattern', {id, patternUnits:'userSpaceOnUse', width:S, height:S,
                            patternTransform: turn ? `rotate(${turn})` : ''}, nodeDefs);
   el('path', {d: a.hatch === 'horiz' ? `M0,${S/2} H${S}` : `M${S/2},0 V${S}`,
-              stroke: colour, 'stroke-width': 1, 'stroke-opacity': 0.4, fill:'none'}, p);
+              stroke: colour, 'stroke-width': 1, 'stroke-opacity': 0.5, fill:'none'}, p);
   return `url(#${id})`;
 }
 /* The arrays again, from where their members are now — for a drag, which

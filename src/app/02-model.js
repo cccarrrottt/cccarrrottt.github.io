@@ -448,6 +448,8 @@ const NODE_GROW_REF = NODE_FIT_MINH;
 const NODE_MAX_LINES = 3;
 
 const DEFAULT_NODE_COLOR = '#20242b';
+// An array's frame and hatching, until it is given a colour of its own.
+const ARRAY_INK = '#000000';
 /* The colour a tag gives the entries wearing it, kept with the chart in
    SETTINGS.tagColors. A tag that acts — the weave, the ruling, the echo,
    the stack — is a kind of drawing rather than a kind of thing, and has
@@ -757,8 +759,14 @@ workingNodes.forEach(item=>{
      coloured tag it is the default ink, as it always was. ownColors keeps
      which of the two it is, because the form must not write a tag's
      colour back as the entry's own. */
-  const ownColors = opts ? hexColors(opts.colors) : null;
-  const colors = ownColors || tagColorsOf(tags);
+  /* An array made before its colour moved from its ground to its frame
+     carries that colour as bg; it is read as the frame's, which is what
+     the owner meant by giving it one. */
+  const ownColors = opts ? (hexColors(opts.colors) || (isArray ? hexColors(opts.bg) : null)) : null;
+  /* An array's frame is black unless it is given a colour (the owner's
+     choice): it is drawn round other entries, half see-through, and the
+     default ink would read as one more entry's border. */
+  const colors = ownColors || (isArray ? [ARRAY_INK] : tagColorsOf(tags));
   nodes.set(id,{
     id, label, note:note||null,
     // A character bio is a small circle rather than a box: it carries a
@@ -778,7 +786,7 @@ workingNodes.forEach(item=>{
     /* What the entry is filled with. One colour is a flat ground; more
        than one is a gradient across the box, the same way an amalgam's
        border runs through its lineages' colours. Absent is the paper. */
-    bg: opts ? hexColors(opts.bg) : null,
+    bg: (opts && !isArray) ? hexColors(opts.bg) : null,
     /* And how its outline is drawn: solid, dashed, dotted, dash-dotted,
        double, or the wavy edge a pocket reality used to be. */
     border: (opts && typeof opts.border === 'string' && BORDER_STYLES[opts.border])

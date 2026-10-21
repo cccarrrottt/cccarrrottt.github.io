@@ -165,8 +165,10 @@ def main():
     # here; it is decided when the page opens now, and a second file would
     # only be a second thing to forget to publish. GitHub Pages and a disk
     # both need a document, and the artifact host takes either.
-    check('dist/nexus.html is the only file the build writes',
-          sorted(f.name for f in (tmp / 'dist').iterdir()) == ['nexus.html'],
+    # The pictures beside it are not a second build: they are what the page
+    # names by hash (media/<sha256>.<ext>), copied when src/media/ has any.
+    check('dist/nexus.html is the only page the build writes',
+          sorted(f.name for f in (tmp / 'dist').iterdir() if f.name != 'media') == ['nexus.html'],
           str(sorted(f.name for f in (tmp / 'dist').iterdir())))
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
     check('and it is a whole document',
@@ -318,7 +320,7 @@ def main():
         (tmp / 'dist' / gone).write_text('an old build', encoding='utf-8')
     r = run(tmp)
     check('a build removes what the four-build days left in dist/',
-          r.returncode == 0 and sorted(f.name for f in (tmp / 'dist').iterdir()) == ['nexus.html'],
+          r.returncode == 0 and sorted(f.name for f in (tmp / 'dist').iterdir() if f.name != 'media') == ['nexus.html'],
           str(sorted(f.name for f in (tmp / 'dist').iterdir())))
 
     # 11. The chart lives in two places and only one of them is committed.

@@ -790,9 +790,10 @@ const drawOne = (n)=>{
   const bgPaint = (n.bg && n.bg.length)
     ? (n.bg.length > 1 ? makeGradient(n.bg, false, nodeDefs) : n.bg[0])
     : null;
-  /* An array with no ground of its own lets the paper show through it:
-     the chart under the frame is still the chart. */
-  const bgFillStyle = bgPaint ? `fill:${bgPaint};` : isArray ? 'fill:none;' : '';
+  /* An array has no ground: the paper shows through it, because the
+     chart under the frame is still the chart. Its colour is its frame's
+     and its hatching's. */
+  const bgFillStyle = isArray ? 'fill:none;' : bgPaint ? `fill:${bgPaint};` : '';
   /* One ring of the border, drawn in whatever style the entry wears.
      `make(inset)` gives the geometry for an outline that far inside the
      ring's own line. A DOUBLE border is two rails either side of that
@@ -1284,20 +1285,14 @@ const drawOne = (n)=>{
       else Object.assign(a, {x:n.x+ins, y:n.y+ins, width:n.w-ins*2, height:h-ins*2, rx:rad(cornerR-ins)});
       el(isWavy ? 'path' : 'rect', a, g);
     }
+    /* The band is wider than an entry's ports, which lie along the
+       middle of it: a press on the line itself starts a connector, as it
+       does on an entry, and a press either side of the line takes hold of
+       the array. A tab on the top edge did that job for a while; the owner
+       found it one control too many for a frame that is already there. */
     const out = (ringCountOf(n) - 1) * ringStepFor(n);
     el('rect', {class:'array-hit', x:n.x-out, y:n.y-out, width:n.w+out*2, height:h+out*2,
                 rx: rad(cornerR+out)}, g);
-    /* …and by a tab on its top edge, because the frame's sides are its
-       ports, as an entry's are: a press on a side starts a connector. The
-       tab is the one place that only means "this array" — carry it, pick
-       it — grown out of the border like an entry's tabs, in its colour. */
-    const base = tabBaseOf(n);
-    const TW = 26, TH = CHIP_TAB_H + 2;
-    const tab = el('g', {class:'array-tab',
-      transform:`translate(${round2(base.left + 4 + TW/2)},${round2(base.y - TH/2)})`}, g);
-    el('path', {d: tabOutline(TW, TH, 3) + ' Z', style:`fill:${tabInkOf(ringColors)};`}, tab);
-    [-5, 0, 5].forEach(dx=> el('circle', {cx:dx, cy:0.5, r:1.1, class:'array-tab-dot'}, tab));
-    el('title', {}, tab).textContent = 'Drag to move the array; click to pick it';
   }
 
   /* A rotated caption or picture turns about its own centre. Only the

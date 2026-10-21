@@ -508,12 +508,12 @@
   /* An array (see 40-arrays.js) is held by a band along its frame, which
      is a catcher and not a border, and its hatching is ground, not edge:
      neither takes the selection's glow. */
-  .node > rect.array-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:move;}
+  .node > rect.array-hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:move;}
   body.read-only .node > rect.array-hit{pointer-events:none;}
   .node.selected > rect.array-hit, .node.selected > .array-hatch{filter:none;}
-  .array-tab{cursor:move;}
-  .array-tab-dot{fill:var(--panel);}
-  body.read-only .array-tab{cursor:pointer;}
+  /* Half see-through, frame and hatching alike: an array is drawn round
+     the chart, and at full strength it outshouted the entries it holds. */
+  .node-array > rect:not(.array-hit):not(.node-hover-pad), .node-array > path{stroke-opacity:0.5;}
 
   /* Card layout. The rules dividing the three bands are drawn in the
      entry's own colour but lighter than its border, so they read as

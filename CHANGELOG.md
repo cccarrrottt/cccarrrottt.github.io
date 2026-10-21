@@ -8,6 +8,16 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- An array has no tab: it is taken hold of either side of its frame, the
+  line itself being its ports. It has no ground either: its colour is its
+  frame's and its hatching's, black unless one is chosen, and both are
+  half see-through. An array that was given a ground colour wears it on
+  its frame instead.
+- A curve's end with no head is the curve as drawn, again: it was held
+  straight for a dozen units and then made to turn in what was left, a
+  kink where it left its entry. Under a head the line is still straight,
+  and now joins the curve along the curve's own direction.
+
 - An edit on a large chart is about twice as quick again: on 600 entries,
   recolouring or renaming one goes from about 0.3 s to 0.16, and moving
   one from 0.5–0.9 s to 0.3. Each entry's corner grips and connector

@@ -459,50 +459,75 @@ const CURVE_STEP = 2;
 /* The B-spline over `raw`, as points about `step` apart along it. A route
    with points in a line would pull the stroke straight there, so those
    are dropped first; two points are a straight line, three a parabola. */
-function curveThrough(raw, step){
+/* `ends` says which ends carry a head ({start, end}): only those are laid
+   straight (see straightenTail). */
+function curveThrough(raw, step, ends){
   const P = mergeCollinear(raw);
   if(P.length < 3) return P.map(q=> ({x:q.x, y:q.y}));
-  const c = bsplineOver(P, step);
-  return straightenTail(straightenTail(c).reverse()).reverse();
+  let c = bsplineOver(P, step);
+  if(ends && ends.end) c = straightenTail(c);
+  if(ends && ends.start) c = straightenTail(c.reverse()).reverse();
+  return c;
 }
 /* A curve's last arrowhead's length, laid straight along the head.
  *
    The head is set on the chord of that stretch (see curveHeads), but the
    line it meets left the spline still bending: its last few units came in
    at a slant to the head and the stroke's square end stood a notch off the
-   head's base — the gap that came back after every bend or move, because
-   any change in the route changes how much the spline leans there. Pulling
-   the stretch under the head onto the head's own axis, and easing into it
-   over one more head's length, makes the line arrive along the head at
-   whatever angle the spline had. The cut point lies on that axis already,
-   so the head's direction is the same before and after. Done for both ends
-   and with or without a head: the change is under a dozen units from the
-   tip, and a curve that looks the same either way is what keeps turning a
-   head on from moving the line. */
+   head's base. So the stretch under the head is made straight, on the
+   head's own axis.
+ *
+   Only under a head. It was done at both ends whether or not they had
+   one, so that turning a head on would not move the line — and a bare end
+   leaving an entry where the curve turns hard was held straight for a
+   dozen units and then made to turn in what was left, which is a kink
+   with no head to excuse it. A head moves the line by those few units;
+   that is the lesser surprise.
+ *
+   How the line gets onto that axis is the whole difficulty. It used to be
+   by pulling the drawn points sideways onto it and easing the pull off
+   over a few units — which is not a curve, it is a correction laid on one,
+   and where the spline was turning hard near its end the correction
+   showed as a kink: the stroke ran straight out of the entry and then
+   broke onto the curve. Now the stretch between the axis and the curve is
+   drawn afresh, as one cubic that leaves the spline along the spline's own
+   direction and arrives on the axis along the axis: the same direction on
+   both sides of both joins, so there is nothing for the eye to catch on. */
 function straightenTail(c){
   if(c.length < 4) return c;
   let total = 0;
   for(let i = 1; i < c.length; i++) total += Math.hypot(c[i].x - c[i-1].x, c[i].y - c[i-1].y);
   /* Held straight a little past the head's base, so the line's own last
-     step before the head is already on the axis — measured along the
-     spline, which straightening shortens by a hair. */
-  const hold = Math.min(ARROW_TRIM + 4, total / 4), ease = Math.min(ARROW_LEN * 1.5, total / 4);
+     step before the head is already on the axis; joined to the spline a
+     few heads' lengths further back, where it has room to turn. */
+  const hold = Math.min(ARROW_TRIM + 4, total / 4), ease = Math.min(ARROW_LEN * 3, total / 3);
   const tip = c[c.length - 1];
   const cut = cutAlong(c, 0, hold);
   const base = cut[cut.length - 1];
   const L = Math.hypot(tip.x - base.x, tip.y - base.y);
   if(!(L > 0.01)) return c;
   const ux = (tip.x - base.x) / L, uy = (tip.y - base.y) / L;
-  const out = c.slice();
-  let s = 0;
-  for(let i = c.length - 1; i >= 0; i--){
-    if(i < c.length - 1) s += Math.hypot(c[i+1].x - c[i].x, c[i+1].y - c[i].y);
-    if(s >= hold + ease) break;
-    const t = s <= hold ? 1 : 1 - (s - hold) / ease;
-    const w = t * t * (3 - 2 * t);
-    const p = c[i], k = (p.x - tip.x) * ux + (p.y - tip.y) * uy;
-    const qx = tip.x + ux * k, qy = tip.y + uy * k;
-    out[i] = {x: p.x + (qx - p.x) * w, y: p.y + (qy - p.y) * w};
+  // Where the spline is left: the point `hold + ease` back from the tip.
+  let s = 0, j = c.length - 1;
+  while(j > 1 && s < hold + ease){ s += Math.hypot(c[j].x - c[j-1].x, c[j].y - c[j-1].y); j--; }
+  const J = c[j], pj = c[Math.max(0, j - 1)], nj = c[j + 1];
+  const tl = Math.hypot(nj.x - pj.x, nj.y - pj.y);
+  if(!(tl > 0)) return c;
+  const tx = (nj.x - pj.x) / tl, ty = (nj.y - pj.y) / tl;
+  const span = Math.hypot(base.x - J.x, base.y - J.y);
+  const m = span / 3;
+  const c1 = {x: J.x + tx * m, y: J.y + ty * m}, c2 = {x: base.x - ux * m, y: base.y - uy * m};
+  const out = c.slice(0, j + 1);
+  const steps = Math.max(2, Math.ceil(span / CURVE_STEP));
+  for(let i = 1; i <= steps; i++){
+    const t = i / steps, r = 1 - t;
+    out.push({x: r*r*r*J.x + 3*r*r*t*c1.x + 3*r*t*t*c2.x + t*t*t*base.x,
+              y: r*r*r*J.y + 3*r*r*t*c1.y + 3*r*t*t*c2.y + t*t*t*base.y});
+  }
+  const runs = Math.max(1, Math.ceil(L / CURVE_STEP));
+  for(let i = 1; i <= runs; i++){
+    const t = i / runs;
+    out.push({x: base.x + (tip.x - base.x) * t, y: base.y + (tip.y - base.y) * t});
   }
   return out;
 }

@@ -541,7 +541,7 @@ function wavyPath(rawPts, trimIn, trimOut, short, cornerR){
   /* A curve's wave runs along the curve itself — see curveThrough —
      sampled at the same spacing the rounded route is. */
   const samples = cornerR >= CURVE_CORNER_R
-    ? sampleRounded(curveThrough(pts, step / 2), 0, step)
+    ? sampleRounded(curveThrough(pts, step / 2, {start: cutIn > 0, end: cutOut > 0}), 0, step)
     : sampleRounded(pts, EDGE_CORNER_R, step);
   if(samples.length < 3){
     const last = pts[pts.length-1];
