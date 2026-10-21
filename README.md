@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.14.0** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.15.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 39 files, one per subsystem — see "One scope, many
+  app/         the program, 40 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
   site/        published beside the page on the site only: the manifest, the
                icons and the service worker that make it an app a phone keeps
@@ -58,7 +58,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 39 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 40 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -469,6 +469,20 @@ layers are `display:none` while the patches show, which is the saving; the
 patches are drawn again only when the level or the chart changes. A tag's
 colour is `SETTINGS.tagColors`, set on its square in the Tags list; scenery
 tags have none.
+
+## Arrays
+
+`src/app/40-arrays.js` draws a frame round several entries. An array is an
+entry, `[id, '', null, null, null, 'array', {members:[ids], …}]`, with no
+position or size of its own: once its members are drawn, `fitArray` sets its
+box round their outer rings with `2 * GRID` to spare, innermost array first,
+and it is drawn through the same code as an entry's box into `#arrayLayer`,
+under the connectors. Its look is `colors`, `bg`, `border`, `square` and
+`hatch` (`diag-r`, `diag-l`, `vert`, `horiz`). It is taken out of the layout,
+the router's obstacles and the level of detail; its middle answers nothing,
+so it is carried by the tab on its top edge, and a drag redraws it with
+`renderNodes({arraysOnly: true})` rather than sliding it. Deleting entries
+calls `pruneArrayMembers`, which drops an array left with no members.
 
 ## A merge's bar
 

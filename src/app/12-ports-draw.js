@@ -219,15 +219,18 @@ function headCut(port){
 }
 // The same trim applied to the end (or start) of a routed point list, so a
 // rounded or wavy path can be built already short of its arrowhead.
-function trimForHeads(pts, headIn, headOut, portIn, portOut){
+/* `cutIn`/`cutOut`, when given, say how much an end gives up — a T gives
+   up less than an arrow does (see TEE_GAP). */
+function trimForHeads(pts, headIn, headOut, portIn, portOut, cutIn, cutOut){
   if(!headIn && !headOut) return pts;
   const out = pts.map(p=>({...p}));
   if(headOut && out.length >= 2){
-    const t = arrowTrimmed(out[out.length-2], out[out.length-1], headCut(portOut));
+    const t = arrowTrimmed(out[out.length-2], out[out.length-1],
+                           typeof cutOut === 'number' ? cutOut : headCut(portOut));
     out[out.length-1] = {...out[out.length-1], x:t.x, y:t.y};
   }
   if(headIn && out.length >= 2){
-    const t = arrowTrimmed(out[1], out[0], headCut(portIn));
+    const t = arrowTrimmed(out[1], out[0], typeof cutIn === 'number' ? cutIn : headCut(portIn));
     out[0] = {...out[0], x:t.x, y:t.y};
   }
   return out;
@@ -294,6 +297,32 @@ function drawArrowHead(parent, x, y, angleDeg, fill, from, to, clipTo, clipRing)
   if(clip) attrs['clip-path'] = `url(#${clip})`;
   const g = el('g', attrs, parent);
   el('path', {d:`M${at(0,0)} L${at(-ARROW_LEN,-ARROW_HALF)} L${at(-ARROW_LEN,ARROW_HALF)} z`, fill}, g);
+  return g;
+}
+/* A T: a bar across the line instead of an arrowhead.
+ *
+ * It does not touch the entry. A T says the line stops SHORT — the trope
+ * it is drawn for, broad strokes, is a story that keeps the outline of
+ * what came before without arriving at its details — so the bar stands a
+ * clear gap off the border, and the line ends at the bar. Drawn at the
+ * same place an arrowhead's tip would be asked for (the port), with the
+ * bar TEE_GAP back from it, as wide as an arrowhead and as thick as a
+ * line; filled rather than stroked, so a gradient connector paints it
+ * exactly as it paints its heads. */
+const TEE_GAP = 5, TEE_W = 2, TEE_HALF = ARROW_HALF + 1;
+/* How much of its line a T gives up: the gap, and the bar's near half, so
+   the line ends inside the bar and not a hair short of it. */
+const TEE_CUT = TEE_GAP + TEE_W / 2;
+/* `back` is how far the port stands inside the entry's outermost border —
+   a connector drawn to an inner ring passes through the outer ones — so the
+   gap is kept from the border the reader sees last. */
+function drawTeeHead(parent, x, y, angleDeg, fill, from, to, back){
+  const a = angleDeg * Math.PI / 180;
+  const cos = Math.cos(a), sin = Math.sin(a);
+  const at = (lx, ly)=> `${(x + lx*cos - ly*sin).toFixed(2)},${(y + lx*sin + ly*cos).toFixed(2)}`;
+  const g = el('g', {class:'edge-arrow edge-tee', 'data-from': from || '', 'data-to': to || ''}, parent);
+  const near = -TEE_GAP - (back || 0), far = near - TEE_W;
+  el('path', {d:`M${at(near,-TEE_HALF)} L${at(near,TEE_HALF)} L${at(far,TEE_HALF)} L${at(far,-TEE_HALF)} z`, fill}, g);
   return g;
 }
 // The direction an arrowhead at the START should point: back out of the

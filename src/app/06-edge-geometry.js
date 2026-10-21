@@ -938,6 +938,8 @@ function buildObstacleRects(){
        around made every connector bend to avoid the note explaining it. A
        line crosses a callout the way it crosses a caption. */
     if(n.shape === 'callout') return;
+    /* Nor an array: everything in it is reached by crossing its frame. */
+    if(n.shape === 'array') return;
     rects.push({id, x0:n.x-6, y0:n.y-6, x1:n.x+n.w+6, y1:n.y+n.h+6});
   });
   return rects;

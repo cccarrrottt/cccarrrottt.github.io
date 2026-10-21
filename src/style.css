@@ -199,7 +199,12 @@
   .search-results .sr-tab{flex:0 0 auto;min-width:18px;padding:1px 4px;border:1px solid var(--line);
     border-radius:3px;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
     line-height:14px;text-align:center;color:var(--ink-dim);background:var(--panel-2);}
-  .search-results .cl{color:var(--ink-faint);font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;margin-left:auto;white-space:nowrap;}
+  /* The hit's tags, drawn as the tag labels they are everywhere else. They
+     wrap among themselves at the row's end rather than pushing the words
+     of the hit out of the row. */
+  .search-results .cl{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;
+    gap:3px 0;max-width:55%;}
+  .search-results .cl .tag-shape{text-transform:none;letter-spacing:0;}
 
   .topbar-stats{
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
@@ -500,6 +505,15 @@
      it actually is, and leaves the scenery alone. */
   .node.selected > rect.local-sheet, .node.selected > path.local-sheet{filter:none;}
   .node.selected > rect.hub-echo{filter:none;}
+  /* An array (see 40-arrays.js) is held by a band along its frame, which
+     is a catcher and not a border, and its hatching is ground, not edge:
+     neither takes the selection's glow. */
+  .node > rect.array-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:move;}
+  body.read-only .node > rect.array-hit{pointer-events:none;}
+  .node.selected > rect.array-hit, .node.selected > .array-hatch{filter:none;}
+  .array-tab{cursor:move;}
+  .array-tab-dot{fill:var(--panel);}
+  body.read-only .array-tab{cursor:pointer;}
 
   /* Card layout. The rules dividing the three bands are drawn in the
      entry's own colour but lighter than its border, so they read as
@@ -1036,7 +1050,7 @@
   /* Seen from far away (see 39-lod.js): the entries and everything hung
      on them give way to patches of their tags' colours. Not displayed is
      not laid out or painted, which is the point of it. */
-  body.lod #fanLayer, body.lod #auraLayer, body.lod #backLayer, body.lod #edgeLayer,
+  body.lod #fanLayer, body.lod #auraLayer, body.lod #backLayer, body.lod #arrayLayer, body.lod #edgeLayer,
   body.lod #leaderHitLayer, body.lod #nodeLayer, body.lod #arrowLayer, body.lod #frontLayer,
   body.lod #bioCardLayer, body.lod #bendLayer{display:none;}
   #lodLayer{display:none;}
@@ -1699,6 +1713,9 @@
     color:var(--ink-dim);cursor:pointer;
   }
   .node-style-btn:hover{border-color:var(--accent);color:var(--ink);}
+  /* Greyed while it could do nothing — the Array pick, with fewer than two
+     entries picked. */
+  .node-style-btn:disabled{opacity:0.4;cursor:default;border-color:var(--line);}
   .node-style-icon{width:40px;height:30px;display:block;}
   .nsi-box{fill:var(--panel);stroke:var(--ink-dim);stroke-width:1.6;}
   .nsi-line{fill:none;stroke:var(--ink-dim);stroke-width:1.4;}
@@ -3047,7 +3064,14 @@
     .add-fab{right:12px;bottom:12px;}
     /* Under the open sheet there is nowhere for it to stand. */
     .add-fab.shifted{display:none;}
-    .coord{display:none;}
+    /* The view's place stays on a phone too — it is how a reader says
+       where on the chart they are, and the ⌖ beside it is the one way back
+       to the middle. Down in the corner by the tabs, where the add button
+       on the other side leaves room, and not chased across by a drawer,
+       which on a phone covers the whole width anyway. */
+    .coord{left:40px;bottom:12px;padding:6px 9px;}
+    body.side-tab-open .coord{left:40px;}
+    .coord .coord-home{width:24px;height:24px;font-size:15px;}
     .about-card{width:calc(100vw - 16px);max-height:calc(100% - 16px);}
     /* A fingertip, not a cursor, has to find the way out. */
     .about-card .detail-close{min-width:40px;min-height:40px;}

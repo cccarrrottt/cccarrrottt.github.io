@@ -526,6 +526,7 @@ buildSideTabs();
 }
 
 function nodeHidden(n){
+  if(isArrayNode(n)) return arrayHidden(n);
   /* One hidden tag is enough. Hiding a tag means "take these off the
      chart", and an entry that carries it IS one of these — waiting until
      every one of its tags was hidden meant switching off "fan-fiction"

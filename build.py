@@ -129,6 +129,7 @@ APP_PARTS = [
     '37-style-bar.js',
     '38-touch.js',
     '39-lod.js',
+    '40-arrays.js',
 ]
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'

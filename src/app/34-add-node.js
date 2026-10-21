@@ -18,7 +18,11 @@ const NODE_STYLE_PICKS = [
   {value:'ellipse', label:'Character bio', hint:'A portrait circle, with its words on a card beside it.'},
   {value:'amalgam', label:'Amalgam',       hint:'A reality made of others: its lineages merge into one bar and one arrow.'},
   {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
-  {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}
+  {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'},
+  /* Not a new entry but a frame round the ones picked — offered here
+     because this is where a reader looks for "make something", and greyed
+     until there are two to frame (see openAddFab). */
+  {value:'array',   label:'Array',         hint:'A border round the entries picked (Ctrl+G).'}
 ];
 function nodeStyleIcon(kind){
   const SVG = 'http://www.w3.org/2000/svg';
@@ -44,6 +48,10 @@ function nodeStyleIcon(kind){
     add('path', {d:'M20,7 V12', class:'nsi-line'});
     add('path', {d:'M17,10 L20,13.4 L23,10 Z', class:'nsi-fill'});
     box(14, 12);
+  } else if(kind === 'array'){
+    add('rect', {x:3, y:3, width:34, height:24, class:'nsi-line', 'stroke-dasharray':'3 2'});
+    add('rect', {x:7, y:8, width:11, height:8, class:'nsi-box'});
+    add('rect', {x:22, y:14, width:11, height:8, class:'nsi-box'});
   } else if(kind === 'textbox'){
     box(8, 14);
     add('path', {d:'M15,12 H25 M20,12 V19', class:'nsi-mark'});
@@ -72,12 +80,15 @@ NODE_STYLE_PICKS.forEach(p=>{
   b.addEventListener('click', ev=>{
     ev.stopPropagation();
     closeAddFab();
-    addEntryOfStyle(p.value);
+    if(p.value === 'array') makeArrayOfSelection();
+    else addEntryOfStyle(p.value);
   });
   addFabStyles.appendChild(b);
 });
 function openAddFab(){
   if(readOnlyView) return;
+  const arr = addFabStyles.querySelector('[data-value="array"]');
+  if(arr) arr.disabled = multiSelection.size < 2;
   addFab.classList.add('open');
   addFabBtn.setAttribute('aria-expanded', 'true');
 }
@@ -170,6 +181,13 @@ function clipOfNode(n){
   }
   if(typeof n.rot === 'number' && n.rot) opts.rot = n.rot;
   if(typeof n.z === 'number' && n.z) opts.z = n.z;
+  /* An array carries its members' names, to be pointed at their copies on
+     the way back in, and no size: it is as big as they are. */
+  if(isArrayNode(n)){
+    delete opts.size;
+    opts.members = (n.members || []).slice();
+    if(n.hatch) opts.hatch = n.hatch;
+  }
   return {
     id: n.id,
     label: n.label,
@@ -189,9 +207,11 @@ function clipOfNode(n){
  * plus the connections BETWEEN its members, so what comes back is the
  * arrangement, not a heap of unrelated boxes. */
 function copySelectedNode(){
-  const ids = (multiSelection.size > 1)
+  /* An array is copied with what it holds; without them it would come
+     back as a frame round nothing. */
+  const ids = withArrayMembers((multiSelection.size > 1)
     ? Array.from(multiSelection).filter(id=> nodes.has(id))
-    : (selectedId && nodes.has(selectedId) ? [selectedId] : []);
+    : (selectedId && nodes.has(selectedId) ? [selectedId] : []));
   if(!ids.length) return false;
   const inSet = new Set(ids);
   const items = ids.map(id=> clipOfNode(nodes.get(id)));
@@ -212,9 +232,9 @@ function cutSelectedNode(){
      selection. It removed the primary entry only, which meant a lasso of
      twelve followed by Ctrl+X put twelve on the clipboard, took one off the
      chart, and left the reader believing eleven had been cut. */
-  const ids = (multiSelection.size > 1)
+  const ids = withArrayMembers((multiSelection.size > 1)
     ? Array.from(multiSelection).filter(id=> nodes.has(id))
-    : (selectedId && nodes.has(selectedId) ? [selectedId] : []);
+    : (selectedId && nodes.has(selectedId) ? [selectedId] : []));
   if(!ids.length) return;
   if(!copySelectedNode()) return;
   if(ids.length > 1) deleteNodes(ids);
@@ -250,13 +270,23 @@ function pasteClipboardNode(){
       const opts = Object.assign({}, it.opts || {});
       opts.pos = [ snapToGrid(home.x + ((it.x || 0) - originX)),
                    snapToGrid(home.y + ((it.y || 0) - originY)) ];
-      const newId = uniqueId(slugify(it.label) + '-copy', existingIds);
+      const newId = uniqueId((it.shape === 'array' ? 'array' : slugify(it.label)) + '-copy', existingIds);
       existingIds.add(newId);
       idMap.set(it.id || it.label, newId);
       made.push(newId);
+      if(it.shape === 'array') delete opts.pos;
       workingNodes.push([newId, it.label, undefined, undefined, it.note || undefined,
                          it.shape || undefined, Object.keys(opts).length ? opts : undefined]);
     });
+    /* An array's members are pointed at the copies made with it; one whose
+       members did not come along goes back off the chart. */
+    for(let i = workingNodes.length - 1; i >= 0; i--){
+      const entry = workingNodes[i];
+      if(!made.includes(entry[0]) || entry[5] !== 'array') continue;
+      const ms = arrayMembersOf(entry[6]).map(id=> idMap.get(id)).filter(Boolean);
+      if(ms.length) entry[6].members = ms;
+      else { workingNodes.splice(i, 1); made.splice(made.indexOf(entry[0]), 1); }
+    }
     // The connections INSIDE the group come with it, pointing at the copies.
     links.forEach(([from, to])=>{
       const f = idMap.get(from), t = idMap.get(to);
@@ -336,7 +366,8 @@ function emptySpotNearCentre(shapeVal){
   const c = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
   const ox = snapToGrid(c.x - w/2), oy = snapToGrid(c.y - h/2);
   const pad = GRID / 2;
-  const taken = [...nodes.values()]
+  // Inside an array is open ground: the frame is round the entries, not one.
+  const taken = [...nodes.values()].filter(n=> !isArrayNode(n))
     .map(n=>({x:n.x - pad, y:n.y - pad, r:n.x + n.w + pad, b:n.y + n.h + pad}));
   const free = (x, y)=> !taken.some(t=> x < t.r && x + w > t.x && y < t.b && y + h > t.y);
   /* Ring by ring outwards, and on past the first ring with room only as
@@ -367,7 +398,7 @@ function viewCentreSpot(shapeVal){
   const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : NODE_MINH;
   const c = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
   let x = snapToGrid(c.x - w/2), y = snapToGrid(c.y - h/2);
-  const taken = [...nodes.values()].map(n=>({x:n.x, y:n.y, w:n.w, h:n.h}));
+  const taken = [...nodes.values()].filter(n=> !isArrayNode(n)).map(n=>({x:n.x, y:n.y, w:n.w, h:n.h}));
   const clash = (px,py)=> taken.some(t=> px < t.x + t.w + 6 && px + w + 6 > t.x &&
                                          py < t.y + t.h + 6 && py + h + 6 > t.y);
   for(let i=0; i<40 && clash(x,y); i++){ x += GRID; y += GRID; }
