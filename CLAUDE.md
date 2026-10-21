@@ -298,8 +298,9 @@ walk; it is a smaller share and the next thing to measure.
 | retype a note | 1055 ms | 399 ms | 635 → 4 ms |
 | move an entry | 493 ms | 566 ms* | 169 → 231 ms |
 
-\* noise: a move re-routes everything after the first connector it
-changes, as before.
+\* within the spread between runs: two runs before the change gave 493
+and 932 ms for the same move. A move changes a box, and a changed box
+means everything is routed afresh, as before.
 
 Every edit redrew the whole chart, and routing was the larger half of it
 even for an edit that cannot move a line. A pass now remembers its calls
