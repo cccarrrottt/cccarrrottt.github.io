@@ -69,6 +69,7 @@ function paintSelectionHighlight(id, opts){
       qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
       return;
     }
+    nodeControlsOn(id);
     qNodes('.node').forEach(g=>{
       g.classList.toggle('selected', g.dataset.id === id);
       g.classList.remove('dim');
@@ -139,6 +140,9 @@ function paintSelectionHighlight(id, opts){
      picked out, and stepping it back with the rest of the chart left the
      line glowing and its explanation grey. */
   if(!edgesOnly){
+    /* Selected, an entry shows its grips and strips on a touch screen and
+       while it is open (see nodeControlsWanted). */
+    nodeControlsOn(id);
     qNodes('.node').forEach(g=>{
       const gid = g.dataset.id;
       g.classList.toggle('selected', gid===id);

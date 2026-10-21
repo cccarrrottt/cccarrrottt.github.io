@@ -8,6 +8,12 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- An edit on a large chart is about twice as quick again: on 600 entries,
+  recolouring or renaming one goes from about 0.3 s to 0.16, and moving
+  one from 0.5–0.9 s to 0.3. Each entry's corner grips and connector
+  strips — thirty-four elements of its forty, all hidden until pointed at
+  — are built when the pointer, a selection or a connector first reaches
+  it, instead of on every redraw for every entry.
 - The chart's file writes each entry as a record with its fields named —
   `{id, label, parent, note, shape, pos, colors, …}` — instead of a list
   by position whose fifth place only the program knew. The settings carry

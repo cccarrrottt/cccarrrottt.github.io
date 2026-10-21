@@ -323,12 +323,31 @@ of the pass, so the routes are exactly a fresh pass's; the suite compares
 the two after each kind of edit ("an edit that moves nothing re-routes
 nothing"). A test that wants a fresh pass sets `routeLast = null`.
 
-What is left of an edit is the entries' DOM: `renderNodes` (~120 ms at
-600) and the layout it forces (~100 ms, landing wherever the next read of
-a size is — `buildSideTabs` looks expensive in a profile for that reason
-only; its own work is ~4 ms). Reusing an unchanged entry's drawing is the
-next step if the chart grows into the hundreds; it has to carry the
-entry's defs (masks, clips) and its measured size along with it.
+What was left of an edit was the entries' DOM — and most of that DOM was
+controls nobody could see. An entry was six elements of drawing and
+thirty-four of corner grips and connector strips, all hidden until the
+pointer is on it; a 600-entry chart was 24,200 elements, and the style and
+layout every redraw forces went over all of them (it lands wherever the
+next read of a size is, which is why `buildSideTabs` looked expensive). The
+controls are now built the first time something can reach them — the
+pointer arriving (`pointerover`, so a finger too), the entry being
+selected, a connector dragged onto it (`nodeControlsWanted`,
+`13-render-nodes.js`). Same chain, medians, two runs each:
+
+| 600 entries | before | after |
+| --- | ---: | ---: |
+| recolour, tag, note, rename | ~290–390 ms | ~160–205 ms |
+| move an entry | ~520–920 ms | ~305–330 ms |
+| `renderNodes` | ~100–160 ms | ~35–65 ms |
+| elements per entry | 40 | 6 |
+
+At 200 entries an edit went from ~90–125 ms to ~45–75. Reusing an
+unchanged entry's drawing between redraws was the plan before this was
+measured; what remains of `renderNodes` is now ~50 ms at 600, and reuse
+would have to carry an entry's defs, its measured size and everything
+`renderNodes` writes onto the entry along with it. Not worth it until a
+chart is in the thousands. A test that wants an entry's grips or strips
+without moving a pointer calls `nodeControlsOn(id)`.
 
 ### What an edit cost before it was even drawn
 

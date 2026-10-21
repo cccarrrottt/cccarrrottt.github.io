@@ -638,7 +638,7 @@ function renderLabelPreview(){
   paintMultiSelection();
   drawBioCard();
   const g = qNode(`.node[data-id="${cssEscape(labelPreview.id)}"]`);
-  if(g) g.classList.add('selected');
+  if(g){ g.classList.add('selected'); nodeControlsOn(labelPreview.id); }
   // The entry has just changed shape under the field, so the field follows.
   if(typeof nodeEditorTarget !== 'undefined' && nodeEditorTarget) positionNodeEditor();
 }

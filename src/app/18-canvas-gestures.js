@@ -1329,9 +1329,20 @@ function connectorDropTarget(clientX, clientY){
   // The rubber band and the handles' own hit circles sit under the cursor;
   // the band is pointer-events:none, and a handle resolves to its node
   // anyway, so closest('.node') gives the right answer either way.
-  const el0 = document.elementFromPoint(clientX, clientY);
+  let el0 = document.elementFromPoint(clientX, clientY);
   const nodeG = el0 && el0.closest && el0.closest('.node');
   if(!nodeG) return null;
+  /* An entry whose strips were never built is one the pointer had not
+     reached before (see nodeControlsWanted). Arriving on its pad — which
+     spans its outer rings — builds them by itself for a mouse. A finger
+     is different: its pointer events stay with the element it went down
+     on, so nothing arrives as it travels, and the entry it is over is
+     built here. Built, the point is asked
+     again, so the ring it lands on is told as it always was. */
+  if(nodeControlsWanted.has(nodeG.dataset.id)){
+    nodeControlsOn(nodeG.dataset.id);
+    el0 = document.elementFromPoint(clientX, clientY) || el0;
+  }
   const target = nodes.get(nodeG.dataset.id);
   if(!target) return null;
   const handle = el0.closest('.node-handle');

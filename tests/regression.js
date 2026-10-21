@@ -927,6 +927,7 @@ async function main(){
       // The card is an ENTRY, with an entry's ports and edge handles.
       const card = document.querySelector('.node[data-id="ld_c0"]');
       out.isEntry = !!card && card.classList.contains('node-callout');
+      nodeControlsOn('ld_c0');
       out.handles = card ? card.querySelectorAll('.node-handle').length : 0;
       out.leaderUnderCard = !!document.querySelector('#edgeLayer .callout-leader[data-id="ld_c0"]');
       // The anchor tracks the fraction it was given.
@@ -1366,6 +1367,7 @@ async function main(){
     rebuildChart();
     await new Promise(r=> setTimeout(r, 400));
     const nch = nodes.get('ch');
+    nodeControlsOn('ch');
     const topHit = document.querySelector('[data-id="ch"].node .node-handle[data-side="top"] .node-handle-hit')
                 || document.querySelector('.node-handle[data-side="top"] .node-handle-hit');
     const topShow = document.querySelector('[data-id="ch"].node .node-handle[data-side="top"] .node-handle-band')
@@ -1503,7 +1505,7 @@ async function main(){
     });
     rebuildChart();
     await new Promise(r=> setTimeout(r, 420));
-    const rings = (id)=> document.querySelectorAll('[data-id="'+id+'"].node .node-handle[data-side="top"]').length;
+    const rings = (id)=> nodeControlsOn(id) || document.querySelectorAll('[data-id="'+id+'"].node .node-handle[data-side="top"]').length;
     const portRings = {amalgam: rings('pa'), plain: rings('pb')};
 
     // A hand-placed entry grows about its middle.
@@ -1572,6 +1574,7 @@ async function main(){
                     && rings[1].x < rings[0].x && rings[2].x < rings[1].x;
 
     // A pocket's grab-edge waves the way its border does.
+    nodeControlsOn('bp');
     const wave = document.querySelector('[data-id="bp"] .node-handle-band.wave');
     // It is a polyline now, like every other wavy thing: it waves if it
     // leaves the straight edge it is drawn along.
@@ -1581,6 +1584,7 @@ async function main(){
       const ys = p.map(q=> q.y);
       return Math.max(...ys) - Math.min(...ys) > 1;
     })();
+    nodeControlsOn('b3');
     out.plainBandIsRect = !!document.querySelector('[data-id="b3"] rect.node-handle-band');
 
     // A local multiverse's sheets are translucent scenery, like a hub's echo.
@@ -2298,6 +2302,7 @@ async function main(){
     const amRect = document.querySelector('[data-id="cam"] > rect[stroke]');
     out.amalStroke = amRect ? amRect.getAttribute('stroke') : null;
     out.amalText = document.querySelector('[data-id="cam"] text').getAttribute('fill');
+    nodeControlsOn('cam');
     out.amalPortRings = document.querySelectorAll('[data-id="cam"] .node-handle[data-side="top"]').length;
 
     /* Hiding one tag takes the entries carrying it off the chart, whatever
@@ -2317,6 +2322,7 @@ async function main(){
     out.pocketCornerFlat = 0;
     applyEdit(()=>{ workingNodes.push(['pkh','P',null,null,null,'pocket',{pos:[12800,620]}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
+    nodeControlsOn('pkh');
     const hit = document.querySelector('[data-id="pkh"] .node-handle[data-side="top"] .node-handle-hit');
     out.pocketHit = hit ? +(+hit.getAttribute('height')).toFixed(2) : null;
     const plainHit = document.querySelector('[data-id="msFar"] .node-handle[data-side="top"] .node-handle-hit');
@@ -2474,6 +2480,7 @@ async function main(){
     /* The resize grip is a dot ON the corner, and what catches the hand
        is not much more than the dot: the smallest entry is GRID a side,
        and four grips must leave the middle of it to the entry. */
+    nodeControlsOn('gs');
     const hit = document.querySelector('[data-id="gs"] .node-resize-hit');
     out.gripBox = hit ? [hit.tagName, +hit.getAttribute('cx'), +hit.getAttribute('cy'),
                          +hit.getAttribute('r'), GRID] : null;
@@ -3630,6 +3637,7 @@ async function main(){
 
     /* Language chips no longer take the top edge away from the entry. */
     const az = nodes.get('az');
+    nodeControlsOn('az');
     const hit = document.querySelector('[data-id="az"] .node-handle[data-side="top"] .node-handle-hit');
     out.chipsCovered = az.chipRight > az.x + az.w * 0.5;
     out.topStripWhole = Math.abs(+hit.getAttribute('x') - az.x) < 0.5 &&
@@ -4756,12 +4764,14 @@ async function main(){
     out.strays = strays;
 
     /* Four resize grips, a link tab or not. */
+    nodeControlsOn('xa');
     out.gripsPlain = document.querySelectorAll('[data-id="xa"] .node-resize').length;
     applyEdit(()=>{
       const f = workingNodes.find(t=> t[0]==='xa');
       f[6] = Object.assign({}, f[6] || {}, {link:'https://example.com/'});
     });
     rebuildChart(); await wait(420);
+    nodeControlsOn('xa');
     out.gripsWithLink = document.querySelectorAll('[data-id="xa"] .node-resize').length;
     out.gripNeKept = !!document.querySelector('[data-id="xa"] .node-resize-ne');
 
@@ -4773,6 +4783,7 @@ async function main(){
     {
       const n0 = nodes.get('gz');
       const right0 = n0.x + n0.w, bottom0 = n0.y + n0.h;
+      nodeControlsOn('gz');
       const grip = document.querySelector('[data-id="gz"] .node-resize-nw');
       beginNodeResize({button:0, clientX:0, clientY:0,
                        stopPropagation(){}, preventDefault(){}},
@@ -5053,6 +5064,7 @@ async function main(){
       workingNodes.push(['negx','Left of nothing',null,null,null,null,{pos:[-900,-1500]}]);
     });
     rebuildChart(); await wait(420);
+    nodeControlsOn('negx');
     out.gripsNegative = document.querySelectorAll('[data-id="negx"] .node-resize').length;
 
     refill(EDGE_STYLES, beforeStyles);
@@ -5887,6 +5899,7 @@ async function main(){
 
     /* The side its leader arrives at offers no port. */
     out.takenSide = calloutLeaderSide(nodes.get('coC'));
+    nodeControlsOn('coC');
     const sides = [...document.querySelectorAll('.node[data-id="coC"] .node-handle')]
       .map(h=> h.dataset.side);
     out.sideGone = out.takenSide && sides.indexOf(out.takenSide) < 0 &&
@@ -7105,6 +7118,7 @@ async function main(){
       const n = nodes.get('pa');
       out.bioSize = [n.w, n.h];
       out.bioModest = n.h <= NODE_FIT_MINH * 1.6 && n.h >= NODE_FIT_MINH;
+      nodeControlsOn('pa');
       out.bioGrips = document.querySelectorAll('.node[data-id="pa"] .node-resize').length;
       /* The silhouette stays inside the rim, at every size. */
       const rim = document.querySelector('.node[data-id="pa"] circle.bio-ring');
@@ -7937,6 +7951,7 @@ async function main(){
     });
     await wait(800);
     {
+      nodeControlsOn('zt');
       const g = document.querySelector('.node[data-id="zt"]');
       const handle = g && g.querySelector('.node-rotate');
       out.hasHandle = !!handle;
@@ -8077,6 +8092,7 @@ async function main(){
       workingNodes.push(['ri','', null, null, null, 'image', {pos:[-120,140]}]);
     });
     await wait(800);
+    nodeControlsOn('rt'); nodeControlsOn('ri'); nodeControlsOn('rb');
     {
       out.captionHandle = !!document.querySelector('.node[data-id="rt"] .node-rotate') &&
                           !!document.querySelector('.node[data-id="ri"] .node-rotate');
@@ -8987,6 +9003,7 @@ async function main(){
       out.padIsTheSquare = !!pad && getComputedStyle(pad).pointerEvents === 'all' &&
                            getComputedStyle(pad).fill === 'rgba(0, 0, 0, 0)';
       const n = nodes.get('pq');
+      nodeControlsOn('pq');
       const grip = g.querySelector('.node-resize-nw');
       const gb = grip.getBoundingClientRect(), r = svg.getBoundingClientRect();
       out.gripAtTheCorner = Math.abs((gb.x + gb.width/2) - (r.left + n.x*vs + vx)) < 12 &&
@@ -11911,6 +11928,7 @@ async function main(){
          is one of the faded ones for as long as it is open. */
       selectNode('hgC');
       await wait(250);
+      nodeControlsOn('hgA');
       const grip = document.querySelector('.node[data-id="hgA"] .node-resize');
       out.otherGripInert = !!grip && getComputedStyle(grip).pointerEvents === 'none';
       /* …and a panel opened on one connector does not hand every other
@@ -13687,6 +13705,7 @@ async function main(){
       g.classList.add('hover');
       const box = g.querySelector('rect').getBoundingClientRect();
       const mid = document.elementFromPoint(box.left + box.width/2, box.top + box.height/2);
+      nodeControlsOn('bqE');
       out.middleIsEntry = !!mid && !!mid.closest('.node[data-id="bqE"]') && !mid.closest('.node-resize');
       out.dots = [...g.querySelectorAll('.node-resize')].length;
     }
@@ -14190,6 +14209,7 @@ async function main(){
     out.freeBar = {};
     for(const id of ['htT', 'htI']){
       openStyleBar({kind:'node', id});
+      nodeControlsOn(id);
       const shown = [...styleBar.querySelectorAll('.style-bar-group')]
         .filter(r=> !r.hidden).map(r=> r.dataset.group);
       out.freeBar[id] = (!styleBar.hidden && shown.length === 1 && shown[0] === 'stack' &&
@@ -14204,6 +14224,7 @@ async function main(){
       const pic0 = nodes.get('htI');
       vs = 1; vx = 400 - pic0.x; vy = 300 - pic0.y; applyTransform();
       openStyleBar({kind:'node', id:'htI'});
+      nodeControlsOn('htI');
       const handle = document.querySelector('.node[data-id="htI"] .node-rotate');
       const a = styleBar.getBoundingClientRect(), b = handle.getBoundingClientRect();
       out.barClearsHandle = a.right <= b.left + 0.5 || a.left >= b.right - 0.5 ||
@@ -14234,6 +14255,7 @@ async function main(){
     {
       const n = nodes.get('htI');
       const was = {w: n.w, h: n.h};
+      nodeControlsOn('htI');
       const g0 = document.querySelector('.node[data-id="htI"]');
       const handle = g0 && g0.querySelector('.node-rotate');
       const cx = n.x + n.w/2, cy = n.y + n.h/2;
@@ -14775,6 +14797,7 @@ async function main(){
                           afterEntry !== null && Math.abs(afterEntry) < 0.5;
       /* The strips that light up on a merge's border are its gradient, laid
          across the entry as the border's own is, not its first colour. */
+      nodeControlsOn('rdM');
       const bands = [...document.querySelectorAll('.node[data-id="rdM"] .node-handle-band')];
       const grads = bands.map(b=> (b.getAttribute('style') || '').match(/url\(#([^)]+)\)/))
         .map(m=> m && document.getElementById(m[1]));
@@ -15194,6 +15217,7 @@ async function main(){
       await wait(250);
       openStyleBar({kind:'node', id:'fvT'});
       const bar = styleBar.getBoundingClientRect();
+      nodeControlsOn('fvT');
       const tabs = [...document.querySelectorAll('.node[data-id="fvT"] .lang-chips, .node[data-id="fvT"] .node-link')]
         .map(t=> t.getBoundingClientRect().top);
       out.barTabsAt = JSON.stringify({bar: bar.bottom, tabs,
@@ -16662,6 +16686,84 @@ async function main(){
         r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
         JSON.stringify(r.calls));
   });
+  await scenario("an entry's controls are built when something reaches them", async () => {
+  /* The grips, the turning handle and the connector strips are built the
+     first time the pointer, a selection or a connector drag reaches an
+     entry (nodeControlsWanted). What is checked is that nothing a person
+     can do finds them missing: under the pointer they are there, selected
+     they are there, and a connector dragged onto an entry the pointer had
+     never visited still lands on the ring it is over. */
+  const setup = await page.evaluate(async ()=>{
+    const out = {before: workingNodes.map(x=> x.slice()), beforeStyles: EDGE_STYLES.length};
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      for(let i = 0; i < 40; i++) workingNodes.push(['ncX' + i, 'Filler ' + i, null, null, null, null, {pos:[2000 + (i % 8)*170, 2000 + Math.floor(i / 8)*110]}]);
+      workingNodes.push(['ncA', 'From here', null, null, null, null, {pos:[0, 0]}]);
+      workingNodes.push(['ncB', 'To there', null, null, null, null, {pos:[400, 0], colors:['#cc2222', '#2222cc']}]);
+      workingNodes.push(['ncC', 'Picked', null, null, null, null, {pos:[0, 200]}]);
+    });
+    deselect();
+    vs = 1; vx = 300; vy = 300; applyTransform();
+    await new Promise(r=> setTimeout(r, 300));
+    const box = id=> { const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
+                       return {x: b.left, y: b.top, w: b.width, h: b.height}; };
+    out.a = box('ncA'); out.b = box('ncB');
+    out.builtAtFirst = [...document.querySelectorAll('.node .node-controls')].filter(c=> c.childElementCount).length;
+    out.perEntry = document.querySelectorAll('#nodeLayer .node *').length / nodes.size;
+    selectNode('ncC');
+    out.selectedGrips = document.querySelectorAll('.node[data-id="ncC"] .node-resize').length;
+    return out;
+  });
+  await page.mouse.move(setup.a.x + setup.a.w/2, setup.a.y + setup.a.h/2);
+  await wait(80);
+  const hovered = await page.evaluate(()=> ({
+    grips: document.querySelectorAll('.node[data-id="ncA"] .node-resize').length,
+    strips: document.querySelectorAll('.node[data-id="ncA"] .node-handle').length,
+    bUnbuilt: !document.querySelector('.node[data-id="ncB"] .node-handle')}));
+  /* From A's right strip onto the outer ring of B's left side. */
+  const right = await page.evaluate(()=>{
+    const h = document.querySelector('.node[data-id="ncA"] .node-handle[data-side="right"] .node-handle-hit').getBoundingClientRect();
+    return {x: h.left + h.width/2, y: h.top + h.height/2};
+  });
+  await page.mouse.move(right.x, right.y);
+  await page.mouse.down();
+  for(let i = 1; i <= 8; i++){ await page.mouse.move(right.x + i*20, right.y); await wait(16); }
+  /* Where B's outer ring will be grabbed, worked out from the box rather
+     than read off the strip, which must not exist yet. */
+  const outer = await page.evaluate(()=>{
+    const n = nodes.get('ncB');
+    const hit = sideBandRect(n, n.h, 'left', -ringStepFor(n), BAND_HIT_DEFAULT).hit;
+    const p = new DOMPoint(hit.x + hit.width/2, hit.y + hit.height/2).matrixTransform(nodeLayer.getScreenCTM());
+    return {x: p.x, y: p.y, unbuilt: nodeControlsWanted.has('ncB')};
+  });
+  await page.mouse.move(outer.x, outer.y);
+  await wait(60);
+  const over = await page.evaluate(()=>{
+    const t = document.querySelector('.node-handle.drop-target');
+    return {target: t ? t.dataset.id + ':' + t.dataset.side + ':' + t.dataset.ring : null};
+  });
+  await page.mouse.up();
+  await wait(200);
+  const done = await page.evaluate((setup)=>{
+    const made = EDGE_STYLES.find(s=> s.from === 'ncA' && s.to === 'ncB') ||
+                 (nodes.get('ncB') && nodes.get('ncB').parent === 'ncA') ||
+                 workingNodes.some(x=> x[0] === 'ncB' && JSON.stringify(x[2]).includes('ncA'));
+    applyEdit(()=>{ workingNodes.length = 0; setup.before.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = setup.beforeStyles; });
+    deselect();
+    return {made: !!made};
+  }, setup);
+  check('a redraw builds no entry\'s controls the pointer has not reached', setup.builtAtFirst === 0,
+        setup.builtAtFirst);
+  check('so an entry is a handful of elements, not forty', setup.perEntry < 12, setup.perEntry);
+  check('an entry under the pointer has its four grips and four strips', hovered.grips === 4 && hovered.strips === 4,
+        JSON.stringify(hovered));
+  check('…and one the pointer has not been to has none yet', hovered.bUnbuilt);
+  check('a selected entry has its grips', setup.selectedGrips === 4, setup.selectedGrips);
+  check('a connector dragged onto an entry never visited lights the ring it is over',
+        outer.unbuilt && over.target === 'ncB:left:1', JSON.stringify({outer, over}));
+  check('and is drawn when let go', done.made, JSON.stringify(done));
+  });
   await scenario("ends, marks, squares and tabs as of 2026-10-20", async () => {
   const r20 = await page.evaluate(async ()=>{
     const wait = ms=> new Promise(res=> setTimeout(res, ms));
@@ -16841,6 +16943,7 @@ async function main(){
     await wait(150);
     {
       const cap = nodes.get('rtCap');
+      nodeControlsOn('rtCap');
       const g = document.querySelector('.node[data-id="rtCap"]');
       const hit = g && g.querySelector('.node-rotate .node-rotate-hit');
       const grip = g && g.querySelector('.node-resize-hit');
