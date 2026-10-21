@@ -390,6 +390,22 @@ def main():
     check('and its build says nothing about staleness',
           r.returncode == 0 and 'NOTE' not in r.stdout, r.stdout)
 
+    # The pictures beside the chart go beside the built page, where the
+    # page's relative paths find them; one already there is left as it is.
+    tmp = sandbox()
+    (tmp / 'src' / 'media').mkdir(exist_ok=True)
+    name = 'a' * 64 + '.png'
+    (tmp / 'src' / 'media' / name).write_bytes(b'bytes of a picture')
+    r = run(tmp)
+    copied = tmp / 'dist' / 'media' / name
+    check('the media folder is copied beside the built page',
+          r.returncode == 0 and copied.exists() and copied.read_bytes() == b'bytes of a picture',
+          r.stdout + r.stderr)
+    r = run(tmp)
+    check('and a second build has nothing new to copy',
+          r.returncode == 0 and 'new' not in [l for l in r.stdout.splitlines() if 'dist/media' in l][0],
+          r.stdout)
+
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0
 

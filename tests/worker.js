@@ -57,6 +57,12 @@ function fakeGitHub(){
   const srcTree = tree([{path: 'data.js', type: 'blob', sha: blob(DATA)}]);
   const root = tree([{path: 'src', type: 'tree', sha: srcTree}, {path: 'README.md', type: 'blob', sha: blob('readme')}]);
   gh.head = 'c0'; gh.commits.set('c0', {tree: root});
+  gh.mediaAt = commit => {
+    const top = gh.trees.get(gh.commits.get(commit).tree);
+    const src = gh.trees.get(top.find(e => e.path === 'src').sha);
+    const dir = src.find(e => e.path === 'media');
+    return dir ? new Map(gh.trees.get(dir.sha).map(e => [e.path, gh.blobs.get(e.sha)])) : new Map();
+  };
   gh.dataAt = commit => {
     const top = gh.trees.get(gh.commits.get(commit).tree);
     const src = gh.trees.get(top.find(e => e.path === 'src').sha);
@@ -107,11 +113,33 @@ function fakeGitHub(){
       const b64 = Buffer.from(gh.blobs.get(m[1]), 'utf8').toString('base64').replace(/(.{60})/g, '$1\n');
       return ok({content: b64, encoding: 'base64'});
     }
-    if(p === '/git/blobs' && method === 'POST') return ok({sha: blob(body.content)});
+    if(p === '/git/blobs' && method === 'POST'){
+      if(body.encoding !== 'base64') return ok({sha: blob(body.content)});
+      // A picture: kept as its bytes, so a test can read back what landed.
+      gh.pictureBlobs = (gh.pictureBlobs || 0) + 1;
+      const bytes = Buffer.from(body.content, 'base64');
+      const sha = nodeCrypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${bytes.length}\0`), bytes])).digest('hex');
+      gh.blobs.set(sha, bytes);
+      return ok({sha});
+    }
     if(p === '/git/trees' && method === 'POST'){
       const top = gh.trees.get(body.base_tree).map(e => ({...e}));
-      const src = top.find(e => e.path === 'src');
-      src.sha = tree([{path: 'data.js', type: 'blob', sha: body.tree[0].sha}]);
+      const srcEntry = top.find(e => e.path === 'src');
+      const src = gh.trees.get(srcEntry.sha).map(e => ({...e}));
+      const put = (list, name, sha, type) => {
+        const e = list.find(x => x.path === name);
+        if(e) e.sha = sha; else list.push({path: name, type, sha});
+      };
+      for(const t of body.tree){
+        const bits = t.path.split('/');
+        if(bits[0] !== 'src') return new Response('{}', {status: 422});
+        if(bits.length === 2){ put(src, bits[1], t.sha, 'blob'); continue; }
+        const dir = src.find(x => x.path === bits[1]);
+        const list = dir ? gh.trees.get(dir.sha).map(e => ({...e})) : [];
+        put(list, bits[2], t.sha, 'blob');
+        put(src, bits[1], tree(list), 'tree');
+      }
+      srcEntry.sha = tree(src);
       return ok({sha: tree(top)});
     }
     if(p === '/git/commits' && method === 'POST'){
@@ -197,6 +225,7 @@ function partsOf(text){
   let body = await r.json();
   check('the owner is told so, with the data.js that is current', r.status === 200 && body.owner && body.sha === gitSha(DATA),
         JSON.stringify(body));
+  check('and that it takes pictures as files beside the chart', body.media === true);
   check('and the answer is readable by the site', r.headers.get('Access-Control-Allow-Origin') === SITE);
   r = await call('/me', {headers: {Authorization: 'Bearer ' + s, Origin: 'https://evil.example'}});
   check('but not by any other site', r.headers.get('Access-Control-Allow-Origin') === null);
@@ -273,6 +302,38 @@ function partsOf(text){
   body = await r.json();
   check('but that same save sent again on the old base — its answer lost on the way — is not a conflict',
         r.status === 200 && body.unchanged && body.sha === gitSha(after) && gh.head === headBefore, r.status + ' ' + JSON.stringify(body));
+
+  /* Pictures, which go beside the chart as files named by their hash. */
+  const picture = Buffer.from('not really a png, but bytes all the same');
+  const picHex = nodeCrypto.createHash('sha256').update(picture).digest('hex');
+  const picRef = 'media/' + picHex + '.png';
+  const withPic = {...edited, MEDIA: edited.MEDIA + `\n/* {src:'${picRef}'} */`};
+  let picHead = gh.head;
+  r = await post(s, {base: gitSha(after), parts: withPic, media: {[picRef]: Buffer.from('other bytes').toString('base64')}});
+  check('a picture whose bytes are not what its name says is refused', r.status === 400 && gh.head === picHead);
+  r = await post(s, {base: gitSha(after), parts: withPic, media: {['media/' + picHex + '.exe']: picture.toString('base64')}});
+  check('and so is one named as no picture may be', r.status === 400 && gh.head === picHead);
+  r = await post(s, {base: gitSha(after), parts: withPic});
+  body = await r.json();
+  check('a chart naming a picture the repository does not have, and not sending it, is refused',
+        r.status === 400 && gh.head === picHead && /does not have/.test(body.error), r.status + ' ' + JSON.stringify(body));
+  r = await post(s, {base: gitSha(after), parts: withPic, media: {[picRef]: picture.toString('base64')}});
+  body = await r.json();
+  const landed = gh.mediaAt(gh.head);
+  check('a new picture is committed beside the chart, in the same commit',
+        r.status === 200 && gh.head !== picHead && landed.has(picHex + '.png') && Buffer.compare(landed.get(picHex + '.png'), picture) === 0
+        && gh.dataAt(gh.head).includes(picRef), r.status + ' ' + JSON.stringify(body));
+  const withPicSha = body.sha;
+  picHead = gh.head;
+  const blobsBefore = gh.pictureBlobs;
+  const again = {...withPic, REFS: withPic.REFS + '\n/* and one more edit */'};
+  r = await post(s, {base: withPicSha, parts: again, media: {[picRef]: picture.toString('base64')}});
+  body = await r.json();
+  check('a picture already in the folder is not written again', r.status === 200 && gh.head !== picHead && gh.pictureBlobs === blobsBefore,
+        r.status + ' ' + JSON.stringify(body));
+  picHead = gh.head;
+  r = await post(s, {base: body.sha, parts: {...again, NODES: again.NODES + `\n/* {image:'${picRef}'} */`}});
+  check('and a chart may name one that is there without sending it', r.status === 200 && gh.head !== picHead);
 
   /* Suggestions. A reader signs in by asking to; the same account through
      Owner sign-in is still turned away above. */

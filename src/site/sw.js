@@ -13,6 +13,9 @@
  * still replaces the copy for next time. The page itself says when the
  * repository has moved past it, so that copy never saves over anything.
  *
+ * The pictures beside the page are the exception, and kept the other way
+ * round: see aPicture.
+ *
  * What it does not touch: anything on another origin — the write service,
  * whose every answer has to be live, and the webfonts, which the page does
  * without when they cannot be had.
@@ -40,8 +43,25 @@ self.addEventListener('fetch', ev => {
     ev.respondWith(thePage());
     return;
   }
+  if(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/.test(url.pathname)){
+    ev.respondWith(aPicture(req));
+    return;
+  }
   ev.respondWith(caches.match(req).then(hit => hit || fetch(req)));
 });
+
+/* A picture beside the chart is named by the hash of its bytes, so the copy
+   kept is never behind: it is asked of the cache first, and kept the first
+   time it is fetched — which is what lets a chart opened with no signal
+   still show the pictures it showed the last time. Asked for in pieces (a
+   clip being played), it goes to the network as asked and is kept whole
+   only when the answer was whole. */
+function aPicture(req){
+  return caches.open(CACHE).then(c => c.match(req.url).then(hit => hit || fetch(req).then(res => {
+    if(res.status === 200) c.put(req.url, res.clone());
+    return res;
+  })));
+}
 
 /* Every address in the site is the one page, kept under one key: the
    sign-in hands its session back as a fragment on the page's address, and

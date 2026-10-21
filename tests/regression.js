@@ -10152,7 +10152,7 @@ async function main(){
   };
 
   /* The write service, as the page sees it. */
-  const api = {sha: dataSha, saves: [], asked: 0, offline: false, renewNext: false};
+  const api = {sha: dataSha, saves: [], asked: 0, offline: false, renewNext: false, files: {}};
   const SESSIONS = ['Bearer good-session', 'Bearer renewed-session'];
   /* The site's worker would take the page's requests past these routes to
      the real site; the next scenario tests it against a server of its own. */
@@ -10160,7 +10160,18 @@ async function main(){
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
-  await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
+  /* The site serves the page, and the pictures the write service has been
+     sent (api.files) beside it, as Pages serves src/media. */
+  await c.route(SITE_ORIGIN + '/**', r => {
+    const u = new URL(r.request().url());
+    const m = /^\/(media\/[0-9a-f]{64}\.([a-z0-9]+))$/.exec(u.pathname);
+    if(m){
+      api.mediaAsked = (api.mediaAsked || 0) + 1;
+      return api.files[m[1]] ? r.fulfill({status: 200, contentType: m[2] === 'png' ? 'image/png' : 'application/octet-stream', body: api.files[m[1]]})
+                             : r.fulfill({status: 404, body: ''});
+    }
+    return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
+  });
   /* Signed out, the page reads the open suggestions from GitHub itself;
      here there are none. */
   await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'},
@@ -10185,12 +10196,13 @@ async function main(){
       // The service renewing a session whose GitHub token ran out.
       const renewed = api.renewNext ? {session: 'renewed-session'} : {};
       api.renewNext = false;
-      return reply(200, {owner: true, login: 'the-owner', sha: api.sha, ...renewed});
+      return reply(200, {owner: true, login: 'the-owner', sha: api.sha, media: !api.noMedia, ...renewed});
     }
     if(u.pathname === '/save'){
       const b = JSON.parse(q.postData());
       api.saves.push(b);
       if(b.base !== api.sha) return reply(409, {error: 'the repository has a newer chart.'});
+      Object.keys(b.media || {}).forEach(k => { api.files[k] = Buffer.from(b.media[k], 'base64'); });
       api.sha = 'sha-after-save-' + api.saves.length;
       return reply(200, {sha: api.sha});
     }
@@ -10355,9 +10367,64 @@ async function main(){
      trailing newline — every save would rewrite the whole of data.js, and
      the history of the chart would be a list of commits that each changed
      everything. */
+  /* …but for the pictures embedded in it, which go to the site as files of
+     their own, named by the SHA-256 of their bytes (MEDIA_REF): the region
+     goes with each one's path where its bytes stood. A tiny one stays. */
+  const sha256 = b => require('crypto').createHash('sha256').update(b).digest('hex');
+  const EXT = {'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
+               'image/svg+xml':'svg', 'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
+               'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov'};
+  const lifted = text => text.replace(/data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g,
+    (u, mime, _, b64) => u.length < 2048 || !EXT[mime.toLowerCase()] ? u
+      : 'media/' + sha256(Buffer.from(b64, 'base64')) + '.' + EXT[mime.toLowerCase()]);
   const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
-    .filter(n => first.parts[n] !== regionOf(html, n)) : ['everything'];
-  check('what it sends for an untouched region is that region, byte for byte', same.length === 0, same.join(', '));
+    .filter(n => first.parts[n] !== lifted(regionOf(html, n))) : ['everything'];
+  check('what it sends for an untouched region is that region, byte for byte, but for its pictures', same.length === 0, same.join(', '));
+  const named = first ? Object.keys(first.media || {}) : [];
+  check('and each picture it lifted out goes with it, named for what its bytes are',
+        !!first && named.every(k => sha256(Buffer.from(first.media[k], 'base64')) === /[0-9a-f]{64}/.exec(k)[0])
+        && named.every(k => Object.values(first.parts).some(t => t.includes(k))), named.join(', '));
+  check('a second save sends none of them again', !!second && Object.keys(second.media || {}).length === 0,
+        second ? Object.keys(second.media || {}).join(', ') : 'nothing sent');
+
+  /* A picture added in the browser goes the same way, and the page can then
+     draw it, export it and take a picture of it from its path. */
+  const pic = await site.evaluate(async () => {
+    const cv = document.createElement('canvas'); cv.width = 48; cv.height = 32;
+    const g = cv.getContext('2d'), px = g.createImageData(48, 32);
+    // Noise, so the picture is past the size a picture stays embedded at.
+    for(let i = 0; i < px.data.length; i++) px.data[i] = i % 4 === 3 ? 255 : Math.floor(Math.random() * 256);
+    g.putImageData(px, 0, 0);
+    const uri = cv.toDataURL('image/png');
+    applyEdit(() => { workingNodes.push(['pic-probe', 'Picture probe', null, null, null, null, {pos:[900, 900], card:true, image: uri}]); });
+    await saveNow();
+    applyEdit(() => { workingNodes.find(n => n[0] === 'pic-probe')[1] = 'Picture probe again'; });
+    await saveNow();
+    return {len: uri.length, b64: uri.slice(uri.indexOf(',') + 1)};
+  });
+  const s3 = api.saves[api.saves.length - 2], s4 = api.saves[api.saves.length - 1];
+  const probeRef = 'media/' + sha256(Buffer.from(pic.b64, 'base64')) + '.png';
+  check('a picture added in the browser is sent as a file, and the chart names its path',
+        pic.len > 2048 && !!s3 && !!(s3.media || {})[probeRef] && s3.parts.NODES.includes(probeRef) && !s3.parts.NODES.includes(pic.b64.slice(0, 200)),
+        JSON.stringify({len: pic.len, saves: api.saves.length, keys: s3 && Object.keys(s3.media || {}), probe: s3 && s3.parts.NODES.includes('pic-probe'), ref: s3 && s3.parts.NODES.includes(probeRef)}));
+  check('and once only', !!s4 && !Object.keys(s4.media || {}).length && s4.parts.NODES.includes(probeRef));
+  const fromPath = await site.evaluate(async ref => {
+    const out = {};
+    applyEdit(() => { workingNodes.find(n => n[0] === 'pic-probe')[6].image = ref; });
+    for(let i = 0; i < 40 && !(imgAspects.get(ref) > 0); i++){ imageAspect(ref); await new Promise(res => setTimeout(res, 50)); }
+    out.drawn = imgAspects.get(ref) > 0;
+    out.onChart = [...document.querySelectorAll('[data-id="pic-probe"] image')].some(im => im.getAttribute('href') === ref);
+    const copy = await inlineMediaRefs(chartDataOnly());
+    out.exportInlined = !copy.includes(ref) && copy.includes('data:image/png;base64,');
+    const picture = (await chartPictureText()).text;
+    out.pictureInlined = !picture.includes(ref) && /<image[^>]+data:image\/png;base64,/.test(picture);
+    applyEdit(() => { const i = workingNodes.findIndex(n => n[0] === 'pic-probe'); workingNodes.splice(i, 1); });
+    return out;
+  }, probeRef);
+  check('a picture named by its path is fetched from beside the page and drawn', fromPath.drawn && fromPath.onChart && api.mediaAsked > 0,
+        JSON.stringify(fromPath));
+  check('an exported chart carries the picture inside it, not its path', fromPath.exportInlined);
+  check('and so does a picture of the chart', fromPath.pictureInlined);
 
   /* ---- the owner, when the site is behind the repository ---- */
   api.sha = 'a-newer-data-js';
@@ -10385,6 +10452,8 @@ async function main(){
   /* ---- the owner with no signal: a phone with the site on its home screen ---- */
   api.sha = dataSha;
   api.renewNext = true;
+  // A service from before pictures went beside the chart: it is not sent paths.
+  api.noMedia = true;
   const savesBefore = api.saves.length;
   const phone = await c.newPage();
   phone.on('pageerror', e => errs.push(e.message));
@@ -10437,6 +10506,9 @@ async function main(){
         api.saves.length === savesBefore + 1 && !!sent && sent.base === dataSha && sent.parts.NODES.includes('WRITTEN WITH NO SIGNAL'),
         sent ? sent.base : 'nothing sent');
   check('and nothing is left waiting', !p3.pending && !p3.kept && /Sent to the site/.test(p3.said), JSON.stringify(p3));
+  check('a service that does not say it takes pictures as files is sent them embedded, as before',
+        !!sent && !Object.keys(sent.media || {}).length && sent.parts.MEDIA === regionOf(html, 'MEDIA'));
+  api.noMedia = false;
 
   /* Somebody saved from another device in between. */
   api.offline = true;
@@ -10723,6 +10795,9 @@ async function main(){
   const SITE_DIR = path.join(ROOT, 'src', 'site');
   const files = {'/': fs.readFileSync(path.join(DIR, PAGE))};
   for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  // A picture beside the page, as a Save puts one in src/media.
+  const PICTURE = '/media/' + 'b'.repeat(64) + '.png';
+  files[PICTURE] = Buffer.from('a picture kept for a day with no signal');
   const TYPES = {'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
   let up = true;
   const srv = http.createServer((q, r) => {
@@ -10761,6 +10836,7 @@ async function main(){
     const controlled = await p.evaluate(() => !!navigator.serviceWorker.controller);
     check('the worker installs, keeping everything it lists, and takes the open page', reg === 'ready' && controlled,
           JSON.stringify({reg, controlled}));
+    const seen = await p.evaluate(async src => (await fetch(src)).text(), PICTURE.slice(1));
 
     up = false;
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
@@ -10770,6 +10846,9 @@ async function main(){
       .catch(e => ({ok: false, error: e.message}));
     check('with no connection the page still opens, and draws the chart', offline.ok && offline.drawn === drawnOnline,
           JSON.stringify({offline, online: drawnOnline}));
+    const kept = await p.evaluate(async src => { try{ return await (await fetch(src)).text(); }catch(e){ return 'failed: ' + e.message; } },
+                                  PICTURE.slice(1)).catch(e => 'failed: ' + e.message);
+    check('and a picture it has shown before is still there', seen === files[PICTURE].toString() && kept === seen, kept);
 
     /* Online again, the network's page is the one shown — a kept copy is
        for when there is nothing else, never in preference. */

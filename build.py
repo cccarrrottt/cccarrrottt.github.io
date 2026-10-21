@@ -451,6 +451,24 @@ def build():
     (DIST / 'nexus.html').write_text(page, encoding='utf-8')
     print(f'  dist/nexus.html        {len(page):>8,} chars')
 
+    # The pictures beside the page. On the site the chart names them by path
+    # (media/<sha256>.<ext>, see MEDIA_REF in src/app/04-assets.js) rather
+    # than carrying them inside, so the page needs the folder next to it —
+    # here for a build opened from disk or the test server, and on Pages,
+    # where CI stages it beside index.html. A name is what its bytes are, so
+    # a file already there with that name is already right; nothing here is
+    # ever deleted, because dist/ is never the only copy of a picture.
+    media = SRC / 'media'
+    if media.is_dir():
+        (DIST / 'media').mkdir(exist_ok=True)
+        copied = 0
+        for f in sorted(media.iterdir()):
+            if f.is_file() and not (DIST / 'media' / f.name).exists():
+                shutil.copyfile(f, DIST / 'media' / f.name)
+                copied += 1
+        count = sum(1 for f in media.iterdir() if f.is_file())
+        print(f'  dist/media/            {count:>8,} files' + (f', {copied} new' if copied else ''))
+
     # The files the other three builds used to be. Left behind by an older
     # build they would still be sitting in dist/, looking current, and one of
     # them is exactly the file somebody would reach for to publish.

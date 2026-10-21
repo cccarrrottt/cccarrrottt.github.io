@@ -81,7 +81,9 @@ async function exportChartData(){
   clearFileStatus();
   let out, name;
   try{
-    out = chartDataOnly();
+    /* A file is opened where the site's media folder is not, so the
+       pictures it names go inside it. */
+    out = await inlineMediaRefs(chartDataOnly());
     name = chartFileName().replace(/\.html?$/i, '') + '-data.js';
   }catch(e){
     setFileStatus('err', 'Export failed: ' + (e && e.message ? e.message : 'unknown error'));
@@ -114,6 +116,8 @@ async function exportChart(){
        their own chart and edits into their own browser — the site is the only
        address where it starts as a reader. */
     out = ensureFullDocument(writeChart(await readOwnSource()));
+    // The copy is one file, whatever the page it came from kept beside it.
+    out = await inlineMediaRefs(out);
     name = chartFileName();
   }catch(e){
     setFileStatus('err', 'Export failed: ' + (e && e.message ? e.message : 'unknown error'));
@@ -532,10 +536,11 @@ function chartPictureSvg(){
       if(style.length) b.setAttribute('style', style.join(';'));
       else b.removeAttribute('style');
     }
-    // Anything fetched from elsewhere: a picture may not fetch.
+    /* Anything fetched from elsewhere: a picture may not fetch. One of the
+       chart's own files is kept for now, and carried in by chartPictureText. */
     copy.querySelectorAll('image').forEach(im=>{
       const href = im.getAttribute('href') || im.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
-      if(!/^data:/i.test(href)) im.remove();
+      if(!/^data:/i.test(href) && !mediaRefKind(href)) im.remove();
     });
     const vp = copy.querySelector('#viewport');
     if(vp) vp.removeAttribute('transform');
@@ -608,12 +613,7 @@ async function pictureFontCss(copy){
     try{
       const r = await fetch(url.replace(/^['"]|['"]$/g, ''));
       if(!r.ok) continue;
-      const blob = await r.blob();
-      const data = await new Promise((ok, no)=>{
-        const fr = new FileReader();
-        fr.onload = ()=> ok(fr.result); fr.onerror = no;
-        fr.readAsDataURL(blob);
-      });
+      const data = await blobDataUrl(await r.blob());
       keep.push(block.replace(/url\([^)]+\)/, 'url(' + data + ')'));
     }catch(e){}
   }
@@ -621,6 +621,14 @@ async function pictureFontCss(copy){
 }
 async function chartPictureText(){
   const {copy, bounds} = chartPictureSvg();
+  for(const im of copy.querySelectorAll('image')){
+    const href = im.getAttribute('href') || im.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '';
+    if(!mediaRefKind(href)) continue;
+    const uri = await mediaRefData(href);
+    if(!uri){ im.remove(); continue; }
+    im.setAttribute('href', uri);
+    if(im.hasAttributeNS('http://www.w3.org/1999/xlink', 'href')) im.setAttributeNS('http://www.w3.org/1999/xlink', 'href', uri);
+  }
   const fonts = await pictureFontCss(copy);
   if(fonts){
     const st = document.createElementNS(NS, 'style');

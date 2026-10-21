@@ -15,7 +15,8 @@
 # green run on one says nothing about the other. Each takes around six
 # minutes, so they run as two jobs rather than one after the other.
 #
-# A Save on the site is a commit that changes src/data.js and nothing else.
+# A Save on the site is a commit that changes src/data.js and nothing else,
+# but for the pictures it adds beside it in src/media/.
 # That is the chart's content, not the program, and the owner asked not to
 # wait minutes of browser tests to see it published; so such a push skips
 # every check and goes straight to Pages. Anything else in the same push — a
@@ -62,7 +63,9 @@ jobs:
              && git fetch --quiet --depth=1 origin "$BEFORE"; then
             files=$(git diff --name-only "$BEFORE" HEAD)
             echo "Changed: $files"
-            [ "$files" = "src/data.js" ] && data_only=true
+            # The chart, and the pictures a Save puts beside it.
+            others=$(printf '%s\n' "$files" | grep -v -e '^src/data\.js$' -e '^src/media/[^/]*$' || true)
+            [ -n "$files" ] && [ -z "$others" ] && data_only=true
           fi
           echo "data_only=$data_only" >> "$GITHUB_OUTPUT"
           echo "Only the chart's data: $data_only"
@@ -189,6 +192,7 @@ jobs:
           mkdir -p _site
           cp dist/nexus.html _site/index.html
           cp src/site/* _site/
+          if [ -d dist/media ]; then cp -r dist/media _site/media; fi
 
       - uses: actions/configure-pages@v5
 

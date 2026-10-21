@@ -8,6 +8,13 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Pictures and clips live beside the page on the site, each a file named
+  by the SHA-256 of its bytes in `src/media/`, instead of inside the chart
+  as base64. A Save sends each new one once, and the write service checks
+  that its bytes are what its name says; the first Save after this change
+  moves the pictures `src/data.js` still embeds. Export, Export data and a
+  picture of the chart carry the bytes inside them, and with no signal the
+  site shows every picture it has shown before.
 - A link from one entry to another keeps the arrow in its tab. It wore
   the chart's own site icon, the same grey square on every such link.
 - A rippled connector no longer freezes the page while it is pointed at,

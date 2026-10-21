@@ -165,8 +165,15 @@ site") and `build_guard`:
   base after a save is what lets two saves in a row work before the site
   has rebuilt.
 - **What the page sends for a region is the text between its markers,
-  byte for byte.** Otherwise every save would rewrite all of `data.js`.
-- **A push that changes only `src/data.js` skips CI's checks** and is
+  byte for byte** — but for each embedded picture past 2 KB, which goes as
+  its path, `media/<sha256>.<ext>`, with the file beside it (`liftMedia`,
+  `04-assets.js`). Otherwise every save would rewrite all of `data.js`.
+- **Pictures live in `src/media/`, named by the hash of their bytes**, and
+  the build copies them to `dist/media/`. The service refuses a file whose
+  bytes are not its name and a chart naming a path nobody sent. Anything
+  that leaves the site (Export, Export data, the PNG/SVG picture) inlines
+  them again with `inlineMediaRefs`.
+- **A push that changes only `src/data.js` and `src/media/` skips CI's checks** and is
   published at once — that is what a Save on the site is, and the owner
   asked not to wait for the suite. The `changes` job decides from the
   pushed trees, so any other file in the push runs everything.
@@ -199,8 +206,9 @@ Chromium at 1500×950, a synthetic chain of tagged entries:
 | `src/data.js` | 1.30 MB, of which ~1.26 MB is two base64 blobs |
 
 - **Weight is media, not code.** Cutting program out of the page saves
-  kilobytes against a megabyte of embedded pictures. Moving media to separate
-  files is the size win, and it needs a host that serves more than one file.
+  kilobytes against a megabyte of embedded pictures. That is why media now
+  lives beside the page (see above); the figures in this table were taken
+  before the first Save moved it.
 
 ### What `rebuildChart` was actually spending its time on
 
@@ -341,8 +349,8 @@ Do not re-propose these without new evidence:
 
 1. **Independence from the claude.ai runtime.** This is the standing top
    priority. Pages serves the page and Save on the site commits to the
-   repository through `worker/`; what remains is moving media out of the
-   page, which also shrinks every save by the megabyte of base64 it carries.
+   repository through `worker/`, and pictures are files beside the page.
+   What a copy on claude.ai cannot do now is show those pictures.
 2. **Bughunting**, and removing behaviour that is unwanted or surprising, over
    new features.
 
