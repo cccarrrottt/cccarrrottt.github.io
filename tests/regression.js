@@ -17458,6 +17458,9 @@ async function main(){
      stand, carried with them and carrying them, with its own look. */
   const pause = ms => wait(ms);
   await page.evaluate(()=>{
+    /* The chart may hold arrays of its own (the owner's does); these
+       checks are about the ones made here. */
+    window.suiteArraysBefore = new Set(workingNodes.filter(e=> e[5] === 'array').map(e=> e[0]));
     applyEdit(()=>{
       workingNodes.push(['az_a', 'Array one', null, null, null, null, {pos:[400, -1400]}]);
       workingNodes.push(['az_b', 'Array two', 'az_a', null, null, null, {pos:[400, -1280], colors:['#2f6fb5', '#c23b22']}]);
@@ -17466,7 +17469,7 @@ async function main(){
     setSelection(['az_a'], 'az_a');
     makeArrayOfSelection();
   });
-  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array').length);
+  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array' && !suiteArraysBefore.has(e[0])).length);
   eq('one entry picked makes no array', one, 0);
   const a = await page.evaluate(async ()=>{
     const out = {};
@@ -17570,7 +17573,7 @@ async function main(){
     copySelectedNode();
     pasteClipboardNode();
     await pause(100);
-    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer);
+    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer && !suiteArraysBefore.has(x[0]));
     out.copy = copy && copy[6].members;
     out.copyOk = !!copy && copy[6].members.length === 2 && copy[6].members.every(m=> !/^az_/.test(m) && nodes.has(m));
     // Deleting a member takes it out; deleting the last takes the array.
@@ -17585,14 +17588,14 @@ async function main(){
     const made = copy ? copy[6].members : [];
     setSelection(made, made[0]);
     document.dispatchEvent(new KeyboardEvent('keydown', {key:'g', code:'KeyG', ctrlKey:true, bubbles:true}));
-    out.keyed = workingNodes.filter(x=> x[5] === 'array').length;
+    out.keyed = workingNodes.filter(x=> x[5] === 'array' && !suiteArraysBefore.has(x[0])).length;
     setSelection(made, made[0]);
     document.dispatchEvent(new KeyboardEvent('keydown', {key:'G', code:'KeyG', ctrlKey:true, shiftKey:true, bubbles:true}));
     out.unkeyed = workingNodes.filter(x=> x[5] === 'array' && x[6].members.includes(made[0])).length;
     out.membersStay = made.every(m=> workingNodes.some(x=> x[0] === m));
     applyEdit(()=>{
       const doomed = new Set([...made, copy && copy[0]]);
-      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || workingNodes[k][5] === 'array') workingNodes.splice(k, 1);
+      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || (workingNodes[k][5] === 'array' && !suiteArraysBefore.has(workingNodes[k][0]))) workingNodes.splice(k, 1);
     });
     return out;
   }, a.id);
