@@ -734,6 +734,57 @@ async function main(){
   } finally { await c2.close(); }
   });
 
+  /* ---- 10c. a link to an array ----
+   * An array has no drawer, so its link is on its bar; the link opens it
+   * as an entry's opens the entry, and an entry may point at it. */
+  await scenario("a link to an array", async () => {
+  const r = await page.evaluate(async () => {
+    const wait = ms => new Promise(ok => setTimeout(ok, ms));
+    const out = {};
+    const keepHash = location.hash;
+    applyEdit(() => {
+      workingNodes.push(['lka_a', 'Linked one', null, null, null, null, {pos:[-3000, 4000]}]);
+      workingNodes.push(['lka_b', 'Linked two', null, null, null, null, {pos:[-1400, 4900]}]);
+      workingNodes.push(['lka_arr', '', null, null, null, 'array', {members:['lka_a', 'lka_b']}]);
+      workingNodes.push(['lka_src', 'Points at the array', null, null, null, null, {pos:[-3000, 3600], link:'#entry=lka_arr'}]);
+    });
+    await wait(200);
+    openStyleBar({kind:'node', id:'lka_arr'});
+    const row = document.querySelector('#styleBar .style-bar-group[data-group="link"]');
+    out.offered = !!row && !row.hidden;
+    openStyleBar({kind:'node', id:'lka_a'});
+    out.notForEntries = row.hidden;
+    openStyleBar({kind:'node', id:'lka_arr'});
+    let given = null;
+    const realWrite = navigator.clipboard && navigator.clipboard.writeText;
+    try{ navigator.clipboard.writeText = async t => { given = t; }; }catch(e){}
+    row.querySelector('button').click();
+    await wait(50);
+    try{ if(realWrite) navigator.clipboard.writeText = realWrite; else delete navigator.clipboard.writeText; }catch(e){}
+    out.link = given || location.href;
+    out.names = /#entry=lka_arr$/.test(out.link);
+    closeStyleBar();
+    // Opened by its link: picked, and the whole of it in view.
+    selectNode('lka_src');
+    centreViewOn(9000, -9000, 1);
+    location.hash = '#entry=lka_arr';
+    await wait(150);
+    const a = nodes.get('lka_arr'), sz = svgSize();
+    out.opened = selectedId === 'lka_arr';
+    out.inView = a.x * vs + vx >= 0 && a.y * vs + vy >= 0 && (a.x + a.w) * vs + vx <= sz.width && (a.y + a.h) * vs + vy <= sz.height;
+    out.target = entryLinkTarget('#entry=lka_arr');
+    history.replaceState(null, '', location.href.split('#')[0] + keepHash);
+    applyEdit(() => {
+      for(let k = workingNodes.length - 1; k >= 0; k--) if(/^lka_/.test(workingNodes[k][0])) workingNodes.splice(k, 1);
+    });
+    return out;
+  });
+  check('an array\'s bar offers a link to it, and an entry\'s does not', r.offered && r.notForEntries, JSON.stringify(r));
+  check('the link names the array', r.names, r.link);
+  check('opened by it, the array is picked with the whole of it in view', r.opened && r.inView, JSON.stringify(r));
+  check('and an entry may point at it', !!r.target && r.target.id === 'lka_arr', JSON.stringify(r.target));
+  });
+
   /* ---- 11. no host: browser storage is the fallback ---- */
   await scenario("no host: browser storage is the fallback", async () => {
   {

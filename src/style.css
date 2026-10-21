@@ -2996,6 +2996,8 @@
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;line-height:1;
   }
   .style-bar button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
+  .style-bar .style-bar-link{display:inline-flex;align-items:center;justify-content:center;}
+  .style-bar .style-bar-link.done{color:var(--accent);}
   .style-bar button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
   .style-bar button:disabled{opacity:0.35;cursor:default;}
   /* Greyed AND lit is a state of its own: pressed, and waiting for

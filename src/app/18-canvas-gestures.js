@@ -336,7 +336,11 @@ function flyToNode(id){
   const n = nodes.get(id);
   if(!n) return;
   const rect = svg.getBoundingClientRect();
-  vs = Math.max(vs, 0.85);
+  /* Near enough to read — unless that would not fit it on the screen, as
+     an array round much of the chart would not: then as near as fits. */
+  vs = Math.min(Math.max(vs, 0.85),
+                Math.max(0.05, (rect.width - 120) / Math.max(1, n.w)),
+                Math.max(0.05, (rect.height - 120) / Math.max(1, n.h)));
   vx = -(n.x+n.w/2)*vs + rect.width/2;
   vy = -(n.y+n.h/2)*vs + rect.height/2;
   applyTransform();
