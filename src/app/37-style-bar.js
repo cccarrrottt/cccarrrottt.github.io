@@ -207,6 +207,20 @@ const styleBar = (()=>{
     putEntry(found.index, found.entry, opts);
     rebuildChart();
   }, true);
+  /* A link to an array, as an entry has one in its drawer: an array has no
+     drawer, and its bar is where everything else about it is. Not inside
+     claude.ai, where the address is the viewer's sandbox (see entryLink). */
+  const linkRow = document.createElement('div');
+  linkRow.className = 'style-bar-group';
+  linkRow.dataset.group = 'link';
+  const linkBtn = document.createElement('button');
+  linkBtn.type = 'button';
+  linkBtn.className = 'style-bar-link';
+  linkBtn.title = 'Copy a link to this array';
+  linkBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">'
+    + '<path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg>';
+  linkRow.appendChild(linkBtn);
+  bar.appendChild(linkRow);
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -215,6 +229,10 @@ const styleBar = (()=>{
     ev.stopPropagation();
     const b = ev.target.closest('button');
     if(!b || b.disabled || !styleBarTarget) return;
+    if(b.parentNode.dataset.group === 'link'){
+      if(styleBarTarget.kind === 'node') copyEntryLink(styleBarTarget.id, b, 'Copy a link to this array');
+      return;
+    }
     applyStyleBar(b.parentNode.dataset.group, b.dataset.value);
   });
   const host = document.querySelector('.main');
@@ -299,6 +317,7 @@ function syncStyleBar(){
   };
   const isArr = isArrayNode(n);
   rows.hatch.hidden = rows.arrayInk.hidden = !isArr;
+  rows.link.hidden = !isArr || HOSTED;
   // An array is as big as what it holds and stands the way that does.
   rows.turn.hidden = !n || styleBarFree(n) || isArr;
   /* Furniture's bar is the stack and nothing else. A caption and a

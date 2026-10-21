@@ -8,6 +8,28 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Panning is smooth on a large chart: a frame of a drag on 600 entries
+  went from about 67 ms to 3.5. Moving the drawing was never the cost —
+  the coordinates in the corner were: rewriting them laid out the page,
+  and the whole drawing with it, on every frame. Their box is now sized
+  from the text's length and contained. Not drawing what is off screen
+  was measured on top of that and would save half a millisecond, so it
+  was not built. `tools/bench-pan.js` measures both.
+- On the site, a Save no longer makes every reader download the program
+  again. The site's page keeps its program and stylesheet beside it, in
+  files named by the hash of their bytes, so after a Save a reader fetches
+  about 15 KB instead of 550. Export still makes one file, with both put
+  back inside it, and the site keeps them for opening with no signal.
+- A link to the site pasted into a chat shows the chart's name, a line
+  about it and a picture.
+- An array has a link of its own, on its bar, like the one an entry has in
+  its drawer. Opened by it, the array is picked and the whole of it fitted
+  into view; an entry's link may point at one.
+- An old chart is brought up to date once, where it comes in — opening, an
+  import, a kept draft — and only when its form number says it needs it,
+  instead of on every redraw of every chart. An import refuses connector
+  styles that name no ends.
+
 - An edit on a large chart is about twice as quick again: on 600 entries,
   recolouring or renaming one goes from about 0.3 s to 0.16, and moving
   one from 0.5–0.9 s to 0.3. Each entry's corner grips and connector

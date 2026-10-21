@@ -53,6 +53,12 @@ def parts_of(tmp):
     return re.findall(r"'([^']+)'", m.group(1))
 
 
+def site_files(tmp):
+    """The program and stylesheet the built site names, by name."""
+    site = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
+    return sorted(re.findall(r'(?:src|href)="([\w.-]+)" data-inline', site))
+
+
 def run(tmp, *args):
     return subprocess.run([sys.executable, 'build.py', *args],
                           cwd=tmp, capture_output=True, text=True)
@@ -165,8 +171,8 @@ def main():
     # here; it is decided when the page opens now, and a second file would
     # only be a second thing to forget to publish. GitHub Pages and a disk
     # both need a document, and the artifact host takes either.
-    check('dist/nexus.html is the only file the build writes',
-          sorted(f.name for f in (tmp / 'dist').iterdir()) == ['nexus.html'],
+    check('dist/nexus.html is the only page the build writes, beside the site and its pictures',
+          sorted(f.name for f in (tmp / 'dist').iterdir()) == ['media', 'nexus.html', 'site'],
           str(sorted(f.name for f in (tmp / 'dist').iterdir())))
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
     check('and it is a whole document',
@@ -258,10 +264,6 @@ def main():
     joined = ''.join((tmp / 'src' / 'app' / n).read_text(encoding='utf-8')
                      for n in parts)
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
-    # Verbatim but for one thing, the build's single edit to the program:
-    # the id of the data.js the page was built from (see 10c).
-    built = re.sub(r"const DATA_SHA = '[0-9a-f]{40}';",
-                   "const DATA_SHA = /* @@DATA_SHA@@ */ null;", built)
     check('and the built page contains the parts concatenated verbatim',
           joined in built, f'{len(joined)} chars of parts, {len(built)} of page')
 
@@ -285,6 +287,18 @@ def main():
     check('and putting the newline back lets it build again',
           r.returncode == 0, r.stdout + r.stderr)
 
+    # 10b'. A closing script tag anywhere in a part — a string, a comment —
+    #       ends the page's script there, and the page is a syntax error that
+    #       names nothing. The build says which part.
+    tmp = sandbox()
+    parts = parts_of(tmp)
+    victim = tmp / 'src' / 'app' / parts[5]
+    whole = victim.read_text(encoding='utf-8')
+    victim.write_text(whole + '// a note that mentions </script> in passing\n', encoding='utf-8')
+    r = run(tmp)
+    check('a closing script tag in a part stops the build and names the part',
+          r.returncode != 0 and parts[5] in (r.stdout + r.stderr), r.stdout + r.stderr)
+
     # 10c. The page carries the git blob id of the data.js it was built from.
     #      The write service refuses a save whose base is not the file in the
     #      repository, so this id being wrong would lock the owner out of
@@ -295,20 +309,65 @@ def main():
     raw = (tmp / 'src' / 'data.js').read_bytes()
     want = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    site = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
+    meta = f'<meta name="rhizome-data-sha" content="{want}">'
     check('the page names the data.js it was built from, as git names it',
-          f"const DATA_SHA = '{want}';" in built, want)
+          meta in built and meta in site, want)
+    # In the wrapper, outside the page's own markers: what is cut out of the
+    # page — an export, a publish to claude.ai — is nobody's base to save on.
+    check('outside the content an exported copy is cut from',
+          all(p.index(meta) < p.index('<!-- @@PAGE:BEGIN@@ -->') for p in (built, site)))
+    app_before = site_files(tmp)
     (tmp / 'src' / 'data.js').write_bytes(raw + b'\n// one more line\n')
     run(tmp)
     again = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
     check('and a different data.js gives a different name',
-          f"const DATA_SHA = '{want}';" not in again and 'const DATA_SHA = \'' in again)
+          meta not in again and '<meta name="rhizome-data-sha" content="' in again)
+    # The point of the site's files: a Save changes the chart and nothing a
+    # reader's browser has kept.
+    check('while the site\'s program and stylesheet keep their names, and their bytes',
+          site_files(tmp) == app_before, f'{app_before} -> {site_files(tmp)}')
     part = tmp / 'src' / 'app' / '01-store.js'
     kept = part.read_text(encoding='utf-8')
-    part.write_text(kept.replace('/* @@DATA_SHA@@ */ null', 'null'), encoding='utf-8')
+    part.write_text(kept.replace('meta[name="rhizome-data-sha"]', 'meta[name="something-else"]'),
+                    encoding='utf-8')
     r = run(tmp)
-    check('losing the marker stops the build and says where it lived',
+    check('a program that no longer reads the name stops the build and says where it lived',
           r.returncode != 0 and '01-store.js' in (r.stdout + r.stderr), r.stdout + r.stderr)
     part.write_text(kept, encoding='utf-8')
+
+    # 10e. The site is the same page with its program and stylesheet beside
+    #      it. Put back where their tags stand, they give dist/nexus.html's
+    #      content byte for byte but for the one seam between the chart and
+    #      the program, which the site closes and reopens as two scripts.
+    tmp = sandbox()
+    r = run(tmp)
+    built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    site = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
+    files = site_files(tmp)
+    check('the site names a program and a stylesheet, each by the hash of its bytes',
+          len(files) == 2 and all(
+              hashlib.sha256((tmp / 'dist' / 'site' / n).read_bytes()).hexdigest()[:16] == n.split('.')[1]
+              for n in files), str(files))
+    inlined = site
+    for n in files:
+        text = (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8')
+        if n.endswith('.css'):
+            inlined = inlined.replace(f'<link rel="stylesheet" href="{n}" data-inline>', f'<style>{text}</style>')
+        else:
+            inlined = inlined.replace(f'\n</script>\n<script src="{n}" data-inline></script>', f'\n{text}</script>')
+    cut = lambda p: p[p.index('<!-- @@PAGE:BEGIN@@ -->'):p.index('<!-- @@PAGE:END@@ -->')]
+    check('and put back inside it, they make the page dist/nexus.html is', cut(inlined) == cut(built),
+          f'{len(cut(inlined))} chars against {len(cut(built))}')
+    check('beside the files src/site/ holds, the preview picture among them',
+          all((tmp / 'dist' / 'site' / f.name).read_bytes() == f.read_bytes()
+              for f in (tmp / 'src' / 'site').iterdir()) and (tmp / 'dist' / 'site' / 'og-image.png').exists())
+    og = ['og:title', 'og:description', 'og:image', 'og:url', 'twitter:card']
+    check('the site says what a link to it is, for a chat to show',
+          all(f'"{k}"' in site[:site.index('<!-- @@PAGE:BEGIN@@ -->')] for k in og)
+          and 'content="https://' in site and '/og-image.png"' in site)
+    check('and only the site: neither the single page nor an export cut from it carries it',
+          not any(k in built for k in og) and not any(k in cut(site) for k in og))
 
     # 10d. Files the old builds made are taken away, not left looking current
     #      beside the one that is: one of them is exactly the file somebody
@@ -318,7 +377,7 @@ def main():
         (tmp / 'dist' / gone).write_text('an old build', encoding='utf-8')
     r = run(tmp)
     check('a build removes what the four-build days left in dist/',
-          r.returncode == 0 and sorted(f.name for f in (tmp / 'dist').iterdir()) == ['nexus.html'],
+          r.returncode == 0 and sorted(f.name for f in (tmp / 'dist').iterdir()) == ['media', 'nexus.html', 'site'],
           str(sorted(f.name for f in (tmp / 'dist').iterdir())))
 
     # 11. The chart lives in two places and only one of them is committed.

@@ -204,6 +204,16 @@ def read_app():
         sys.exit(f'build: {", ".join(ragged)} does not end with a newline. The parts\n'
                  '       are concatenated with nothing between them, so its last line\n'
                  "       would be joined to the next part's first one.")
+    # The program is written out inside a <script> element, and an HTML
+    # parser ends that element at the first closing script tag it meets —
+    # in a string, in a regular expression, in a comment. Everything after
+    # it would be read as markup and the program would be a syntax error
+    # that names no part. A tag the program needs to write is spelled with
+    # an escaped slash.
+    closing = [n for n, t in zip(APP_PARTS, texts) if re.search(r'</script', t, re.I)]
+    if closing:
+        sys.exit(f'build: {", ".join(closing)} contains a closing script tag, which ends the\n'
+                 '       page\'s <script> wherever it stands; write it with an escaped slash')
     return ''.join(texts)
 
 
@@ -338,6 +348,98 @@ def carry_data(data_js, source_text, label, partial=False, force=False):
     return data_js, drifted
 
 
+SHA_META = 'rhizome-data-sha'
+
+
+def wrap(page, head_extra=''):
+    """A page's content, inside the document a browser needs around it."""
+    return ('<!doctype html>\n<html lang="en">\n<head>\n'
+            '<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            + head_extra +
+            '</head>\n<body>\n'
+            + page +
+            '</body>\n</html>\n')
+
+
+def site_origin():
+    """The published site's address, as the program names it."""
+    m = re.search(r"const SITE_ORIGINS = \['([^']+)'", read(SRC / 'app' / '01-store.js'))
+    if not m:
+        sys.exit('build: could not find SITE_ORIGINS in src/app/01-store.js')
+    return m.group(1)
+
+
+def build_site(head_rest, css, body, data_js, app_js, data_sha):
+    """dist/site/: the published site, as CI puts it on Pages.
+
+    The same page as dist/nexus.html but for where the program and the
+    stylesheet are: beside it, in files named by the hash of their bytes,
+    instead of inside it. A Save on the site changes src/data.js and nothing
+    else, and Pages publishes the result at once — so with everything in one
+    file, every Save made every reader download the whole program again, a
+    megabyte and a half of it, to see a chart of a few kilobytes change.
+    Named by their bytes, the program and the stylesheet are the same files
+    until the code changes, and a browser that has them keeps them.
+
+    Only here. A copy that leaves the site — Export, the page on claude.ai,
+    a file opened from a disk — is one file as before: the page puts the two
+    back inside it when it reads its own source (inlineSiteFiles,
+    src/app/20-about.js), which is why the tags carry data-inline.
+    """
+    out = DIST / 'site'
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+    names = {}
+    for kind, text in (('app', app_js), ('style', css)):
+        ext = 'js' if kind == 'app' else 'css'
+        name = f'{kind}.{hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}.{ext}'
+        (out / name).write_text(text, encoding='utf-8')
+        names[kind] = name
+    charset = '<meta charset="utf-8">'
+    content = (f'{charset}\n{PAGE_BEGIN}\n{head_rest}\n\n'
+               f'<link rel="stylesheet" href="{names["style"]}" data-inline>{body}\n\n'
+               f'<script>\n{data_js.rstrip(chr(10))}\n</script>\n'
+               f'<script src="{names["app"]}" data-inline></script>\n{PAGE_END}\n')
+    origin = site_origin()
+    # What a link to the site shows when it is pasted into a chat. Only the
+    # site's own document says it: an exported copy is cut out between the
+    # markers and is nobody's address.
+    preview = (
+        f'<meta name="{SHA_META}" content="{data_sha}">\n'
+        f'<meta name="description" content="{html_attr(OG_DESCRIPTION)}">\n'
+        '<meta property="og:type" content="website">\n'
+        f'<meta property="og:site_name" content="{html_attr(OG_TITLE)}">\n'
+        f'<meta property="og:title" content="{html_attr(OG_TITLE)}">\n'
+        f'<meta property="og:description" content="{html_attr(OG_DESCRIPTION)}">\n'
+        f'<meta property="og:url" content="{origin}/">\n'
+        f'<meta property="og:image" content="{origin}/{OG_IMAGE}">\n'
+        '<meta property="og:image:width" content="1200">\n'
+        '<meta property="og:image:height" content="630">\n'
+        '<meta name="twitter:card" content="summary_large_image">\n')
+    page = wrap(content, preview)
+    (out / 'index.html').write_text(page, encoding='utf-8')
+    site_files = SRC / 'site'
+    for f in sorted(site_files.iterdir()):
+        if f.is_file():
+            shutil.copyfile(f, out / f.name)
+    if not (out / OG_IMAGE).exists():
+        sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')
+    print(f'  dist/site/index.html   {len(page):>8,} chars, '
+          f'{names["app"]} {len(app_js):,}, {names["style"]} {len(css):,}')
+
+
+OG_TITLE = 'Rhizome Project'
+OG_DESCRIPTION = 'A cartography of crossed realities: an interactive chart of Transformers continuity.'
+OG_IMAGE = 'og-image.png'
+
+
+def html_attr(text):
+    return (text.replace('&', '&amp;').replace('"', '&quot;')
+            .replace('<', '&lt;').replace('>', '&gt;'))
+
+
 def build():
     index = read(SRC / 'index.html')
     check_index_order(index)
@@ -425,24 +527,23 @@ def build():
     # the repository before it commits a save, so a page that is behind the
     # repository cannot write an older chart over a newer one. In CI — the
     # only place the site is built — the page's data IS this file.
+    #
+    # It goes in the wrapper's <head>, outside the page's markers, and the
+    # program reads it from there (DATA_SHA, src/app/01-store.js). Written
+    # into the program it would make the program different after every Save,
+    # and on the site the program is a file named by its hash, kept by every
+    # reader's browser for exactly as long as it does not change.
     raw = (SRC / 'data.js').read_bytes()
     data_sha = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
-    sha_mark = '/* @@DATA_SHA@@ */ null'
-    if page.count(sha_mark) != 1:
-        sys.exit(f'build: expected exactly one {sha_mark} in the program; see src/app/01-store.js')
-    page = page.replace(sha_mark, f"'{data_sha}'")
+    if SHA_META not in app_js:
+        sys.exit(f'build: the program does not read <meta name="{SHA_META}">; see DATA_SHA in src/app/01-store.js')
 
     # The document skeleton a browser needs. The markers stay around exactly
     # the same content they always did, so the page cuts itself out of this
     # document the same way it cut itself out of a fragment. The charset is
     # repeated in the wrapper's own head because one declared from inside
     # <body> is read too late to count.
-    page = ('<!doctype html>\n<html lang="en">\n<head>\n'
-            '<meta charset="utf-8">\n'
-            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            '</head>\n<body>\n'
-            + page +
-            '</body>\n</html>\n')
+    page = wrap(page, f'<meta name="{SHA_META}" content="{data_sha}">\n')
 
     DIST.mkdir(exist_ok=True)
     # dist/nexus.html is what the NEXT plain rebuild carries its data from, so
@@ -451,6 +552,8 @@ def build():
     keep_a_copy(DIST / 'nexus.html', 'build')
     (DIST / 'nexus.html').write_text(page, encoding='utf-8')
     print(f'  dist/nexus.html        {len(page):>8,} chars')
+
+    build_site(head_rest, css, body, data_js, app_js, data_sha)
 
     # The pictures beside the page. On the site the chart names them by path
     # (media/<sha256>.<ext>, see MEDIA_REF in src/app/04-assets.js) rather

@@ -54,6 +54,10 @@ dist/          GENERATED — not in the repository, see "The repository" below
   nexus.html   the chart, one whole document, for everywhere: the site, a
                disk, claude.ai. Who may edit it is decided when it opens,
                not when it is built — see "The published site" below
+  site/        the same page as the site serves it: the program and the
+               stylesheet beside it in files named by their hash, so a Save
+               does not make readers download them again
+  media/       the chart's pictures, copied from src/media/
 ```
 
 ## One scope, many files
@@ -145,8 +149,11 @@ that run at the same time, so a regression job is about a minute and a half
 rather than six. The built files are attached to each run as an artifact, so
 a copy is always downloadable without building.
 
-On `main`, and only after everything above is green, `dist/nexus.html` is
-published to GitHub Pages as `index.html`. The site is
+On `main`, and only after everything above is green, `dist/site/` is
+published to GitHub Pages: `dist/nexus.html` with its program and stylesheet
+kept beside it, each named by the hash of its bytes. A Save changes only the
+chart, so a reader's browser keeps those two and fetches about 15 KB rather
+than 550; Export puts them back inside, so a copy is still one file. The site is
 <https://cccarrrottt.github.io>, which is what naming the repository after
 the account buys: a page served at the bare address rather than under a path.
 The source of that site must stay **GitHub Actions** (Settings → Pages →

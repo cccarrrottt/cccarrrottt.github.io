@@ -1834,6 +1834,14 @@
   }
   body.side-tab-open .coord{left:300px;}
   .coord{display:flex;align-items:center;gap:7px;}
+  /* Sized from the length of its text (--coord-len, set by showCoord) and
+     contained, so the numbers changing on every frame of a pan do not lay
+     out the page — and the chart with it. The 41px is what is not text:
+     padding 18, border 2, gap 7, the ⌖ less its overhang 14. */
+  .coord{
+    box-sizing:border-box;contain:size layout;
+    width:calc(var(--coord-len, 7) * 1ch + 41px);height:24px;
+  }
   .coord .coord-home{
     padding:0;margin:-3px -4px -3px 0;width:18px;height:18px;line-height:1;font-size:13px;
     background:none;border:none;color:var(--ink-faint);cursor:pointer;
@@ -2988,6 +2996,8 @@
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;line-height:1;
   }
   .style-bar button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
+  .style-bar .style-bar-link{display:inline-flex;align-items:center;justify-content:center;}
+  .style-bar .style-bar-link.done{color:var(--accent);}
   .style-bar button.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
   .style-bar button:disabled{opacity:0.35;cursor:default;}
   /* Greyed AND lit is a state of its own: pressed, and waiting for
@@ -3072,6 +3082,8 @@
     .coord{left:40px;bottom:12px;padding:6px 9px;}
     body.side-tab-open .coord{left:40px;}
     .coord .coord-home{width:24px;height:24px;font-size:15px;}
+    /* The ⌖ is 24 here: 47px besides the text, and 32 high. */
+    .coord{width:calc(var(--coord-len, 7) * 1ch + 47px);height:32px;}
     .about-card{width:calc(100vw - 16px);max-height:calc(100% - 16px);}
     /* A fingertip, not a cursor, has to find the way out. */
     .about-card .detail-close{min-width:40px;min-height:40px;}

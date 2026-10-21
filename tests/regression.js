@@ -629,6 +629,164 @@ async function main(){
   }
 
   });
+  /* ---- 10b. a chart is brought to this page's form where it comes in ----
+   *
+   * The steps that carry an old chart forward (MIGRATIONS, 02-model.js) run
+   * where a chart enters — opening, an import, a kept draft put back — and
+   * only for a chart whose form number says it needs them. They used to run
+   * at the top of every build, on every chart. */
+  await scenario("a chart is brought to this page's form where it comes in", async () => {
+  const r = await page.evaluate(async () => {
+    const kept = JSON.parse(JSON.stringify(chartData()));
+    const out = {};
+    const file = (settings, shape, styles) => [
+      '/* @@EDIT:NODES:START@@ */',
+      'const NODES = [',
+      `  ['mg1', 'Old pocket', null, null, null, ${shape}, {pos:[0, 0], tags:['local-multiverse']}],`,
+      "  ['mg2', 'Its child', 'mg1', null, null, null, {pos:[320, 0]}],",
+      '];',
+      '/* @@EDIT:NODES:END@@ */',
+      '/* @@EDIT:EDGESTYLES:START@@ */',
+      'const EDGE_STYLES = ' + styles + ';',
+      '/* @@EDIT:EDGESTYLES:END@@ */',
+      '/* @@EDIT:SETTINGS:START@@ */',
+      'const SETTINGS = ' + settings + ';',
+      '/* @@EDIT:SETTINGS:END@@ */'].join('\n');
+    const leader = "[{from:'mg1', to:'mg2', note:'a remark', notePos:'leader', noteAt:0.5}]";
+
+    // A file from before the form had a number.
+    importChartFromText(file("{refColor:'#c23b22'}", "'pocket'", leader));
+    const a = workingNodes.find(n => n[0] === 'mg1');
+    const st = EDGE_STYLES.find(x => x.from === 'mg1' && x.to === 'mg2');
+    out.old = {shape: a[5], border: a[6].border, tags: a[6].tags,
+               callout: workingNodes.some(n => n[5] === 'callout' && n[1] === 'a remark'),
+               styleNote: st ? st.notePos || null : 'gone', format: SETTINGS.format, want: DATA_FORMAT};
+
+    // A file in this page's form is taken as written — an old spelling in
+    // it is what it says, not something to be corrected.
+    importChartFromText(file('{format: ' + DATA_FORMAT + ", refColor:'#c23b22'}", 'null', '[]'));
+    out.current = {tags: workingNodes.find(n => n[0] === 'mg1')[6].tags};
+
+    // And drawing never rewrites the chart: an old shape written into the
+    // working copy now stays what it was written as.
+    applyEdit(() => { workingNodes.find(n => n[0] === 'mg1')[5] = 'pocket'; });
+    rebuildChart();
+    out.drawnKeeps = workingNodes.find(n => n[0] === 'mg1')[5];
+
+    // A draft kept by an older page is put back in its own form, then
+    // brought forward.
+    const draft = JSON.parse(JSON.stringify(chartData()));
+    delete draft.settings.format;
+    draft.nodes.find(n => n[0] === 'mg1')[5] = 'mirror';
+    draft.nodes.find(n => n[0] === 'mg1')[6].colors = ['#2f6fb5'];
+    applyEdit(() => putChartData(draft));
+    const m = workingNodes.find(n => n[0] === 'mg1');
+    out.draft = {shape: m[5], bg: m[6].bg, format: SETTINGS.format};
+
+    // Connector styles with no ends are refused, and the open chart kept.
+    const before = workingNodes.length;
+    try{ importChartFromText(file("{refColor:'#c23b22'}", 'null', "[{to:'mg2'}]")); out.noEnds = 'taken'; }
+    catch(e){ out.noEnds = e.message; }
+    out.keptAfterRefusal = workingNodes.length === before;
+    // A ring that is not a whole number puts the end on the outer border.
+    out.ring = [edgeStyleFor('x', 'y'), (EDGE_STYLES.push({from:'rg1', to:'rg2', fromRing: NaN, toRing: 1.5}), edgeStyleFor('rg1', 'rg2'))]
+      .map(o => [o.fromRing, o.toRing]);
+    EDGE_STYLES.pop();
+
+    applyEdit(() => putChartData(kept));
+    rebuildChart();
+    return out;
+  });
+  check('a file from before the form had a number is brought forward as it is imported',
+        r.old.shape === null && r.old.border === 'wavy' && r.old.tags.join() === 'local multiverse' &&
+        r.old.callout && r.old.styleNote === null && r.old.format === r.old.want, JSON.stringify(r.old));
+  check('a file in this page\'s form is taken as written', r.current.tags.join() === 'local-multiverse', JSON.stringify(r.current));
+  check('and drawing the chart no longer rewrites it', r.drawnKeeps === 'pocket', r.drawnKeeps);
+  check('a draft kept by an older page is brought forward as it is put back',
+        r.draft.shape === null && JSON.stringify(r.draft.bg) === '["#2f6fb5"]' && r.draft.format === r.old.want, JSON.stringify(r.draft));
+  check('a connector style that names no ends is refused, and the open chart kept',
+        /both its ends/.test(r.noEnds) && r.keptAfterRefusal, r.noEnds);
+  check('a ring that is not a whole number is the outer one', JSON.stringify(r.ring) === '[[0,0],[0,0]]', JSON.stringify(r.ring));
+
+  /* Kept in this browser by a page from before the form had a number: the
+     kept chart's form is its own, not the file's. */
+  const c2 = await browser.newContext();
+  try{
+    await c2.addInitScript(() => { try { delete window.claude; } catch(e){} });
+    const p2 = await c2.newPage();
+    const e2 = []; p2.on('pageerror', e => e2.push(e.message));
+    await p2.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil: 'load'});
+    await p2.waitForFunction(() => typeof rebuildChart === 'function');
+    await p2.evaluate(() => {
+      const d = JSON.parse(JSON.stringify(chartData()));
+      delete d.settings.format;
+      d.nodes.push(['kp1', 'Kept pocket', null, null, null, 'pocket', {pos:[0, 900]}]);
+      localStorage.setItem(eval('STORE_KEY'), JSON.stringify(d));
+    });
+    await p2.reload({waitUntil: 'load'});
+    await p2.waitForFunction(() => typeof rebuildChart === 'function');
+    const k = await p2.evaluate(() => { const n = workingNodes.find(x => x[0] === 'kp1');
+      return n ? {shape: n[5], border: n[6].border, format: SETTINGS.format} : null; });
+    check('a chart kept in this browser by an older page is brought forward as the page opens',
+          !!k && k.shape === null && k.border === 'wavy' && k.format === r.old.want && e2.length === 0,
+          JSON.stringify({k, e2}));
+    await p2.evaluate(() => { try { localStorage.clear(); } catch(e){} });
+  } finally { await c2.close(); }
+  });
+
+  /* ---- 10c. a link to an array ----
+   * An array has no drawer, so its link is on its bar; the link opens it
+   * as an entry's opens the entry, and an entry may point at it. */
+  await scenario("a link to an array", async () => {
+  const r = await page.evaluate(async () => {
+    const wait = ms => new Promise(ok => setTimeout(ok, ms));
+    const out = {};
+    const keepHash = location.hash, keepView = {vx, vy, vs};
+    applyEdit(() => {
+      workingNodes.push(['lka_a', 'Linked one', null, null, null, null, {pos:[-3000, 4000]}]);
+      workingNodes.push(['lka_b', 'Linked two', null, null, null, null, {pos:[-1400, 4900]}]);
+      workingNodes.push(['lka_arr', '', null, null, null, 'array', {members:['lka_a', 'lka_b']}]);
+      workingNodes.push(['lka_src', 'Points at the array', null, null, null, null, {pos:[-3000, 3600], link:'#entry=lka_arr'}]);
+    });
+    await wait(200);
+    openStyleBar({kind:'node', id:'lka_arr'});
+    const row = document.querySelector('#styleBar .style-bar-group[data-group="link"]');
+    out.offered = !!row && !row.hidden;
+    openStyleBar({kind:'node', id:'lka_a'});
+    out.notForEntries = row.hidden;
+    openStyleBar({kind:'node', id:'lka_arr'});
+    let given = null;
+    const realWrite = navigator.clipboard && navigator.clipboard.writeText;
+    try{ navigator.clipboard.writeText = async t => { given = t; }; }catch(e){}
+    row.querySelector('button').click();
+    await wait(50);
+    try{ if(realWrite) navigator.clipboard.writeText = realWrite; else delete navigator.clipboard.writeText; }catch(e){}
+    out.link = given || location.href;
+    out.names = /#entry=lka_arr$/.test(out.link);
+    closeStyleBar();
+    // Opened by its link: picked, and the whole of it in view.
+    selectNode('lka_src');
+    centreViewOn(9000, -9000, 1);
+    location.hash = '#entry=lka_arr';
+    await wait(150);
+    const a = nodes.get('lka_arr'), sz = svgSize();
+    out.opened = selectedId === 'lka_arr';
+    out.inView = a.x * vs + vx >= 0 && a.y * vs + vy >= 0 && (a.x + a.w) * vs + vx <= sz.width && (a.y + a.h) * vs + vy <= sz.height;
+    out.target = entryLinkTarget('#entry=lka_arr');
+    history.replaceState(null, '', location.href.split('#')[0] + keepHash);
+    applyEdit(() => {
+      for(let k = workingNodes.length - 1; k >= 0; k--) if(/^lka_/.test(workingNodes[k][0])) workingNodes.splice(k, 1);
+    });
+    // The view as it was: later scenarios point at the chart by where it stood.
+    vx = keepView.vx; vy = keepView.vy; vs = keepView.vs; applyTransform();
+    return out;
+  });
+  check('an array\'s bar offers a link to it, and an entry\'s does not', r.offered && r.notForEntries, JSON.stringify(r));
+  check('the link names the array', r.names, r.link);
+  check('opened by it, the array is picked with the whole of it in view', r.opened && r.inView, JSON.stringify(r));
+  check('and an entry may point at it', !!r.target && r.target.id === 'lka_arr', JSON.stringify(r.target));
+  });
+
   /* ---- 11. no host: browser storage is the fallback ---- */
   await scenario("no host: browser storage is the fallback", async () => {
   {
@@ -1556,7 +1714,7 @@ async function main(){
     const out = {};
     applyEdit(()=>{
       workingNodes.push(['b3','Rings',null,null,null,null,{pos:[6200,-600],colors:['#111111','#c23b22','#2f6fb5']}]);
-      workingNodes.push(['bp','Pocket','b3',null,null,'pocket',{pos:[6200,-400]}]);
+      workingNodes.push(['bp','Pocket','b3',null,null,null,{border:'wavy', pos:[6200,-400]}]);
       workingNodes.push(['bl','Local',null,null,null,null,{pos:[6200,-200],tags:['local multiverse']}]);
       workingNodes.push(['bm','Multi',null,null,null,null,{pos:[6200,0],multiLang:true}]);
       workingNodes.push(['bb','Face',null,null,null,'ellipse',{pos:[6200,200],colors:['#111111','#c23b22']}]);
@@ -1829,8 +1987,8 @@ async function main(){
     /* Where each ring's first arc on the top side begins, measured on the
        shared grid. Two rings in phase agree on both the offset and which
        way that first arc bulges. */
-    applyEdit(()=>{ workingNodes.push(['pkph','A pocket reality',null,null,null,'pocket',
-      {pos:[13600,-600], colors:['#111111','#c23b22']}]); });
+    applyEdit(()=>{ workingNodes.push(['pkph','A pocket reality',null,null,null,null,
+      {border:'wavy', pos:[13600,-600], colors:['#111111','#c23b22']}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 420));
     const ringPaths = [...document.querySelectorAll('[data-id="pkph"] > path[stroke]')];
     /* Every ring takes its waves from the entry's own sides, laid out from
@@ -2320,7 +2478,7 @@ async function main(){
     // No bare stretch at a corner: a side's arcs begin at its corner.
     // The ripple runs into the corners: its first sample is the corner.
     out.pocketCornerFlat = 0;
-    applyEdit(()=>{ workingNodes.push(['pkh','P',null,null,null,'pocket',{pos:[12800,620]}]); });
+    applyEdit(()=>{ workingNodes.push(['pkh','P',null,null,null,null,{border:'wavy', pos:[12800,620]}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
     nodeControlsOn('pkh');
     const hit = document.querySelector('[data-id="pkh"] .node-handle[data-side="top"] .node-handle-hit');
@@ -2816,7 +2974,7 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['lg','Очень длинное название которое точно не влезет в одну строку',
                          null,null,null,null,{pos:[22000,-600]}]);
-      workingNodes.push(['pw2','P',null,null,null,'pocket',{pos:[22400,-600]}]);
+      workingNodes.push(['pw2','P',null,null,null,null,{border:'wavy', pos:[22400,-600]}]);
       workingNodes.push(['pw3','Q','pw2',null,null,null,{pos:[22400,-200]}]);
     });
     rebuildChart(); await new Promise(r=> setTimeout(r, 420));
@@ -3250,8 +3408,8 @@ async function main(){
          about duplicates when it was testing a pocket-reality's border. A
          fixture whose first line is dead is a fixture nobody can trust. */
       workingNodes.push(['pk1','feeder',null,null,null,null,{pos:[36600,-1100]}]);
-      workingNodes.push(['pk2','pocket','pk1',null,null,'pocket',
-                         {pos:[36600,-900], colors:['#111111','#2f6fb5','#c23b22']}]);
+      workingNodes.push(['pk2','pocket','pk1',null,null,null,
+                         {border:'wavy', pos:[36600,-900], colors:['#111111','#2f6fb5','#c23b22']}]);
     });
     rebuildChart();
     await new Promise(r=> setTimeout(r, 480));
@@ -4113,7 +4271,7 @@ async function main(){
        anyway left the arrow floating off the end of its line. */
     applyEdit(()=>{
       workingNodes.push(['pk_a','A',null,null,null,null,{pos:[54000,-1100]}]);
-      workingNodes.push(['pk_b','P','pk_a',null,null,'pocket',{pos:[54000,-820]}]);
+      workingNodes.push(['pk_b','P','pk_a',null,null,null,{border:'wavy', pos:[54000,-820]}]);
       EDGE_STYLES.push({from:'pk_a', to:'pk_b', fromSide:'bottom', toSide:'top'});
     });
     rebuildChart(); redrawEdges();
@@ -4568,7 +4726,7 @@ async function main(){
          rather than what it is about. */
       const box = {size:[120, 40]};
       workingNodes.push(['pkP','Src',null,null,null,null,Object.assign({pos:[65000,-1200]}, box)]);
-      workingNodes.push(['pkQ','Pocket','pkP',null,null,'pocket',Object.assign({pos:[65000,-1000]}, box)]);
+      workingNodes.push(['pkQ','Pocket','pkP',null,null,null,Object.assign({border:'wavy', pos:[65000,-1000]}, box)]);
       workingNodes.push(['plP','Src',null,null,null,null,Object.assign({pos:[65600,-1200]}, box)]);
       workingNodes.push(['plQ','Plain','plP',null,null,null,Object.assign({pos:[65600,-1000]}, box)]);
     });
@@ -4721,7 +4879,7 @@ async function main(){
       workingNodes.push(['xc','C','xh',null,null,null,{pos:[69400,-1260]}]);
       workingNodes.push(['xq','Q',null,null,null,null,{pos:[70500,-1220]}]);
       workingNodes.push(['xm','M',['xh','xq'],null,null,'amalgam',{pos:[70200,-1020]}]);
-      workingNodes.push(['xp','Pocket',null,null,null,'pocket',{pos:[71200,-1400]}]);
+      workingNodes.push(['xp','Pocket',null,null,null,null,{border:'wavy', pos:[71200,-1400]}]);
       workingNodes.push(['xpc','PC','xp',null,null,null,{pos:[71200,-1200]}]);
     });
     rebuildChart();
@@ -4918,7 +5076,7 @@ async function main(){
        last point has to be within a hair of the wavy path. */
     applyEdit(()=>{
       workingNodes.push(['wpA','A',null,null,null,null,{pos:[74000,-1500]}]);
-      workingNodes.push(['wpB','Pocket','wpA',null,null,'pocket',{pos:[74000,-1300]}]);
+      workingNodes.push(['wpB','Pocket','wpA',null,null,null,{border:'wavy', pos:[74000,-1300]}]);
     });
     refill(EDGE_STYLES, [{from:'wpA', to:'wpB', fromSide:'bottom', toSide:'top', arrow:true}]);
     rebuildChart(); await wait(520);
@@ -5160,7 +5318,7 @@ async function main(){
        bite out of it. */
     applyEdit(()=>{
       workingNodes.push(['akA','A',null,null,null,null,{pos:[84000,-1600]}]);
-      workingNodes.push(['akB','P','akA',null,null,'pocket',{pos:[84000,-1400]}]);
+      workingNodes.push(['akB','P','akA',null,null,null,{border:'wavy', pos:[84000,-1400]}]);
     });
     refill(EDGE_STYLES, [{from:'akA', to:'akB', fromSide:'bottom', toSide:'top', arrow:true}]);
     rebuildChart(); await wait(460);
@@ -5322,10 +5480,10 @@ async function main(){
         workingNodes.push(['wq'+k,'s',null,null,null,null,{pos:[90000+i*80,-1900]}]);
         workingNodes.push(['wr'+k,'s',null,null,null,null,{pos:[90600+i*80,-1900]}]);
       });
-      workingNodes.push(['wq1','one',['wqt','wqb','wql','wqr'],null,null,'pocket',
-                         {pos:[90200,-1600]}]);
-      workingNodes.push(['wr2','two',['wrt','wrb','wrl','wrr'],null,null,'pocket',
-                         {pos:[90800,-1600],colors:['#20242b','#cc22cc']}]);
+      workingNodes.push(['wq1','one',['wqt','wqb','wql','wqr'],null,null,null,
+                         {border:'wavy', pos:[90200,-1600]}]);
+      workingNodes.push(['wr2','two',['wrt','wrb','wrl','wrr'],null,null,null,
+                         {border:'wavy', pos:[90800,-1600],colors:['#20242b','#cc22cc']}]);
     });
     refill(EDGE_STYLES, [
       {from:'wqt', to:'wq1', fromSide:'bottom', toSide:'top', arrow:true},
@@ -5480,8 +5638,8 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['ccS','S',null,null,null,null,{pos:[94000,-1900]}]);
       workingNodes.push(['ccT','T',null,null,null,null,{pos:[94200,-1900]}]);
-      workingNodes.push(['ccP','P',['ccS','ccT'],null,null,'pocket',
-                         {pos:[94100,-1700],colors:['#20242b','#cc22cc']}]);
+      workingNodes.push(['ccP','P',['ccS','ccT'],null,null,null,
+                         {border:'wavy', pos:[94100,-1700],colors:['#20242b','#cc22cc']}]);
     });
     refill(EDGE_STYLES, [
       {from:'ccS', to:'ccP', fromSide:'bottom', toSide:'top', arrow:true},
@@ -5576,7 +5734,7 @@ async function main(){
        family of accidents. */
     applyEdit(()=>{
       workingNodes.push(['hpS','S',null,null,null,null,{pos:[96000,-2100]}]);
-      workingNodes.push(['hpP','P',['hpS'],null,null,'pocket',{pos:[96000,-1900]}]);
+      workingNodes.push(['hpP','P',['hpS'],null,null,null,{border:'wavy', pos:[96000,-1900]}]);
       workingNodes.push(['hpB','B',null,null,null,'ellipse',{pos:[96300,-1900]}]);
     });
     refill(EDGE_STYLES, [{from:'hpS', to:'hpP', fromSide:'bottom', toSide:'top', arrow:false}]);
@@ -5660,8 +5818,8 @@ async function main(){
           for(const head of [true, false]){
             applyEdit(()=>{
               workingNodes.length = 0;
-              workingNodes.push(['pkR','P',null,null,null,'pocket',
-                {pos:[0,0], size:[W,120], colors:['#c0392b','#2980b9','#27ae60']}]);
+              workingNodes.push(['pkR','P',null,null,null,null,
+                {border:'wavy', pos:[0,0], size:[W,120], colors:['#c0392b','#2980b9','#27ae60']}]);
               SIDES4.forEach((sd,i)=> workingNodes.push(['pk_'+sd,'X','pkR',null,null,null,
                 {pos:[[0,-320],[0,320],[-460,0],[460,0]][i]}]));
               EDGE_STYLES.length = 0;
@@ -5748,6 +5906,8 @@ async function main(){
       workingNodes.push(['tgB','Both',null,null,null,null,
         {pos:[400,0], bg:['#c23b22'], tags:['multiversal hub','local multiverse']}]);
       workingNodes.push(['tgL','Legacy',null,null,null,'local', {pos:[800,0]}]);
+      // Written as a chart was before entries were records, and opened so.
+      migrateChart(1);
     });
     await wait(500);
     out.hubOnPocket = document.querySelectorAll('#auraLayer .node-aura[data-id="tgH"] .hub-echo').length;
@@ -5974,6 +6134,7 @@ async function main(){
       // …and one written the old way, which is corrected as it opens.
       workingNodes.push(['tgB','Old',null,null,null,null,
         {pos:[900,-100], tags:['local-multiverse']}]);
+      migrateChart(1);
     });
     rebuildChart(); buildSideTabs();
     setSideTab(document.getElementById('tagsPanel'), true);
@@ -6810,6 +6971,7 @@ async function main(){
       const px = rect.left + (n.x + n.w/2)*vs + vx, py = rect.top + (n.y + n.h/2)*vs + vy;
       const top = document.elementsFromPoint(px, py)[0];
       out.middleIsTheEntry = !!top && !!top.closest && !!top.closest('.node[data-id="pb"]');
+      out.middleTop = top ? (top.id || top.getAttribute('class') || top.tagName) + ' @' + Math.round(px) + ',' + Math.round(py) : 'nothing';
     }
 
     /* Its card opens, holds while the pointer is on it, and its stub
@@ -6908,7 +7070,7 @@ async function main(){
     /* The selection's glow is the border's, and only the border's. */
     applyEdit(()=>{
       workingNodes.length = 0; EDGE_STYLES.length = 0;
-      workingNodes.push(['gk','Pocket',null,null,null,'pocket',{pos:[0,0]}]);
+      workingNodes.push(['gk','Pocket',null,null,null,null,{border:'wavy', pos:[0,0]}]);
       workingNodes.push(['gq','Plain','gk',null,null,null,{pos:[260,-60]}]);
     });
     await wait(700);
@@ -6981,7 +7143,7 @@ async function main(){
   });
   check('a portrait can be picked up by its middle',
         r34.ringFilled && r34.padHollow && r34.middleIsTheEntry,
-        JSON.stringify({ring:r34.ringFilled, pad:r34.padHollow, hit:r34.middleIsTheEntry}));
+        JSON.stringify({ring:r34.ringFilled, pad:r34.padHollow, hit:r34.middleIsTheEntry, top:r34.middleTop}));
   check('its card holds while the pointer is on it',
         r34.cardOpened && r34.cardHeld && r34.cardLetGo,
         JSON.stringify({open:r34.cardOpened, held:r34.cardHeld, gone:r34.cardLetGo}));
@@ -7646,8 +7808,8 @@ async function main(){
        are plain until the scenery itself is asked to ripple. */
     applyEdit(()=>{
       workingNodes.length = 0; EDGE_STYLES.length = 0;
-      workingNodes.push(['wp','Pocket', null, null, null, 'pocket',
-                         {pos:[-420,-60], tags:['local multiverse']}]);
+      workingNodes.push(['wp','Pocket', null, null, null, null,
+                         {border:'wavy', pos:[-420,-60], tags:['local multiverse']}]);
       workingNodes.push(['wr','Plain', null, null, null, null,
                          {pos:[-140,-60], tags:['local multiverse']}]);
     });
@@ -8005,6 +8167,8 @@ async function main(){
       workingNodes.push(['sMir','Legacy mirror', null, null, null, 'mirror',
                          {pos:[-100,-40], colors:['#c23b22']}]);
       workingNodes.push(['sPk','Legacy pocket', null, null, null, 'pocket', {pos:[100,-40]}]);
+      // Written as a chart was before entries were records, and opened so.
+      migrateChart(1);
       workingNodes.push(['sBio','Portrait', null, null, null, 'ellipse',
                          {pos:[-460,60], bg:['#e8d5ff'], bioCard:true}]);
       workingNodes.push(['sm1','A', null, null, null, null, {pos:[-260,120]}]);
@@ -10159,7 +10323,11 @@ async function main(){
   const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
   const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
   const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
-  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
+  /* The site as CI stages it: dist/site/, whose page keeps its program and
+     stylesheet beside it (build_site in build.py). */
+  const SITE_BUILT = path.join(DIR, 'site');
+  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
   const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
@@ -10186,6 +10354,11 @@ async function main(){
       api.mediaAsked = (api.mediaAsked || 0) + 1;
       return api.files[m[1]] ? r.fulfill({status: 200, contentType: m[2] === 'png' ? 'image/png' : 'application/octet-stream', body: api.files[m[1]]})
                              : r.fulfill({status: 404, body: ''});
+    }
+    const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
+    if(beside){
+      api.programAsked = (api.programAsked || 0) + 1;
+      return r.fulfill({status: 200, contentType: u.pathname.endsWith('.css') ? 'text/css' : 'text/javascript', body: beside});
     }
     return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
   });
@@ -10444,6 +10617,39 @@ async function main(){
   check('a picture named by its path is fetched from beside the page and drawn', fromPath.drawn && fromPath.onChart && api.mediaAsked > 0,
         JSON.stringify(fromPath));
   check('an exported chart carries the picture inside it, not its path', fromPath.exportInlined);
+
+  /* The site's page keeps its program and stylesheet beside it; a copy of
+     it is one file, opened where they are not. */
+  const copied = await site.evaluate(async () => {
+    const src = ensureFullDocument(writeChart(await readOwnSource()));
+    return {src, beside: /(?:src|href)="(?:app|style)\.[0-9a-f]{16}\.(?:js|css)" data-inline/.test(src),
+            program: src.includes('function inlineSiteFiles('), style: /<style>[^<]*\.brand/.test(src)};
+  });
+  check('the site\'s page is its chart, with the program and the stylesheet beside it',
+        !/<style>/.test(html) && /<script src="app\.[0-9a-f]{16}\.js" data-inline><\/script>/.test(html) && api.programAsked >= 2,
+        JSON.stringify({asked: api.programAsked}));
+  check('a copy made from it carries both inside it, where their tags stood',
+        !copied.beside && copied.program && copied.style, JSON.stringify({beside: copied.beside, program: copied.program, style: copied.style}));
+  {
+    const elsewhere = await browser.newContext({viewport: {width: 1200, height: 800}});
+    await elsewhere.route('https://fonts.googleapis.com/**', quiet);
+    await elsewhere.route('https://fonts.gstatic.com/**', quiet);
+    await elsewhere.route('http://a-copy.test/**', r => r.request().url().endsWith('/copy.html')
+      ? r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: copied.src})
+      : r.fulfill({status: 404, body: ''}));
+    const cp = await elsewhere.newPage();
+    const cpErrs = [];
+    cp.on('pageerror', e => cpErrs.push(e.message));
+    await cp.goto('http://a-copy.test/copy.html', {waitUntil: 'load'});
+    const opened = await cp.waitForFunction(() => typeof rebuildChart === 'function', null, {timeout: 8000}).then(() => true, () => false);
+    const drawn = opened ? await cp.evaluate(() => ({nodes: document.querySelectorAll('#nodeLayer .node').length,
+                                                     styled: getComputedStyle(document.querySelector('.topbar')).display !== 'inline',
+                                                     sha: DATA_SHA})) : null;
+    check('and opened somewhere else, that copy draws the chart, styled, with no base of the site\'s to save on',
+          opened && drawn.nodes > 0 && drawn.styled && drawn.sha === null && cpErrs.length === 0,
+          JSON.stringify({opened, drawn, cpErrs}));
+    await elsewhere.close();
+  }
   check('and so does a picture of the chart', fromPath.pictureInlined);
 
   /* ---- the owner, when the site is behind the repository ---- */
@@ -10809,16 +11015,19 @@ async function main(){
     check('the site is the built file and src/site beside it, so there is nothing to keep from src', true);
     return;
   }
-  /* The site as CI stages it: the built page as index.html, src/site/
-     beside it. The page is not ON the site here, so the worker is
-     registered by hand — what is tested is the worker, and what it keeps. */
-  const SITE_DIR = path.join(ROOT, 'src', 'site');
-  const files = {'/': fs.readFileSync(path.join(DIR, PAGE))};
+  /* The site as CI stages it: dist/site/, the page with its program and
+     stylesheet beside it and src/site/ copied in. The page is not ON the
+     site here, so the worker is registered by hand — what is tested is the
+     worker, and what it keeps. */
+  const SITE_DIR = path.join(DIR, 'site');
+  const files = {};
   for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  files['/'] = files['/index.html'];
+  delete files['/index.html'];
   // A picture beside the page, as a Save puts one in src/media.
   const PICTURE = '/media/' + 'b'.repeat(64) + '.png';
   files[PICTURE] = Buffer.from('a picture kept for a day with no signal');
-  const TYPES = {'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
+  const TYPES = {'.js': 'text/javascript', '.css': 'text/css', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
   let up = true;
   const srv = http.createServer((q, r) => {
     if(!up){ r.destroy(); return; }
@@ -10881,6 +11090,36 @@ async function main(){
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
     const keptNewer = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page'))).catch(() => false);
     check('and that is the copy kept for next time', keptNewer);
+
+    /* A release: the program changes, and so does its name. The page that
+       names it is fetched with a connection, and what the worker keeps
+       follows it — the new program at once, and the old one only as long as
+       a page that may still be on screen names it. */
+    const appOf = () => /src="(app\.[0-9a-f]{16}\.js)"/.exec(files['/'].toString())[1];
+    const release = n => {
+      const was = appOf(), now = 'app.' + String(n).repeat(16).slice(0, 16) + '.js';
+      files['/' + now] = files['/' + was];
+      files['/'] = Buffer.from(files['/'].toString().replace(was, now));
+      return now;
+    };
+    const keptPrograms = () => p.evaluate(async () => (await (await caches.open('rhizome-site-2')).keys())
+      .map(k => new URL(k.url).pathname.slice(1)).filter(n => /^app\./.test(n)).sort());
+    up = true;
+    const first = appOf(), second = release(1);
+    await p.reload({waitUntil: 'load'});
+    await wait(500);
+    const afterOne = await keptPrograms();
+    const third = release(2);
+    await p.reload({waitUntil: 'load'});
+    await wait(500);
+    const afterTwo = await keptPrograms();
+    check('a release keeps the new program, and the one before it for a page still showing',
+          afterOne.join() === [first, second].sort().join(), JSON.stringify(afterOne));
+    check('and the one before that is let go', afterTwo.join() === [second, third].sort().join(), JSON.stringify(afterTwo));
+    up = false;
+    await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
+    const offlineAfter = await p.waitForFunction(() => typeof rebuildChart === 'function', null, {timeout: 8000}).then(() => true, () => false);
+    check('and with no connection the released page opens on the program it names', offlineAfter);
     check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   } finally {
     await c.close();
@@ -11194,8 +11433,8 @@ async function main(){
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       workingNodes.push(['ahS','Source',null,null,null,null,{pos:[X, Y + 40]}]);
-      workingNodes.push(['ahP','Pocket','ahS',null,null,'pocket',
-                         {pos:[X, Y + 200], size:[160, 60]}]);
+      workingNodes.push(['ahP','Pocket','ahS',null,null,null,
+                         {border:'wavy', pos:[X, Y + 200], size:[160, 60]}]);
       refill(EDGE_STYLES, [{from:'ahS', to:'ahP', arrow:true,
                             fromSide:'bottom', toSide:'top'}]);
     });
@@ -16338,6 +16577,22 @@ async function main(){
     centreViewOn(1234, -567, 1.25);
     await wait(400);
     out.coord = document.getElementById('coord').textContent;
+    /* The box round the coordinates is sized from its text and contained,
+       so that new numbers on every frame of a pan do not lay out the page
+       and the drawing with it (showCoord). Whatever the numbers, the text
+       fits it — and only a change in their count resizes it. */
+    {
+      const box = document.querySelector('.coord'), t = document.getElementById('coord');
+      const fits = [];
+      for(const [x, y] of [[0, 0], [-321, 309], [-123456, -654321], [7, 8]]){
+        centreViewOn(x, y, 1);
+        const b = box.getBoundingClientRect(), r = t.getBoundingClientRect(), h = document.getElementById('coordHome').getBoundingClientRect();
+        fits.push(r.left >= b.left && h.right <= b.right + 0.5 && h.left >= r.right && Math.abs((b.right - h.right) - (r.left - b.left)) < 6);
+      }
+      out.coordFits = fits;
+      out.coordContained = /size/.test(getComputedStyle(box).contain) && /layout/.test(getComputedStyle(box).contain);
+      centreViewOn(1234, -567, 1.25);
+    }
     let saved = null; try{ saved = JSON.parse(localStorage.getItem('rhizome.view')); }catch(e){}
     out.saved = saved;
     vs = 0.3; vx = 0; vy = 0; applyTransform();
@@ -16423,6 +16678,8 @@ async function main(){
         JSON.stringify({on:r17.lodOnFar, off:r17.lodOffFar, stored:r17.lodStored}));
   check('the coordinates say where the middle of the view is, with no zoom',
         r17.coord === 'x1234 · y-567', r17.coord);
+  check('the coordinates box fits its numbers, short or long, and keeps them from laying out the page',
+        r17.coordFits.every(Boolean) && r17.coordContained, JSON.stringify([r17.coordFits, r17.coordContained]));
   check('the view is kept for the next visit, and put back',
         r17.saved && r17.saved.x === 1234 && r17.saved.y === -567 && r17.saved.s === 1.25 && r17.restored,
         JSON.stringify(r17.saved));
@@ -17273,6 +17530,9 @@ async function main(){
      stand, carried with them and carrying them, with its own look. */
   const pause = ms => wait(ms);
   await page.evaluate(()=>{
+    /* The chart may hold arrays of its own (the owner's does); these
+       checks are about the ones made here. */
+    window.suiteArraysBefore = new Set(workingNodes.filter(e=> e[5] === 'array').map(e=> e[0]));
     applyEdit(()=>{
       workingNodes.push(['az_a', 'Array one', null, null, null, null, {pos:[400, -1400]}]);
       workingNodes.push(['az_b', 'Array two', 'az_a', null, null, null, {pos:[400, -1280], colors:['#2f6fb5', '#c23b22']}]);
@@ -17281,7 +17541,7 @@ async function main(){
     setSelection(['az_a'], 'az_a');
     makeArrayOfSelection();
   });
-  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array').length);
+  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array' && !suiteArraysBefore.has(e[0])).length);
   eq('one entry picked makes no array', one, 0);
   const a = await page.evaluate(async ()=>{
     const out = {};
@@ -17385,7 +17645,7 @@ async function main(){
     copySelectedNode();
     pasteClipboardNode();
     await pause(100);
-    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer);
+    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer && !suiteArraysBefore.has(x[0]));
     out.copy = copy && copy[6].members;
     out.copyOk = !!copy && copy[6].members.length === 2 && copy[6].members.every(m=> !/^az_/.test(m) && nodes.has(m));
     // Deleting a member takes it out; deleting the last takes the array.
@@ -17400,14 +17660,14 @@ async function main(){
     const made = copy ? copy[6].members : [];
     setSelection(made, made[0]);
     document.dispatchEvent(new KeyboardEvent('keydown', {key:'g', code:'KeyG', ctrlKey:true, bubbles:true}));
-    out.keyed = workingNodes.filter(x=> x[5] === 'array').length;
+    out.keyed = workingNodes.filter(x=> x[5] === 'array' && !suiteArraysBefore.has(x[0])).length;
     setSelection(made, made[0]);
     document.dispatchEvent(new KeyboardEvent('keydown', {key:'G', code:'KeyG', ctrlKey:true, shiftKey:true, bubbles:true}));
     out.unkeyed = workingNodes.filter(x=> x[5] === 'array' && x[6].members.includes(made[0])).length;
     out.membersStay = made.every(m=> workingNodes.some(x=> x[0] === m));
     applyEdit(()=>{
       const doomed = new Set([...made, copy && copy[0]]);
-      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || workingNodes[k][5] === 'array') workingNodes.splice(k, 1);
+      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || (workingNodes[k][5] === 'array' && !suiteArraysBefore.has(workingNodes[k][0]))) workingNodes.splice(k, 1);
     });
     return out;
   }, a.id);

@@ -609,25 +609,30 @@ function openEntryFromHash(){
   if(want && nodes.has(want.id)) openEntryOn(want.id, want.tab);
 }
 window.addEventListener('hashchange', openEntryFromHash);
+/* Handing a link over: to the clipboard, or where the clipboard is refused
+   (an insecure origin, an old browser), to the address bar, which is the
+   next best place to take it from. The button that asked says which. */
+async function copyEntryLink(id, button, idleTitle){
+  const url = entryLink(id);
+  if(!url) return;
+  let copied = false;
+  try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
+  if(!copied){ try{ window.history.replaceState(null, '', url); }catch(e){} }
+  if(!button) return;
+  button.classList.add('done');
+  button.title = copied ? 'Link copied' : 'The link is in the address bar';
+  clearTimeout(button.timer);
+  button.timer = setTimeout(()=>{
+    button.classList.remove('done');
+    button.title = idleTitle;
+  }, 1600);
+}
 const detailLink = document.getElementById('detailLink');
 if(detailLink){
   detailLink.hidden = HOSTED;
-  detailLink.addEventListener('click', async ev=>{
+  detailLink.addEventListener('click', ev=>{
     ev.stopPropagation();
-    if(!selectedId) return;
-    const url = entryLink(selectedId);
-    let copied = false;
-    try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
-    /* Where the clipboard is refused (an insecure origin, an old browser),
-       the address bar is the next best place to hand it over from. */
-    if(!copied){ try{ window.history.replaceState(null, '', url); }catch(e){} }
-    detailLink.classList.add('done');
-    detailLink.title = copied ? 'Link copied' : 'The link is in the address bar';
-    clearTimeout(detailLink.timer);
-    detailLink.timer = setTimeout(()=>{
-      detailLink.classList.remove('done');
-      detailLink.title = 'Copy a link to this entry';
-    }, 1600);
+    if(selectedId) copyEntryLink(selectedId, detailLink, 'Copy a link to this entry');
   });
 }
 searchInput.addEventListener('blur', ()=> setTimeout(()=>searchResults.classList.remove('show'),150));

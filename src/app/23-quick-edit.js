@@ -73,6 +73,23 @@ function validateNodes(val){
     }
   });
 }
+/* A file's connector styles, before any of them replaces the open chart's.
+   Every field a style can hold is read through edgeStyleFor, which drops
+   what it cannot use, so what is refused here is only what would make a
+   style nobody's: a style that is not a record, or whose ends are not
+   named. Left in, such a style is written back out with every save, and
+   matches no connector, ever. */
+function validateEdgeStyles(val){
+  if(!Array.isArray(val)) throw new Error('the connector styles must be a list.');
+  val.forEach((st, j)=>{
+    if(!st || typeof st !== 'object' || Array.isArray(st)){
+      throw new Error(`connector style #${j+1} is not a record.`);
+    }
+    if(typeof st.from !== 'string' || typeof st.to !== 'string' || !st.from || !st.to){
+      throw new Error(`connector style #${j+1} needs the ids of both its ends (from, to).`);
+    }
+  });
+}
 /* ---------------------------------------------------------------------
    Pretty-printer for NODES — turns the working entries back into the JS
    source the region is written in.
