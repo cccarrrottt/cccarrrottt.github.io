@@ -223,9 +223,26 @@ function applyTransform(){
      ⌖ beside it goes back to. The zoom is not shown: it is a number nobody
      works with, and the chart says how near it is by itself. */
   const mid = viewCentre();
-  document.getElementById('coord').textContent = `x${Math.round(mid.x)} · y${Math.round(mid.y)}`;
+  showCoord(`x${Math.round(mid.x)} · y${Math.round(mid.y)}`);
   rememberView();
   syncMinimap();
+}
+/* The coordinates in the corner, rewritten on every frame of a pan.
+
+   That one line of text was most of what a pan cost. A change to it is a
+   change to the page's layout, and laying the page out again took the
+   chart's drawing with it — every element of it, whether on screen or not:
+   at 600 entries, ~40 ms of a ~56 ms frame (tools/bench-pan.js), where
+   moving the drawing itself is one attribute and nearly free. So the box
+   is sized from the text's length rather than by it (it is in a monospace
+   face, so the length is the width), and contained (.coord in style.css):
+   new digits of the same count stay inside it, and only a count that
+   changes — the view crossing x 1000, say — lays anything else out. */
+function showCoord(text){
+  const t = document.getElementById('coord');
+  if(t.textContent === text) return;
+  if(t.textContent.length !== text.length) t.parentNode.style.setProperty('--coord-len', text.length);
+  t.textContent = text;
 }
 /* The chart point at the middle of the view, and the view put back on one. */
 /* The chart's size on the screen, kept rather than asked for: asked for
@@ -319,7 +336,11 @@ function flyToNode(id){
   const n = nodes.get(id);
   if(!n) return;
   const rect = svg.getBoundingClientRect();
-  vs = Math.max(vs, 0.85);
+  /* Near enough to read — unless that would not fit it on the screen, as
+     an array round much of the chart would not: then as near as fits. */
+  vs = Math.min(Math.max(vs, 0.85),
+                Math.max(0.05, (rect.width - 120) / Math.max(1, n.w)),
+                Math.max(0.05, (rect.height - 120) / Math.max(1, n.h)));
   vx = -(n.x+n.w/2)*vs + rect.width/2;
   vy = -(n.y+n.h/2)*vs + rect.height/2;
   applyTransform();

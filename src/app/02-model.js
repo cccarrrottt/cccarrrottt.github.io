@@ -702,6 +702,45 @@ function migrateTagSpellings(list){
   return moved;
 }
 
+/* Which of those a chart needs is a question of when it was written, and
+ * a chart says when: the form number in its settings (DATA_FORMAT). One
+ * written before the number existed is form 1.
+ *
+ * So they run where a chart comes IN — this page opening, an import, a kept
+ * draft or Save put back — and only for a chart old enough to need them.
+ * They used to run at the top of every buildModel, on every chart, every
+ * edit: cheap (0.03 ms at 400 entries), but it meant an old form was never
+ * actually gone — anything that wrote one into the working copy, at any
+ * time, was quietly turned into the new one, so nothing could tell whether
+ * the page still WROTE it somewhere. Now a chart is brought up to this
+ * page's form once, and is in that form from then on; SETTINGS.format says
+ * so, and the next save writes it.
+ *
+ * A change to what a chart may hold that an older chart has to be brought
+ * through is a new step here, with the form number it ends at, and the
+ * number goes up by one. */
+const MIGRATIONS = [
+  // Everything before entries were records: archetypes that became tags
+  // and properties, tags respelled, leader notes that became callouts.
+  {upTo: 1, run(){
+    return migrateLegacyArchetypes(workingNodes) + migrateArchetypeLooks(workingNodes) +
+           migrateTagSpellings(workingNodes) + (typeof EDGE_STYLES !== 'undefined' ? migrateLeaderNotes() : 0);
+  }}
+];
+function chartFormatOf(settings){
+  const f = settings && settings.format;
+  return Number.isInteger(f) && f >= 1 ? f : 1;
+}
+/* The chart now in workingNodes, EDGE_STYLES and the rest, written in form
+   `format`, brought to this page's. */
+function migrateChart(format){
+  let moved = 0;
+  MIGRATIONS.forEach(m=>{ if(format <= m.upTo) moved += m.run(); });
+  SETTINGS.format = DATA_FORMAT;
+  return moved;
+}
+migrateChart(chartFormatOf(SETTINGS));
+
 /* Where a merge's bar has been put: which axis it is laid ACROSS (`k`),
    which side of the lineages it hangs on (`after` — past their far edge
    on that axis, or short of their near one), and how far beyond them
@@ -730,10 +769,6 @@ function buildModel(){
   leaderAnchors.clear();
   leaderRoutes.clear();
   drawnRoutes.clear();
-  migrateLegacyArchetypes(workingNodes);
-  migrateArchetypeLooks(workingNodes);
-  migrateTagSpellings(workingNodes);
-  if(typeof EDGE_STYLES !== 'undefined') migrateLeaderNotes();
   nodes.clear();
   structEdges.length = 0;
   componentMeta.length = 0;

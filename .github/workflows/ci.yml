@@ -23,8 +23,9 @@
 # code change, a second file — runs the whole of it, as do pull requests.
 #
 # dist/ is not in the repository — it is rebuilt here, attached to the run as
-# an artifact, and, on main, it becomes the published site — the same file,
-# which is a reader there for everybody but the signed-in owner.
+# an artifact, and, on main, dist/site/ becomes the published site — the same
+# page, with the program beside it rather than inside, which is a reader there
+# for everybody but the signed-in owner.
 
 name: CI
 
@@ -182,16 +183,17 @@ jobs:
       - name: Build
         run: python3 build.py
 
-      # The one file there is. On this address it opens as a reader, and
-      # becomes an editor only for the owner, once the write service has
-      # confirmed the sign-in — see SITE_ORIGINS in src/app/01-store.js.
-      # Beside it, what makes it an app a phone can keep and open with no
-      # signal: the manifest, the icons and the worker in src/site/.
+      # The build's site: the page, with its program and stylesheet beside
+      # it in files named by their hash, so a Save does not make every
+      # reader download them again (build_site in build.py). On this address
+      # it opens as a reader, and becomes an editor only for the owner, once
+      # the write service has confirmed the sign-in — see SITE_ORIGINS in
+      # src/app/01-store.js. Beside it, what makes it an app a phone can keep
+      # and open with no signal — the manifest, the icons and the worker in
+      # src/site/, which the build copied — and the chart's pictures.
       - name: Stage the site
         run: |
-          mkdir -p _site
-          cp dist/nexus.html _site/index.html
-          cp src/site/* _site/
+          cp -r dist/site _site
           if [ -d dist/media ]; then cp -r dist/media _site/media; fi
 
       - uses: actions/configure-pages@v5

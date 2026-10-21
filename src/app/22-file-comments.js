@@ -324,6 +324,7 @@ function importChartFromText(text){
   // Validate before replacing anything, so a bad file leaves the open
   // chart untouched rather than half-overwritten.
   validateNodes(nodesIn);
+  validateEdgeStyles(stylesIn);
   applyEdit(()=>{
     workingNodes = nodesIn;
     refill(EDGE_STYLES, stylesIn);
@@ -353,6 +354,8 @@ function importChartFromText(text){
     ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
     });
+    // Last, so a step that adds an entry adds it to the chart coming in.
+    migrateChart(chartFormatOf(settingsIn));
     rebuildStickerMap();
     rebuildMediaMap();
   });
@@ -1254,6 +1257,9 @@ function putChartData(data){
     Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
     Object.assign(SETTINGS, data.settings);
   }
+  /* Kept by this page, or by an older one: a draft can outlive an update,
+     and was written in the form of the page that kept it. */
+  migrateChart(chartFormatOf(data.settings));
   rebuildStickerMap();
   rebuildMediaMap();
 }
