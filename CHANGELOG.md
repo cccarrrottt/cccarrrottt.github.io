@@ -8,6 +8,10 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The tags on a search hit are drawn as tag labels, the way the entry's
+  card and the tags drawer draw them, instead of a line of names.
+- The view's coordinates and the ⌖ that goes back to the middle are shown
+  on a phone too, in the bottom left corner.
 - A rippled connector no longer freezes the page while it is pointed at,
   open or dragged. The marks for bending it were placed by sampling the
   drawn path point by point, which on a wavy line cost half a second on

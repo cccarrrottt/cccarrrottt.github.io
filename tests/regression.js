@@ -12674,6 +12674,18 @@ async function main(){
     check('the page is no wider than the phone', bar.scroll <= bar.width, `${bar.scroll} > ${bar.width}`);
     eq('the buttons share one row', bar.rows, 1);
     check('the search has room to be typed in', bar.search >= 120, `${bar.search}px`);
+    // The view's place is shown on a phone too, on the screen and clear of the add button.
+    const coord = await pp.evaluate(()=>{
+      const c = document.querySelector('.coord'), r = c.getBoundingClientRect();
+      const fab = document.querySelector('.add-fab'), f = fab ? fab.getBoundingClientRect() : null;
+      const hit = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
+      return {shown: getComputedStyle(c).display !== 'none' && r.width > 0,
+              inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+              clear: !f || r.right <= f.left || r.bottom <= f.top,
+              onTop: !!(hit && hit.closest('.coord'))};
+    });
+    check('the coordinates are on a phone\'s screen, clear of the add button',
+          coord.shown && coord.inside && coord.clear && coord.onTop, JSON.stringify(coord));
 
     const tabAt = (id)=> pp.evaluate((id)=>{ const r = document.getElementById(id).getBoundingClientRect(); return [r.x + r.width/2, r.y + r.height/2]; }, id);
     await tap(...await tabAt('tagsTab'));
@@ -16798,6 +16810,8 @@ async function main(){
     out.rows = document.querySelectorAll('#searchResults .row').length;
     out.chip = row && row.querySelector('.sr-tab') && row.querySelector('.sr-tab').textContent;
     out.tags = row && row.querySelector('.cl').textContent;
+    // …drawn as tag labels, as the entry's card and the tags drawer draw them.
+    out.tagShapes = row ? [...row.querySelectorAll('.cl .tag-shape .tag-text')].map(x=> x.textContent) : [];
     if(row) row.click();
     await pause(100);
     out.opened = selectedId;
@@ -16875,6 +16889,7 @@ async function main(){
   // By the mark the tab wears on the entry: JP is Japan's code, so its flag.
   eq('a hit names the tab it was found on', r.chip, '\uD83C\uDDEF\uD83C\uDDF5');
   check('a hit carries the entry’s tags', /probe-tag/.test(r.tags || ''), r.tags);
+  eq('…drawn as tag labels', JSON.stringify(r.tagShapes), JSON.stringify(['probe-tag']));
   check('picking it opens the entry on that tab', r.opened === 'lq_one' && r.tab === 0 && /Zzkanaprobe/.test(r.drawn), JSON.stringify(r));
   check('the main text is found as the main one', r.mainChip === true);
   check('a link names the entry and its tab', /#entry=lq_one&tab=1$/.test(r.link), r.link);

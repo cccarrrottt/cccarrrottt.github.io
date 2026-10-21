@@ -199,7 +199,12 @@
   .search-results .sr-tab{flex:0 0 auto;min-width:18px;padding:1px 4px;border:1px solid var(--line);
     border-radius:3px;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
     line-height:14px;text-align:center;color:var(--ink-dim);background:var(--panel-2);}
-  .search-results .cl{color:var(--ink-faint);font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;margin-left:auto;white-space:nowrap;}
+  /* The hit's tags, drawn as the tag labels they are everywhere else. They
+     wrap among themselves at the row's end rather than pushing the words
+     of the hit out of the row. */
+  .search-results .cl{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;
+    gap:3px 0;max-width:55%;}
+  .search-results .cl .tag-shape{text-transform:none;letter-spacing:0;}
 
   .topbar-stats{
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
@@ -3047,7 +3052,14 @@
     .add-fab{right:12px;bottom:12px;}
     /* Under the open sheet there is nowhere for it to stand. */
     .add-fab.shifted{display:none;}
-    .coord{display:none;}
+    /* The view's place stays on a phone too — it is how a reader says
+       where on the chart they are, and the ⌖ beside it is the one way back
+       to the middle. Down in the corner by the tabs, where the add button
+       on the other side leaves room, and not chased across by a drawer,
+       which on a phone covers the whole width anyway. */
+    .coord{left:40px;bottom:12px;padding:6px 9px;}
+    body.side-tab-open .coord{left:40px;}
+    .coord .coord-home{width:24px;height:24px;font-size:15px;}
     .about-card{width:calc(100vw - 16px);max-height:calc(100% - 16px);}
     /* A fingertip, not a cursor, has to find the way out. */
     .about-card .detail-close{min-width:40px;min-height:40px;}
