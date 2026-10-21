@@ -505,6 +505,15 @@
      it actually is, and leaves the scenery alone. */
   .node.selected > rect.local-sheet, .node.selected > path.local-sheet{filter:none;}
   .node.selected > rect.hub-echo{filter:none;}
+  /* An array (see 40-arrays.js) is held by a band along its frame, which
+     is a catcher and not a border, and its hatching is ground, not edge:
+     neither takes the selection's glow. */
+  .node > rect.array-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:move;}
+  body.read-only .node > rect.array-hit{pointer-events:none;}
+  .node.selected > rect.array-hit, .node.selected > .array-hatch{filter:none;}
+  .array-tab{cursor:move;}
+  .array-tab-dot{fill:var(--panel);}
+  body.read-only .array-tab{cursor:pointer;}
 
   /* Card layout. The rules dividing the three bands are drawn in the
      entry's own colour but lighter than its border, so they read as
@@ -1041,7 +1050,7 @@
   /* Seen from far away (see 39-lod.js): the entries and everything hung
      on them give way to patches of their tags' colours. Not displayed is
      not laid out or painted, which is the point of it. */
-  body.lod #fanLayer, body.lod #auraLayer, body.lod #backLayer, body.lod #edgeLayer,
+  body.lod #fanLayer, body.lod #auraLayer, body.lod #backLayer, body.lod #arrayLayer, body.lod #edgeLayer,
   body.lod #leaderHitLayer, body.lod #nodeLayer, body.lod #arrowLayer, body.lod #frontLayer,
   body.lod #bioCardLayer, body.lod #bendLayer{display:none;}
   #lodLayer{display:none;}
@@ -1704,6 +1713,9 @@
     color:var(--ink-dim);cursor:pointer;
   }
   .node-style-btn:hover{border-color:var(--accent);color:var(--ink);}
+  /* Greyed while it could do nothing — the Array pick, with fewer than two
+     entries picked. */
+  .node-style-btn:disabled{opacity:0.4;cursor:default;border-color:var(--line);}
   .node-style-icon{width:40px;height:30px;display:block;}
   .nsi-box{fill:var(--panel);stroke:var(--ink-dim);stroke-width:1.6;}
   .nsi-line{fill:none;stroke:var(--ink-dim);stroke-width:1.4;}

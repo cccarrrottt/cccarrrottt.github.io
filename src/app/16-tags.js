@@ -266,8 +266,10 @@ function keyLineSample(dash, opts){
     line = `<path class="key-line" d="M4,10 q3.4,-4 6.8,0 t6.8,0 t6.8,0 t6.8,0"/>`;
   } else {
     const da = DASH_PATTERNS[dash] ? ` stroke-dasharray="${DASH_PATTERNS[dash]}"` : '';
-    line = `<line class="key-line" x1="${o.headIn ? 9 : 4}" y1="10" x2="${o.noHead ? 36 : 31}" y2="10"${da}/>`;
+    line = `<line class="key-line" x1="${o.headIn ? 9 : 4}" y1="10" x2="${o.noHead ? 36 : o.tee ? 32 : 31}" y2="10"${da}/>`;
   }
+  // A T stands short of where an arrow's tip would be, as it does on the chart.
+  if(o.tee) return keySvg(line + `<path class="key-head" d="M31,6 h1.6 v8 h-1.6 z"/>`);
   return keySvg(line + (o.noHead ? '' : head(36, 1)) + (o.headIn ? head(4, -1) : ''));
 }
 /* Every mark the chart is using, in reading order: the entries, what is
@@ -282,6 +284,7 @@ function keyMarksInUse(){
     else if(shape === 'callout') has.add('shape:callout');
     else if(shape === 'image') has.add('shape:image');
     else if(shape === 'textbox') has.add('shape:textbox');
+    else if(shape === 'array') has.add('shape:array');
     else if(n.card) has.add('shape:card');
     else has.add('shape:entry');
     if(!isFreeShape(shape)){
@@ -297,6 +300,7 @@ function keyMarksInUse(){
       else has.add('line:' + (DASH_PATTERNS.hasOwnProperty(st.dash) ? st.dash : 'solid'));
       if(st.arrowIn && st.arrow !== false) has.add('line:both');
       if(st.arrow === false && !st.arrowIn) has.add('line:none');
+      if(st.teeOut || st.teeIn) has.add('line:tee');
     });
   });
   if(!anyEdge) ['solid','dashed','dotted','dashdot','double'].forEach(d=> has.delete('line:' + d));
@@ -315,6 +319,9 @@ const KEY_MARKS = [
    sample:()=> keySvg('<path class="key-box" d="M7,4.5 h26 v9 h-17 l-4,3.5 v-3.5 h-5 z"/>')},
   {key:'shape:image',   group:'Entries', name:'Picture',   sample:()=> keySvg(`<rect ${KEY_BOX} class="key-pic"/><path class="key-pic-ink" d="M9,14 l7,-6 l5,4 l3,-2 l7,4 z"/>`)},
   {key:'shape:textbox', group:'Entries', name:'Caption',   sample:()=> keySvg('<text class="key-text" x="20" y="14" text-anchor="middle">Aa</text>')},
+  {key:'shape:array',   group:'Entries', name:'Array',     meaning:'Entries framed together.',
+   sample:()=> keySvg(`<rect x="3" y="2.5" width="34" height="15" class="key-box"/>` +
+                      `<rect x="6.5" y="6" width="11" height="8" class="key-box"/><rect x="22.5" y="6" width="11" height="8" class="key-box"/>`)},
   {key:'border:dashed',  group:'Borders', name:'Dashed border',      sample:()=> keyBoxSample(`stroke-dasharray="${BORDER_STYLES.dashed.dash}"`)},
   {key:'border:dotted',  group:'Borders', name:'Dotted border',      sample:()=> keyBoxSample(`stroke-dasharray="${BORDER_STYLES.dotted.dash}"`)},
   {key:'border:dashdot', group:'Borders', name:'Dash-dotted border', sample:()=> keyBoxSample(`stroke-dasharray="${BORDER_STYLES.dashdot.dash}"`)},
@@ -338,6 +345,7 @@ const KEY_MARKS = [
   {key:'line:wavy',    group:'Connectors', name:'Wavy connector',       sample:()=> keyLineSample('solid', {wavy:true})},
   {key:'line:both',    group:'Connectors', name:'Arrow at both ends',   sample:()=> keyLineSample('solid', {headIn:true})},
   {key:'line:none',    group:'Connectors', name:'Line with no arrow',   sample:()=> keyLineSample('solid', {noHead:true})},
+  {key:'line:tee',     group:'Connectors', name:'Ends in a T, short of the entry', sample:()=> keyLineSample('solid', {tee:true})},
   {key:'mark:cite',    group:'Marks', name:'Citation', meaning:'The number of a source in References.',
    sample:()=> keySvg(`<text class="key-text" x="9" y="14">a</text><text class="key-cite" x="16" y="9" fill="${escapeHtml(refColor())}">[1]</text>`)}
 ];

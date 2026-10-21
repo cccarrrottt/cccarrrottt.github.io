@@ -213,6 +213,7 @@ function deleteNodes(ids){
     for(let k=EDGE_STYLES.length-1;k>=0;k--){
       if(doomed.has(EDGE_STYLES[k].from) || doomed.has(EDGE_STYLES[k].to)) EDGE_STYLES.splice(k,1);
     }
+    pruneArrayMembers(doomed);
   });
   deselect();
   return true;
@@ -237,6 +238,7 @@ function deleteNode(nodeId){
     for(let k=EDGE_STYLES.length-1;k>=0;k--){
       if(EDGE_STYLES[k].from===nodeId || EDGE_STYLES[k].to===nodeId) EDGE_STYLES.splice(k,1);
     }
+    pruneArrayMembers([nodeId]);
   });
   deselect();
   return true;

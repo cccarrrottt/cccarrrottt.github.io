@@ -391,6 +391,10 @@ const fanLayer = el('g',{id:'fanLayer', style:'pointer-events:none;'}, bgLayer);
    stopped at the back of the stack rather than reaching the front. */
 const auraLayer = el('g',{id:'auraLayer', style:'pointer-events:none;'}, bgLayer);
 const backLayer = el('g',{id:'backLayer'}, viewport);
+/* Arrays — the frames drawn round several entries (see 40-arrays.js).
+   Over a backdrop picture, which is the back of everything, and under the
+   connectors, which run in and out of them to the entries they hold. */
+const arrayLayer = el('g',{id:'arrayLayer'}, viewport);
 const edgeLayer = el('g',{id:'edgeLayer'}, viewport);
 /* The handles on the callout anchors, and nothing else.
  *
@@ -417,7 +421,8 @@ const frontLayer = el('g',{id:'frontLayer'}, viewport);
 function qNodes(sel){
   return [...nodeLayer.querySelectorAll(sel),
           ...backLayer.querySelectorAll(sel),
-          ...frontLayer.querySelectorAll(sel)];
+          ...frontLayer.querySelectorAll(sel),
+          ...arrayLayer.querySelectorAll(sel)];
 }
 // Connectors live in two layers as well: the lines below the entries, the
 // arrowheads and the short caps that reach past a border ring above them.
@@ -425,7 +430,8 @@ function qEdges(sel){
   return [...edgeLayer.querySelectorAll(sel), ...arrowLayer.querySelectorAll(sel)];
 }
 function qNode(sel){
-  return nodeLayer.querySelector(sel) || backLayer.querySelector(sel) || frontLayer.querySelector(sel);
+  return nodeLayer.querySelector(sel) || backLayer.querySelector(sel) || frontLayer.querySelector(sel) ||
+         arrayLayer.querySelector(sel);
 }
 
 /* ---------------------------------------------------------------------

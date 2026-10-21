@@ -6,8 +6,25 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
-## Unreleased
+## 0.15.0 — "In one frame" (2026-10-21)
 
+- Arrays. Entries picked together — two or more — can be put in an array
+  with Ctrl+G, the Array button on the add menu, or Array in the long-press
+  menu on a phone: a frame drawn round them that leaves their own borders
+  as they were. The frame is worked out from where its entries stand, with
+  a margin clear of their outer rings and tabs, so carrying one of them
+  stretches it and carrying it by the tab on its top edge carries them
+  all. An array has ports, so connectors meet it as they meet an entry; it
+  has a border style, square or rounded corners, a frame colour and a
+  ground, and the ground may also be hatched — diagonally either way,
+  vertically or horizontally. An array may hold another array.
+  Ctrl+Shift+G, or Delete on a picked array, takes the frame away and
+  leaves everything in it. Deleting the last entry in an array takes the
+  array with it; copying an array copies what it holds.
+- A connector's end can be a T instead of an arrow: a bar across the line,
+  standing a few pixels off the entry rather than touching it — the mark
+  for "broad strokes". Either end may wear one, from the ends on the
+  connector's bar, and the legend names it.
 - The tags on a search hit are drawn as tag labels, the way the entry's
   card and the tags drawer draw them, instead of a line of names.
 - The view's coordinates and the ⌖ that goes back to the middle are shown

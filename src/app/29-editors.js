@@ -339,7 +339,7 @@ function commitEntry(mutate){
 function serializeEdgeStyles(list){
   if(!list.length) return 'const EDGE_STYLES = [];';
   return 'const EDGE_STYLES = [\n' + list.map(s=>
-    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${(s.bends && s.bends.length && s.bendSides) ? `, bendSides:${jsVal(s.bendSides)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
+    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing)}, dash:${jsStr(s.dash)}, arrow:${jsVal(s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.teeOut ? `, teeOut:true` : ''}${s.teeIn ? `, teeIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${(s.bends && s.bends.length && s.bendSides) ? `, bendSides:${jsVal(s.bendSides)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}},`
   ).join('\n') + '\n];';
 }
 
@@ -530,7 +530,7 @@ let currentEdgeStyleTarget = null;   // {from,to} of the edge the popover is ope
 
 function isDefaultEdgeStyle(style){
   return style.routing===DEFAULT_EDGE_STYLE.routing && style.dash===DEFAULT_EDGE_STYLE.dash &&
-    style.arrow===DEFAULT_EDGE_STYLE.arrow && !style.arrowIn && !style.sinusoid &&
+    style.arrow===DEFAULT_EDGE_STYLE.arrow && !style.arrowIn && !style.teeOut && !style.teeIn && !style.sinusoid &&
     !style.note && !style.color &&
     !style.gradient && !style.fromSide && !style.toSide && !style.fromRing && !style.toRing &&
     style.square !== false && !(style.bends && style.bends.length);

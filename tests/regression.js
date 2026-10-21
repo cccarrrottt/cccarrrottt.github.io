@@ -8151,7 +8151,7 @@ async function main(){
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
   check('the + picks an archetype by its picture',
-        r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
+        r39.pickCount === 6 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
@@ -13430,7 +13430,7 @@ async function main(){
       out.fabShutAtRest = !shown() && turned() === 'none';
       document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
-      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 6 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
@@ -16904,6 +16904,212 @@ async function main(){
   eq('a PNG comes out', r.png, 'image/png:true');
   check('the overview opens, draws the chart and moves the view', r.shut && r.inked && r.moved, JSON.stringify(r));
   eq('the overview remembers being open', r.remembered, '1');
+  });
+  await scenario("arrays and a T at a connector's end", async () => {
+  /* A T at the end of a connector: a bar across the line, standing off
+     the entry rather than touching it, set and taken off from the bar. */
+  const t = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['tz_a', 'Tee source', null, null, null, null, {pos:[400, -900]}]);
+      workingNodes.push(['tz_b', 'Tee target', 'tz_a', null, null, null, {pos:[400, -760]}]);
+      EDGE_STYLES.push({from:'tz_a', to:'tz_b', routing:'orthogonal', dash:'solid', arrow:true, teeOut:true});
+    });
+    await pause(200);
+    const tee = document.querySelector('.edge-tee[data-from="tz_a"][data-to="tz_b"]');
+    out.tee = !!tee;
+    out.arrowheads = document.querySelectorAll('.edge-arrow[data-from="tz_a"][data-to="tz_b"]:not(.edge-tee)').length;
+    const b = nodes.get('tz_b');
+    if(tee){
+      const bb = tee.getBBox();
+      // The edge comes down into the top of the target.
+      out.gap = round2(b.y - (bb.y + bb.height));
+      out.across = round2(bb.width);
+      const line = document.querySelector('.edge[data-from="tz_a"][data-to="tz_b"]');
+      const len = line.getTotalLength(), end = line.getPointAtLength(len);
+      out.lineToBar = round2(Math.abs(end.y - bb.y));
+    }
+    out.legend = keyMarksInUse().some(m=> m.key === 'line:tee');
+    // From the bar: the lit T comes off, the arrow goes on, the T goes on again.
+    styleBarTarget = {kind:'edge', from:'tz_a', to:'tz_b', x:10, y:10};
+    applyStyleBar('ends', 'tout');
+    out.offAll = edgeStyleFor('tz_a', 'tz_b');
+    applyStyleBar('ends', 'out');
+    out.arrow = edgeStyleFor('tz_a', 'tz_b');
+    applyStyleBar('ends', 'tout');
+    out.back = edgeStyleFor('tz_a', 'tz_b');
+    applyStyleBar('ends', 'tin');
+    out.both = edgeStyleFor('tz_a', 'tz_b');
+    closeStyleBar();
+    await pause(100);
+    out.teeIn = !!document.querySelectorAll('.edge-tee[data-from="tz_a"][data-to="tz_b"]').length;
+    applyEdit(()=>{
+      for(let i = workingNodes.length - 1; i >= 0; i--) if(/^tz_/.test(workingNodes[i][0])) workingNodes.splice(i, 1);
+      for(let k = EDGE_STYLES.length - 1; k >= 0; k--) if(/^tz_/.test(EDGE_STYLES[k].from)) EDGE_STYLES.splice(k, 1);
+    });
+    return out;
+  });
+  check('a connector can end in a T instead of an arrow', t.tee && t.arrowheads === 0, JSON.stringify(t));
+  check('the T stands off the entry by its gap', t.gap >= 4.5 && t.gap <= 8, JSON.stringify(t));
+  check('the T lies across the line', t.across >= 8, JSON.stringify(t));
+  check('the line stops at the T', t.lineToBar <= 1.5, JSON.stringify(t));
+  check('the legend names the T', t.legend);
+  check('pressing the lit T takes the end off', t.offAll.arrow === false && !t.offAll.teeOut, JSON.stringify(t.offAll));
+  check('the arrow and the T take each other’s place', t.arrow.arrow !== false && !t.arrow.teeOut &&
+        t.back.arrow !== false && t.back.teeOut, JSON.stringify([t.arrow, t.back]));
+  check('the start can take a T as well', t.both.arrowIn && t.both.teeIn && t.teeIn, JSON.stringify(t.both));
+
+  /* Arrays: a frame round several entries, worked out from where they
+     stand, carried with them and carrying them, with its own look. */
+  const pause = ms => wait(ms);
+  await page.evaluate(()=>{
+    applyEdit(()=>{
+      workingNodes.push(['az_a', 'Array one', null, null, null, null, {pos:[400, -1400]}]);
+      workingNodes.push(['az_b', 'Array two', 'az_a', null, null, null, {pos:[400, -1280], colors:['#2f6fb5', '#c23b22']}]);
+      workingNodes.push(['az_c', 'Array three', null, null, null, null, {pos:[640, -1340]}]);
+    });
+    setSelection(['az_a'], 'az_a');
+    makeArrayOfSelection();
+  });
+  const one = await page.evaluate(()=> workingNodes.filter(e=> e[5] === 'array').length);
+  eq('one entry picked makes no array', one, 0);
+  const a = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    setSelection(['az_a', 'az_b'], 'az_a');
+    out.id = makeArrayOfSelection();
+    await pause(100);
+    const e = workingNodes.find(x=> x[0] === out.id);
+    out.saved = e && JSON.stringify(e[6]);
+    out.selected = selectedId === out.id;
+    out.drawer = document.getElementById('detail').classList.contains('open');
+    const arr = nodes.get(out.id), m1 = nodes.get('az_a'), m2 = nodes.get('az_b');
+    const reach = outerReachOf(m2);
+    out.holds = arr.x <= Math.min(m1.x, m2.x - reach) - GRID && arr.y <= m1.y - GRID &&
+                arr.x + arr.w >= Math.max(m1.x + m1.w, m2.x + m2.w + reach) + GRID &&
+                arr.y + arr.h >= m2.y + m2.h + reach + GRID;
+    const kids = [...viewport.children];
+    out.behind = kids.indexOf(arrayLayer) < kids.indexOf(edgeLayer) && kids.indexOf(arrayLayer) > kids.indexOf(backLayer);
+    out.inLayer = !!arrayLayer.querySelector(`.node[data-id="${out.id}"]`);
+    out.obstacle = buildObstacleRects().some(r=> r.id === out.id);
+    // Its middle is the chart's: a press there reaches the paper.
+    const sr = svg.getBoundingClientRect();
+    const px = sr.left + (arr.x + arr.w - 6) * vs + vx, py = sr.top + (arr.y + arr.h - 6) * vs + vy;
+    const hit = document.elementFromPoint(px, py);
+    out.middleFree = !(hit && hit.closest && hit.closest(`.node[data-id="${out.id}"]`));
+    out.tab = !!arrayLayer.querySelector(`.node[data-id="${out.id}"] .array-tab`);
+    out.handles = arrayLayer.querySelectorAll(`.node[data-id="${out.id}"] .node-handle`).length;
+    out.grips = arrayLayer.querySelectorAll(`.node[data-id="${out.id}"] .node-resize`).length;
+    // Its look, from the bar.
+    styleBarTarget = {kind:'node', id: out.id};
+    syncStyleBar();
+    out.rows = [...styleBar.querySelectorAll('.style-bar-group')].filter(r=> !r.hidden).map(r=> r.dataset.group);
+    applyStyleBar('hatch', 'diag-l');
+    applyStyleBar('border', 'dashed');
+    await pause(100);
+    const g = arrayLayer.querySelector(`.node[data-id="${out.id}"]`);
+    const hatch = g && g.querySelector('.array-hatch');
+    const pat = hatch && document.getElementById((hatch.style.fill.match(/#([^"')]+)/) || [])[1]);
+    out.hatch = !!pat && /rotate\(-45\)/.test(pat.getAttribute('patternTransform') || '');
+    out.dashed = !!(g && g.querySelector('rect[stroke-dasharray]'));
+    out.savedLook = JSON.stringify(workingNodes.find(x=> x[0] === out.id)[6]);
+    closeStyleBar();
+    out.legend = keyMarksInUse().some(m=> m.key === 'shape:array');
+    deselect();
+    return out;
+  });
+  check('two entries picked make an array of them', !!a.id && /"members":\["az_a","az_b"\]/.test(a.saved || ''), JSON.stringify(a));
+  check('the new array is picked, with no drawer', a.selected && !a.drawer, JSON.stringify(a));
+  check('the array holds its members, their outer borders and a margin', a.holds, JSON.stringify(a));
+  check('arrays are drawn over a backdrop and under the connectors', a.behind && a.inLayer, JSON.stringify(a));
+  check('the router does not go round an array', !a.obstacle);
+  check('the middle of an array is the chart’s', a.middleFree, JSON.stringify(a));
+  check('an array has a tab, ports, and no size grips', a.tab && a.handles === 4 && a.grips === 0, JSON.stringify(a));
+  check('the bar offers an array its border, hatching, colour and ground',
+        ['border', 'hatch', 'arrayInk', 'cardBg'].every(r=> a.rows.includes(r)) && !a.rows.includes('turn'), a.rows.join(','));
+  check('a hatching and a border style are drawn and written down',
+        a.hatch && a.dashed && /"hatch":"diag-l"/.test(a.savedLook) && /"border":"dashed"/.test(a.savedLook), JSON.stringify(a));
+  check('the legend names an array', a.legend);
+
+  // Carrying one member stretches the frame; carrying the tab carries all.
+  const before = await page.evaluate(id=>{ const n = nodes.get(id); return {x:n.x, y:n.y, w:n.w, h:n.h}; }, a.id);
+  const toScreen = (x, y)=> page.evaluate(([x, y])=>{ const r = svg.getBoundingClientRect(); return {x: r.left + x*vs + vx, y: r.top + y*vs + vy}; }, [x, y]);
+  const scale = await page.evaluate(()=> vs);
+  const m = await page.evaluate(()=>{ const n = nodes.get('az_b'); return {x: n.x + n.w/2, y: n.y + n.h/2}; });
+  await page.evaluate(()=> centreViewOn(nodes.get('az_a').x, nodes.get('az_a').y + 60, vs));
+  await pause(200);
+  let p = await toScreen(m.x, m.y);
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  for(let i = 1; i <= 6; i++){ await page.mouse.move(p.x, p.y + i * 10 * scale); await pause(30); }
+  await pause(120);
+  const during = await page.evaluate(id=> nodes.get(id).h, a.id);
+  await page.mouse.up(); await pause(250);
+  const stretched = await page.evaluate(id=> nodes.get(id).h, a.id);
+  check('the frame follows a member while it is carried', during > before.h + 40, `${before.h} → ${during}`);
+  check('…and after it is put down', stretched > before.h + 40, `${before.h} → ${stretched}`);
+  await page.evaluate(()=> deselect());
+  const tab = await page.evaluate(id=>{ const r = arrayLayer.querySelector(`.node[data-id="${id}"] .array-tab`).getBoundingClientRect(); return {x: r.x + r.width/2, y: r.y + r.height/2}; }, a.id);
+  const was = await page.evaluate(()=> [nodes.get('az_a').x, nodes.get('az_b').x]);
+  await page.mouse.move(tab.x, tab.y); await page.mouse.down();
+  for(let i = 1; i <= 6; i++){ await page.mouse.move(tab.x + i * 10 * scale, tab.y); await pause(30); }
+  await page.mouse.up(); await pause(250);
+  const moved = await page.evaluate(id=> ({a: nodes.get('az_a').x, b: nodes.get('az_b').x,
+    pos: workingNodes.find(x=> x[0] === id)[6].pos}), a.id);
+  check('carrying an array by its tab carries its members', moved.a > was[0] + 40 && Math.abs((moved.a - was[0]) - (moved.b - was[1])) < 0.01, JSON.stringify([was, moved]));
+  check('an array keeps no place of its own', moved.pos === undefined, JSON.stringify(moved));
+
+  const n = await page.evaluate(async id=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    // An array round an array: fitted round it and drawn behind it.
+    setSelection([id, 'az_c'], id);
+    out.outer = makeArrayOfSelection();
+    await pause(100);
+    const o = nodes.get(out.outer), i = nodes.get(id);
+    out.round = o.x < i.x && o.y < i.y && o.x + o.w > i.x + i.w && o.y + o.h > i.y + i.h;
+    const order = [...arrayLayer.children].map(g=> g.dataset.id);
+    out.behind = order.indexOf(out.outer) < order.indexOf(id);
+    // Hiding everything in an array hides it.
+    // Copying an array copies what it holds, pointed at the copies.
+    selectNode(id);
+    copySelectedNode();
+    pasteClipboardNode();
+    await pause(100);
+    const copy = workingNodes.find(x=> x[5] === 'array' && x[0] !== id && x[0] !== out.outer);
+    out.copy = copy && copy[6].members;
+    out.copyOk = !!copy && copy[6].members.length === 2 && copy[6].members.every(m=> !/^az_/.test(m) && nodes.has(m));
+    // Deleting a member takes it out; deleting the last takes the array.
+    deleteNodes(['az_a']);
+    out.after = (workingNodes.find(x=> x[0] === id) || [])[6];
+    deleteNodes(['az_b']);
+    out.gone = !workingNodes.some(x=> x[0] === id);
+    out.outerKeeps = (workingNodes.find(x=> x[0] === out.outer) || [])[6];
+    deleteNodes(['az_c']);
+    out.outerGone = !workingNodes.some(x=> x[0] === out.outer);
+    // Ctrl+G and Ctrl+Shift+G.
+    const made = copy ? copy[6].members : [];
+    setSelection(made, made[0]);
+    document.dispatchEvent(new KeyboardEvent('keydown', {key:'g', code:'KeyG', ctrlKey:true, bubbles:true}));
+    out.keyed = workingNodes.filter(x=> x[5] === 'array').length;
+    setSelection(made, made[0]);
+    document.dispatchEvent(new KeyboardEvent('keydown', {key:'G', code:'KeyG', ctrlKey:true, shiftKey:true, bubbles:true}));
+    out.unkeyed = workingNodes.filter(x=> x[5] === 'array' && x[6].members.includes(made[0])).length;
+    out.membersStay = made.every(m=> workingNodes.some(x=> x[0] === m));
+    applyEdit(()=>{
+      const doomed = new Set([...made, copy && copy[0]]);
+      for(let k = workingNodes.length - 1; k >= 0; k--) if(doomed.has(workingNodes[k][0]) || workingNodes[k][5] === 'array') workingNodes.splice(k, 1);
+    });
+    return out;
+  }, a.id);
+  check('an array may hold an array, fitted round it', n.round, JSON.stringify(n));
+  check('…and drawn behind it', n.behind, JSON.stringify(n));
+  check('copying an array copies its members and points at the copies', n.copyOk, JSON.stringify(n));
+  check('deleting a member takes it out of the array', !!n.after && JSON.stringify(n.after.members) === '["az_b"]', JSON.stringify(n));
+  check('an array left with nothing goes, and one round it keeps the rest', n.gone && !!n.outerKeeps &&
+        JSON.stringify(n.outerKeeps.members) === '["az_c"]', JSON.stringify(n));
+  check('…until that is gone too', n.outerGone, JSON.stringify(n));
+  check('Ctrl+G makes an array and Ctrl+Shift+G takes it apart', n.keyed >= 2 && n.unkeyed === 0 && n.membersStay, JSON.stringify(n));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

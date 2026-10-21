@@ -111,7 +111,7 @@ const touchMenu = (()=>{
   m.id = 'touchMenu';
   m.hidden = true;
   m.setAttribute('role', 'menu');
-  [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['delete', 'Delete']].forEach(([act, label])=>{
+  [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['array', 'Array'], ['delete', 'Delete']].forEach(([act, label])=>{
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.act = act;
@@ -130,6 +130,7 @@ const touchMenu = (()=>{
     if(act === 'cut') cutSelectedNode();
     else if(act === 'copy') copySelectedNode();
     else if(act === 'paste') pasteClipboardNode();
+    else if(act === 'array') makeArrayOfSelection();
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
@@ -145,6 +146,10 @@ function openTouchMenu(x, y, kind){
   touchMenu.querySelectorAll('button').forEach(b=>{
     b.hidden = !!offers && !offers.includes(b.dataset.act);
   });
+  /* An array is made round two entries or more (see makeArrayOfSelection);
+     with fewer picked there is nothing for it to hold. */
+  const arr = touchMenu.querySelector('[data-act="array"]');
+  if(arr && !arr.hidden) arr.hidden = multiSelection.size < 2;
   touchMenu.hidden = false;
   const host = document.querySelector('.main').getBoundingClientRect();
   const w = touchMenu.offsetWidth, h = touchMenu.offsetHeight;

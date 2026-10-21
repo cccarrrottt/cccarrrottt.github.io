@@ -281,6 +281,7 @@ function applyLiveEdgeStyle(){
        from the note's own bar — all carried through untouched here. */
     dash: kept.dash, sinusoid: kept.sinusoid || undefined,
     arrow: kept.arrow, arrowIn: kept.arrowIn || undefined,
+    teeOut: kept.teeOut || undefined, teeIn: kept.teeIn || undefined,
     square: kept.square ? undefined : false,
     note: noteFromForm(),
     notePos: noteFromForm() ? (kept.notePos || 'above') : undefined,

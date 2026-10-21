@@ -11,9 +11,14 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.14.0';
+const APP_VERSION = '0.15.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.15.0', date:'2026-10-21', title:'In one frame', notes:[
+'Arrays: entries picked together can be put in a frame of their own \u2014 Ctrl+G, Array on the add menu, or Array in the long-press menu on a phone. The frame is worked out from where its entries stand, so carrying one stretches it and carrying it by its tab carries them all; their own borders stay as they were. It has ports for connectors, a border style, corners, a colour and a ground that may be hatched in four directions, and it may hold another array. Ctrl+Shift+G takes it away and leaves everything in it.',
+'A connector\u2019s end can be a T instead of an arrow \u2014 a bar across the line, standing off the entry \u2014 the mark for broad strokes. Either end may wear one, from the connector\u2019s bar.',
+'Along the way: a rippled connector no longer freezes the page, the page draws its own text cursor, a search hit shows its tags as labels and is put away by a press outside it, and a phone shows the view\u2019s coordinates.',
+  ]},
   {v:'0.14.0', date:'2026-10-20', title:'The whole map', notes:[
 'Search looks in every text an entry can show, its language tabs included: a hit says which tab it was found on, beside the entry\u2019s tags, and opens the entry on that tab. An entry has a link of its own \u2014 the chain in its panel copies an address that opens the chart on that entry and that tab.',
 'The chart can be exported as a picture, PNG or SVG, from the file menu: the whole drawing at full detail whatever the zoom, with its faces carried inside. A fourth drawer on the left holds an overview of the whole chart with a frame for the view, and a press on it goes there. A link\u2019s tab wears its site\u2019s icon.',
