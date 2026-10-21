@@ -741,7 +741,7 @@ async function main(){
   const r = await page.evaluate(async () => {
     const wait = ms => new Promise(ok => setTimeout(ok, ms));
     const out = {};
-    const keepHash = location.hash;
+    const keepHash = location.hash, keepView = {vx, vy, vs};
     applyEdit(() => {
       workingNodes.push(['lka_a', 'Linked one', null, null, null, null, {pos:[-3000, 4000]}]);
       workingNodes.push(['lka_b', 'Linked two', null, null, null, null, {pos:[-1400, 4900]}]);
@@ -777,6 +777,8 @@ async function main(){
     applyEdit(() => {
       for(let k = workingNodes.length - 1; k >= 0; k--) if(/^lka_/.test(workingNodes[k][0])) workingNodes.splice(k, 1);
     });
+    // The view as it was: later scenarios point at the chart by where it stood.
+    vx = keepView.vx; vy = keepView.vy; vs = keepView.vs; applyTransform();
     return out;
   });
   check('an array\'s bar offers a link to it, and an entry\'s does not', r.offered && r.notForEntries, JSON.stringify(r));
@@ -6969,6 +6971,7 @@ async function main(){
       const px = rect.left + (n.x + n.w/2)*vs + vx, py = rect.top + (n.y + n.h/2)*vs + vy;
       const top = document.elementsFromPoint(px, py)[0];
       out.middleIsTheEntry = !!top && !!top.closest && !!top.closest('.node[data-id="pb"]');
+      out.middleTop = top ? (top.id || top.getAttribute('class') || top.tagName) + ' @' + Math.round(px) + ',' + Math.round(py) : 'nothing';
     }
 
     /* Its card opens, holds while the pointer is on it, and its stub
@@ -7140,7 +7143,7 @@ async function main(){
   });
   check('a portrait can be picked up by its middle',
         r34.ringFilled && r34.padHollow && r34.middleIsTheEntry,
-        JSON.stringify({ring:r34.ringFilled, pad:r34.padHollow, hit:r34.middleIsTheEntry}));
+        JSON.stringify({ring:r34.ringFilled, pad:r34.padHollow, hit:r34.middleIsTheEntry, top:r34.middleTop}));
   check('its card holds while the pointer is on it',
         r34.cardOpened && r34.cardHeld && r34.cardLetGo,
         JSON.stringify({open:r34.cardOpened, held:r34.cardHeld, gone:r34.cardLetGo}));

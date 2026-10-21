@@ -37,6 +37,15 @@ shape, opts]`, because every part reads it that way; `entryOfRecord` and
 file is still read, so older saves, exports and pulls open as before; a
 file whose `format` is higher than the page's is refused at import.
 
+The number also says which `MIGRATIONS` (`02-model.js`) a chart still
+needs. They run once, where a chart comes in — boot, `importChartFromText`,
+`putChartData` — never in `buildModel`, so drawing never rewrites the
+chart. A kept chart's number is its own: one kept without a number is form
+1, not the file's. Something an older chart must be brought through is a
+new step with the number it ends at, and `DATA_FORMAT` goes up by one.
+Tests write entries in the current form; one that means an old chart says
+so with `migrateChart(1)`.
+
 ## Where the chart's contents actually live
 
 **On the published site, in `src/data.js`** — Save there commits the regions
@@ -150,7 +159,7 @@ the editor; later an exported copy carried the read-only declaration onto
 readers' disks and froze it there. Both were consequences of deciding at
 build time.
 
-Now `build.py` writes one file, `dist/nexus.html`, a whole document, and the
+Now `build.py` writes one page, `dist/nexus.html`, a whole document, and the
 page decides when it opens:
 
 | where it is opened | what it is |
@@ -168,9 +177,28 @@ site") and `build_guard`:
   only to `ALLOWED_ORIGINS`, and the commit made with the owner's own GitHub
   App user token so GitHub checks it again. `tests/worker.js` is mostly
   about what it refuses.
+- **The site is that page with its program beside it.** `build.py` also
+  writes `dist/site/` (`build_site`), which CI publishes: the same page,
+  but with the program and stylesheet in `app.<hash>.js` and
+  `style.<hash>.css`, named by the sha-256 of their bytes. A Save changes
+  only the chart, so readers keep both and fetch ~15 KB instead of ~550.
+  Their tags carry `data-inline`, and `readOwnSource` puts both back inside
+  (`inlineSiteFiles`, `20-about.js`), so Export is still one file. The
+  service worker keeps them cache-first, like pictures, and lets go of a
+  pair once neither the newest page nor the one before it names them. The
+  site's `<head>` also says what a link to it is (og/twitter tags, and
+  `src/site/og-image.png`, drawn by `tools/og-image.js`). `build_guard`
+  checks that the site, with the files put back, is `nexus.html` byte for
+  byte but for the one seam between the chart's script and the program's.
+- **No part may contain a closing script tag**, in a string or a comment:
+  the program is inside a `<script>` in every build but the site's, and the
+  parser ends it there. The build refuses it and names the part.
 - **A page that is behind the repository may not save.** `build.py` writes
-  the git blob id of `src/data.js` into the page (`DATA_SHA`, replacing the
-  `/* @@DATA_SHA@@ */ null` marker in `01-store.js`); the service refuses a
+  the git blob id of `src/data.js` into the page — as a
+  `<meta name="rhizome-data-sha">` in the wrapper's head, outside the
+  page's markers, which `DATA_SHA` (`01-store.js`) reads. Not into the
+  program, which would then change with every Save and the site's program
+  file with it. An exported copy carries none. The service refuses a
   save whose base is not the file on `main`, and the owner's page refuses to
   become an editor when `/me` reports a different id. Moving to the next
   base after a save is what lets two saves in a row work before the site
@@ -219,7 +247,31 @@ Chromium at 1500×950, a synthetic chain of tagged entries:
 - **Weight is media, not code.** Cutting program out of the page saves
   kilobytes against a megabyte of embedded pictures. That is why media now
   lives beside the page (see above); the figures in this table were taken
-  before the first Save moved it.
+  before the first Save moved it. With the pictures gone the page was
+  1.72 MB, 549 KB gzipped, nearly all of it program — which is why the
+  site now keeps the program in a file of its own.
+
+### What a frame of panning costs
+
+`tools/bench-pan.js` pans a synthetic chain one frame at a time with
+Chromium's frame cap off. Medians:
+
+| entries | coordinates laid out with the page (before) | as built | + off-screen culled |
+| ---: | ---: | ---: | ---: |
+| 50 | 6.8 ms | 2.8 ms | 2.7 ms |
+| 200 | 20.9 ms | 2.4 ms | 2.0 ms |
+| 600 | 67.1 ms | 3.5 ms | 3.0 ms |
+
+A pan is one transform, and nearly free. What each frame paid for was the
+coordinates text in the corner: rewriting it laid out the page, and the
+SVG drawing with it — every element, on screen or not. Hiding the whole
+drawing did not help; leaving out that one line did. The box is now sized
+from its text's length and contained (`showCoord`). Anything else that
+writes text or sizes on every frame of a gesture will do the same.
+
+- **Culling off-screen entries is not worth building.** The bench's last
+  column does it (display:none past 300px off screen) and saves half a
+  millisecond at 600 entries.
 
 ### What `rebuildChart` was actually spending its time on
 
