@@ -644,9 +644,10 @@ function beginNodeDrag(ev, n, g){
   ev.preventDefault();
   // Dragging any member of a multi-selection moves the whole set, keeping
   // their relative positions.
-  const group = (multiSelection.size > 1 && multiSelection.has(n.id))
+  /* …and carrying an array carries what is in it. */
+  const group = withArrayMembers((multiSelection.size > 1 && multiSelection.has(n.id))
     ? Array.from(multiSelection)
-    : [n.id];
+    : [n.id]);
   /* Where in the card the press landed, so a swung callout keeps that
      point under the pointer instead of snapping its middle to it. */
   const grabAt = clientToWorld(ev.clientX, ev.clientY);
@@ -680,7 +681,10 @@ function beginNodeDrag(ev, n, g){
 /* Everything that has to travel when one entry moves, gathered once. */
 function dragPiece(id){
   const m = nodes.get(id);
-  return { id, node: m, g: qNode(`.node[data-id="${CSS.escape(id)}"]`),
+  /* An array is not slid along with the rest: it is fitted again round
+     its members as they go (see refitArraysForDrag), which also covers a
+     drag that takes only some of them. */
+  return { id, node: m, g: isArrayNode(m) ? null : qNode(`.node[data-id="${CSS.escape(id)}"]`),
            // The scenery behind an entry — a hub's echo, a stack's back
            // sheets — lives in its own layer and has to travel too.
            aura: auraLayer.querySelector(`.node-aura[data-id="${CSS.escape(id)}"]`),
@@ -894,7 +898,10 @@ function queueDragRedraw(st){
     if(st && st.node) st.drawnOff = {x: st.node.x - st.originX, y: st.node.y - st.originY};
     // The connectors joined to nothing carried keep their routes; see heldRoute.
     if(st && !st.routeMemo) st.routeMemo = new Map();
-    dragRouteHold = st ? {memo: st.routeMemo, moving: new Set(st.members.map(m=> m.id))} : null;
+    const moving = new Set(st ? st.members.map(m=> m.id) : []);
+    // The frames round what is carried, which move with it.
+    refitArraysForDrag([...moving]).forEach(id=> moving.add(id));
+    dragRouteHold = st ? {memo: st.routeMemo, moving} : null;
     try{ redrawEdges(); }
     finally{ dragRouteHold = null; }
     applyVisibility({edgesOnly: true});
@@ -962,7 +969,9 @@ window.addEventListener('mouseup', ()=>{
   dropIgnoredBends(new Set(touched.map(e=> calloutEdgeKey(e.from, e.to))));
   pruneHandBends(touched);
   // One step of undo for the whole gesture.
-  saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
+  // An array's place is its members'; it has none of its own to write.
+  saveNodePositions(st.members.filter(m=> !isArrayNode(m.node))
+                      .map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
 });
 
 // Writes the dropped position into the node's saved entry. Deliberately

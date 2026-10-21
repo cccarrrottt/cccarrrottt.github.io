@@ -746,7 +746,11 @@ workingNodes.forEach(item=>{
   } else {
     parents = [parent];
   }
-  const tags = (opts && Array.isArray(opts.tags) && opts.tags.length) ? opts.tags : null;
+  /* An array is a frame round other entries (see 40-arrays.js): it wears
+     no tags, so a filter or a tag's colour never decides its look, and it
+     has no position of its own — its members are where it is. */
+  const isArray = shape === 'array';
+  const tags = (!isArray && opts && Array.isArray(opts.tags) && opts.tags.length) ? opts.tags : null;
   /* An entry is drawn in its own colours when it has them, and otherwise
      in the colours of its tags (the owner's design, 2026-10-14): a tag
      will name a work, and an entry wears the work it belongs to. With no
@@ -805,7 +809,7 @@ workingNodes.forEach(item=>{
     // overrides whatever the auto-layout computed for this node (applied
     // just after the layout pass below); when absent the node keeps
     // flowing with the automatic layout as it always has.
-    pos: (opts && Array.isArray(opts.pos) && opts.pos.length===2 &&
+    pos: (!isArray && opts && Array.isArray(opts.pos) && opts.pos.length===2 &&
           typeof opts.pos[0]==='number' && typeof opts.pos[1]==='number') ? {x:opts.pos[0], y:opts.pos[1]} : null,
     // Portrait for a character bio: any URL the page may load, or an
     // embedded data: URI.
@@ -853,6 +857,10 @@ workingNodes.forEach(item=>{
     /* Where an amalgam's bar stands, once it has been put somewhere: see
        amalgamBarOf and amalgamGeometry. */
     bar: amalgamBarOf(opts),
+    /* An array's entries, and the hatching over its ground. Absent on
+       everything else. */
+    members: isArray ? arrayMembersOf(opts) : null,
+    hatch: (isArray && opts && arrayHatches().includes(opts.hatch)) ? opts.hatch : null,
     /* Which side that card stands on: 'auto' works it out from what is in
        the way, 'left' and 'right' are the reader's own answer. */
     bioSide: (opts && (opts.bioSide === 'left' || opts.bioSide === 'right'))
@@ -869,6 +877,7 @@ workingNodes.forEach(item=>{
           ? {w:opts.size[0], h:opts.size[1]} : null
   });
 });
+settleArrayMembers();
 
 // Build structEdges only now that every node exists. label/color come from
 // the CHILD end's own data, so every parent->this-node edge shares them —
@@ -901,8 +910,11 @@ structEdges.forEach(e=>{
    the collision pass below exactly like continuities used to be.
    ------------------------------------------------------------------ */
 (function findComponents(){
+  /* An array takes no part in the layout: its box is worked out from its
+     members once they are drawn, so a slot made for it would only push
+     the chart's real trees apart round a place nothing stands in. */
   const adjacency = new Map();
-  nodes.forEach((n,id)=> adjacency.set(id, new Set()));
+  nodes.forEach((n,id)=>{ if(!isArrayNode(n)) adjacency.set(id, new Set()); });
   structEdges.forEach(e=>{
     if(adjacency.has(e.from) && adjacency.has(e.to)){
       adjacency.get(e.from).add(e.to);
@@ -911,7 +923,7 @@ structEdges.forEach(e=>{
   });
   const seen = new Set();
   nodes.forEach((n,startId)=>{
-    if(seen.has(startId)) return;
+    if(seen.has(startId) || !adjacency.has(startId)) return;
     const ids = [];
     const queue = [startId];
     seen.add(startId);

@@ -67,7 +67,7 @@ function lodEntryHeight(){
      (markLodStale), rather than sorting every entry's height each time. */
   if(lodHeightMemo) return lodHeightMemo;
   const hs = [];
-  nodes.forEach(n=>{ if(!isFreeShape(n.shape || '') && !isCalloutNode(n)) hs.push(n.h); });
+  nodes.forEach(n=>{ if(!isFreeShape(n.shape || '') && !isCalloutNode(n) && !isArrayNode(n)) hs.push(n.h); });
   if(!hs.length) return 40;
   hs.sort((a, b)=> a - b);
   return (lodHeightMemo = hs[hs.length >> 1] || 40);
@@ -120,7 +120,7 @@ function lodNameOf(key){
 function lodClusters(keyOf, reach){
   const groups = new Map();
   nodes.forEach(n=>{
-    if(isFreeShape(n.shape || '') || isCalloutNode(n) || nodeHidden(n)) return;
+    if(isFreeShape(n.shape || '') || isCalloutNode(n) || isArrayNode(n) || nodeHidden(n)) return;
     const k = keyOf(n);
     if(!groups.has(k)) groups.set(k, []);
     groups.get(k).push(n);
@@ -363,7 +363,8 @@ function drawMinimap(){
   const accent = (css.getPropertyValue('--accent') || '').trim() || '#c23b22';
   const fit = minimapFit = minimapLayout(cw, ch);
   nodes.forEach(n=>{
-    if(nodeHidden(n)) return;
+    // A frame drawn as a block would paint over everything it holds.
+    if(nodeHidden(n) || isArrayNode(n)) return;
     const free = isFreeShape(n.shape || '');
     c.globalAlpha = free ? 0.3 : 0.75;
     c.fillStyle = (typeof n.color === 'string' && n.color) || ink;

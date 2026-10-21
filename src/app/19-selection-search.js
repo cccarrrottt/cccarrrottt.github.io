@@ -98,6 +98,8 @@ function paintSelectionHighlight(id, opts){
   if(!multi){
     n.parents.forEach(p=>related.add(p));
     n.children.forEach(c=>related.add(c));
+    // An array is what it holds: picking it steps none of that back.
+    if(isArrayNode(n)) arrayMembersDeep(n).forEach(m=> related.add(m));
   }
   /* A callout is part of the connector it points at.
    *
@@ -185,6 +187,8 @@ function paintSelectionHighlight(id, opts){
     g.classList.toggle('lit', lit);
     g.classList.toggle('dim', !lit);
   });
+  // A picked array lights the lines between the entries it holds.
+  const held = isArrayNode(n) ? arrayMembersDeep(n) : null;
   qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{
     if(p.classList.contains('callout-leader')) return;
     const src = p.dataset.from, dst = p.dataset.to;
@@ -211,7 +215,8 @@ function paintSelectionHighlight(id, opts){
     const lit = pair ? pairLit
       : multi ? (src ? related.has(src) && related.has(dst) : related.has(dst)) ||
                 pickedAbout.has(src + '\u0000' + dst)
-      : src===id || dst===id || aboutMe || (!src && related.has(dst));
+      : src===id || dst===id || aboutMe || (!src && related.has(dst)) ||
+        !!(held && held.has(src) && held.has(dst));
     p.classList.toggle('lit', lit);
     p.classList.toggle('dim', !lit);
   });
@@ -273,6 +278,10 @@ function selectNode(id, opts){
   selectedId = id;
   const n = nodes.get(id);
   if(!n) return;
+  /* An array has nothing for the entry drawer to show — no words, no
+     lineage, no tags — so it is picked the way a callout is, and its look
+     is on the bar. */
+  if(isArrayNode(n)) opts = Object.assign({}, opts, {quiet: true});
   // A picture or a loose block of text has no lineage, no tags and no note
   // — the entry panel would be almost entirely empty for it — so it is
   // selected (draggable, resizable, deletable) without opening one.
@@ -487,6 +496,7 @@ const searchResults = document.getElementById('searchResults');
 function searchHits(q){
   const hits = [];
   nodes.forEach(n=>{
+    if(isArrayNode(n)) return;
     const tabs = (n.multiLang && Array.isArray(n.langTabs)) ? n.langTabs : [];
     const texts = [{tab:null, text:n.label}].concat(tabs.map((t, i)=>({tab:i, text:t && t.text})));
     texts.forEach(({tab, text})=>{
@@ -519,7 +529,10 @@ searchInput.addEventListener('input', ()=>{
   searchResults.innerHTML='';
   matches.slice(0,30).forEach(hit=>{
     const n = hit.n;
-    const tagsLabel = (n.tags && n.tags.length) ? n.tags.join(', ') : '';
+    /* The tags as tags — the same labels the entry's card and the tags
+       drawer draw — rather than a comma-separated line of their names. */
+    const tagsLabel = (n.tags && n.tags.length)
+      ? n.tags.map(t=> tagShapeHtml(t, {special: tagIsSpecial(t), why: SPECIAL_TAGS[t]})).join('') : '';
     const row = document.createElement('div');
     row.className='row';
     /* The colour goes in escaped, like everything else here. It comes from
@@ -528,7 +541,7 @@ searchInput.addEventListener('input', ()=>{
        colour there at all. */
     const chip = hit.chip == null ? '' :
       `<span class="sr-tab${hit.tab === null ? ' main' : ''}" title="${hit.tab === null ? 'The main text' : escapeHtml('The \u201c' + hit.chip + '\u201d text')}">${escapeHtml(hit.chip)}</span>`;
-    row.innerHTML = `<div class="dot" style="background:${escapeHtml(n.color || '')}"></div>${chip}<div>${inlineToHtml(hit.text)}</div><div class="cl">${escapeHtml(tagsLabel)}</div>`;
+    row.innerHTML = `<div class="dot" style="background:${escapeHtml(n.color || '')}"></div>${chip}<div>${inlineToHtml(hit.text)}</div><div class="cl">${tagsLabel}</div>`;
     row.addEventListener('click', ()=>{
       openEntryOn(n.id, hit.tab);
       searchResults.classList.remove('show'); searchInput.value = hit.plain;
@@ -800,6 +813,13 @@ document.addEventListener('keydown', e=>{
     if(key==='y'){
       e.preventDefault();
       redoLastEdit();
+      return;
+    }
+    /* Ctrl+G puts what is picked in an array, Ctrl+Shift+G takes the
+       array apart again — the pair every drawing program has for a group. */
+    if(key==='g'){
+      e.preventDefault();
+      if(e.shiftKey) ungroupSelection(); else makeArrayOfSelection();
       return;
     }
     if(key==='s'){

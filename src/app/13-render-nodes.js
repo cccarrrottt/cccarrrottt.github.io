@@ -224,20 +224,30 @@ svg.addEventListener('pointerover', ev=>{
   nodeUnderPointer = g ? g.dataset.id : null;
   if(g) nodeControlsOn(g.dataset.id);
 });
-function renderNodes(){
-nodeControlsWanted.clear();
-while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
-while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
-while(backLayer.firstChild) backLayer.removeChild(backLayer.firstChild);
-while(frontLayer.firstChild) frontLayer.removeChild(frontLayer.firstChild);
-while(fanLayer.firstChild) fanLayer.removeChild(fanLayer.firstChild);
-while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
+function renderNodes(opts){
+/* `arraysOnly` draws the arrays again and nothing else: a drag moves the
+   entries themselves by a transform, and only the frames round them have
+   to be worked out afresh (see refitArraysForDrag). Their own patterns
+   and gradients go with them, and nobody else's. */
+const arraysOnly = !!(opts && opts.arraysOnly);
+if(arraysOnly){
+  nodeDefs.querySelectorAll('[data-array-def]').forEach(d=> d.remove());
+} else {
+  nodeControlsWanted.clear();
+  while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
+  while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
+  while(backLayer.firstChild) backLayer.removeChild(backLayer.firstChild);
+  while(frontLayer.firstChild) frontLayer.removeChild(frontLayer.firstChild);
+  while(fanLayer.firstChild) fanLayer.removeChild(fanLayer.firstChild);
+  while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
+}
+while(arrayLayer.firstChild) arrayLayer.removeChild(arrayLayer.firstChild);
 /* Drawn in stacking order rather than in the order the entries happen to be
    listed, so "send to back" and "bring to front" mean something. Anything
    sent behind the connectors is drawn into a layer of its own that sits
    under the arrows — that's what makes a backdrop image work as a backdrop
    rather than as a lid over the whole chart. */
-[...nodes.values()].sort((a,b)=> (a.z||0) - (b.z||0)).forEach(n=>{
+const drawOne = (n)=>{
   const shape = n.shape || 'rect';
   const isBio = shape==='ellipse';
   const isImage = shape==='image';
@@ -252,8 +262,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      and a stack of near-identical worlds behind one are both saying
      something about a REALITY; on a character they say nothing, and the
      rectangles they are drawn as do not even follow the circle. */
-  const isHub = !isFreeShape(shape) && !isBio && nodeHasTag(n, HUB_TAG);
-  const isLocal = !isFreeShape(shape) && !isBio && nodeHasTag(n, LOCAL_TAG);
+  const isArray = shape==='array';
+  const isHub = !isFreeShape(shape) && !isBio && !isArray && nodeHasTag(n, HUB_TAG);
+  const isLocal = !isFreeShape(shape) && !isBio && !isArray && nodeHasTag(n, LOCAL_TAG);
   const isAmalgam = shape==='amalgam';
   /* A comment card. Drawn by the default branch — a rounded box, one ring
      per colour — so its ports, its edge handles and everything a connector
@@ -278,7 +289,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const rad = (r)=> square ? 0 : Math.max(0, r);
   const z = n.z || 0;
   const g = el('g',{class:'node', 'data-id':n.id},
-                 z < 0 ? backLayer : z > 0 ? frontLayer : nodeLayer);
+                 isArray ? arrayLayer : z < 0 ? backLayer : z > 0 ? frontLayer : nodeLayer);
+  /* Behind every array drawn before it: those are the ones inside it. */
+  if(isArray){ g.classList.add('node-array'); arrayLayer.insertBefore(g, arrayLayer.firstChild); }
   if(isBio) g.classList.add('node-bio');
   if(isCallout) g.classList.add('node-callout');
   /* A drafting leader: the words stand on a shelf, with no card round
@@ -777,7 +790,9 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const bgPaint = (n.bg && n.bg.length)
     ? (n.bg.length > 1 ? makeGradient(n.bg, false, nodeDefs) : n.bg[0])
     : null;
-  const bgFillStyle = bgPaint ? `fill:${bgPaint};` : '';
+  /* An array with no ground of its own lets the paper show through it:
+     the chart under the frame is still the chart. */
+  const bgFillStyle = bgPaint ? `fill:${bgPaint};` : isArray ? 'fill:none;' : '';
   /* One ring of the border, drawn in whatever style the entry wears.
      `make(inset)` gives the geometry for an outline that far inside the
      ring's own line. A DOUBLE border is two rails either side of that
@@ -1252,6 +1267,39 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
    * out of the new properties looking exactly as it did. */
   if(!isFree) textFill = readableOn(textFill, (n.bg && n.bg.length) ? n.bg[0] : null);
 
+  /* An array is taken hold of by its frame and nowhere else. Its middle is
+     the chart — entries, connectors and open paper to pan or lasso across
+     — so its ground and rings answer nothing, and a band along the
+     outermost ring does instead. The hatching is laid over the ground,
+     inside the border. */
+  if(isArray){
+    g.querySelectorAll(':scope > rect:not(.node-hover-pad), :scope > path')
+      .forEach(e=> e.style.pointerEvents = 'none');
+    const hatch = arrayHatchPaint(n, ringColors[0]);
+    if(hatch){
+      const ins = borderReachIn(n);
+      // As a style: the stylesheet's ground for `.node > rect` outranks an attribute.
+      const a = {class:'array-hatch', style:`fill:${hatch};stroke:none;pointer-events:none;`};
+      if(isWavy) a.d = wavyRectPath(n.x+ins, n.y+ins, n.w-ins*2, h-ins*2, -ins);
+      else Object.assign(a, {x:n.x+ins, y:n.y+ins, width:n.w-ins*2, height:h-ins*2, rx:rad(cornerR-ins)});
+      el(isWavy ? 'path' : 'rect', a, g);
+    }
+    const out = (ringCountOf(n) - 1) * ringStepFor(n);
+    el('rect', {class:'array-hit', x:n.x-out, y:n.y-out, width:n.w+out*2, height:h+out*2,
+                rx: rad(cornerR+out)}, g);
+    /* …and by a tab on its top edge, because the frame's sides are its
+       ports, as an entry's are: a press on a side starts a connector. The
+       tab is the one place that only means "this array" — carry it, pick
+       it — grown out of the border like an entry's tabs, in its colour. */
+    const base = tabBaseOf(n);
+    const TW = 26, TH = CHIP_TAB_H + 2;
+    const tab = el('g', {class:'array-tab',
+      transform:`translate(${round2(base.left + 4 + TW/2)},${round2(base.y - TH/2)})`}, g);
+    el('path', {d: tabOutline(TW, TH, 3) + ' Z', style:`fill:${tabInkOf(ringColors)};`}, tab);
+    [-5, 0, 5].forEach(dx=> el('circle', {cx:dx, cy:0.5, r:1.1, class:'array-tab-dot'}, tab));
+    el('title', {}, tab).textContent = 'Drag to move the array; click to pick it';
+  }
+
   /* A rotated caption or picture turns about its own centre. Only the
      drawing turns: the box the chart reasons with — for dragging,
      selecting and the marquee — stays upright, which keeps every other
@@ -1444,95 +1492,98 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      the chips and the link badge. */
   const controls = el('g', {class:'node-controls'}, g);
   nodeControlsWanted.set(n.id, ()=>{
-    const CORNERS = [
-      {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
-      {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
-      {key:'ne', sx: 1, sy:-1, x: n.x + w, y: n.y},
-      {key:'nw', sx:-1, sy:-1, x: n.x,     y: n.y}
-    ];
-    /* A portrait's grips sit on the corners of the SQUARE it is inscribed
-       in, like every other entry's.
-     *
-       0.9.16 moved them onto the rim, at the four diagonals, because the
-       grips are only live while the entry is hovered and what answered the
-       pointer for a portrait was the circle: reaching out to a corner let
-       go of the hover that was showing the grip. That solved the symptom
-       and moved the controls somewhere they do not belong — the square is
-       what is being resized, its corners are where the ports already are,
-       and a grip on the rim is a grip on a curve with no corner to pull.
-       The cause is fixed instead: the pad below answers the pointer for
-       the whole square, so the ports and the grips stay up as long as the
-       pointer is anywhere inside the box, and only go when it leaves it. */
-    CORNERS.forEach(c=>{
-      const grip = el('g', {class:'node-resize node-resize-' + c.key,
-        'data-corner': c.key,
-        transform:`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}, controls);
-      /* A dot ON the corner, not a hatched square tucked inside it.
+    /* An array has no size to set: it is as big as what it holds. */
+    if(!isArray){
+      const CORNERS = [
+        {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
+        {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
+        {key:'ne', sx: 1, sy:-1, x: n.x + w, y: n.y},
+        {key:'nw', sx:-1, sy:-1, x: n.x,     y: n.y}
+      ];
+      /* A portrait's grips sit on the corners of the SQUARE it is inscribed
+         in, like every other entry's.
        *
-         The square was ten units a side, and so is the smallest entry: an
-         empty box was four grips and nothing else, and wherever the hand
-         went on it, it picked up a corner instead of the entry. A dot
-         centred on the corner takes a quarter of its reach from the box
-         and the rest from the paper outside, so even the smallest entry
-         keeps its middle for dragging, clicking and starting a connector. */
-      el('circle', {cx:0, cy:0, r:RESIZE_DOT_HIT, class:'node-resize-hit'}, grip);
-      el('circle', {cx:0, cy:0, r:RESIZE_DOT_R, class:'node-resize-mark'}, grip);
-      el('title',{},grip).textContent = 'Drag to resize; double-click to fit the text again';
-      grip.addEventListener('mousedown', ev=> beginNodeResize(ev, n, g, c));
-      grip.addEventListener('click', ev=> ev.stopPropagation());
-      grip.addEventListener('dblclick', ev=>{
-        ev.stopPropagation();
-        if(readOnlyView) return;
-        applyEdit(()=>{
-          const found = workingEntry(n.id);
-          if(!found) return;
-          const opts = entryOpts(found.entry);
-          delete opts.size;
-          putEntry(found.index, found.entry, opts);
+         0.9.16 moved them onto the rim, at the four diagonals, because the
+         grips are only live while the entry is hovered and what answered the
+         pointer for a portrait was the circle: reaching out to a corner let
+         go of the hover that was showing the grip. That solved the symptom
+         and moved the controls somewhere they do not belong — the square is
+         what is being resized, its corners are where the ports already are,
+         and a grip on the rim is a grip on a curve with no corner to pull.
+         The cause is fixed instead: the pad below answers the pointer for
+         the whole square, so the ports and the grips stay up as long as the
+         pointer is anywhere inside the box, and only go when it leaves it. */
+      CORNERS.forEach(c=>{
+        const grip = el('g', {class:'node-resize node-resize-' + c.key,
+          'data-corner': c.key,
+          transform:`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}, controls);
+        /* A dot ON the corner, not a hatched square tucked inside it.
+         *
+           The square was ten units a side, and so is the smallest entry: an
+           empty box was four grips and nothing else, and wherever the hand
+           went on it, it picked up a corner instead of the entry. A dot
+           centred on the corner takes a quarter of its reach from the box
+           and the rest from the paper outside, so even the smallest entry
+           keeps its middle for dragging, clicking and starting a connector. */
+        el('circle', {cx:0, cy:0, r:RESIZE_DOT_HIT, class:'node-resize-hit'}, grip);
+        el('circle', {cx:0, cy:0, r:RESIZE_DOT_R, class:'node-resize-mark'}, grip);
+        el('title',{},grip).textContent = 'Drag to resize; double-click to fit the text again';
+        grip.addEventListener('mousedown', ev=> beginNodeResize(ev, n, g, c));
+        grip.addEventListener('click', ev=> ev.stopPropagation());
+        grip.addEventListener('dblclick', ev=>{
+          ev.stopPropagation();
+          if(readOnlyView) return;
+          applyEdit(()=>{
+            const found = workingEntry(n.id);
+            if(!found) return;
+            const opts = entryOpts(found.entry);
+            delete opts.size;
+            putEntry(found.index, found.entry, opts);
+          });
         });
       });
-    });
-    /* And loose furniture — a caption, a picture — gets one more handle:
-       the curved arrow that turns it, to any angle. Only furniture:
-       everything else turns in quarters, by the ⟳ in its style bar,
-       because a box on a chart of right angles has to keep sides a
-       connector can meet. It stands off the top-left corner, where a
-       corner grip would be, so the two read as one family of handles. */
-    /* As close in as it can stand without taking the corner grip's reach:
-       its own reach ends a hair past the grip's. Further out, it read as a
-       handle belonging to nothing in particular. */
-    if(isFree){
-      const rx = n.x - 1.5, ry = n.y - 1.5;
-      const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, controls);
-      el('circle', {cx:-5, cy:-5, r:5.5, class:'node-rotate-hit'}, rot);
-      /* An arc with a head at BOTH ends. Three quarters of a circle with
-         one head on it is the mark for a turn in one direction — a
-         quarter clockwise, which is what this handle no longer does. A
-         handle that turns either way says so with two heads. */
-      /* …and it stands across the corner, not level with the top: the
-         hollow of the arc faces the entry, so it reads as the corner's own
-         curve drawn again a little way out — this is the corner that
-         turns. Drawn level, and centred on the hit circle, then tipped an
-         eighth of a turn about that centre. */
-      const mark = el('g', {class:'node-rotate-glyph', transform:'rotate(-45,-5,-5) translate(1,-3.25)'}, rot);
-      el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, mark);
-      el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, mark);
-      el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, mark);
-      el('title',{},rot).textContent =
-        'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
-      rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));
-      rot.addEventListener('click', ev=> ev.stopPropagation());
-      rot.addEventListener('dblclick', ev=>{
-        ev.stopPropagation(); ev.preventDefault();
-        if(readOnlyView) return;
-        applyEdit(()=>{
-          const found = workingEntry(n.id);
-          if(!found) return;
-          const opts = entryOpts(found.entry);
-          delete opts.rot;
-          putEntry(found.index, found.entry, opts);
+      /* And loose furniture — a caption, a picture — gets one more handle:
+         the curved arrow that turns it, to any angle. Only furniture:
+         everything else turns in quarters, by the ⟳ in its style bar,
+         because a box on a chart of right angles has to keep sides a
+         connector can meet. It stands off the top-left corner, where a
+         corner grip would be, so the two read as one family of handles. */
+      /* As close in as it can stand without taking the corner grip's reach:
+         its own reach ends a hair past the grip's. Further out, it read as a
+         handle belonging to nothing in particular. */
+      if(isFree){
+        const rx = n.x - 1.5, ry = n.y - 1.5;
+        const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, controls);
+        el('circle', {cx:-5, cy:-5, r:5.5, class:'node-rotate-hit'}, rot);
+        /* An arc with a head at BOTH ends. Three quarters of a circle with
+           one head on it is the mark for a turn in one direction — a
+           quarter clockwise, which is what this handle no longer does. A
+           handle that turns either way says so with two heads. */
+        /* …and it stands across the corner, not level with the top: the
+           hollow of the arc faces the entry, so it reads as the corner's own
+           curve drawn again a little way out — this is the corner that
+           turns. Drawn level, and centred on the hit circle, then tipped an
+           eighth of a turn about that centre. */
+        const mark = el('g', {class:'node-rotate-glyph', transform:'rotate(-45,-5,-5) translate(1,-3.25)'}, rot);
+        el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, mark);
+        el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, mark);
+        el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, mark);
+        el('title',{},rot).textContent =
+          'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
+        rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));
+        rot.addEventListener('click', ev=> ev.stopPropagation());
+        rot.addEventListener('dblclick', ev=>{
+          ev.stopPropagation(); ev.preventDefault();
+          if(readOnlyView) return;
+          applyEdit(()=>{
+            const found = workingEntry(n.id);
+            if(!found) return;
+            const opts = entryOpts(found.entry);
+            delete opts.rot;
+            putEntry(found.index, found.entry, opts);
+          });
         });
-      });
+      }
     }
     // Grab a SIDE, not a point: hovering a node lights up whichever edge the
     // pointer is nearest, and dragging from it draws a connector out of that
@@ -1702,7 +1753,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        other entry answers to. Opening the card on the first click meant a
        reader could not simply select a callout to move or delete it
        without a form appearing over the drawing each time. */
-    if(isCallout){
+    if(isCallout || isArray){
       selectNode(n.id, {quiet:true});
       paintMultiSelection();
       /* No card on a click. All it held was a Delete, which the Delete key
@@ -1735,6 +1786,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     // The pending single-click panel never happens: this was a double.
     clearTimeout(nodeClickTimer); nodeClickTimer = null;
     if(document.body.classList.contains('read-only')) return;
+    // An array has no words to write and no settings beyond its bar.
+    if(isArray) return;
     /* …and neither does the one the FIRST click already opened.
      *
        A double click is one gesture, and its first half had already run:
@@ -1818,6 +1871,28 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   }
   g.addEventListener('mouseenter',()=>{ g.classList.add('hover'); nodeControlsOn(n.id); });
   g.addEventListener('mouseleave',()=>g.classList.remove('hover'));
+};
+if(!arraysOnly){
+  [...nodes.values()].filter(n=> !isArrayNode(n))
+    .sort((a,b)=> (a.z||0) - (b.z||0)).forEach(drawOne);
+}
+/* The arrays last, once every entry in them has its size, and innermost
+   first, so an array round an array fits round a box that is there. */
+arraysInFitOrder().forEach(a=>{
+  if(!fitArray(a)) return;
+  const mark = nodeDefs.lastChild;
+  drawOne(a);
+  for(let d = mark ? mark.nextSibling : nodeDefs.firstChild; d; d = d.nextSibling){
+    d.setAttribute('data-array-def', '');
+  }
+  if(arraysOnly){
+    const g = arrayLayer.querySelector(`.node[data-id="${CSS.escape(a.id)}"]`);
+    if(g){
+      g.classList.toggle('selected', selectedId === a.id || multiSelection.has(a.id));
+      if(selectedId === a.id) nodeControlsOn(a.id);
+      if(nodeHidden(a)) g.style.display = 'none';
+    }
+  }
 });
 /* A redraw under a pointer that has not moved leaves the entry it is on
    hovered with nothing yet built — the event that would build them comes

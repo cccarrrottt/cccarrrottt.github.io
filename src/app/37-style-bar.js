@@ -87,8 +87,21 @@ const STYLE_BAR_EDGE_LINE = [
   ['dotted', '┈┈', 'Dotted line'], ['dashdot', '─·', 'Dash-dotted line'],
   ['double', '═', 'Double line'], ['sinusoid', '∿', 'Wavy line']
 ];
-const STYLE_BAR_ENDS = [['in', '◄', 'Arrowhead at the start'], ['out', '►', 'Arrowhead at the end']];
+/* An end carries an arrow, a T or nothing. The T is a pair of buttons of
+   its own rather than a third state of the arrow's, so each end's mark is
+   one press away and what is lit says which it is. */
+const STYLE_BAR_ENDS = [['tin', '⊢', 'T at the start, stopped short of the entry'],
+                        ['in', '◄', 'Arrowhead at the start'], ['out', '►', 'Arrowhead at the end'],
+                        ['tout', '⊣', 'T at the end, stopped short of the entry — broad strokes']];
 /* Which side of its line a note rides. */
+/* An array's ground may be hatched as well as coloured — see
+   arrayHatchPaint. The glyphs are the hatched squares the font already
+   has, one per direction. */
+const STYLE_BAR_HATCH = [['none', '▢', 'No hatching'],
+                         ['diag-r', '▨', 'Diagonal hatching, leaning right'],
+                         ['diag-l', '▧', 'Diagonal hatching, leaning left'],
+                         ['vert', '▥', 'Vertical hatching'],
+                         ['horiz', '▤', 'Horizontal hatching']];
 const STYLE_BAR_NOTE_SIDE = [
   ['above', '↑', 'Above the line'], ['on', '≡', 'On the line, covering it'], ['below', '↓', 'Below the line']
 ];
@@ -117,6 +130,7 @@ const styleBar = (()=>{
     return row;
   };
   group('border', STYLE_BAR_BORDERS);
+  group('hatch', STYLE_BAR_HATCH);
   group('decor', STYLE_BAR_DECOR);
   group('frame', STYLE_BAR_FRAMES);
   group('edgeLine', STYLE_BAR_EDGE_LINE);
@@ -130,13 +144,13 @@ const styleBar = (()=>{
   /* A colour on the bar is a square, as every colour on the page is (see
      squareForHexInput); pressed, it opens the code to type. Blank is the
      paper. Typing is one step of undo however long it runs. */
-  const hexGroup = (name, title, apply)=>{
+  const hexGroup = (name, title, apply, ink)=>{
     const row = group(name, []);
     row.classList.add('style-bar-hex');
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'hex-input';
-    input.placeholder = 'white';
+    input.placeholder = ink ? 'default' : 'white';
     input.maxLength = 9;
     input.spellcheck = false;
     input.title = title;
@@ -144,7 +158,9 @@ const styleBar = (()=>{
     /* Blank is the paper, so the square shows the paper — as a colour
        handed down, with the dashed edge — rather than the empty square of
        "no colour", which is not what a blank ground means here. */
-    squareForHexInput(input, {title, fallback: ()=>
+    /* …except where blank is the default INK, which is what the square
+       then shows. */
+    squareForHexInput(input, {title, fallback: ink ? ()=> DEFAULT_NODE_COLOR : ()=>
       getComputedStyle(document.body).getPropertyValue('--panel').trim() || '#ffffff'});
     input.addEventListener('mousedown', ev=> ev.stopPropagation());
     input.addEventListener('keydown', ev=> ev.stopPropagation());
@@ -180,6 +196,17 @@ const styleBar = (()=>{
     putEntry(found.index, found.entry, opts);
     rebuildChart();
   });
+  /* An array's frame. An entry is coloured in its settings, which an
+     array has none of, so its colour is set here, beside its ground. */
+  hexGroup('arrayInk', 'The colour of the array’s frame — blank is the default ink', (t, v)=>{
+    if(t.kind !== 'node') return;
+    const found = workingEntry(t.id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    if(v) opts.colors = [v]; else delete opts.colors;
+    putEntry(found.index, found.entry, opts);
+    rebuildChart();
+  }, true);
   bar.addEventListener('mousedown', ev=> ev.stopPropagation());
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
@@ -270,7 +297,10 @@ function syncStyleBar(){
       b.classList.toggle('on', b.dataset.value === value);
     });
   };
-  rows.turn.hidden = !n || styleBarFree(n);
+  const isArr = isArrayNode(n);
+  rows.hatch.hidden = rows.arrayInk.hidden = !isArr;
+  // An array is as big as what it holds and stands the way that does.
+  rows.turn.hidden = !n || styleBarFree(n) || isArr;
   /* Furniture's bar is the stack and nothing else. A caption and a
      picture have no border of their own to outline, no corners, and
      nothing a connector could meet. */
@@ -298,7 +328,7 @@ function syncStyleBar(){
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
   rows.edgeLine.hidden = rows.ends.hidden = t.kind !== 'edge';
   rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
-  rows.cardBg.hidden = !(n && isCalloutNode(n) && !(n.leader && n.leader.shelf));
+  rows.cardBg.hidden = !(n && ((isCalloutNode(n) && !(n.leader && n.leader.shelf)) || isArr));
   const showHex = (row, v)=>{
     const input = row.querySelector('input');
     if(document.activeElement !== input){ input.value = v || ''; input.classList.remove('bad'); }
@@ -323,7 +353,12 @@ function syncStyleBar(){
     const out = isMergedArrow(t.from, t.to);
     rows.ends.querySelectorAll('button').forEach(b=>{
       b.disabled = merged;
-      b.classList.toggle('on', b.dataset.value === 'in' ? !!style.arrowIn : style.arrow !== false);
+      const v = b.dataset.value;
+      b.classList.toggle('on',
+        v === 'in' ? !!style.arrowIn && !style.teeIn
+        : v === 'tin' ? !!style.teeIn
+        : v === 'tout' ? !!style.teeOut
+        : style.arrow !== false && !style.teeOut);
       b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
               : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
                        : STYLE_BAR_ENDS.find(e=> e[0] === b.dataset.value)[2];
@@ -357,6 +392,10 @@ function syncStyleBar(){
     light(rows.border, borderStyleOf(n), (v)=> v === 'wavy' && !portrait && WAVY_BORDER_SHAPES.includes(shape));
     light(rows.corners, n.square ? '' : 'round',
           ()=> portrait ? isWavyPortrait(n) : (isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(shape)));
+    if(isArr){
+      light(rows.hatch, n.hatch || 'none');
+      showHex(rows.arrayInk, n.ownColors && n.ownColors.length ? n.ownColors[0] : '');
+    }
     rows.corners.querySelectorAll('button').forEach(b=>{
       const own = STYLE_BAR_CORNERS.find(c=> c[0] === b.dataset.value)[2];
       b.title = portrait ? own + ' on the portrait’s card' : own;
@@ -396,7 +435,7 @@ function positionStyleBar(){
     /* Clear of the tabs standing on its top edge as well: over them, the
        bar hid the very language tabs and link a reader had come to press. */
     const g = qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
-    if(g) g.querySelectorAll('.lang-chips, .node-link').forEach(t=>{
+    if(g) g.querySelectorAll('.lang-chips, .node-link, .array-tab').forEach(t=>{
       const r = t.getBoundingClientRect();
       if(r.height) top = Math.min(top, r.top - host.top);
     });
@@ -488,6 +527,8 @@ function applyStyleBar(group, value){
       } else if(group === 'corners'){
         // A toggle. Square is the default, so it is the absence of the flag.
         if(opts.square === false) delete opts.square; else opts.square = false;
+      } else if(group === 'hatch'){
+        if(value === 'none') delete opts.hatch; else opts.hatch = value;
       } else if(group === 'leader'){
         if(!opts.leader) return;
         // Solid is the absence of the field, as everywhere else.
@@ -510,8 +551,19 @@ function applyStyleBar(group, value){
     } else if(group === 'corners'){
       change.square = kept.square ? false : undefined;
     } else if(group === 'ends'){
-      if(value === 'in') change.arrowIn = !kept.arrowIn || undefined;
-      else change.arrow = kept.arrow === false;
+      /* Pressing the mark an end already wears takes it off; pressing the
+         other one swaps it. */
+      if(value === 'in' || value === 'tin'){
+        const tee = value === 'tin';
+        const lit = kept.arrowIn && !!kept.teeIn === tee;
+        change.arrowIn = !lit || undefined;
+        change.teeIn = (!lit && tee) || undefined;
+      } else {
+        const tee = value === 'tout';
+        const lit = kept.arrow !== false && !!kept.teeOut === tee;
+        change.arrow = !lit;
+        change.teeOut = (!lit && tee) || undefined;
+      }
     }
     applyEdit(()=> setEdgeStyleOverride(t.from, t.to, Object.assign({}, kept, change)));
   } else {

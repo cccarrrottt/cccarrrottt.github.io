@@ -222,6 +222,7 @@ function hexColors(list){
 }
 
 const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, arrowIn: false,
+                             teeOut: false, teeIn: false,
                              sinusoid: false, note: '', notePos: 'above', noteAt: 0.5,
                              noteBg: null, bends: null, bendSides: null,
                              noteDir: null, noteLen: null,
@@ -237,6 +238,13 @@ function edgeStyleFor(from, to){
     arrow: o.arrow !== undefined ? o.arrow : DEFAULT_EDGE_STYLE.arrow,
     // An arrowhead at the source end too, for a mutual or reversed link.
     arrowIn: !!o.arrowIn,
+    /* And whether the mark at that end is a T rather than an arrow: a bar
+       across the line, stopped short of the entry. It is how the chart
+       says "broad strokes" — the story arrives at its shape without
+       reaching every detail of it. Only meaningful where the end has a
+       mark at all. */
+    teeOut: !!o.teeOut && o.arrow !== false,
+    teeIn: !!o.teeIn && !!o.arrowIn,
     sinusoid: !!o.sinusoid,
     note: typeof o.note === 'string' ? o.note : '',
     // 'above' | 'on' | 'below'. 'on' lays the note across the connector,
