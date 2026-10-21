@@ -286,6 +286,38 @@ walk; it is a smaller share and the next thing to measure.
   those forced layouts into one, and measurement is now 1–2% of a rebuild.
   It would be invasive surgery on 1123 lines for something already spent.
 
+### What one edit costs, and the routes it no longer recomputes
+
+`tools/bench-edit.js` times the edits a person makes all day through
+`applyEdit`, split by function. Synthetic chain, 600 entries, medians:
+
+| edit | before | after | routing before → after |
+| --- | ---: | ---: | ---: |
+| recolour an entry | 943 ms | 385 ms | 571 → 4 ms |
+| tag an entry | 874 ms | 374 ms | 527 → 3 ms |
+| retype a note | 1055 ms | 399 ms | 635 → 4 ms |
+| move an entry | 493 ms | 566 ms* | 169 → 231 ms |
+
+\* noise: a move re-routes everything after the first connector it
+changes, as before.
+
+Every edit redrew the whole chart, and routing was the larger half of it
+even for an edit that cannot move a line. A pass now remembers its calls
+to `pathFromPorts` in order (`routePass`, `09-bends-ports.js`), and the
+next pass hands them back while the chart the router sees is the same
+(`routeWorldKey`: every entry but its words and paint) and every call so
+far was asked as before. The first difference ends the reuse for the rest
+of the pass, so the routes are exactly a fresh pass's; the suite compares
+the two after each kind of edit ("an edit that moves nothing re-routes
+nothing"). A test that wants a fresh pass sets `routeLast = null`.
+
+What is left of an edit is the entries' DOM: `renderNodes` (~120 ms at
+600) and the layout it forces (~100 ms, landing wherever the next read of
+a size is — `buildSideTabs` looks expensive in a profile for that reason
+only; its own work is ~4 ms). Reusing an unchanged entry's drawing is the
+next step if the chart grows into the hundreds; it has to carry the
+entry's defs (masks, clips) and its measured size along with it.
+
 ### What an edit cost before it was even drawn
 
 `takeSnapshot` runs on every edit and `isDirty` on every keystroke, and both

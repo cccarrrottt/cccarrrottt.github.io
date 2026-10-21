@@ -189,6 +189,7 @@ function redrawEdges(){
   resetRoutedSegments();
   // Entries have just been laid out or moved; the obstacle set is stale.
   invalidateObstacles();
+  beginRoutePass();
   let ports = resolvePorts(structEdges);
 
   /* Amalgamation. An amalgam reality is one made OF other realities, and
@@ -359,6 +360,7 @@ function redrawEdges(){
   });
 
   amalgamGroups.forEach(list=>{ if(list.length > 1) drawAmalgam(list, ports); });
+  endRoutePass();
   flushPendingCallouts();
   // The bend handles stand on the route that has just been drawn.
   drawBendHandles();

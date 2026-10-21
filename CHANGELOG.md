@@ -8,6 +8,11 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- An edit that cannot move a line no longer re-routes the chart's
+  connectors: recolouring, tagging or retyping a note on a 600-entry chart
+  goes from about 0.9 s to 0.4 s, the routing in it from 570 ms to 4. The
+  routes are exactly the ones a fresh pass draws, and the suite checks
+  that after every kind of edit. `tools/bench-edit.js` measures it.
 - Pictures and clips live beside the page on the site, each a file named
   by the SHA-256 of its bytes in `src/media/`, instead of inside the chart
   as base64. A Save sends each new one once, and the write service checks

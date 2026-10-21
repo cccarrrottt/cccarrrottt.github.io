@@ -16534,6 +16534,7 @@ async function main(){
     const filed = snap();
     const keep = window.scorePath;
     window.scorePath = linear;
+    routeLast = null;   // or the second pass would hand back the first one's routes
     try{ redrawEdges(); } finally { window.scorePath = keep; }
     const walked = snap();
     const keys = Object.keys(walked);
@@ -16543,6 +16544,66 @@ async function main(){
     return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
+  await scenario("an edit that moves nothing re-routes nothing", async () => {
+  /* A redraw hands back last pass's routes while the chart the router sees
+     is the same and every call so far has been asked as before. The claim
+     is that this is exact, so it is checked as exact: after each kind of
+     edit, every route against a pass that routes everything afresh. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const snap = ()=>{ const m = {}; drawnRoutes.forEach((q, k)=>{ m[k] = JSON.stringify((q.pts || []).map(p=> [+p.x.toFixed(3), +p.y.toFixed(3)])); });
+      m.paths = [...document.querySelectorAll('#edgeLayer path')].map(p=> p.getAttribute('d')).join('|'); return m; };
+    const cold = ()=>{ routeLast = null; redrawEdges(); return snap(); };
+    let fresh = 0;
+    const real = window.pathFromPortsFresh;
+    window.pathFromPortsFresh = function(...a){ fresh++; return real.apply(this, a); };
+    const out = {};
+    try{
+      let seed = 11; const rnd = ()=> (seed = (seed*16807) % 2147483647) / 2147483647;
+      const M = 60, cols = 8;
+      applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+        for(let i = 0; i < M; i++) workingNodes.push(['rm' + i, 'Entry ' + i,
+          i > 0 ? 'rm' + Math.max(0, i - 1 - Math.floor(rnd()*cols)) : null, null, null, null,
+          {pos:[(i % cols)*170 + (rnd()-0.5)*40, Math.floor(i / cols)*110 + (rnd()-0.5)*30],
+           colors: i % 7 === 0 ? ['#cc2222', '#2222cc'] : undefined, border: i % 9 === 0 ? 'wavy' : undefined}]);
+        workingNodes.push(['rmA', 'Merge', ['rm3', 'rm12'], null, null, 'amalgam', {pos:[600, 1000]}]);
+        EDGE_STYLES.push({from:'rm1', to:'rm2', routing:'curve', dash:'dashed', arrow:true});
+        EDGE_STYLES.push({from:'rm4', to:'rm5', routing:'straight', dash:'double', arrow:true});
+      });
+      const opt = id=> { const it = workingNodes.find(x=> x[0] === id); it[6] = Object.assign({}, it[6]); return it[6]; };
+      const EDITS = {
+        recolour: ()=> { opt('rm20').colors = ['#22aa22']; },
+        tag: ()=> { opt('rm21').tags = ['probe']; },
+        note: ()=> { workingNodes.find(x=> x[0] === 'rm22')[4] = 'A note'; },
+        rename: ()=> { workingNodes.find(x=> x[0] === 'rm23')[1] = 'Entry 2x'; },
+        rings: ()=> { opt('rm24').colors = ['#22aa22', '#aa22aa', '#2222aa']; },
+        move: ()=> { opt('rm25').pos = [333, 444]; },
+        restyle: ()=> { EDGE_STYLES.push({from: workingNodes.find(x=> x[0] === 'rm30')[2], to:'rm30', routing:'straight', dash:'dotted', arrow:true}); }
+      };
+      out.calls = {}; out.same = {};
+      for(const [k, edit] of Object.entries(EDITS)){
+        fresh = 0;
+        applyEdit(edit);
+        out.calls[k] = fresh;
+        const warm = snap();
+        const c = cold();
+        out.same[k] = Object.keys(c).length > 50 && Object.keys(c).every(x=> c[x] === warm[x]);
+      }
+    } finally {
+      window.pathFromPortsFresh = real;
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('after every kind of edit, each route is the one a fresh pass draws', Object.values(r.same).every(Boolean), JSON.stringify(r));
+  check('recolouring, tagging or retyping a note routes nothing again',
+        ['recolour', 'tag', 'note'].every(k=> r.calls[k] === 0), JSON.stringify(r.calls));
+  check('while a new name, more rings, a move and a new style do route again',
+        r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
+        JSON.stringify(r.calls));
   });
   await scenario("ends, marks, squares and tabs as of 2026-10-20", async () => {
   const r20 = await page.evaluate(async ()=>{
