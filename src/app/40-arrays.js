@@ -4,11 +4,12 @@
  * An array is an entry of its own (shape 'array') whose box is not placed
  * but worked out: the smallest one that holds every entry it lists in
  * opts.members, their outer borders and the tabs on their top edges
- * included, with a margin. It is outlined as any entry is — its rings and
- * its border style go through the same drawing as an entry's — but it has
- * no ground: its colour is its frame's and its hatching's. It has ports,
- * so connectors meet it as they meet an entry. What it does not have is words or a position: move
- * its members and it follows them; carry it and its members go along.
+ * included, with two pixels to spare. It is outlined as any entry is —
+ * its rings and its border style go through the same drawing as an
+ * entry's — but it has no ground: its colour is its frame's and its
+ * hatching's. It has ports, so connectors meet it as they meet an entry.
+ * What it does not have is words or a position: move its members and it
+ * follows them; carry it and its members go along.
  *
  * Its border is its own. An entry inside an array keeps whatever it was
  * wearing, so the array is a frame laid round the drawing rather than a
@@ -20,9 +21,10 @@
  * here would not exist yet.
    ------------------------------------------------------------------ */
 function isArrayNode(n){ return !!n && (n.shape || '') === 'array'; }
-/* What an array leaves round its members: two steps of the grid, which
-   clears the tabs standing on an entry's top edge with room to spare. */
-function arrayPad(){ return 2 * GRID; }
+/* What an array leaves between its members and the inner edge of its own
+   frame: two pixels (the owner's measure). It used to be two steps of the
+   grid, which read as a second, empty frame round the first. */
+function arrayPad(a){ return 2 + borderHalfOf(a); }
 /* The four ways an array's ground may be hatched, as well as coloured. An
    entry has none of them: a hatch is for a region, which is what an array
    is, and inside one entry it would run through the words. */
@@ -113,14 +115,12 @@ function withArrayMembers(ids){
   return [...out];
 }
 /* How far past its box an entry's drawing reaches: its outer rings and
-   the ripple or second rail of its border. An array fits round THAT, so a
-   member with three borders is not cut through by the frame. */
+   the ripple or second rail of its border, and above that its tabs. An
+   array fits round THAT, so a member with three borders is not cut
+   through by the frame, nor a language chip stood on by it. */
 function outerReachOf(m){
-  const rings = (ringCountOf(m) - 1) * ringStepFor(m);
-  const edge = isWavyBorder(m) ? POCKET_AMP + NODE_BORDER_W / 2
-             : borderStyleOf(m) === 'double' ? DOUBLE_BAND_W / 2
-             : NODE_BORDER_W / 2;
-  return rings + edge;
+  const side = (ringCountOf(m) - 1) * ringStepFor(m) + borderHalfOf(m);
+  return {side, top: side + tabReachOf(m)};
 }
 /* Where the array stands, from where its members stand now. Members must
    have been drawn (an entry's size is decided as it is drawn), and the
@@ -132,12 +132,12 @@ function fitArray(a){
     const m = nodes.get(id);
     if(!m || (isArrayNode(m) && !m.fitted)) return;
     const r = outerReachOf(m);
-    x0 = Math.min(x0, m.x - r); y0 = Math.min(y0, m.y - r);
-    x1 = Math.max(x1, m.x + m.w + r); y1 = Math.max(y1, m.y + m.h + r);
+    x0 = Math.min(x0, m.x - r.side); y0 = Math.min(y0, m.y - r.top);
+    x1 = Math.max(x1, m.x + m.w + r.side); y1 = Math.max(y1, m.y + m.h + r.side);
   });
   a.fitted = Number.isFinite(x0);
   if(!a.fitted) return false;
-  const pad = arrayPad();
+  const pad = arrayPad(a);
   a.x = round2(x0 - pad); a.y = round2(y0 - pad);
   a.w = round2(x1 - x0 + pad * 2); a.h = round2(y1 - y0 + pad * 2);
   a.size = {w: a.w, h: a.h};

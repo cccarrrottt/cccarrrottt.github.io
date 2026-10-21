@@ -13,6 +13,11 @@ Releases before 0.9.0 were not numbered.
   frame's and its hatching's, black unless one is chosen, and both are
   half see-through. An array that was given a ground colour wears it on
   its frame instead.
+- An array stands two pixels off its members, from the outer edge of their
+  borders to the inner edge of its own, and clears their tabs by as much:
+  it used to leave two steps of the grid, which read as an empty frame
+  round the first. A T stands a pixel off the outer edge of the border it
+  ends at, instead of five off the line the border is drawn on.
 - A curve's end with no head is the curve as drawn, again: it was held
   straight for a dozen units and then made to turn in what was left, a
   kink where it left its entry. Under a head the line is still straight,

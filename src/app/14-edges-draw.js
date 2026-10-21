@@ -279,8 +279,8 @@ function redrawEdges(){
        ripple is laid out on the full geometry and stays put; see wavyPath. */
     const rec = ports.get(e) || {};
     const teeIn = headIn && style.teeIn, teeOut = headOut && style.teeOut;
-    const cutIn = !headIn ? 0 : teeIn ? TEE_CUT + portClearance(rec.p1) : headCut(rec.p1);
-    const cutOut = !headOut ? 0 : teeOut ? TEE_CUT + portClearance(rec.p2) : headCut(rec.p2);
+    const cutIn = !headIn ? 0 : teeIn ? TEE_CUT + teeBack(rec.p1, e.from) : headCut(rec.p1);
+    const cutOut = !headOut ? 0 : teeOut ? TEE_CUT + teeBack(rec.p2, e.to) : headCut(rec.p2);
     const drawPts = style.sinusoid ? pts
       : trimForHeads(pts, headIn, headOut, rec.p1, rec.p2, cutIn, cutOut);
     const drawD = style.sinusoid ? wavyPath(pts, cutIn, cutOut, false, edgeCornerR(style))
@@ -347,13 +347,13 @@ function redrawEdges(){
     /* A T stands off the border, so it never reaches the entry's fill or
        its ripple: it goes on the layer above the entries, uncut. */
     if(teeOut) drawTeeHead(arrowLayer, tipOut.x, tipOut.y, bent ? bent.out : angleDeg, paint, e.from, e.to,
-                           portClearance(rec.p2));
+                           teeBack(rec.p2, e.to));
     else if(headOut) drawArrowHead(arrowLayerFor((rec.p2 || last).ring, rec.p2), tipOut.x, tipOut.y,
                               bent ? bent.out : angleDeg, paint, e.from, e.to,
                               clipHead(rec.p2) ? e.to : null,
                               rec.p2 ? rec.p2.ring : 0);
     if(teeIn) drawTeeHead(arrowLayer, tipIn.x, tipIn.y, bent ? bent.in : startAngleDeg(pts), paint, e.from, e.to,
-                          portClearance(rec.p1));
+                          teeBack(rec.p1, e.from));
     else if(headIn) drawArrowHead(arrowLayerFor((rec.p1 || first).ring, rec.p1), tipIn.x, tipIn.y,
                              bent ? bent.in : startAngleDeg(pts), paint, e.from, e.to,
                              clipHead(rec.p1) ? e.from : null,

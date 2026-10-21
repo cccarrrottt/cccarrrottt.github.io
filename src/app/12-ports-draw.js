@@ -309,13 +309,20 @@ function drawArrowHead(parent, x, y, angleDeg, fill, from, to, clipTo, clipRing)
  * bar TEE_GAP back from it, as wide as an arrowhead and as thick as a
  * line; filled rather than stroked, so a gradient connector paints it
  * exactly as it paints its heads. */
-const TEE_GAP = 5, TEE_W = 2, TEE_HALF = ARROW_HALF + 1;
+/* The gap is a pixel (the owner's measure), counted from the border's
+   outer edge rather than the line it is drawn on — see teeBack. */
+const TEE_GAP = 1, TEE_W = 2, TEE_HALF = ARROW_HALF + 1;
 /* How much of its line a T gives up: the gap, and the bar's near half, so
    the line ends inside the bar and not a hair short of it. */
 const TEE_CUT = TEE_GAP + TEE_W / 2;
-/* `back` is how far the port stands inside the entry's outermost border —
-   a connector drawn to an inner ring passes through the outer ones — so the
-   gap is kept from the border the reader sees last. */
+/* `back` is how far the port stands inside the outer edge of the entry's
+   outermost border — a connector drawn to an inner ring passes through the
+   outer ones, and every border has a thickness — so the gap is kept from
+   the edge the reader sees last. */
+function teeBack(port, id){
+  const n = nodes.get(id);
+  return portClearance(port) + (n ? borderHalfOf(n) : NODE_BORDER_W / 2);
+}
 function drawTeeHead(parent, x, y, angleDeg, fill, from, to, back){
   const a = angleDeg * Math.PI / 180;
   const cos = Math.cos(a), sin = Math.sin(a);

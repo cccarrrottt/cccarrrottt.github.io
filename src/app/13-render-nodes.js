@@ -44,9 +44,7 @@ function siteIconInto(g, link, dy){
    ringed or rippled entry's tabs clear all of it. */
 function tabBaseOf(n){
   const own = (ringCountOf(n) - 1) * ringStepFor(n);
-  const out = isWavyBorder(n) ? POCKET_AMP + NODE_BORDER_W / 2
-            : borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2
-            : NODE_BORDER_W / 2;
+  const out = borderHalfOf(n);
   /* On a rippled border there is no straight edge to stand on. Stood on
      the crests, a tab floated over every trough beside it with a gap of
      paper under its foot. So it is carried down past the troughs (`sink`)
@@ -54,6 +52,27 @@ function tabBaseOf(n){
      way it grows out of a straight border, and its top stays where it was. */
   const sink = isWavyBorder(n) ? 2 * POCKET_AMP + NODE_BORDER_W : 0;
   return {y: n.y - own - out + sink, sink, left: n.x - own, right: n.x + n.w + own};
+}
+/* How far an entry's outermost border reaches past the line it is drawn
+   on: half a stroke, half the band of a double border, or the crest of a
+   ripple. What stands off a border (a T, an array's frame) measures from
+   here, so the gap a reader sees is the gap that was asked for. */
+function borderHalfOf(n){
+  return isWavyBorder(n) ? POCKET_AMP + NODE_BORDER_W / 2
+       : borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2
+       : NODE_BORDER_W / 2;
+}
+/* How far an entry's tabs stand above its border's outer edge, or 0 when
+   it has none: the same conditions the drawing below asks (language chips
+   on anything but a portrait or a free element, a link's tab on anything
+   but a free element), and the active chip's height, which is the link
+   tab's too, with half the link tab's 0.9 outline, the thicker of the two. */
+function tabReachOf(n){
+  const shape = n.shape || 'rect';
+  if(isFreeShape(shape) || shape === 'array') return 0;
+  const chips = !!n.multiLang && shape !== 'ellipse';
+  const link = !!(n.link && safeUrl(n.link));
+  return chips || link ? CHIP_TAB_H + 0.45 : 0;
 }
 /* The cut for those tabs: everything outside the outermost ripple, its
    stroke included, so a tab stops where the drawn border begins. */

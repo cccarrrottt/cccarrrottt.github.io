@@ -17233,7 +17233,7 @@ async function main(){
     if(tee){
       const bb = tee.getBBox();
       // The edge comes down into the top of the target.
-      out.gap = round2(b.y - (bb.y + bb.height));
+      out.gap = round2(b.y - borderHalfOf(b) - (bb.y + bb.height));
       out.across = round2(bb.width);
       const line = document.querySelector('.edge[data-from="tz_a"][data-to="tz_b"]');
       const len = line.getTotalLength(), end = line.getPointAtLength(len);
@@ -17260,7 +17260,7 @@ async function main(){
     return out;
   });
   check('a connector can end in a T instead of an arrow', t.tee && t.arrowheads === 0, JSON.stringify(t));
-  check('the T stands off the entry by its gap', t.gap >= 4.5 && t.gap <= 8, JSON.stringify(t));
+  check('the T stands a pixel off the outer edge of the entry’s border', Math.abs(t.gap - 1) < 0.1, JSON.stringify(t));
   check('the T lies across the line', t.across >= 8, JSON.stringify(t));
   check('the line stops at the T', t.lineToBar <= 1.5, JSON.stringify(t));
   check('the legend names the T', t.legend);
@@ -17297,10 +17297,24 @@ async function main(){
     out.selected = selectedId === out.id;
     out.drawer = document.getElementById('detail').classList.contains('open');
     const arr = nodes.get(out.id), m1 = nodes.get('az_a'), m2 = nodes.get('az_b');
-    const reach = outerReachOf(m2);
-    out.holds = arr.x <= Math.min(m1.x, m2.x - reach) - GRID && arr.y <= m1.y - GRID &&
-                arr.x + arr.w >= Math.max(m1.x + m1.w, m2.x + m2.w + reach) + GRID &&
-                arr.y + arr.h >= m2.y + m2.h + reach + GRID;
+    /* Two pixels from the outer edge of the members' outermost borders
+       to the inner edge of the array's own, on every side. */
+    const inner = borderHalfOf(arr), r1 = outerReachOf(m1), r2 = outerReachOf(m2);
+    out.margins = [
+      Math.min(m1.x - r1.side, m2.x - r2.side) - (arr.x + inner),
+      Math.min(m1.y - r1.top, m2.y - r2.top) - (arr.y + inner),
+      (arr.x + arr.w - inner) - Math.max(m1.x + m1.w + r1.side, m2.x + m2.w + r2.side),
+      (arr.y + arr.h - inner) - Math.max(m1.y + m1.h + r1.side, m2.y + m2.h + r2.side),
+    ].map(v=> round2(v));
+    out.holds = out.margins.every(v=> Math.abs(v - 2) < 0.05);
+    // A member's tab stands inside the frame too, two pixels short of it.
+    applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'az_a'); it[6] = Object.assign({}, it[6], {link:'https://example.com/'}); });
+    await pause(100);
+    const tab = document.querySelector('.node[data-id="az_a"] .node-link-bg');
+    const fr = nodes.get(out.id);
+    out.tabGap = tab ? round2(tab.getBBox().y + tab.parentNode.transform.baseVal.consolidate().matrix.f - (fr.y + borderHalfOf(fr)) - 0.45) : null;
+    applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'az_a'); const o = Object.assign({}, it[6]); delete o.link; it[6] = o; });
+    await pause(100);
     const kids = [...viewport.children];
     out.behind = kids.indexOf(arrayLayer) < kids.indexOf(edgeLayer) && kids.indexOf(arrayLayer) > kids.indexOf(backLayer);
     out.inLayer = !!arrayLayer.querySelector(`.node[data-id="${out.id}"]`);
@@ -17343,7 +17357,8 @@ async function main(){
   });
   check('two entries picked make an array of them', !!a.id && /"members":\["az_a","az_b"\]/.test(a.saved || ''), JSON.stringify(a));
   check('the new array is picked, with no drawer', a.selected && !a.drawer, JSON.stringify(a));
-  check('the array holds its members, their outer borders and a margin', a.holds, JSON.stringify(a));
+  check('the array holds its members two pixels off their outer borders', a.holds, JSON.stringify(a.margins));
+  check('…and their tabs two pixels off its frame', a.tabGap !== null && Math.abs(a.tabGap - 2) < 0.3, String(a.tabGap));
   check('arrays are drawn over a backdrop and under the connectors', a.behind && a.inLayer, JSON.stringify(a));
   check('the router does not go round an array', !a.obstacle);
   check('the middle of an array is the chart’s', a.middleFree, JSON.stringify(a));
