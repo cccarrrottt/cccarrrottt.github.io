@@ -10159,7 +10159,11 @@ async function main(){
   const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
   const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
   const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
-  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
+  /* The site as CI stages it: dist/site/, whose page keeps its program and
+     stylesheet beside it (build_site in build.py). */
+  const SITE_BUILT = path.join(DIR, 'site');
+  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
   const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
@@ -10186,6 +10190,11 @@ async function main(){
       api.mediaAsked = (api.mediaAsked || 0) + 1;
       return api.files[m[1]] ? r.fulfill({status: 200, contentType: m[2] === 'png' ? 'image/png' : 'application/octet-stream', body: api.files[m[1]]})
                              : r.fulfill({status: 404, body: ''});
+    }
+    const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
+    if(beside){
+      api.programAsked = (api.programAsked || 0) + 1;
+      return r.fulfill({status: 200, contentType: u.pathname.endsWith('.css') ? 'text/css' : 'text/javascript', body: beside});
     }
     return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
   });
@@ -10444,6 +10453,39 @@ async function main(){
   check('a picture named by its path is fetched from beside the page and drawn', fromPath.drawn && fromPath.onChart && api.mediaAsked > 0,
         JSON.stringify(fromPath));
   check('an exported chart carries the picture inside it, not its path', fromPath.exportInlined);
+
+  /* The site's page keeps its program and stylesheet beside it; a copy of
+     it is one file, opened where they are not. */
+  const copied = await site.evaluate(async () => {
+    const src = ensureFullDocument(writeChart(await readOwnSource()));
+    return {src, beside: /(?:src|href)="(?:app|style)\.[0-9a-f]{16}\.(?:js|css)" data-inline/.test(src),
+            program: src.includes('function inlineSiteFiles('), style: /<style>[^<]*\.brand/.test(src)};
+  });
+  check('the site\'s page is its chart, with the program and the stylesheet beside it',
+        !/<style>/.test(html) && /<script src="app\.[0-9a-f]{16}\.js" data-inline><\/script>/.test(html) && api.programAsked >= 2,
+        JSON.stringify({asked: api.programAsked}));
+  check('a copy made from it carries both inside it, where their tags stood',
+        !copied.beside && copied.program && copied.style, JSON.stringify({beside: copied.beside, program: copied.program, style: copied.style}));
+  {
+    const elsewhere = await browser.newContext({viewport: {width: 1200, height: 800}});
+    await elsewhere.route('https://fonts.googleapis.com/**', quiet);
+    await elsewhere.route('https://fonts.gstatic.com/**', quiet);
+    await elsewhere.route('http://a-copy.test/**', r => r.request().url().endsWith('/copy.html')
+      ? r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: copied.src})
+      : r.fulfill({status: 404, body: ''}));
+    const cp = await elsewhere.newPage();
+    const cpErrs = [];
+    cp.on('pageerror', e => cpErrs.push(e.message));
+    await cp.goto('http://a-copy.test/copy.html', {waitUntil: 'load'});
+    const opened = await cp.waitForFunction(() => typeof rebuildChart === 'function', null, {timeout: 8000}).then(() => true, () => false);
+    const drawn = opened ? await cp.evaluate(() => ({nodes: document.querySelectorAll('#nodeLayer .node').length,
+                                                     styled: getComputedStyle(document.querySelector('.topbar')).display !== 'inline',
+                                                     sha: DATA_SHA})) : null;
+    check('and opened somewhere else, that copy draws the chart, styled, with no base of the site\'s to save on',
+          opened && drawn.nodes > 0 && drawn.styled && drawn.sha === null && cpErrs.length === 0,
+          JSON.stringify({opened, drawn, cpErrs}));
+    await elsewhere.close();
+  }
   check('and so does a picture of the chart', fromPath.pictureInlined);
 
   /* ---- the owner, when the site is behind the repository ---- */
@@ -10809,16 +10851,19 @@ async function main(){
     check('the site is the built file and src/site beside it, so there is nothing to keep from src', true);
     return;
   }
-  /* The site as CI stages it: the built page as index.html, src/site/
-     beside it. The page is not ON the site here, so the worker is
-     registered by hand — what is tested is the worker, and what it keeps. */
-  const SITE_DIR = path.join(ROOT, 'src', 'site');
-  const files = {'/': fs.readFileSync(path.join(DIR, PAGE))};
+  /* The site as CI stages it: dist/site/, the page with its program and
+     stylesheet beside it and src/site/ copied in. The page is not ON the
+     site here, so the worker is registered by hand — what is tested is the
+     worker, and what it keeps. */
+  const SITE_DIR = path.join(DIR, 'site');
+  const files = {};
   for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  files['/'] = files['/index.html'];
+  delete files['/index.html'];
   // A picture beside the page, as a Save puts one in src/media.
   const PICTURE = '/media/' + 'b'.repeat(64) + '.png';
   files[PICTURE] = Buffer.from('a picture kept for a day with no signal');
-  const TYPES = {'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
+  const TYPES = {'.js': 'text/javascript', '.css': 'text/css', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
   let up = true;
   const srv = http.createServer((q, r) => {
     if(!up){ r.destroy(); return; }
@@ -10881,6 +10926,36 @@ async function main(){
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
     const keptNewer = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page'))).catch(() => false);
     check('and that is the copy kept for next time', keptNewer);
+
+    /* A release: the program changes, and so does its name. The page that
+       names it is fetched with a connection, and what the worker keeps
+       follows it — the new program at once, and the old one only as long as
+       a page that may still be on screen names it. */
+    const appOf = () => /src="(app\.[0-9a-f]{16}\.js)"/.exec(files['/'].toString())[1];
+    const release = n => {
+      const was = appOf(), now = 'app.' + String(n).repeat(16).slice(0, 16) + '.js';
+      files['/' + now] = files['/' + was];
+      files['/'] = Buffer.from(files['/'].toString().replace(was, now));
+      return now;
+    };
+    const keptPrograms = () => p.evaluate(async () => (await (await caches.open('rhizome-site-2')).keys())
+      .map(k => new URL(k.url).pathname.slice(1)).filter(n => /^app\./.test(n)).sort());
+    up = true;
+    const first = appOf(), second = release(1);
+    await p.reload({waitUntil: 'load'});
+    await wait(500);
+    const afterOne = await keptPrograms();
+    const third = release(2);
+    await p.reload({waitUntil: 'load'});
+    await wait(500);
+    const afterTwo = await keptPrograms();
+    check('a release keeps the new program, and the one before it for a page still showing',
+          afterOne.join() === [first, second].sort().join(), JSON.stringify(afterOne));
+    check('and the one before that is let go', afterTwo.join() === [second, third].sort().join(), JSON.stringify(afterTwo));
+    up = false;
+    await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
+    const offlineAfter = await p.waitForFunction(() => typeof rebuildChart === 'function', null, {timeout: 8000}).then(() => true, () => false);
+    check('and with no connection the released page opens on the program it names', offlineAfter);
     check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   } finally {
     await c.close();

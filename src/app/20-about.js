@@ -466,14 +466,46 @@ async function readOwnSource(){
     if(res.ok) raw = await res.text();
   }catch(e){ /* file:// and a host that refuses both land here */ }
   let mine = ownContent(raw);
-  if(mine) return mine;
+  if(mine) return inlineSiteFiles(mine);
   mine = ownContent(PRISTINE_HTML);
-  if(mine) return mine;
+  if(mine) return inlineSiteFiles(mine);
   /* Neither source carried the markers. Rather than hand back something
      that might be the host's document, say so — a refused save the user
      can see beats a save that quietly breaks the page. */
   if(raw && extractRegion(raw, 'NODES') !== null) return raw;
   throw new Error('Could not read this page\u2019s own source.');
+}
+/* On the site the program and the stylesheet are files beside the page,
+   named by their hash (build_site in build.py), so that a Save — which
+   changes only the chart — does not make every reader download them again.
+   Whatever is made from this page's source is one file, as it always was:
+   an exported copy is opened where those files are not. So they are put
+   back inside it here, in the place their tags held, and a page that has
+   no such tags — every copy but the site's — comes back as it went in.
+
+   Only tags marked data-inline, and only names with no path in them: the
+   build writes exactly that, and nothing else in a page is fetched here. */
+const SITE_FILE_RE = /<script src="([\w.-]+\.js)" data-inline><\/script>|<link rel="stylesheet" href="([\w.-]+\.css)" data-inline>/g;
+async function inlineSiteFiles(src){
+  const found = [...src.matchAll(SITE_FILE_RE)];
+  if(!found.length) return src;
+  const texts = await Promise.all(found.map(async m=>{
+    const name = m[1] || m[2];
+    const res = await fetch(new URL(name, location.href));
+    if(!res.ok) throw new Error('could not fetch ' + name + ' (' + res.status + ').');
+    return res.text();
+  }));
+  let out = '', at = 0;
+  found.forEach((m, i)=>{
+    /* A replacement string would read `$&` and `$1` inside the program as
+       patterns, so the pieces are joined by hand. The script's closing tag is
+       written with an escaped slash because this line is itself inside a
+       script in every other build, and the parser ends one at the first
+       closing tag it meets, in a string or a comment or not. */
+    out += src.slice(at, m.index) + (m[1] ? '<script>\n' + texts[i] + '<\/script>' : '<style>' + texts[i] + '</style>');
+    at = m.index + m[0].length;
+  });
+  return out + src.slice(at);
 }
 /* The artifact host wraps our markup in its own <!doctype>/<html>/<head>/<body>
    skeleton at publish time, so the source we read back is a *fragment*. A

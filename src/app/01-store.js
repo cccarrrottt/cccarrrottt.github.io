@@ -90,8 +90,20 @@ let siteSuggestions = null;
    currently in the repository, so a page that is behind — a second tab, or
    this one reloaded before the site caught up with the last save — cannot
    quietly replace newer work with older. null when the parts are run
-   straight from src/, which is never the site. */
-const DATA_SHA = /* @@DATA_SHA@@ */ null;
+   straight from src/, which is never the site.
+
+   It is read from the document rather than written into the program, and
+   from the wrapper's <head>, outside the page's own markers. In the program
+   it made every Save a new program: on the site the program is a file of
+   its own, named by its hash so a reader's browser keeps it, and a value
+   that changes with the chart would have changed that name with every
+   Save. Outside the markers, it is not carried into an exported copy or a
+   page published to claude.ai, where it would only ever be stale. */
+const DATA_SHA = (()=>{
+  const m = document.querySelector('meta[name="rhizome-data-sha"]');
+  const v = m && m.getAttribute('content');
+  return v && /^[0-9a-f]{40}$/.test(v) ? v : null;
+})();
 
 function storageOk(){
   try{
