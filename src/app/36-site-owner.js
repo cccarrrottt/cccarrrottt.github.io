@@ -43,6 +43,11 @@ const ownerBtn = document.getElementById('ownerBtn');
    was built from and moves with every save, so a second save before the
    site has caught up is still a save on top of the first. */
 let siteBase = DATA_SHA;
+/* Whether the service takes pictures as files beside the chart (see
+   tookMedia). Asked, not assumed: a page published before the service that
+   takes them would otherwise send paths to a service that drops the files,
+   and the chart would name pictures nobody has. */
+let siteTakesMedia = false;
 let siteOwner = null;
 /* A reader signed in to make suggestions (22-file-comments). A reader's
    session opens nothing else; see worker/index.js. */
@@ -149,6 +154,7 @@ async function checkSiteOwner(){
   }
   if(!res.ok || !me || !me.owner) return false;
   siteReader = null;
+  siteTakesMedia = me.media === true;
   siteOwner = me.login || 'owner';
   rememberOwner(siteOwner);
   updateOwnerBtn();
@@ -219,12 +225,13 @@ async function saveToSite(){
   if(!siteSession()) throw siteError('signed_out', 'you are not signed in.');
   const parts = writeChartParts();
   if(siteOffline()) return keepForLater(parts);
-  let answer;
+  let answer, sent;
   try{
+    sent = siteTakesMedia ? await liftMedia(parts) : {parts, files: {}};
     answer = await siteRequest('/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({base: siteBase, parts})
+      body: JSON.stringify({base: siteBase, parts: sent.parts, media: sent.files})
     });
   }catch(e){
     return keepForLater(parts);
@@ -236,6 +243,7 @@ async function saveToSite(){
   if(res.status === 413) throw siteError('too_large', 'the chart is too large to send.');
   if(!res.ok) throw siteError('site_' + res.status, (body && body.error) || 'the save service refused the save.');
   if(body && body.sha) siteBase = body.sha;
+  tookMedia(sent);
   /* This save carried everything a kept one did, and more. */
   if(sitePending){ await dropOutbox(); sitePending = false; }
   savedParts = snapshotParts();
@@ -243,6 +251,14 @@ async function saveToSite(){
   setSaveState('ok', 'Saved — the site shows it in a few minutes');
   clearTimeout(saveStateTimer);
   saveStateTimer = setTimeout(refreshSaveUI, 4000);
+}
+
+/* The pictures go beside the chart, as files of their own (see MEDIA_REF):
+   the regions are sent with each embedded one replaced by its path, and
+   the files with them, once. The page keeps drawing from the bytes it
+   already holds; the next page to open reads the paths. */
+function tookMedia(sent){
+  Object.keys((sent && sent.files) || {}).forEach(ref=> mediaSent.add(ref));
 }
 
 /* ---- the outbox: a Save that could not be sent yet ---- */
@@ -294,12 +310,13 @@ async function sendOutbox(){
   if(!kept || !kept.parts){ sitePending = false; refreshSaveUI(); return true; }
   if(!siteSession()){ setSaveState('err', SITE_SIGN_IN_TO_SEND); return false; }
   if(siteOffline()) return false;
-  let answer;
+  let answer, sent;
   try{
+    sent = siteTakesMedia ? await liftMedia(kept.parts) : {parts: kept.parts, files: {}};
     answer = await siteRequest('/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({base: kept.base, parts: kept.parts})
+      body: JSON.stringify({base: kept.base, parts: sent.parts, media: sent.files})
     });
   }catch(e){ return false; }
   const {res, body} = answer;
@@ -313,6 +330,7 @@ async function sendOutbox(){
   }
   if(!res.ok) return false;
   if(body && body.sha) siteBase = body.sha;
+  tookMedia(sent);
   /* A Save made while this one was on its way is a later chart, made on
      top of this one — it stays, on the new base. */
   const now = await readOutbox();

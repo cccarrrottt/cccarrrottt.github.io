@@ -29,6 +29,110 @@
    to put it in — see tokenizeLabel, which drops it for every other reader.
    ------------------------------------------------------------------ */
 const MEDIA_KINDS = new Set(['image', 'video']);
+/* A picture or a clip kept BESIDE the page rather than inside it.
+ *
+ * Embedded, the chart's pictures were most of the page — 1.2 MB of one
+ * clip in a 2.8 MB build — and every Save on the site carried all of
+ * them again to change one word. So on the site a picture is a file of its
+ * own, `media/<sha256 of its bytes>.<ext>`, and the chart names it by that
+ * path. The name is what the bytes ARE, so a file never changes once
+ * written, the same picture used twice is one file, and the write service
+ * can check that what it is handed is what it is called.
+ *
+ * The path is relative, and resolved against the page: an <img> or an SVG
+ * <image> given it fetches it from beside the page, which is where the
+ * build and the site put the folder. Nothing else in the drawing has to
+ * know. What does is anything that has to carry the picture somewhere the
+ * folder is not — an exported page, a picture of the chart — and that
+ * asks inlineMediaRefs for the bytes. */
+const MEDIA_EXT = {
+  'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
+  'image/svg+xml':'svg', 'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
+  'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov'
+};
+/* Its patterns are written inside it rather than kept beside it: the model
+   asks mediaSrcOk while it loads the chart, in part 02, before anything
+   this part declares has been given a value. */
+function mediaRefKind(src){
+  const m = typeof src === 'string' && /^media\/[0-9a-f]{64}\.(png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)$/.exec(src);
+  return m ? (/^(webm|mp4|ogv|mov)$/.test(m[1]) ? 'video' : 'image') : null;
+}
+/* Embedded pictures in a region's text, lifted out into the files they
+   will be on the site: the text with each data: URI replaced by its path,
+   and the files the service has not been sent yet. A tiny one stays where
+   it is — a file of its own would cost a request to save a few hundred
+   bytes. Matched by what stands before `;base64,`, for the same reason
+   mediaSrcOk reads it that way: a recorder's `;codecs=vp9,opus` holds a
+   comma. A type with no extension to its name stays embedded. */
+const LIFT_MIN = 2048;
+const DATA_URI_IN_TEXT = /data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)/g;
+const liftedRefs = new Map();   // data: URI -> its path, once worked out
+const mediaSent = new Set();    // paths the service has taken in this page's life
+async function mediaRefOf(uri, mime, b64){
+  if(liftedRefs.has(uri)) return liftedRefs.get(uri);
+  const ext = MEDIA_EXT[mime.toLowerCase()];
+  let ref = null;
+  if(ext){
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    ref = 'media/' + Array.from(d, b => b.toString(16).padStart(2, '0')).join('') + '.' + ext;
+  }
+  liftedRefs.set(uri, ref);
+  return ref;
+}
+async function liftMedia(parts){
+  const out = {}, files = {};
+  for(const name of Object.keys(parts)){
+    const text = parts[name];
+    if(typeof text !== 'string'){ out[name] = text; continue; }
+    const swap = new Map();
+    for(const m of text.matchAll(DATA_URI_IN_TEXT)){
+      if(m[0].length < LIFT_MIN || swap.has(m[0])) continue;
+      const ref = await mediaRefOf(m[0], m[1], m[3]);
+      if(!ref) continue;
+      swap.set(m[0], ref);
+      if(!mediaSent.has(ref)) files[ref] = m[3];
+    }
+    out[name] = swap.size ? text.replace(DATA_URI_IN_TEXT, u => swap.get(u) || u) : text;
+  }
+  return {parts: out, files};
+}
+/* And back: every path in a text replaced by the bytes it names, for a copy
+   that will be opened where there is no folder beside it. A file that
+   cannot be fetched keeps its path — the copy is then short of a
+   picture, which is better than no copy. */
+const refData = new Map();
+function blobDataUrl(blob){
+  return new Promise((ok, no)=>{
+    const fr = new FileReader();
+    fr.onload = ()=> ok(fr.result); fr.onerror = no;
+    fr.readAsDataURL(blob);
+  });
+}
+async function mediaRefData(ref){
+  if(refData.has(ref)) return refData.get(ref);
+  let uri = null;
+  try{
+    const r = await fetch(ref);
+    if(r.ok){
+      const ext = ref.slice(ref.lastIndexOf('.') + 1);
+      const type = Object.keys(MEDIA_EXT).find(t => MEDIA_EXT[t] === ext);
+      uri = await blobDataUrl(new Blob([await r.arrayBuffer()], {type}));
+    }
+  }catch(e){}
+  if(uri) refData.set(ref, uri);
+  return uri;
+}
+async function inlineMediaRefs(text){
+  const refs = Array.from(new Set(String(text).match(MEDIA_REF_IN_TEXT) || []));
+  if(!refs.length) return text;
+  const got = new Map();
+  for(const ref of refs){ const uri = await mediaRefData(ref); if(uri) got.set(ref, uri); }
+  return String(text).replace(MEDIA_REF_IN_TEXT, r => got.get(r) || r);
+}
 function sanitizeMedia(list){
   const seen = new Set(), out = [];
   (Array.isArray(list) ? list : []).forEach(m=>{
@@ -50,6 +154,7 @@ function sanitizeMedia(list){
    can arrive from someone else, and opening it must not run their code. */
 function mediaSrcOk(src){
   if(typeof src !== 'string' || !src) return false;
+  if(mediaRefKind(src)) return true;
   /* An embedded one, header and all. Split on the marker rather than
      matched in one pattern: a real media type can carry parameters, and a
      browser's own recorder writes `;codecs=vp9,opus` — a comma inside the
@@ -77,6 +182,7 @@ function mediaSrcOk(src){
  * are a figure's business alone — a sticker stands in a line of text. */
 function pictureSrcOk(src){
   if(!mediaSrcOk(src)) return false;
+  if(mediaRefKind(src)) return mediaRefKind(src) === 'image';
   const at = src.indexOf(';base64,');
   if(at > 5 && src.slice(0, 5).toLowerCase() === 'data:'){
     return /^image\//i.test(src.slice(5, at));

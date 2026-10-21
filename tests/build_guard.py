@@ -74,7 +74,9 @@ def edit_one_label(text):
     m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
                   text, re.S)
     assert m, 'fixture: no NODES region in the built page'
-    body, n = re.subn(r"(\[\s*'[^']*',\s*')([^']*)(')",
+    # An entry is a record now ({id:'…', label:'…'}); a page built before
+    # that writes a list (['…', '…']). Either is a label to rename.
+    body, n = re.subn(r"(\{id:'[^']*',\s*label:'|\[\s*'[^']*',\s*')([^']*)(')",
                       lambda g: g.group(1) + g.group(2) + ' EDITED' + g.group(3),
                       m.group(2), count=1)
     assert n == 1, 'fixture: found no entry label to rename'
@@ -389,6 +391,22 @@ def main():
     r = run(tmp)
     check('and its build says nothing about staleness',
           r.returncode == 0 and 'NOTE' not in r.stdout, r.stdout)
+
+    # The pictures beside the chart go beside the built page, where the
+    # page's relative paths find them; one already there is left as it is.
+    tmp = sandbox()
+    (tmp / 'src' / 'media').mkdir(exist_ok=True)
+    name = 'a' * 64 + '.png'
+    (tmp / 'src' / 'media' / name).write_bytes(b'bytes of a picture')
+    r = run(tmp)
+    copied = tmp / 'dist' / 'media' / name
+    check('the media folder is copied beside the built page',
+          r.returncode == 0 and copied.exists() and copied.read_bytes() == b'bytes of a picture',
+          r.stdout + r.stderr)
+    r = run(tmp)
+    check('and a second build has nothing new to copy',
+          r.returncode == 0 and 'new' not in [l for l in r.stdout.splitlines() if 'dist/media' in l][0],
+          r.stdout)
 
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0

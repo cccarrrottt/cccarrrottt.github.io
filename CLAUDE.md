@@ -26,6 +26,17 @@ So:
   run yet. It therefore needs an HTTP server; for double-click use, build
   `dist/nexus.html`.
 
+## How an entry is written
+
+In `src/data.js` an entry is a record with its fields named —
+`{id, label, parent, edgeLabel, note, shape, …}`, every option beside them —
+and `SETTINGS.format` says so (`DATA_FORMAT`, `02-model.js`). Inside the page
+it is still the list it always was, `[id, label, parent, edgeLabel, note,
+shape, opts]`, because every part reads it that way; `entryOfRecord` and
+`recordOfEntry` are the only two places that know both. A list found in a
+file is still read, so older saves, exports and pulls open as before; a
+file whose `format` is higher than the page's is refused at import.
+
 ## Where the chart's contents actually live
 
 **On the published site, in `src/data.js`** — Save there commits the regions
@@ -165,8 +176,15 @@ site") and `build_guard`:
   base after a save is what lets two saves in a row work before the site
   has rebuilt.
 - **What the page sends for a region is the text between its markers,
-  byte for byte.** Otherwise every save would rewrite all of `data.js`.
-- **A push that changes only `src/data.js` skips CI's checks** and is
+  byte for byte** — but for each embedded picture past 2 KB, which goes as
+  its path, `media/<sha256>.<ext>`, with the file beside it (`liftMedia`,
+  `04-assets.js`). Otherwise every save would rewrite all of `data.js`.
+- **Pictures live in `src/media/`, named by the hash of their bytes**, and
+  the build copies them to `dist/media/`. The service refuses a file whose
+  bytes are not its name and a chart naming a path nobody sent. Anything
+  that leaves the site (Export, Export data, the PNG/SVG picture) inlines
+  them again with `inlineMediaRefs`.
+- **A push that changes only `src/data.js` and `src/media/` skips CI's checks** and is
   published at once — that is what a Save on the site is, and the owner
   asked not to wait for the suite. The `changes` job decides from the
   pushed trees, so any other file in the push runs everything.
@@ -199,8 +217,9 @@ Chromium at 1500×950, a synthetic chain of tagged entries:
 | `src/data.js` | 1.30 MB, of which ~1.26 MB is two base64 blobs |
 
 - **Weight is media, not code.** Cutting program out of the page saves
-  kilobytes against a megabyte of embedded pictures. Moving media to separate
-  files is the size win, and it needs a host that serves more than one file.
+  kilobytes against a megabyte of embedded pictures. That is why media now
+  lives beside the page (see above); the figures in this table were taken
+  before the first Save moved it.
 
 ### What `rebuildChart` was actually spending its time on
 
@@ -278,6 +297,58 @@ walk; it is a smaller share and the next thing to measure.
   those forced layouts into one, and measurement is now 1–2% of a rebuild.
   It would be invasive surgery on 1123 lines for something already spent.
 
+### What one edit costs, and the routes it no longer recomputes
+
+`tools/bench-edit.js` times the edits a person makes all day through
+`applyEdit`, split by function. Synthetic chain, 600 entries, medians:
+
+| edit | before | after | routing before → after |
+| --- | ---: | ---: | ---: |
+| recolour an entry | 943 ms | 385 ms | 571 → 4 ms |
+| tag an entry | 874 ms | 374 ms | 527 → 3 ms |
+| retype a note | 1055 ms | 399 ms | 635 → 4 ms |
+| move an entry | 493 ms | 566 ms* | 169 → 231 ms |
+
+\* within the spread between runs: two runs before the change gave 493
+and 932 ms for the same move. A move changes a box, and a changed box
+means everything is routed afresh, as before.
+
+Every edit redrew the whole chart, and routing was the larger half of it
+even for an edit that cannot move a line. A pass now remembers its calls
+to `pathFromPorts` in order (`routePass`, `09-bends-ports.js`), and the
+next pass hands them back while the chart the router sees is the same
+(`routeWorldKey`: every entry but its words and paint) and every call so
+far was asked as before. The first difference ends the reuse for the rest
+of the pass, so the routes are exactly a fresh pass's; the suite compares
+the two after each kind of edit ("an edit that moves nothing re-routes
+nothing"). A test that wants a fresh pass sets `routeLast = null`.
+
+What was left of an edit was the entries' DOM — and most of that DOM was
+controls nobody could see. An entry was six elements of drawing and
+thirty-four of corner grips and connector strips, all hidden until the
+pointer is on it; a 600-entry chart was 24,200 elements, and the style and
+layout every redraw forces went over all of them (it lands wherever the
+next read of a size is, which is why `buildSideTabs` looked expensive). The
+controls are now built the first time something can reach them — the
+pointer arriving (`pointerover`, so a finger too), the entry being
+selected, a connector dragged onto it (`nodeControlsWanted`,
+`13-render-nodes.js`). Same chain, medians, two runs each:
+
+| 600 entries | before | after |
+| --- | ---: | ---: |
+| recolour, tag, note, rename | ~290–390 ms | ~160–205 ms |
+| move an entry | ~520–920 ms | ~305–330 ms |
+| `renderNodes` | ~100–160 ms | ~35–65 ms |
+| elements per entry | 40 | 6 |
+
+At 200 entries an edit went from ~90–125 ms to ~45–75. Reusing an
+unchanged entry's drawing between redraws was the plan before this was
+measured; what remains of `renderNodes` is now ~50 ms at 600, and reuse
+would have to carry an entry's defs, its measured size and everything
+`renderNodes` writes onto the entry along with it. Not worth it until a
+chart is in the thousands. A test that wants an entry's grips or strips
+without moving a pointer calls `nodeControlsOn(id)`.
+
 ### What an edit cost before it was even drawn
 
 `takeSnapshot` runs on every edit and `isDirty` on every keystroke, and both
@@ -325,7 +396,11 @@ Do not re-propose these without new evidence:
 - **ES modules / a bundler.** The call graph has 348 boot-reachable forward
   references with cycles; there is no order in which each part only uses what
   came before it. A bundler would also destroy the `@@EDIT@@` markers the page
-  saves itself through.
+  saves itself through. Looked at again in October 2026: the cycles alone
+  would not forbid modules — a module may take part in a cycle as long as it
+  does not read the other side's names while it runs — but the markers stand,
+  and the owner's answer was to keep one scope. The door is not shut: if the
+  chart's data ever leaves the page, the strong reason goes with it.
 - **A full TypeScript migration**, and a **Model/View split as an end in
   itself**. Cost without a measured problem behind it.
 - **Splitting the editor and the viewer into two builds.** Editing and drawing
@@ -341,8 +416,8 @@ Do not re-propose these without new evidence:
 
 1. **Independence from the claude.ai runtime.** This is the standing top
    priority. Pages serves the page and Save on the site commits to the
-   repository through `worker/`; what remains is moving media out of the
-   page, which also shrinks every save by the megabyte of base64 it carries.
+   repository through `worker/`, and pictures are files beside the page.
+   What a copy on claude.ai cannot do now is show those pictures.
 2. **Bughunting**, and removing behaviour that is unwanted or surprising, over
    new features.
 

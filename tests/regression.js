@@ -927,6 +927,7 @@ async function main(){
       // The card is an ENTRY, with an entry's ports and edge handles.
       const card = document.querySelector('.node[data-id="ld_c0"]');
       out.isEntry = !!card && card.classList.contains('node-callout');
+      nodeControlsOn('ld_c0');
       out.handles = card ? card.querySelectorAll('.node-handle').length : 0;
       out.leaderUnderCard = !!document.querySelector('#edgeLayer .callout-leader[data-id="ld_c0"]');
       // The anchor tracks the fraction it was given.
@@ -1366,6 +1367,7 @@ async function main(){
     rebuildChart();
     await new Promise(r=> setTimeout(r, 400));
     const nch = nodes.get('ch');
+    nodeControlsOn('ch');
     const topHit = document.querySelector('[data-id="ch"].node .node-handle[data-side="top"] .node-handle-hit')
                 || document.querySelector('.node-handle[data-side="top"] .node-handle-hit');
     const topShow = document.querySelector('[data-id="ch"].node .node-handle[data-side="top"] .node-handle-band')
@@ -1503,7 +1505,7 @@ async function main(){
     });
     rebuildChart();
     await new Promise(r=> setTimeout(r, 420));
-    const rings = (id)=> document.querySelectorAll('[data-id="'+id+'"].node .node-handle[data-side="top"]').length;
+    const rings = (id)=> nodeControlsOn(id) || document.querySelectorAll('[data-id="'+id+'"].node .node-handle[data-side="top"]').length;
     const portRings = {amalgam: rings('pa'), plain: rings('pb')};
 
     // A hand-placed entry grows about its middle.
@@ -1572,6 +1574,7 @@ async function main(){
                     && rings[1].x < rings[0].x && rings[2].x < rings[1].x;
 
     // A pocket's grab-edge waves the way its border does.
+    nodeControlsOn('bp');
     const wave = document.querySelector('[data-id="bp"] .node-handle-band.wave');
     // It is a polyline now, like every other wavy thing: it waves if it
     // leaves the straight edge it is drawn along.
@@ -1581,6 +1584,7 @@ async function main(){
       const ys = p.map(q=> q.y);
       return Math.max(...ys) - Math.min(...ys) > 1;
     })();
+    nodeControlsOn('b3');
     out.plainBandIsRect = !!document.querySelector('[data-id="b3"] rect.node-handle-band');
 
     // A local multiverse's sheets are translucent scenery, like a hub's echo.
@@ -2298,6 +2302,7 @@ async function main(){
     const amRect = document.querySelector('[data-id="cam"] > rect[stroke]');
     out.amalStroke = amRect ? amRect.getAttribute('stroke') : null;
     out.amalText = document.querySelector('[data-id="cam"] text').getAttribute('fill');
+    nodeControlsOn('cam');
     out.amalPortRings = document.querySelectorAll('[data-id="cam"] .node-handle[data-side="top"]').length;
 
     /* Hiding one tag takes the entries carrying it off the chart, whatever
@@ -2317,6 +2322,7 @@ async function main(){
     out.pocketCornerFlat = 0;
     applyEdit(()=>{ workingNodes.push(['pkh','P',null,null,null,'pocket',{pos:[12800,620]}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
+    nodeControlsOn('pkh');
     const hit = document.querySelector('[data-id="pkh"] .node-handle[data-side="top"] .node-handle-hit');
     out.pocketHit = hit ? +(+hit.getAttribute('height')).toFixed(2) : null;
     const plainHit = document.querySelector('[data-id="msFar"] .node-handle[data-side="top"] .node-handle-hit');
@@ -2474,6 +2480,7 @@ async function main(){
     /* The resize grip is a dot ON the corner, and what catches the hand
        is not much more than the dot: the smallest entry is GRID a side,
        and four grips must leave the middle of it to the entry. */
+    nodeControlsOn('gs');
     const hit = document.querySelector('[data-id="gs"] .node-resize-hit');
     out.gripBox = hit ? [hit.tagName, +hit.getAttribute('cx'), +hit.getAttribute('cy'),
                          +hit.getAttribute('r'), GRID] : null;
@@ -3630,6 +3637,7 @@ async function main(){
 
     /* Language chips no longer take the top edge away from the entry. */
     const az = nodes.get('az');
+    nodeControlsOn('az');
     const hit = document.querySelector('[data-id="az"] .node-handle[data-side="top"] .node-handle-hit');
     out.chipsCovered = az.chipRight > az.x + az.w * 0.5;
     out.topStripWhole = Math.abs(+hit.getAttribute('x') - az.x) < 0.5 &&
@@ -4756,12 +4764,14 @@ async function main(){
     out.strays = strays;
 
     /* Four resize grips, a link tab or not. */
+    nodeControlsOn('xa');
     out.gripsPlain = document.querySelectorAll('[data-id="xa"] .node-resize').length;
     applyEdit(()=>{
       const f = workingNodes.find(t=> t[0]==='xa');
       f[6] = Object.assign({}, f[6] || {}, {link:'https://example.com/'});
     });
     rebuildChart(); await wait(420);
+    nodeControlsOn('xa');
     out.gripsWithLink = document.querySelectorAll('[data-id="xa"] .node-resize').length;
     out.gripNeKept = !!document.querySelector('[data-id="xa"] .node-resize-ne');
 
@@ -4773,6 +4783,7 @@ async function main(){
     {
       const n0 = nodes.get('gz');
       const right0 = n0.x + n0.w, bottom0 = n0.y + n0.h;
+      nodeControlsOn('gz');
       const grip = document.querySelector('[data-id="gz"] .node-resize-nw');
       beginNodeResize({button:0, clientX:0, clientY:0,
                        stopPropagation(){}, preventDefault(){}},
@@ -5053,6 +5064,7 @@ async function main(){
       workingNodes.push(['negx','Left of nothing',null,null,null,null,{pos:[-900,-1500]}]);
     });
     rebuildChart(); await wait(420);
+    nodeControlsOn('negx');
     out.gripsNegative = document.querySelectorAll('[data-id="negx"] .node-resize').length;
 
     refill(EDGE_STYLES, beforeStyles);
@@ -5887,6 +5899,7 @@ async function main(){
 
     /* The side its leader arrives at offers no port. */
     out.takenSide = calloutLeaderSide(nodes.get('coC'));
+    nodeControlsOn('coC');
     const sides = [...document.querySelectorAll('.node[data-id="coC"] .node-handle')]
       .map(h=> h.dataset.side);
     out.sideGone = out.takenSide && sides.indexOf(out.takenSide) < 0 &&
@@ -7105,6 +7118,7 @@ async function main(){
       const n = nodes.get('pa');
       out.bioSize = [n.w, n.h];
       out.bioModest = n.h <= NODE_FIT_MINH * 1.6 && n.h >= NODE_FIT_MINH;
+      nodeControlsOn('pa');
       out.bioGrips = document.querySelectorAll('.node[data-id="pa"] .node-resize').length;
       /* The silhouette stays inside the rim, at every size. */
       const rim = document.querySelector('.node[data-id="pa"] circle.bio-ring');
@@ -7937,6 +7951,7 @@ async function main(){
     });
     await wait(800);
     {
+      nodeControlsOn('zt');
       const g = document.querySelector('.node[data-id="zt"]');
       const handle = g && g.querySelector('.node-rotate');
       out.hasHandle = !!handle;
@@ -8077,6 +8092,7 @@ async function main(){
       workingNodes.push(['ri','', null, null, null, 'image', {pos:[-120,140]}]);
     });
     await wait(800);
+    nodeControlsOn('rt'); nodeControlsOn('ri'); nodeControlsOn('rb');
     {
       out.captionHandle = !!document.querySelector('.node[data-id="rt"] .node-rotate') &&
                           !!document.querySelector('.node[data-id="ri"] .node-rotate');
@@ -8987,6 +9003,7 @@ async function main(){
       out.padIsTheSquare = !!pad && getComputedStyle(pad).pointerEvents === 'all' &&
                            getComputedStyle(pad).fill === 'rgba(0, 0, 0, 0)';
       const n = nodes.get('pq');
+      nodeControlsOn('pq');
       const grip = g.querySelector('.node-resize-nw');
       const gb = grip.getBoundingClientRect(), r = svg.getBoundingClientRect();
       out.gripAtTheCorner = Math.abs((gb.x + gb.width/2) - (r.left + n.x*vs + vx)) < 12 &&
@@ -10152,7 +10169,7 @@ async function main(){
   };
 
   /* The write service, as the page sees it. */
-  const api = {sha: dataSha, saves: [], asked: 0, offline: false, renewNext: false};
+  const api = {sha: dataSha, saves: [], asked: 0, offline: false, renewNext: false, files: {}};
   const SESSIONS = ['Bearer good-session', 'Bearer renewed-session'];
   /* The site's worker would take the page's requests past these routes to
      the real site; the next scenario tests it against a server of its own. */
@@ -10160,7 +10177,18 @@ async function main(){
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
-  await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
+  /* The site serves the page, and the pictures the write service has been
+     sent (api.files) beside it, as Pages serves src/media. */
+  await c.route(SITE_ORIGIN + '/**', r => {
+    const u = new URL(r.request().url());
+    const m = /^\/(media\/[0-9a-f]{64}\.([a-z0-9]+))$/.exec(u.pathname);
+    if(m){
+      api.mediaAsked = (api.mediaAsked || 0) + 1;
+      return api.files[m[1]] ? r.fulfill({status: 200, contentType: m[2] === 'png' ? 'image/png' : 'application/octet-stream', body: api.files[m[1]]})
+                             : r.fulfill({status: 404, body: ''});
+    }
+    return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
+  });
   /* Signed out, the page reads the open suggestions from GitHub itself;
      here there are none. */
   await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'},
@@ -10185,12 +10213,13 @@ async function main(){
       // The service renewing a session whose GitHub token ran out.
       const renewed = api.renewNext ? {session: 'renewed-session'} : {};
       api.renewNext = false;
-      return reply(200, {owner: true, login: 'the-owner', sha: api.sha, ...renewed});
+      return reply(200, {owner: true, login: 'the-owner', sha: api.sha, media: !api.noMedia, ...renewed});
     }
     if(u.pathname === '/save'){
       const b = JSON.parse(q.postData());
       api.saves.push(b);
       if(b.base !== api.sha) return reply(409, {error: 'the repository has a newer chart.'});
+      Object.keys(b.media || {}).forEach(k => { api.files[k] = Buffer.from(b.media[k], 'base64'); });
       api.sha = 'sha-after-save-' + api.saves.length;
       return reply(200, {sha: api.sha});
     }
@@ -10355,9 +10384,67 @@ async function main(){
      trailing newline — every save would rewrite the whole of data.js, and
      the history of the chart would be a list of commits that each changed
      everything. */
+  /* …but for the pictures embedded in it, which go to the site as files of
+     their own, named by the SHA-256 of their bytes (MEDIA_REF): the region
+     goes with each one's path where its bytes stood. A tiny one stays. */
+  const sha256 = b => require('crypto').createHash('sha256').update(b).digest('hex');
+  const EXT = {'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
+               'image/svg+xml':'svg', 'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
+               'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov'};
+  const lifted = text => text.replace(/data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g,
+    (u, mime, _, b64) => u.length < 2048 || !EXT[mime.toLowerCase()] ? u
+      : 'media/' + sha256(Buffer.from(b64, 'base64')) + '.' + EXT[mime.toLowerCase()]);
+  /* …and for the settings of a chart written before entries were records,
+     which gain the number of the form they are now written in. */
+  const formed = (n, t) => n === 'SETTINGS' && !/\bformat:/.test(t) ? t.replace('const SETTINGS = {', 'const SETTINGS = {format: 2, ') : t;
   const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
-    .filter(n => first.parts[n] !== regionOf(html, n)) : ['everything'];
-  check('what it sends for an untouched region is that region, byte for byte', same.length === 0, same.join(', '));
+    .filter(n => first.parts[n] !== formed(n, lifted(regionOf(html, n)))) : ['everything'];
+  check('what it sends for an untouched region is that region, byte for byte, but for its pictures', same.length === 0, same.join(', '));
+  const named = first ? Object.keys(first.media || {}) : [];
+  check('and each picture it lifted out goes with it, named for what its bytes are',
+        !!first && named.every(k => sha256(Buffer.from(first.media[k], 'base64')) === /[0-9a-f]{64}/.exec(k)[0])
+        && named.every(k => Object.values(first.parts).some(t => t.includes(k))), named.join(', '));
+  check('a second save sends none of them again', !!second && Object.keys(second.media || {}).length === 0,
+        second ? Object.keys(second.media || {}).join(', ') : 'nothing sent');
+
+  /* A picture added in the browser goes the same way, and the page can then
+     draw it, export it and take a picture of it from its path. */
+  const pic = await site.evaluate(async () => {
+    const cv = document.createElement('canvas'); cv.width = 48; cv.height = 32;
+    const g = cv.getContext('2d'), px = g.createImageData(48, 32);
+    // Noise, so the picture is past the size a picture stays embedded at.
+    for(let i = 0; i < px.data.length; i++) px.data[i] = i % 4 === 3 ? 255 : Math.floor(Math.random() * 256);
+    g.putImageData(px, 0, 0);
+    const uri = cv.toDataURL('image/png');
+    applyEdit(() => { workingNodes.push(['pic-probe', 'Picture probe', null, null, null, null, {pos:[900, 900], card:true, image: uri}]); });
+    await saveNow();
+    applyEdit(() => { workingNodes.find(n => n[0] === 'pic-probe')[1] = 'Picture probe again'; });
+    await saveNow();
+    return {len: uri.length, b64: uri.slice(uri.indexOf(',') + 1)};
+  });
+  const s3 = api.saves[api.saves.length - 2], s4 = api.saves[api.saves.length - 1];
+  const probeRef = 'media/' + sha256(Buffer.from(pic.b64, 'base64')) + '.png';
+  check('a picture added in the browser is sent as a file, and the chart names its path',
+        pic.len > 2048 && !!s3 && !!(s3.media || {})[probeRef] && s3.parts.NODES.includes(probeRef) && !s3.parts.NODES.includes(pic.b64.slice(0, 200)),
+        JSON.stringify({len: pic.len, saves: api.saves.length, keys: s3 && Object.keys(s3.media || {}), probe: s3 && s3.parts.NODES.includes('pic-probe'), ref: s3 && s3.parts.NODES.includes(probeRef)}));
+  check('and once only', !!s4 && !Object.keys(s4.media || {}).length && s4.parts.NODES.includes(probeRef));
+  const fromPath = await site.evaluate(async ref => {
+    const out = {};
+    applyEdit(() => { workingNodes.find(n => n[0] === 'pic-probe')[6].image = ref; });
+    for(let i = 0; i < 40 && !(imgAspects.get(ref) > 0); i++){ imageAspect(ref); await new Promise(res => setTimeout(res, 50)); }
+    out.drawn = imgAspects.get(ref) > 0;
+    out.onChart = [...document.querySelectorAll('[data-id="pic-probe"] image')].some(im => im.getAttribute('href') === ref);
+    const copy = await inlineMediaRefs(chartDataOnly());
+    out.exportInlined = !copy.includes(ref) && copy.includes('data:image/png;base64,');
+    const picture = (await chartPictureText()).text;
+    out.pictureInlined = !picture.includes(ref) && /<image[^>]+data:image\/png;base64,/.test(picture);
+    applyEdit(() => { const i = workingNodes.findIndex(n => n[0] === 'pic-probe'); workingNodes.splice(i, 1); });
+    return out;
+  }, probeRef);
+  check('a picture named by its path is fetched from beside the page and drawn', fromPath.drawn && fromPath.onChart && api.mediaAsked > 0,
+        JSON.stringify(fromPath));
+  check('an exported chart carries the picture inside it, not its path', fromPath.exportInlined);
+  check('and so does a picture of the chart', fromPath.pictureInlined);
 
   /* ---- the owner, when the site is behind the repository ---- */
   api.sha = 'a-newer-data-js';
@@ -10385,6 +10472,8 @@ async function main(){
   /* ---- the owner with no signal: a phone with the site on its home screen ---- */
   api.sha = dataSha;
   api.renewNext = true;
+  // A service from before pictures went beside the chart: it is not sent paths.
+  api.noMedia = true;
   const savesBefore = api.saves.length;
   const phone = await c.newPage();
   phone.on('pageerror', e => errs.push(e.message));
@@ -10437,6 +10526,9 @@ async function main(){
         api.saves.length === savesBefore + 1 && !!sent && sent.base === dataSha && sent.parts.NODES.includes('WRITTEN WITH NO SIGNAL'),
         sent ? sent.base : 'nothing sent');
   check('and nothing is left waiting', !p3.pending && !p3.kept && /Sent to the site/.test(p3.said), JSON.stringify(p3));
+  check('a service that does not say it takes pictures as files is sent them embedded, as before',
+        !!sent && !Object.keys(sent.media || {}).length && sent.parts.MEDIA === regionOf(html, 'MEDIA'));
+  api.noMedia = false;
 
   /* Somebody saved from another device in between. */
   api.offline = true;
@@ -10723,6 +10815,9 @@ async function main(){
   const SITE_DIR = path.join(ROOT, 'src', 'site');
   const files = {'/': fs.readFileSync(path.join(DIR, PAGE))};
   for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  // A picture beside the page, as a Save puts one in src/media.
+  const PICTURE = '/media/' + 'b'.repeat(64) + '.png';
+  files[PICTURE] = Buffer.from('a picture kept for a day with no signal');
   const TYPES = {'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png'};
   let up = true;
   const srv = http.createServer((q, r) => {
@@ -10761,6 +10856,7 @@ async function main(){
     const controlled = await p.evaluate(() => !!navigator.serviceWorker.controller);
     check('the worker installs, keeping everything it lists, and takes the open page', reg === 'ready' && controlled,
           JSON.stringify({reg, controlled}));
+    const seen = await p.evaluate(async src => (await fetch(src)).text(), PICTURE.slice(1));
 
     up = false;
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
@@ -10770,6 +10866,9 @@ async function main(){
       .catch(e => ({ok: false, error: e.message}));
     check('with no connection the page still opens, and draws the chart', offline.ok && offline.drawn === drawnOnline,
           JSON.stringify({offline, online: drawnOnline}));
+    const kept = await p.evaluate(async src => { try{ return await (await fetch(src)).text(); }catch(e){ return 'failed: ' + e.message; } },
+                                  PICTURE.slice(1)).catch(e => 'failed: ' + e.message);
+    check('and a picture it has shown before is still there', seen === files[PICTURE].toString() && kept === seen, kept);
 
     /* Online again, the network's page is the one shown — a kept copy is
        for when there is nothing else, never in preference. */
@@ -11829,6 +11928,7 @@ async function main(){
          is one of the faded ones for as long as it is open. */
       selectNode('hgC');
       await wait(250);
+      nodeControlsOn('hgA');
       const grip = document.querySelector('.node[data-id="hgA"] .node-resize');
       out.otherGripInert = !!grip && getComputedStyle(grip).pointerEvents === 'none';
       /* …and a panel opened on one connector does not hand every other
@@ -13411,7 +13511,7 @@ async function main(){
       document.querySelector('#styleBar [data-group="corners"] button[data-value="round"]').click();
       await wait(150);
       out.roundWritten = entryOpts(workingEntry('feS').entry).square === false &&
-        /square:false/.test(serializeItem(workingEntry('feS').entry)) &&
+        /square:false/.test(serializeNodes([workingEntry('feS').entry])) &&
         !hasSquareCorners(nodes.get('feS'));
       closeStyleBar();
     }
@@ -13617,6 +13717,7 @@ async function main(){
       g.classList.add('hover');
       const box = g.querySelector('rect').getBoundingClientRect();
       const mid = document.elementFromPoint(box.left + box.width/2, box.top + box.height/2);
+      nodeControlsOn('bqE');
       out.middleIsEntry = !!mid && !!mid.closest('.node[data-id="bqE"]') && !mid.closest('.node-resize');
       out.dots = [...g.querySelectorAll('.node-resize')].length;
     }
@@ -14120,6 +14221,7 @@ async function main(){
     out.freeBar = {};
     for(const id of ['htT', 'htI']){
       openStyleBar({kind:'node', id});
+      nodeControlsOn(id);
       const shown = [...styleBar.querySelectorAll('.style-bar-group')]
         .filter(r=> !r.hidden).map(r=> r.dataset.group);
       out.freeBar[id] = (!styleBar.hidden && shown.length === 1 && shown[0] === 'stack' &&
@@ -14134,6 +14236,7 @@ async function main(){
       const pic0 = nodes.get('htI');
       vs = 1; vx = 400 - pic0.x; vy = 300 - pic0.y; applyTransform();
       openStyleBar({kind:'node', id:'htI'});
+      nodeControlsOn('htI');
       const handle = document.querySelector('.node[data-id="htI"] .node-rotate');
       const a = styleBar.getBoundingClientRect(), b = handle.getBoundingClientRect();
       out.barClearsHandle = a.right <= b.left + 0.5 || a.left >= b.right - 0.5 ||
@@ -14164,6 +14267,7 @@ async function main(){
     {
       const n = nodes.get('htI');
       const was = {w: n.w, h: n.h};
+      nodeControlsOn('htI');
       const g0 = document.querySelector('.node[data-id="htI"]');
       const handle = g0 && g0.querySelector('.node-rotate');
       const cx = n.x + n.w/2, cy = n.y + n.h/2;
@@ -14705,6 +14809,7 @@ async function main(){
                           afterEntry !== null && Math.abs(afterEntry) < 0.5;
       /* The strips that light up on a merge's border are its gradient, laid
          across the entry as the border's own is, not its first colour. */
+      nodeControlsOn('rdM');
       const bands = [...document.querySelectorAll('.node[data-id="rdM"] .node-handle-band')];
       const grads = bands.map(b=> (b.getAttribute('style') || '').match(/url\(#([^)]+)\)/))
         .map(m=> m && document.getElementById(m[1]));
@@ -15124,6 +15229,7 @@ async function main(){
       await wait(250);
       openStyleBar({kind:'node', id:'fvT'});
       const bar = styleBar.getBoundingClientRect();
+      nodeControlsOn('fvT');
       const tabs = [...document.querySelectorAll('.node[data-id="fvT"] .lang-chips, .node[data-id="fvT"] .node-link')]
         .map(t=> t.getBoundingClientRect().top);
       out.barTabsAt = JSON.stringify({bar: bar.bottom, tabs,
@@ -16467,6 +16573,7 @@ async function main(){
     const filed = snap();
     const keep = window.scorePath;
     window.scorePath = linear;
+    routeLast = null;   // or the second pass would hand back the first one's routes
     try{ redrawEdges(); } finally { window.scorePath = keep; }
     const walked = snap();
     const keys = Object.keys(walked);
@@ -16476,6 +16583,198 @@ async function main(){
     return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
+  await scenario("entries written with their fields named", async () => {
+  /* The file writes an entry as a record, {id, label, parent, …}, and the
+     page still works on the list it always did. What has to hold: every
+     entry survives the trip there and back, a file of either form opens,
+     and a file from a newer page is refused rather than half-read. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    try{
+      applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+        workingNodes.push(['fa', 'First\nline', null, null, 'A note', null, {pos:[0, 0], tags:['x'], colors:['#cc2222']}]);
+        workingNodes.push(['fb', 'Second', 'fa', 'via', null, 'callout', {pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}}]);
+        workingNodes.push(['fc', 'Third', ['fa', 'fb'], null, null, 'amalgam']);
+        workingNodes.push(['fd', 'Fourth']);
+      });
+      const text = serializeNodes(workingNodes);
+      out.lines = text.split('\n').slice(1, -1);
+      out.records = out.lines.every(l=> /^  \{id:'/.test(l));
+      const norm = it=> { const a = Array.from({length: 6}, (_, i)=> it[i] === undefined ? null : it[i]); if(it[6] && Object.keys(it[6]).length) a.push(it[6]); return JSON.stringify(a); };
+      out.roundTrip = workingNodes.every(it=> norm(entryOfRecord(recordOfEntry(it))) === norm(it));
+      out.trips = workingNodes.filter(it=> norm(entryOfRecord(recordOfEntry(it))) !== norm(it)).map(it=> [norm(it), norm(entryOfRecord(recordOfEntry(it)))]);
+      out.named = out.lines[1] === "  {id:'fb', label:'Second', parent:'fa', edgeLabel:'via', shape:'callout', pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}},";
+      const file = chartDataOnly();
+      out.settingsSay = /const SETTINGS = \{format: 2,/.test(file);
+      // Read back as this file, as the list form older pages wrote, and from a newer page.
+      const listForm = file.replace(/(@@EDIT:NODES:START@@ \*\/\n)[\s\S]*?(\n\/\* @@EDIT:NODES:END)/,
+        (m0, a, b)=> a + 'const NODES = [\n' + workingNodes.map(it=> '  ' + JSON.stringify(it.slice(0, 7)) + ',').join('\n') + '\n];' + b)
+        .replace('{format: 2, ', '{');
+      const newer = file.replace('{format: 2,', '{format: 3,');
+      const wanted = JSON.stringify(workingNodes.map(norm));
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
+      importChartFromText(file);
+      out.readsRecords = JSON.stringify(workingNodes.map(norm)) === wanted;
+      out.got = [wanted, JSON.stringify(workingNodes.map(norm))];
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
+      importChartFromText(listForm);
+      out.readsLists = JSON.stringify(workingNodes.map(norm)) === wanted;
+      try{ importChartFromText(newer); out.newer = 'taken'; }catch(e){ out.newer = e.message; }
+      out.newerLeftAlone = JSON.stringify(workingNodes.map(norm)) === wanted;
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('each entry is written as a record with its fields named, one to a line', r.records && r.named, JSON.stringify(r.lines));
+  check('and comes back from it exactly as it was', r.roundTrip, JSON.stringify(r.trips));
+  check('the settings say which form the entries are written in', r.settingsSay);
+  check('a file of records opens', r.readsRecords, JSON.stringify(r.got));
+  check('and so does one written as lists, before records', r.readsLists);
+  check('a file from a newer page is refused, and the open chart is left as it was',
+        /newer version/.test(r.newer) && r.newerLeftAlone, r.newer);
+  });
+  await scenario("an edit that moves nothing re-routes nothing", async () => {
+  /* A redraw hands back last pass's routes while the chart the router sees
+     is the same and every call so far has been asked as before. The claim
+     is that this is exact, so it is checked as exact: after each kind of
+     edit, every route against a pass that routes everything afresh. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const snap = ()=>{ const m = {}; drawnRoutes.forEach((q, k)=>{ m[k] = JSON.stringify((q.pts || []).map(p=> [+p.x.toFixed(3), +p.y.toFixed(3)])); });
+      m.paths = [...document.querySelectorAll('#edgeLayer path')].map(p=> p.getAttribute('d')).join('|'); return m; };
+    const cold = ()=>{ routeLast = null; redrawEdges(); return snap(); };
+    let fresh = 0;
+    const real = window.pathFromPortsFresh;
+    window.pathFromPortsFresh = function(...a){ fresh++; return real.apply(this, a); };
+    const out = {};
+    try{
+      let seed = 11; const rnd = ()=> (seed = (seed*16807) % 2147483647) / 2147483647;
+      const M = 60, cols = 8;
+      applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+        for(let i = 0; i < M; i++) workingNodes.push(['rm' + i, 'Entry ' + i,
+          i > 0 ? 'rm' + Math.max(0, i - 1 - Math.floor(rnd()*cols)) : null, null, null, null,
+          {pos:[(i % cols)*170 + (rnd()-0.5)*40, Math.floor(i / cols)*110 + (rnd()-0.5)*30],
+           colors: i % 7 === 0 ? ['#cc2222', '#2222cc'] : undefined, border: i % 9 === 0 ? 'wavy' : undefined}]);
+        workingNodes.push(['rmA', 'Merge', ['rm3', 'rm12'], null, null, 'amalgam', {pos:[600, 1000]}]);
+        EDGE_STYLES.push({from:'rm1', to:'rm2', routing:'curve', dash:'dashed', arrow:true});
+        EDGE_STYLES.push({from:'rm4', to:'rm5', routing:'straight', dash:'double', arrow:true});
+      });
+      const opt = id=> { const it = workingNodes.find(x=> x[0] === id); it[6] = Object.assign({}, it[6]); return it[6]; };
+      const EDITS = {
+        recolour: ()=> { opt('rm20').colors = ['#22aa22']; },
+        tag: ()=> { opt('rm21').tags = ['probe']; },
+        note: ()=> { workingNodes.find(x=> x[0] === 'rm22')[4] = 'A note'; },
+        rename: ()=> { workingNodes.find(x=> x[0] === 'rm23')[1] = 'Entry 2x'; },
+        rings: ()=> { opt('rm24').colors = ['#22aa22', '#aa22aa', '#2222aa']; },
+        move: ()=> { opt('rm25').pos = [333, 444]; },
+        restyle: ()=> { EDGE_STYLES.push({from: workingNodes.find(x=> x[0] === 'rm30')[2], to:'rm30', routing:'straight', dash:'dotted', arrow:true}); }
+      };
+      out.calls = {}; out.same = {};
+      for(const [k, edit] of Object.entries(EDITS)){
+        fresh = 0;
+        applyEdit(edit);
+        out.calls[k] = fresh;
+        const warm = snap();
+        const c = cold();
+        out.same[k] = Object.keys(c).length > 50 && Object.keys(c).every(x=> c[x] === warm[x]);
+      }
+    } finally {
+      window.pathFromPortsFresh = real;
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('after every kind of edit, each route is the one a fresh pass draws', Object.values(r.same).every(Boolean), JSON.stringify(r));
+  check('recolouring, tagging or retyping a note routes nothing again',
+        ['recolour', 'tag', 'note'].every(k=> r.calls[k] === 0), JSON.stringify(r.calls));
+  check('while a new name, more rings, a move and a new style do route again',
+        r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
+        JSON.stringify(r.calls));
+  });
+  await scenario("an entry's controls are built when something reaches them", async () => {
+  /* The grips, the turning handle and the connector strips are built the
+     first time the pointer, a selection or a connector drag reaches an
+     entry (nodeControlsWanted). What is checked is that nothing a person
+     can do finds them missing: under the pointer they are there, selected
+     they are there, and a connector dragged onto an entry the pointer had
+     never visited still lands on the ring it is over. */
+  const setup = await page.evaluate(async ()=>{
+    const out = {before: workingNodes.map(x=> x.slice()), beforeStyles: EDGE_STYLES.length};
+    applyEdit(()=>{
+      workingNodes.length = 0;
+      for(let i = 0; i < 40; i++) workingNodes.push(['ncX' + i, 'Filler ' + i, null, null, null, null, {pos:[2000 + (i % 8)*170, 2000 + Math.floor(i / 8)*110]}]);
+      workingNodes.push(['ncA', 'From here', null, null, null, null, {pos:[0, 0]}]);
+      workingNodes.push(['ncB', 'To there', null, null, null, null, {pos:[400, 0], colors:['#cc2222', '#2222cc']}]);
+      workingNodes.push(['ncC', 'Picked', null, null, null, null, {pos:[0, 200]}]);
+    });
+    deselect();
+    vs = 1; vx = 300; vy = 300; applyTransform();
+    await new Promise(r=> setTimeout(r, 300));
+    const box = id=> { const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
+                       return {x: b.left, y: b.top, w: b.width, h: b.height}; };
+    out.a = box('ncA'); out.b = box('ncB');
+    out.builtAtFirst = [...document.querySelectorAll('.node .node-controls')].filter(c=> c.childElementCount).length;
+    out.perEntry = document.querySelectorAll('#nodeLayer .node *').length / nodes.size;
+    selectNode('ncC');
+    out.selectedGrips = document.querySelectorAll('.node[data-id="ncC"] .node-resize').length;
+    return out;
+  });
+  await page.mouse.move(setup.a.x + setup.a.w/2, setup.a.y + setup.a.h/2);
+  await wait(80);
+  const hovered = await page.evaluate(()=> ({
+    grips: document.querySelectorAll('.node[data-id="ncA"] .node-resize').length,
+    strips: document.querySelectorAll('.node[data-id="ncA"] .node-handle').length,
+    bUnbuilt: !document.querySelector('.node[data-id="ncB"] .node-handle')}));
+  /* From A's right strip onto the outer ring of B's left side. */
+  const right = await page.evaluate(()=>{
+    const h = document.querySelector('.node[data-id="ncA"] .node-handle[data-side="right"] .node-handle-hit').getBoundingClientRect();
+    return {x: h.left + h.width/2, y: h.top + h.height/2};
+  });
+  await page.mouse.move(right.x, right.y);
+  await page.mouse.down();
+  for(let i = 1; i <= 8; i++){ await page.mouse.move(right.x + i*20, right.y); await wait(16); }
+  /* Where B's outer ring will be grabbed, worked out from the box rather
+     than read off the strip, which must not exist yet. */
+  const outer = await page.evaluate(()=>{
+    const n = nodes.get('ncB');
+    const hit = sideBandRect(n, n.h, 'left', -ringStepFor(n), BAND_HIT_DEFAULT).hit;
+    const p = new DOMPoint(hit.x + hit.width/2, hit.y + hit.height/2).matrixTransform(nodeLayer.getScreenCTM());
+    return {x: p.x, y: p.y, unbuilt: nodeControlsWanted.has('ncB')};
+  });
+  await page.mouse.move(outer.x, outer.y);
+  await wait(60);
+  const over = await page.evaluate(()=>{
+    const t = document.querySelector('.node-handle.drop-target');
+    return {target: t ? t.dataset.id + ':' + t.dataset.side + ':' + t.dataset.ring : null};
+  });
+  await page.mouse.up();
+  await wait(200);
+  const done = await page.evaluate((setup)=>{
+    const made = EDGE_STYLES.find(s=> s.from === 'ncA' && s.to === 'ncB') ||
+                 (nodes.get('ncB') && nodes.get('ncB').parent === 'ncA') ||
+                 workingNodes.some(x=> x[0] === 'ncB' && JSON.stringify(x[2]).includes('ncA'));
+    applyEdit(()=>{ workingNodes.length = 0; setup.before.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = setup.beforeStyles; });
+    deselect();
+    return {made: !!made};
+  }, setup);
+  check('a redraw builds no entry\'s controls the pointer has not reached', setup.builtAtFirst === 0,
+        setup.builtAtFirst);
+  check('so an entry is a handful of elements, not forty', setup.perEntry < 12, setup.perEntry);
+  check('an entry under the pointer has its four grips and four strips', hovered.grips === 4 && hovered.strips === 4,
+        JSON.stringify(hovered));
+  check('…and one the pointer has not been to has none yet', hovered.bUnbuilt);
+  check('a selected entry has its grips', setup.selectedGrips === 4, setup.selectedGrips);
+  check('a connector dragged onto an entry never visited lights the ring it is over',
+        outer.unbuilt && over.target === 'ncB:left:1', JSON.stringify({outer, over}));
+  check('and is drawn when let go', done.made, JSON.stringify(done));
   });
   await scenario("ends, marks, squares and tabs as of 2026-10-20", async () => {
   const r20 = await page.evaluate(async ()=>{
@@ -16656,6 +16955,7 @@ async function main(){
     await wait(150);
     {
       const cap = nodes.get('rtCap');
+      nodeControlsOn('rtCap');
       const g = document.querySelector('.node[data-id="rtCap"]');
       const hit = g && g.querySelector('.node-rotate .node-rotate-hit');
       const grip = g && g.querySelector('.node-resize-hit');
@@ -16799,7 +17099,9 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['lq_one', 'Langprobe main', null, null, null, null,
         {pos:[400, -600], tags:['probe-tag'], multiLang:true, langTabs:[{tag:'JP', text:'Zzkanaprobe title'}], link:'https://example.org/page'}]);
-      workingNodes.push(['lq two', 'Langprobe other', null, null, null, null, {pos:[700, -600]}]);
+      workingNodes.push(['lq two', 'Langprobe other', null, null, null, null, {pos:[700, -600], link:'#entry=lq_one'}]);
+      workingNodes.push(['lq three', 'Langprobe gone', null, null, null, null,
+        {pos:[1000, -600], link: SITE_ORIGINS[0] + '/#entry=nobody-by-that-name'}]);
     });
     await pause(400);
     // Search finds the tab's text, says which tab and carries the tags.
@@ -16842,6 +17144,11 @@ async function main(){
     // The link's tab wears the site's icon instead of the arrow.
     await pause(300);
     out.icon = !!document.querySelector('[data-id="lq_one"] .node-link.has-icon image.node-link-icon');
+    // A link to another entry of the chart keeps the arrow, and asks for no icon.
+    out.innerArrow = ['lq two', 'lq three'].map(id=>{
+      const g = document.querySelector(`[data-id="${CSS.escape(id)}"] .node-link`);
+      return !!g && !g.querySelector('image') && !g.classList.contains('has-icon') && !!g.querySelector('.node-link-arrow');
+    });
     // The picture: well-formed, framed on the drawing, nothing to press.
     const pic = await chartPictureText();
     const doc = new DOMParser().parseFromString(pic.text, 'image/svg+xml');
@@ -16897,6 +17204,8 @@ async function main(){
   check('an id with a space survives the link', r.spaced === 'lq two', r.spaced);
   check('a link to nothing changes nothing', r.unknownKeeps === 'lq two', r.unknownKeeps);
   check('a link wears its site’s icon once it has come', r.icon);
+  check('a link to another entry of the chart keeps the arrow, even when its entry is gone',
+        r.innerArrow.every(Boolean), JSON.stringify(r.innerArrow));
   check('the picture is well-formed XML', r.wellFormed);
   check('the picture holds the chart and nothing to press', r.hasProbe && r.noHandles && r.noRemote, JSON.stringify(r));
   check('the picture is framed on the drawing, not the window', r.framed && r.noViewMove, JSON.stringify(r));

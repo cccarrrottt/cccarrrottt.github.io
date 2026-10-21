@@ -74,10 +74,8 @@ function validateNodes(val){
   });
 }
 /* ---------------------------------------------------------------------
-   Pretty-printer for NODES — turns a parsed NODES value back into the
-   same style of JS source the hand-written region uses. Used by the
-   per-node quick-edit below to save a single item's change without
-   requiring the user to open the raw-text editor.
+   Pretty-printer for NODES — turns the working entries back into the JS
+   source the region is written in.
    ------------------------------------------------------------------ */
 // Newlines have to be escaped, not emitted raw: a JavaScript string
 // literal cannot span lines, and both labels and suggestions can contain
@@ -123,14 +121,11 @@ function jsVal(v){
   }
   return JSON.stringify(v);
 }
-function serializeItem(it){
-  const arr = it.slice();
-  while(arr.length && arr[arr.length-1]===undefined) arr.pop();
-  return '[' + arr.map(x => x===undefined ? 'undefined' : jsVal(x)).join(', ') + ']';
-}
+/* The region, one entry to a line, each as a record with its fields named
+   — see entryOfRecord for why the file and the page differ in form. */
 function serializeNodes(nodesVal){
   let out = 'const NODES = [\n';
-  nodesVal.forEach(it=>{ out += '  ' + serializeItem(it) + ',\n'; });
+  nodesVal.forEach(it=>{ out += '  ' + jsVal(recordOfEntry(it)) + ',\n'; });
   out += '];';
   return out;
 }
@@ -643,7 +638,7 @@ function renderLabelPreview(){
   paintMultiSelection();
   drawBioCard();
   const g = qNode(`.node[data-id="${cssEscape(labelPreview.id)}"]`);
-  if(g) g.classList.add('selected');
+  if(g){ g.classList.add('selected'); nodeControlsOn(labelPreview.id); }
   // The entry has just changed shape under the field, so the field follows.
   if(typeof nodeEditorTarget !== 'undefined' && nodeEditorTarget) positionNodeEditor();
 }

@@ -123,11 +123,10 @@ python3 build.py --pull live.html   # take the chart's data from a saved
 
 ## The repository
 
-`dist/` is **not** committed. All three files come to about 7 MB, nearly all
-of it the two base64 blobs in `src/data.js`, and every byte is reproducible
-from the sources by `python3 build.py` — which `tests/build_guard.py` checks
-on every run. Committing them would grow the history by that much per version
-and would never be the thing anyone reads. So: clone, then build.
+`dist/` is **not** committed. Every byte of it is reproducible from the
+sources by `python3 build.py`, which `tests/build_guard.py` checks on every
+run. Committing it would grow the history by a page per version and would
+never be the thing anyone reads. So: clone, then build.
 
 ```bash
 git clone https://github.com/cccarrrottt/cccarrrottt.github.io
@@ -243,7 +242,7 @@ Not in `src/data.js`. Pressing **Save** in the published page rewrites the
 /* @@EDIT:NODES:START@@ */      the entries
 /* @@EDIT:EDGESTYLES:START@@ */ per-connector styling
 /* @@EDIT:STICKERS:START@@ */   the sticker library
-/* @@EDIT:MEDIA:START@@ */      pictures and clips embedded in comments
+/* @@EDIT:MEDIA:START@@ */      pictures and clips in comments
 /* @@EDIT:TAGCATS:START@@ */    tag categories
 /* @@EDIT:REFS:START@@ */       the reference list
 /* @@EDIT:SETTINGS:START@@ */   chart-wide settings
@@ -290,6 +289,52 @@ looks like.
 The build now says the same two things itself — that it had nothing to carry
 from, or that what it carried differs from the sources — so neither case is
 silent.
+
+## How an entry is written
+
+Each entry in `src/data.js` is a record with its fields named:
+
+```js
+{id:'uprising-copy', label:'Beast Wars: Uprising', parent:'uprising', pos:[450, 90], colors:['#20242b'], border:'dashdot'},
+```
+
+`parent` is one id or a list of them, and the entry's options — position,
+colours, tags, link, picture — stand beside the fields rather than in a
+nested object. `SETTINGS.format` is the number of the form (2; the list by
+position that charts were written in before is 1, and is still read). A
+file from a page that writes a higher number is refused at import rather
+than half-read. Inside the page an entry is still the positional list, so
+nothing but reading and writing the file changed.
+
+## Pictures beside the page
+
+On the site a picture or a clip is a file of its own in `src/media/`, named
+`<sha256 of its bytes>.<ext>`, and the chart names it by that path
+(`media/…`) where it used to carry the bytes as base64. The build copies the
+folder to `dist/media/`, and CI stages it beside `index.html`; an `<img>` or
+an SVG `<image>` given the path fetches it from there, so the drawing does
+not need to know.
+
+- **Nothing has to be converted by hand.** A Save on the site lifts every
+  embedded picture larger than 2 KB out of the regions it sends, and sends
+  the files with them, once per page. The first Save after this change moves
+  what `src/data.js` still embeds into `src/media/`; from then on the page
+  and every Save carry paths only. A tiny picture stays embedded, as does a
+  type with no file extension the page knows.
+- **The write service checks every file.** It refuses one whose bytes are
+  not what its name says, and a save whose chart names a path that is in
+  neither the repository nor the save. A file already in the folder is not
+  written again. The commit is still one commit, chart and pictures together.
+- **What leaves the site carries the bytes.** Export, Export data and the
+  PNG/SVG picture fetch each path and write the picture back in, so a copy
+  opened from a disk needs no folder beside it.
+- **With no signal**, the service worker keeps every picture it has served,
+  first come, and answers from that copy: a name is what its bytes are, so a
+  kept copy is never behind.
+- A push that changes only `src/data.js` and `src/media/` is a Save, and is
+  published without the checks, as before.
+- A copy published to claude.ai has no folder beside it, so the pictures it
+  names by path do not show there.
 
 ## The copy published to the artifact host
 

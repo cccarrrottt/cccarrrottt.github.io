@@ -540,7 +540,46 @@ const componentMeta = []; // [{ids, origin:{x,y}, bbox}]
    written back to the page until Save. See the save/dirty section for
    why that's the right shape for this platform.
    ------------------------------------------------------------------ */
-let workingNodes = NODES.map(item=> item.slice());
+/* The form an entry is written in, and the number of that form.
+ *
+ * An entry used to be written as a list by position — [id, label, parent,
+ * edgeLabel, note, shape, opts] — and what the fifth place meant was known
+ * only to this file. It is written now as a record with its fields named,
+ * {id, label, parent, note, shape, pos, colors, …}, the options standing
+ * beside the rest rather than in a seventh place: a file anybody can read,
+ * or write, without this program to explain it.
+ *
+ * Inside the page an entry is still the list; every part reads it that way,
+ * and changing that would touch every part for nothing a reader can see.
+ * So the record is the FILE's form: read into the list here and on import
+ * (entryOfRecord), written back out of it by serializeNodes. A list found
+ * in a file is still read, so every chart written before this — a saved
+ * page, an export, a pull from claude.ai — opens as it did.
+ *
+ * DATA_FORMAT counts the forms, and is written into the chart's settings
+ * with every save. 1 was the list, 2 is the record. A file from a page with
+ * a higher number is refused at import rather than half-read. */
+const DATA_FORMAT = 2;
+const ENTRY_FIELDS = ['id', 'label', 'parent', 'edgeLabel', 'note', 'shape'];
+function entryOfRecord(rec){
+  if(Array.isArray(rec)) return rec.slice();
+  if(!rec || typeof rec !== 'object') return rec;
+  const it = ENTRY_FIELDS.map(k=> k === 'id' || k === 'label' ? rec[k] : (rec[k] === undefined ? null : rec[k]));
+  const opts = {};
+  Object.keys(rec).forEach(k=>{ if(ENTRY_FIELDS.indexOf(k) < 0) opts[k] = rec[k]; });
+  if(Object.keys(opts).length) it.push(opts);
+  return it;
+}
+function recordOfEntry(it){
+  const rec = {id: it[0], label: it[1]};
+  for(let i = 2; i < ENTRY_FIELDS.length; i++) if(it[i] !== null && it[i] !== undefined) rec[ENTRY_FIELDS[i]] = it[i];
+  const opts = it[6];
+  if(opts && typeof opts === 'object'){
+    Object.keys(opts).forEach(k=>{ if(opts[k] !== undefined && ENTRY_FIELDS.indexOf(k) < 0) rec[k] = opts[k]; });
+  }
+  return rec;
+}
+let workingNodes = NODES.map(entryOfRecord);
 
 /* Charts saved before the hub and the local multiverse became tags.
  *

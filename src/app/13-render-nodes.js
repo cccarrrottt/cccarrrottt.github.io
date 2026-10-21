@@ -205,6 +205,25 @@ function turnDrawing(n, g, turn, w, h){
     });
   }
 }
+/* What builds each entry's controls, waiting for the first thing that can
+   reach them — see the long note in renderNodes. Keyed by id; a redraw
+   starts the map again, since what it holds draws into the old boxes. */
+const nodeControlsWanted = new Map();
+function nodeControlsOn(id){
+  const build = id != null && nodeControlsWanted.get(id);
+  if(!build) return;
+  nodeControlsWanted.delete(id);
+  build();
+}
+/* One listener for the whole chart. pointerover rather than mouseenter,
+   because a finger and a pen arrive by it too, and it comes ahead of the
+   touchstart and mousedown that might need what it builds. */
+let nodeUnderPointer = null;
+svg.addEventListener('pointerover', ev=>{
+  const g = ev.target && ev.target.closest && ev.target.closest('.node');
+  nodeUnderPointer = g ? g.dataset.id : null;
+  if(g) nodeControlsOn(g.dataset.id);
+});
 function renderNodes(opts){
 /* `arraysOnly` draws the arrays again and nothing else: a drag moves the
    entries themselves by a transform, and only the frames round them have
@@ -214,6 +233,7 @@ const arraysOnly = !!(opts && opts.arraysOnly);
 if(arraysOnly){
   nodeDefs.querySelectorAll('[data-array-def]').forEach(d=> d.remove());
 } else {
+  nodeControlsWanted.clear();
   while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
   while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
   while(backLayer.firstChild) backLayer.removeChild(backLayer.firstChild);
@@ -1454,99 +1474,186 @@ const drawOne = (n)=>{
      ON the border now, outside the box (see TAB_SINK), and an entry with
      tabs is exactly the one that most needs to grow upward — losing its
      top grips meant it could only be resized from below. */
-  /* An array has no size to set: it is as big as what it holds. */
-  if(!isArray){
-    const CORNERS = [
-      {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
-      {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
-      {key:'ne', sx: 1, sy:-1, x: n.x + w, y: n.y},
-      {key:'nw', sx:-1, sy:-1, x: n.x,     y: n.y}
-    ];
-    /* A portrait's grips sit on the corners of the SQUARE it is inscribed
-       in, like every other entry's.
-     *
-       0.9.16 moved them onto the rim, at the four diagonals, because the
-       grips are only live while the entry is hovered and what answered the
-       pointer for a portrait was the circle: reaching out to a corner let
-       go of the hover that was showing the grip. That solved the symptom
-       and moved the controls somewhere they do not belong — the square is
-       what is being resized, its corners are where the ports already are,
-       and a grip on the rim is a grip on a curve with no corner to pull.
-       The cause is fixed instead: the pad below answers the pointer for
-       the whole square, so the ports and the grips stay up as long as the
-       pointer is anywhere inside the box, and only go when it leaves it. */
-    CORNERS.forEach(c=>{
-      const grip = el('g', {class:'node-resize node-resize-' + c.key,
-        'data-corner': c.key,
-        transform:`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}, g);
-      /* A dot ON the corner, not a hatched square tucked inside it.
+  /* The controls an entry is worked by — its corner grips, the handle
+     that turns a caption, the strips along its sides a connector is
+     drawn out of — are built the first time something can reach them,
+     not with the entry. They are forty-odd elements on a box of six, and
+     none of them shows or answers until the pointer is on the entry or
+     it is open: drawn up front, a 600-entry chart carried twenty-four
+     thousand elements for its few hundred of picture, and the style and
+     layout that every redraw forces went over all of them. Built late,
+     a redraw costs about a third of what it did (tools/bench-edit.js).
+
+     What reaches them: the pointer arriving on the entry (by mouse,
+     finger or pen, see nodeControlsOn), the entry being selected, and a
+     connector being dragged over it (connectorDropTarget). The wrapper
+     holds their place, so they land in the same order among the entry's
+     children as when they were drawn eagerly: over the drawing, under
+     the chips and the link badge. */
+  const controls = el('g', {class:'node-controls'}, g);
+  nodeControlsWanted.set(n.id, ()=>{
+    /* An array has no size to set: it is as big as what it holds. */
+    if(!isArray){
+      const CORNERS = [
+        {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
+        {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
+        {key:'ne', sx: 1, sy:-1, x: n.x + w, y: n.y},
+        {key:'nw', sx:-1, sy:-1, x: n.x,     y: n.y}
+      ];
+      /* A portrait's grips sit on the corners of the SQUARE it is inscribed
+         in, like every other entry's.
        *
-         The square was ten units a side, and so is the smallest entry: an
-         empty box was four grips and nothing else, and wherever the hand
-         went on it, it picked up a corner instead of the entry. A dot
-         centred on the corner takes a quarter of its reach from the box
-         and the rest from the paper outside, so even the smallest entry
-         keeps its middle for dragging, clicking and starting a connector. */
-      el('circle', {cx:0, cy:0, r:RESIZE_DOT_HIT, class:'node-resize-hit'}, grip);
-      el('circle', {cx:0, cy:0, r:RESIZE_DOT_R, class:'node-resize-mark'}, grip);
-      el('title',{},grip).textContent = 'Drag to resize; double-click to fit the text again';
-      grip.addEventListener('mousedown', ev=> beginNodeResize(ev, n, g, c));
-      grip.addEventListener('click', ev=> ev.stopPropagation());
-      grip.addEventListener('dblclick', ev=>{
-        ev.stopPropagation();
-        if(readOnlyView) return;
-        applyEdit(()=>{
-          const found = workingEntry(n.id);
-          if(!found) return;
-          const opts = entryOpts(found.entry);
-          delete opts.size;
-          putEntry(found.index, found.entry, opts);
+         0.9.16 moved them onto the rim, at the four diagonals, because the
+         grips are only live while the entry is hovered and what answered the
+         pointer for a portrait was the circle: reaching out to a corner let
+         go of the hover that was showing the grip. That solved the symptom
+         and moved the controls somewhere they do not belong — the square is
+         what is being resized, its corners are where the ports already are,
+         and a grip on the rim is a grip on a curve with no corner to pull.
+         The cause is fixed instead: the pad below answers the pointer for
+         the whole square, so the ports and the grips stay up as long as the
+         pointer is anywhere inside the box, and only go when it leaves it. */
+      CORNERS.forEach(c=>{
+        const grip = el('g', {class:'node-resize node-resize-' + c.key,
+          'data-corner': c.key,
+          transform:`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}, controls);
+        /* A dot ON the corner, not a hatched square tucked inside it.
+         *
+           The square was ten units a side, and so is the smallest entry: an
+           empty box was four grips and nothing else, and wherever the hand
+           went on it, it picked up a corner instead of the entry. A dot
+           centred on the corner takes a quarter of its reach from the box
+           and the rest from the paper outside, so even the smallest entry
+           keeps its middle for dragging, clicking and starting a connector. */
+        el('circle', {cx:0, cy:0, r:RESIZE_DOT_HIT, class:'node-resize-hit'}, grip);
+        el('circle', {cx:0, cy:0, r:RESIZE_DOT_R, class:'node-resize-mark'}, grip);
+        el('title',{},grip).textContent = 'Drag to resize; double-click to fit the text again';
+        grip.addEventListener('mousedown', ev=> beginNodeResize(ev, n, g, c));
+        grip.addEventListener('click', ev=> ev.stopPropagation());
+        grip.addEventListener('dblclick', ev=>{
+          ev.stopPropagation();
+          if(readOnlyView) return;
+          applyEdit(()=>{
+            const found = workingEntry(n.id);
+            if(!found) return;
+            const opts = entryOpts(found.entry);
+            delete opts.size;
+            putEntry(found.index, found.entry, opts);
+          });
         });
+      });
+      /* And loose furniture — a caption, a picture — gets one more handle:
+         the curved arrow that turns it, to any angle. Only furniture:
+         everything else turns in quarters, by the ⟳ in its style bar,
+         because a box on a chart of right angles has to keep sides a
+         connector can meet. It stands off the top-left corner, where a
+         corner grip would be, so the two read as one family of handles. */
+      /* As close in as it can stand without taking the corner grip's reach:
+         its own reach ends a hair past the grip's. Further out, it read as a
+         handle belonging to nothing in particular. */
+      if(isFree){
+        const rx = n.x - 1.5, ry = n.y - 1.5;
+        const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, controls);
+        el('circle', {cx:-5, cy:-5, r:5.5, class:'node-rotate-hit'}, rot);
+        /* An arc with a head at BOTH ends. Three quarters of a circle with
+           one head on it is the mark for a turn in one direction — a
+           quarter clockwise, which is what this handle no longer does. A
+           handle that turns either way says so with two heads. */
+        /* …and it stands across the corner, not level with the top: the
+           hollow of the arc faces the entry, so it reads as the corner's own
+           curve drawn again a little way out — this is the corner that
+           turns. Drawn level, and centred on the hit circle, then tipped an
+           eighth of a turn about that centre. */
+        const mark = el('g', {class:'node-rotate-glyph', transform:'rotate(-45,-5,-5) translate(1,-3.25)'}, rot);
+        el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, mark);
+        el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, mark);
+        el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, mark);
+        el('title',{},rot).textContent =
+          'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
+        rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));
+        rot.addEventListener('click', ev=> ev.stopPropagation());
+        rot.addEventListener('dblclick', ev=>{
+          ev.stopPropagation(); ev.preventDefault();
+          if(readOnlyView) return;
+          applyEdit(()=>{
+            const found = workingEntry(n.id);
+            if(!found) return;
+            const opts = entryOpts(found.entry);
+            delete opts.rot;
+            putEntry(found.index, found.entry, opts);
+          });
+        });
+      }
+    }
+    // Grab a SIDE, not a point: hovering a node lights up whichever edge the
+    // pointer is nearest, and dragging from it draws a connector out of that
+    // edge. Ports along the edge are worked out by the router, so there is
+    // nothing to aim at — the whole edge is the target.
+    //
+    // A node with more than one border color has one band per ring, each
+    // grabbable in its own right: pull from the black ring and the connector
+    // comes out black, from the grey ring and it comes out grey. That's what
+    // makes a two-colour node able to carry two differently-coloured
+    // lineages without them being confused for one.
+    const handles = isFree ? null : el('g', {class:'node-handles'}, controls);
+    /* The side a callout's own leader arrives at is not a side you can
+       connect to. Something is already attached there — the line back to the
+       place on the connector this card is talking about — and a second line
+       landing on the same edge reads as one line passing through the card.
+       The other three sides behave exactly as any entry's do. */
+    const takenSide = isCallout ? calloutLeaderSide(n) : null;
+    /* The strip that lights up is the border said again, so on an entry
+       whose border is a gradient it is the same gradient — it lit up in the
+       first colour alone, and the border under the pointer turned flat as it
+       was reached. It is laid in the chart's own units across the entry's
+       width, the way the border's own runs across its box: a strip's box is
+       a few units wide on the left and right sides, and a gradient over that
+       put every colour into the width of a line. */
+    const bandPaint = (isAmalgam && paintColors.length > 1) ? (()=>{
+      const id = 'grad-' + (gradientSeq++);
+      const gr = el('linearGradient', {id, gradientUnits:'userSpaceOnUse',
+                                       x1:n.x, y1:0, x2:n.x + n.w, y2:0}, nodeDefs);
+      paintColors.forEach((c, i)=> el('stop', {offset:`${i / (paintColors.length - 1) * 100}%`,
+                                               'stop-color': c}, gr));
+      return `url(#${id})`;
+    })() : null;
+    if(!isFree) SIDES.forEach(side=>{
+      if(side === takenSide) return;
+      // Innermost ring first, so where two hit strips still graze each other
+      // the inner one is the one on top and stays reachable.
+      ringColors.map((c,i)=>[c,i]).reverse().forEach(([ringColor, ring])=>{
+        // Rings step outward, so ring 1 sits OUTSIDE the box — a negative
+        // inset is what sideBandRect wants for that.
+        const inset = -ring*ringStepFor(n);
+        /* A rippled border is not a line but a band a whole ripple deep, so
+           the strip you grab it by has to be that deep too — a 5px strip on
+           the baseline missed every crest, and the border you could see was
+           mostly not the border you could grab. */
+        const band = sideBandRect(n, h, side, inset,
+                                  isWavy
+                                    ? Math.max(BAND_HIT_DEFAULT, POCKET_LIFT*2 + 2)
+                                    : BAND_HIT_DEFAULT);
+        const hg = el('g', {class:'node-handle', 'data-side':side,
+                            'data-ring':ring, 'data-id':n.id}, handles);
+        // A wide invisible strip catches the pointer; the visible highlight
+        // is the thinner one drawn on the border itself.
+        el('rect', Object.assign({class:'node-handle-hit'}, band.hit), hg);
+        if(isWavy){
+          const grow = ring*POCKET_RING_STEP;
+          el('path', {class:'node-handle-band wave',
+                      d: wavySideOpenPath(n.x-grow, n.y-grow, n.w+grow*2, h+grow*2, side, grow),
+                      style:`fill:none;stroke:${bandPaint || ringColor};stroke-width:${BAND_W};`}, hg);
+        } else {
+          el('rect', Object.assign({class:'node-handle-band', style:`fill:${bandPaint || ringColor};`}, band.show), hg);
+        }
+        el('title',{},hg).textContent = ringColors.length > 1
+          ? `Drag from this ${side} edge (${ringColor}) to connect`
+          : `Drag from the ${side} edge to connect`;
+        hg.addEventListener('mousedown', ev=> beginConnectorDrag(ev, n, side, ring, ringColor));
+        hg.addEventListener('click', ev=> ev.stopPropagation());
       });
     });
-    /* And loose furniture — a caption, a picture — gets one more handle:
-       the curved arrow that turns it, to any angle. Only furniture:
-       everything else turns in quarters, by the ⟳ in its style bar,
-       because a box on a chart of right angles has to keep sides a
-       connector can meet. It stands off the top-left corner, where a
-       corner grip would be, so the two read as one family of handles. */
-    /* As close in as it can stand without taking the corner grip's reach:
-       its own reach ends a hair past the grip's. Further out, it read as a
-       handle belonging to nothing in particular. */
-    if(isFree){
-      const rx = n.x - 1.5, ry = n.y - 1.5;
-      const rot = el('g', {class:'node-rotate', transform:`translate(${rx},${ry})`}, g);
-      el('circle', {cx:-5, cy:-5, r:5.5, class:'node-rotate-hit'}, rot);
-      /* An arc with a head at BOTH ends. Three quarters of a circle with
-         one head on it is the mark for a turn in one direction — a
-         quarter clockwise, which is what this handle no longer does. A
-         handle that turns either way says so with two heads. */
-      /* …and it stands across the corner, not level with the top: the
-         hollow of the arc faces the entry, so it reads as the corner's own
-         curve drawn again a little way out — this is the corner that
-         turns. Drawn level, and centred on the hit circle, then tipped an
-         eighth of a turn about that centre. */
-      const mark = el('g', {class:'node-rotate-glyph', transform:'rotate(-45,-5,-5) translate(1,-3.25)'}, rot);
-      el('path', {d:'M-10.9,-1.6 A5.6,5.6 0 0 1 -1.1,-1.6', class:'node-rotate-mark'}, mark);
-      el('path', {d:'M-12.4,1.0 L-9.0,-0.5 L-12.8,-2.7 Z', class:'node-rotate-head'}, mark);
-      el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, mark);
-      el('title',{},rot).textContent =
-        'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
-      rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));
-      rot.addEventListener('click', ev=> ev.stopPropagation());
-      rot.addEventListener('dblclick', ev=>{
-        ev.stopPropagation(); ev.preventDefault();
-        if(readOnlyView) return;
-        applyEdit(()=>{
-          const found = workingEntry(n.id);
-          if(!found) return;
-          const opts = entryOpts(found.entry);
-          delete opts.rot;
-          putEntry(found.index, found.entry, opts);
-        });
-      });
-    }
-  }
+  });
 
   if(n.link && safeUrl(n.link) && !isFree){
     // A real SVG <a> (not a JS window.open() call) — the artifact host
@@ -1574,8 +1681,11 @@ const drawOne = (n)=>{
                class:'node-link-arrow'}, lg);
     if(base.sink) arrow.setAttribute('transform', `translate(0,${-base.sink/2})`);
     if(linkInk) lg.style.setProperty('--tab-ink', linkInk);
-    siteIconInto(lg, n.link, -base.sink/2);
     const inner = entryLinkTarget(n.link);
+    /* A link to another entry keeps the arrow: the icon would be this
+       chart's own, the same grey square on every one of them, and the
+       arrow says "go there" better than a picture of where you already are. */
+    if(!inner && !linksIntoChart(n.link)) siteIconInto(lg, n.link, -base.sink/2);
     el('title',{},lg).textContent = inner
       ? 'Go to ' + stripMarkup(nodes.get(inner.id).label || inner.id)
       : 'Open linked page ↗' + (siteHost(n.link) ? ' — ' + siteHost(n.link) : '');
@@ -1594,74 +1704,6 @@ const drawOne = (n)=>{
     });
   }
 
-  // Grab a SIDE, not a point: hovering a node lights up whichever edge the
-  // pointer is nearest, and dragging from it draws a connector out of that
-  // edge. Ports along the edge are worked out by the router, so there is
-  // nothing to aim at — the whole edge is the target.
-  //
-  // A node with more than one border color has one band per ring, each
-  // grabbable in its own right: pull from the black ring and the connector
-  // comes out black, from the grey ring and it comes out grey. That's what
-  // makes a two-colour node able to carry two differently-coloured
-  // lineages without them being confused for one.
-  const handles = isFree ? null : el('g', {class:'node-handles'}, g);
-  /* The side a callout's own leader arrives at is not a side you can
-     connect to. Something is already attached there — the line back to the
-     place on the connector this card is talking about — and a second line
-     landing on the same edge reads as one line passing through the card.
-     The other three sides behave exactly as any entry's do. */
-  const takenSide = isCallout ? calloutLeaderSide(n) : null;
-  /* The strip that lights up is the border said again, so on an entry
-     whose border is a gradient it is the same gradient — it lit up in the
-     first colour alone, and the border under the pointer turned flat as it
-     was reached. It is laid in the chart's own units across the entry's
-     width, the way the border's own runs across its box: a strip's box is
-     a few units wide on the left and right sides, and a gradient over that
-     put every colour into the width of a line. */
-  const bandPaint = (isAmalgam && paintColors.length > 1) ? (()=>{
-    const id = 'grad-' + (gradientSeq++);
-    const gr = el('linearGradient', {id, gradientUnits:'userSpaceOnUse',
-                                     x1:n.x, y1:0, x2:n.x + n.w, y2:0}, nodeDefs);
-    paintColors.forEach((c, i)=> el('stop', {offset:`${i / (paintColors.length - 1) * 100}%`,
-                                             'stop-color': c}, gr));
-    return `url(#${id})`;
-  })() : null;
-  if(!isFree) SIDES.forEach(side=>{
-    if(side === takenSide) return;
-    // Innermost ring first, so where two hit strips still graze each other
-    // the inner one is the one on top and stays reachable.
-    ringColors.map((c,i)=>[c,i]).reverse().forEach(([ringColor, ring])=>{
-      // Rings step outward, so ring 1 sits OUTSIDE the box — a negative
-      // inset is what sideBandRect wants for that.
-      const inset = -ring*ringStepFor(n);
-      /* A rippled border is not a line but a band a whole ripple deep, so
-         the strip you grab it by has to be that deep too — a 5px strip on
-         the baseline missed every crest, and the border you could see was
-         mostly not the border you could grab. */
-      const band = sideBandRect(n, h, side, inset,
-                                isWavy
-                                  ? Math.max(BAND_HIT_DEFAULT, POCKET_LIFT*2 + 2)
-                                  : BAND_HIT_DEFAULT);
-      const hg = el('g', {class:'node-handle', 'data-side':side,
-                          'data-ring':ring, 'data-id':n.id}, handles);
-      // A wide invisible strip catches the pointer; the visible highlight
-      // is the thinner one drawn on the border itself.
-      el('rect', Object.assign({class:'node-handle-hit'}, band.hit), hg);
-      if(isWavy){
-        const grow = ring*POCKET_RING_STEP;
-        el('path', {class:'node-handle-band wave',
-                    d: wavySideOpenPath(n.x-grow, n.y-grow, n.w+grow*2, h+grow*2, side, grow),
-                    style:`fill:none;stroke:${bandPaint || ringColor};stroke-width:${BAND_W};`}, hg);
-      } else {
-        el('rect', Object.assign({class:'node-handle-band', style:`fill:${bandPaint || ringColor};`}, band.show), hg);
-      }
-      el('title',{},hg).textContent = ringColors.length > 1
-        ? `Drag from this ${side} edge (${ringColor}) to connect`
-        : `Drag from the ${side} edge to connect`;
-      hg.addEventListener('mousedown', ev=> beginConnectorDrag(ev, n, side, ring, ringColor));
-      hg.addEventListener('click', ev=> ev.stopPropagation());
-    });
-  });
 
   /* The chips are built before the connector handles, so they would sit
      under them. Moving them to the end puts them back on top: the edge's
@@ -1827,7 +1869,7 @@ const drawOne = (n)=>{
     });
     g.addEventListener('mouseenter', ()=> clearTimeout(bioHoverTimer));
   }
-  g.addEventListener('mouseenter',()=>g.classList.add('hover'));
+  g.addEventListener('mouseenter',()=>{ g.classList.add('hover'); nodeControlsOn(n.id); });
   g.addEventListener('mouseleave',()=>g.classList.remove('hover'));
 };
 if(!arraysOnly){
@@ -1847,10 +1889,17 @@ arraysInFitOrder().forEach(a=>{
     const g = arrayLayer.querySelector(`.node[data-id="${CSS.escape(a.id)}"]`);
     if(g){
       g.classList.toggle('selected', selectedId === a.id || multiSelection.has(a.id));
+      if(selectedId === a.id) nodeControlsOn(a.id);
       if(nodeHidden(a)) g.style.display = 'none';
     }
   }
 });
+/* A redraw under a pointer that has not moved leaves the entry it is on
+   hovered with nothing yet built — the event that would build them comes
+   with the next movement. That one is built now, so its grips do not
+   blink out on every edit; the selected one is built when the selection
+   is painted again, which every redraw is followed by. */
+nodeControlsOn(nodeUnderPointer);
 }
 renderNodes();
 

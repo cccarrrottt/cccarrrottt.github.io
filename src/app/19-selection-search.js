@@ -69,6 +69,7 @@ function paintSelectionHighlight(id, opts){
       qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
       return;
     }
+    nodeControlsOn(id);
     qNodes('.node').forEach(g=>{
       g.classList.toggle('selected', g.dataset.id === id);
       g.classList.remove('dim');
@@ -141,6 +142,9 @@ function paintSelectionHighlight(id, opts){
      picked out, and stepping it back with the rest of the chart left the
      line glowing and its explanation grey. */
   if(!edgesOnly){
+    /* Selected, an entry shows its grips and strips on a touch screen and
+       while it is open (see nodeControlsWanted). */
+    nodeControlsOn(id);
     qNodes('.node').forEach(g=>{
       const gid = g.dataset.id;
       g.classList.toggle('selected', gid===id);
@@ -590,6 +594,15 @@ function entryLinkTarget(raw){
   if(!want || !nodes.has(want.id)) return null;
   const here = u.origin + u.pathname === location.origin + location.pathname;
   return (here || raw.trim().startsWith('#') || SITE_ORIGINS.includes(u.origin)) ? want : null;
+}
+/* Whether a link points into this chart at all, whatever entry it names —
+   one whose entry has since been deleted is still not a link to elsewhere. */
+function linksIntoChart(raw){
+  if(typeof raw !== 'string' || !raw.trim()) return false;
+  if(raw.trim().startsWith('#')) return true;
+  let u;
+  try{ u = new URL(raw.trim(), location.href); }catch(e){ return false; }
+  return SITE_ORIGINS.includes(u.origin) || u.origin + u.pathname === location.origin + location.pathname;
 }
 function openEntryFromHash(){
   const want = entryFromHash(location.hash);

@@ -382,7 +382,71 @@ function bentRoute(p1, p2, handBendsList){
   out.push(p2);
   return tidyPoints(out);
 }
+/* A redraw that changes nothing the router can see re-routes nothing.
+ *
+ * Every edit redraws the whole chart, and routing was the larger half of
+ * every redraw — for an edit that cannot have moved a single line:
+ * recolouring an entry's text, tagging it, retyping its note. A route is a
+ * function of what is asked (the ports, the look, the entries it may
+ * cross) and of what the chart around it is: the boxes in the way, and the
+ * connectors already drawn this pass, which it is scored against. So a
+ * pass remembers its calls in order, and the next pass, while the chart
+ * around is the same and every call so far has been asked exactly as last
+ * time, hands back last time's answers. The first call asked differently
+ * — or a different chart around — ends the reuse for the rest of the
+ * pass, because from there on the connectors already drawn are not the
+ * ones the old answers were scored against. Which makes it exact rather
+ * than close: the routes are the ones a fresh pass would draw, and the
+ * suite compares the two.
+ *
+ * "The chart around" is every entry as the router could see it: its box,
+ * its shape and border, how many rings it wears — everything but what is
+ * only words or paint (routeWorldKey). Dragging keeps its own memo
+ * (heldRoute), so a pass made while something is carried does not take
+ * part. */
+const ROUTE_BLIND = new Set(['label', 'note', 'tags', 'link', 'langTabs', 'multiLang', 'medium', 'image',
+                             'font', 'fontSize', 'color', 'colors', 'ownColors', 'bg']);
+let routePass = null, routeLast = null;
+function routeWorldKey(){
+  const parts = [];
+  nodes.forEach(n=>{
+    const o = {};
+    for(const k in n) if(!ROUTE_BLIND.has(k)) o[k] = n[k];
+    o.rings = ringCountOf(n);
+    parts.push(o);
+  });
+  return JSON.stringify([parts, SETTINGS]);
+}
+function beginRoutePass(){
+  if(dragRouteHold){ routePass = null; routeLast = null; return; }
+  const world = routeWorldKey();
+  routePass = {world, calls: [], reuse: !!routeLast && routeLast.world === world, prev: routeLast};
+}
+function endRoutePass(){
+  if(routePass) routeLast = {world: routePass.world, calls: routePass.calls};
+  routePass = null;
+}
 function pathFromPorts(p1,p2,style,excludeIds,lane){
+  const pass = routePass;
+  if(!pass) return pathFromPortsFresh(p1,p2,style,excludeIds,lane);
+  const key = JSON.stringify([p1, p2, style || null, excludeIds ? [...excludeIds] : null, lane || 0]);
+  const was = pass.reuse && pass.prev.calls[pass.calls.length];
+  let got;
+  if(was && was.key === key){
+    if(was.registered) registerRoutedSegments(was.pts);
+    got = was;
+  } else {
+    pass.reuse = false;
+    const before = routedSegments.length;
+    const r = pathFromPortsFresh(p1,p2,style,excludeIds,lane);
+    got = {key, d: r.d, angleDeg: r.angleDeg, ignored: r.ignored,
+           pts: r.pts.map(q=> Object.assign({}, q)), registered: routedSegments.length > before};
+  }
+  pass.calls.push(got);
+  // A copy each time: what is handed out is drawn from, and may be added to.
+  return {d: got.d, angleDeg: got.angleDeg, pts: got.pts.map(q=> Object.assign({}, q)), ignored: got.ignored};
+}
+function pathFromPortsFresh(p1,p2,style,excludeIds,lane){
   style = style || DEFAULT_EDGE_STYLE;
   /* The router is told which ends carry an arrowhead, because a head needs
      a straight run to sit in — see stubLength. The port records themselves

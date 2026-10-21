@@ -10,15 +10,18 @@
    ========================================================================= */
 
 // One flat list of entries — no grouping structure above this; organize and
-// filter with tags instead (opts.tags below), not by list position.
-// Each entry: [id, label, parent?, edgeLabel?, note?, shape?, opts?]
-// parent: omitted or null => root (no parent). a string => one parent.
+// filter with tags instead (tags below), not by list position.
+// Each entry is a record with its fields named (the form SETTINGS.format: 2
+// says; a chart written before that used a list by position, [id, label,
+// parent, edgeLabel, note, shape, opts], and is still read):
+//   {id:'…', label:'…', parent?, edgeLabel?, note?, shape?, …}
+// parent: omitted => root (no parent). a string => one parent.
 // an array of strings => multiple parents (also how an 'amalgam' node gets
 // the 2+ incoming connectors its merge visual needs).
-// shape (optional, "reality archetype"): 'rect' (default) | 'ellipse'
-// (character bio) | 'mirror' (fill matches border color) | 'amalgam' (gradient
-// border + text from opts.colors — needs 2+ colors to actually show a gradient).
-// opts (optional, trailing): {
+// shape (optional): 'rect' (default) | 'ellipse' (character bio) | 'amalgam'
+// (gradient border + text from colors — needs 2+ colors to show a gradient)
+// | 'callout' | 'image' | 'textbox'.
+// Everything else stands beside those fields, for example:
 //   link: 'https://…'          — a small ↗ badge on the box that opens a URL
 //   colors: ['#hex', ...]      — the node's own border color(s); one entry is
 //                                 a plain single-color outline, more draws
@@ -29,7 +32,8 @@
 //                                 fixed grouping.
 //   font: 'serif'|'grotesk'|'orbitron'|'hand'  — omitted = default sans (IBM Plex)
 //   fontSize: 13               — px, 6-28; omitted = default size (11.5)
-// }
+//   pos: [x, y]                — where it stands, once it has been placed
+//   image: 'media/<sha256>.png' — a picture, by its path beside the page
 // Inside label: **bold**, *italic*, [[base|ruby]] (a small annotation above a word/phrase).
 /* @@EDIT:NODES:START@@ */
 const NODES = [

@@ -6,6 +6,34 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## Unreleased
+
+- An edit on a large chart is about twice as quick again: on 600 entries,
+  recolouring or renaming one goes from about 0.3 s to 0.16, and moving
+  one from 0.5–0.9 s to 0.3. Each entry's corner grips and connector
+  strips — thirty-four elements of its forty, all hidden until pointed at
+  — are built when the pointer, a selection or a connector first reaches
+  it, instead of on every redraw for every entry.
+- The chart's file writes each entry as a record with its fields named —
+  `{id, label, parent, note, shape, pos, colors, …}` — instead of a list
+  by position whose fifth place only the program knew. The settings carry
+  the number of the form (`format: 2`). Charts written as lists still open,
+  and a file from a newer page is refused at import instead of half-read.
+- An edit that cannot move a line no longer re-routes the chart's
+  connectors: recolouring, tagging or retyping a note on a 600-entry chart
+  goes from about 0.9 s to 0.4 s, the routing in it from 570 ms to 4. The
+  routes are exactly the ones a fresh pass draws, and the suite checks
+  that after every kind of edit. `tools/bench-edit.js` measures it.
+- Pictures and clips live beside the page on the site, each a file named
+  by the SHA-256 of its bytes in `src/media/`, instead of inside the chart
+  as base64. A Save sends each new one once, and the write service checks
+  that its bytes are what its name says; the first Save after this change
+  moves the pictures `src/data.js` still embeds. Export, Export data and a
+  picture of the chart carry the bytes inside them, and with no signal the
+  site shows every picture it has shown before.
+- A link from one entry to another keeps the arrow in its tab. It wore
+  the chart's own site icon, the same grey square on every such link.
+
 ## 0.15.0 — "In one frame" (2026-10-21)
 
 - Arrays. Entries picked together — two or more — can be put in an array

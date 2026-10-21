@@ -9,7 +9,8 @@
                         GitHub to sign in
      GET  /callback     where GitHub sends them back; hands the page a session
      GET  /me           "who is this session, and which data.js is current?"
-     POST /save         commits the chart's regions into src/data.js
+     POST /save         commits the chart's regions into src/data.js, and
+                        the new pictures beside it into src/media/
      GET  /suggestions  the open suggestions, read from the issues
      POST /suggest      opens an issue, as the reader who signed in
      POST /resolve      closes one, as the owner
@@ -64,6 +65,13 @@
 */
 
 const DATA_PATH = 'src/data.js';
+/* Pictures and clips live beside the chart as files of their own, named by
+   the SHA-256 of their bytes (MEDIA_REF in the page). The name is checked
+   against the bytes here, so a file in the folder is always what it says it
+   is, and one that is already there is simply not written again. */
+const MEDIA_DIR = 'src/media';
+const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)$/;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)/g;
 const REGIONS = ['NODES', 'COMMENTS', 'STICKERS', 'MEDIA', 'EDGESTYLES', 'TAGCATS', 'REFS', 'SETTINGS'];
 // A session with nothing to renew itself with lasts as long as its token.
 const SESSION_HOURS = 8;
@@ -199,20 +207,56 @@ async function gh(token, path, init, refused){
   return res.json();
 }
 
-/* The current head of the branch, and the data.js inside it. */
+/* The current head of the branch, the data.js inside it, and the names in
+   the media folder beside it (none, before the first picture is saved). */
 async function currentData(env, token){
   const ref = await gh(token, `/repos/${env.REPO}/git/ref/heads/${env.BRANCH}`);
   const commit = await gh(token, `/repos/${env.REPO}/git/commits/${ref.object.sha}`);
   // Walked down the tree rather than asked of the contents endpoint, which
   // stops describing a file once it passes a megabyte — and this one does.
-  let sha = commit.tree.sha;
-  for(const name of DATA_PATH.split('/')){
-    const tree = await gh(token, `/repos/${env.REPO}/git/trees/${sha}`);
-    const entry = (tree.tree || []).find(e => e.path === name);
-    if(!entry) throw httpError(500, `${DATA_PATH} is not in the repository.`);
-    sha = entry.sha;
+  const walk = async (sha, path) => {
+    for(const name of path.split('/')){
+      const tree = await gh(token, `/repos/${env.REPO}/git/trees/${sha}`);
+      const entry = (tree.tree || []).find(e => e.path === name);
+      if(!entry) return null;
+      sha = entry.sha;
+    }
+    return sha;
+  };
+  const sha = await walk(commit.tree.sha, DATA_PATH);
+  if(!sha) throw httpError(500, `${DATA_PATH} is not in the repository.`);
+  const dir = await walk(commit.tree.sha, MEDIA_DIR);
+  const media = new Set();
+  if(dir){
+    const tree = await gh(token, `/repos/${env.REPO}/git/trees/${dir}`);
+    (tree.tree || []).forEach(e => media.add('media/' + e.path));
   }
-  return {head: ref.object.sha, tree: commit.tree.sha, sha};
+  return {head: ref.object.sha, tree: commit.tree.sha, sha, media};
+}
+
+/* The pictures a save brings, checked: each one named for what its bytes
+   are, and every path the new chart names that was not in the old one
+   either already in the folder or in this save. A save that broke that
+   would publish a chart with holes in it, so it is refused instead. */
+export async function checkMedia(files, next, file, have){
+  const out = [];
+  if(files != null && (typeof files !== 'object' || Array.isArray(files))) throw httpError(400, 'the save\'s pictures are not a list of files.');
+  for(const ref of Object.keys(files || {})){
+    const m = MEDIA_REF.exec(ref);
+    if(!m) throw httpError(400, `the save has a picture with a name no picture may have.`);
+    if(typeof files[ref] !== 'string') throw httpError(400, `the save has no bytes for ${ref}.`);
+    let bytes;
+    try{ bytes = unb64(files[ref]); }catch(e){ throw httpError(400, `${ref} is not base64.`); }
+    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    const hex = Array.from(d, b => b.toString(16).padStart(2, '0')).join('');
+    if(hex !== m[1]) throw httpError(400, `${ref} is not what its name says it is.`);
+    if(!have.has(ref)) out.push({ref, b64: files[ref]});
+  }
+  const before = new Set(file.match(MEDIA_REF_IN_TEXT) || []);
+  const missing = Array.from(new Set(next.match(MEDIA_REF_IN_TEXT) || []))
+    .filter(ref => !before.has(ref) && !have.has(ref) && !(files && files[ref]));
+  if(missing.length) throw httpError(400, `the chart names ${missing.length === 1 ? 'a picture' : missing.length + ' pictures'} the repository does not have (${missing[0]}).`);
+  return out;
 }
 
 async function readBlob(env, token, sha){
@@ -224,10 +268,15 @@ async function readBlob(env, token, sha){
 /* One commit, made with the Git Data API rather than the contents endpoint:
    data.js runs past a megabyte, and the ref update is a fast-forward only —
    a push that landed in between makes it fail rather than be overwritten. */
-async function commitData(env, token, now, text, login){
+async function commitData(env, token, now, text, login, media){
   const blob = await gh(token, `/repos/${env.REPO}/git/blobs`, {method: 'POST', body: JSON.stringify({content: text, encoding: 'utf-8'})});
+  const entries = [{path: DATA_PATH, mode: '100644', type: 'blob', sha: blob.sha}];
+  for(const f of media || []){
+    const b = await gh(token, `/repos/${env.REPO}/git/blobs`, {method: 'POST', body: JSON.stringify({content: f.b64, encoding: 'base64'})});
+    entries.push({path: 'src/' + f.ref, mode: '100644', type: 'blob', sha: b.sha});
+  }
   const tree = await gh(token, `/repos/${env.REPO}/git/trees`, {method: 'POST', body: JSON.stringify({
-    base_tree: now.tree, tree: [{path: DATA_PATH, mode: '100644', type: 'blob', sha: blob.sha}]
+    base_tree: now.tree, tree: entries
   })});
   const commit = await gh(token, `/repos/${env.REPO}/git/commits`, {method: 'POST', body: JSON.stringify({
     message: `Save the chart from the site\n\nSaved by ${login} through the chart's own Save button.`,
@@ -378,7 +427,8 @@ async function me(env, request, ctx){
   const s = await session(env, request, ctx, 'reader');
   if(!s.owner) return {owner: false, login: s.login};
   const now = await currentData(env, s.gh);
-  return {owner: true, login: s.login, sha: now.sha};
+  // `media`: this service takes pictures as files beside the chart.
+  return {owner: true, login: s.login, sha: now.sha, media: true};
 }
 
 async function save(env, request, ctx){
@@ -393,17 +443,18 @@ async function save(env, request, ctx){
   const now = await currentData(env, s.gh);
   const file = await readBlob(env, s.gh, now.sha);
   const next = applyRegions(file, body.parts);
+  const media = await checkMedia(body.media, next, file, now.media);
   // A save of exactly what is there changes nothing, whatever it was made
   // on top of. That is not a courtesy: a save kept on a phone with a bad
   // signal can be committed and its answer lost on the way back, and the
   // phone sends it again on an older base. Calling that a conflict would
   // tell the owner their work collides with itself.
-  if(next === file) return {sha: now.sha, unchanged: true};
+  if(next === file && !media.length) return {sha: now.sha, unchanged: true};
   // Otherwise the page must be saving on top of the file that is actually
   // there. Anything else is a page that is behind, and saving it would
   // write an older chart over a newer one.
   if(now.sha !== body.base) throw httpError(409, 'the repository has a newer chart.');
-  return commitData(env, s.gh, now, next, s.login);
+  return commitData(env, s.gh, now, next, s.login, media);
 }
 
 /* ---- suggestions ----------------------------------------------------- */
