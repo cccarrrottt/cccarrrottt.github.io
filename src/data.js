@@ -155,7 +155,7 @@ const REFS = [
 /* @@EDIT:EDGESTYLES:START@@ */
 const EDGE_STYLES = [
   {from:'uprising', to:'uprising-copy', routing:'orthogonal', dash:'solid', arrow:true, note:'гнгн', fromSide:'top', toSide:'top', square:true, noteSquare:true},
-  {from:'uprising-copy', to:'uprising', routing:'orthogonal', dash:'solid', arrow:true, bends:[[251.21, -9.9]], fromSide:'left', toSide:'right', square:true},
+  {from:'uprising-copy', to:'uprising', routing:'curve', dash:'solid', arrow:true, bends:[[251.21, -9.9]], fromSide:'left', toSide:'right'},
   {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, color:'#c2c', colorFixed:true, fromSide:'bottom', toSide:'top', square:true},
   {from:'beast-wars-uprising-copy-2', to:'beast-wars-uprising-copy-5', routing:'straight', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top', square:true},
   {from:'beast-wars-uprising-copy-3', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
