@@ -1525,8 +1525,11 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
                class:'node-link-arrow'}, lg);
     if(base.sink) arrow.setAttribute('transform', `translate(0,${-base.sink/2})`);
     if(linkInk) lg.style.setProperty('--tab-ink', linkInk);
-    siteIconInto(lg, n.link, -base.sink/2);
     const inner = entryLinkTarget(n.link);
+    /* A link to another entry keeps the arrow: the icon would be this
+       chart's own, the same grey square on every one of them, and the
+       arrow says "go there" better than a picture of where you already are. */
+    if(!inner && !linksIntoChart(n.link)) siteIconInto(lg, n.link, -base.sink/2);
     el('title',{},lg).textContent = inner
       ? 'Go to ' + stripMarkup(nodes.get(inner.id).label || inner.id)
       : 'Open linked page ↗' + (siteHost(n.link) ? ' — ' + siteHost(n.link) : '');

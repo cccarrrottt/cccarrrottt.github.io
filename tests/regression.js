@@ -16787,7 +16787,9 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['lq_one', 'Langprobe main', null, null, null, null,
         {pos:[400, -600], tags:['probe-tag'], multiLang:true, langTabs:[{tag:'JP', text:'Zzkanaprobe title'}], link:'https://example.org/page'}]);
-      workingNodes.push(['lq two', 'Langprobe other', null, null, null, null, {pos:[700, -600]}]);
+      workingNodes.push(['lq two', 'Langprobe other', null, null, null, null, {pos:[700, -600], link:'#entry=lq_one'}]);
+      workingNodes.push(['lq three', 'Langprobe gone', null, null, null, null,
+        {pos:[1000, -600], link: SITE_ORIGINS[0] + '/#entry=nobody-by-that-name'}]);
     });
     await pause(400);
     // Search finds the tab's text, says which tab and carries the tags.
@@ -16828,6 +16830,11 @@ async function main(){
     // The link's tab wears the site's icon instead of the arrow.
     await pause(300);
     out.icon = !!document.querySelector('[data-id="lq_one"] .node-link.has-icon image.node-link-icon');
+    // A link to another entry of the chart keeps the arrow, and asks for no icon.
+    out.innerArrow = ['lq two', 'lq three'].map(id=>{
+      const g = document.querySelector(`[data-id="${CSS.escape(id)}"] .node-link`);
+      return !!g && !g.querySelector('image') && !g.classList.contains('has-icon') && !!g.querySelector('.node-link-arrow');
+    });
     // The picture: well-formed, framed on the drawing, nothing to press.
     const pic = await chartPictureText();
     const doc = new DOMParser().parseFromString(pic.text, 'image/svg+xml');
@@ -16882,6 +16889,8 @@ async function main(){
   check('an id with a space survives the link', r.spaced === 'lq two', r.spaced);
   check('a link to nothing changes nothing', r.unknownKeeps === 'lq two', r.unknownKeeps);
   check('a link wears its site’s icon once it has come', r.icon);
+  check('a link to another entry of the chart keeps the arrow, even when its entry is gone',
+        r.innerArrow.every(Boolean), JSON.stringify(r.innerArrow));
   check('the picture is well-formed XML', r.wellFormed);
   check('the picture holds the chart and nothing to press', r.hasProbe && r.noHandles && r.noRemote, JSON.stringify(r));
   check('the picture is framed on the drawing, not the window', r.framed && r.noViewMove, JSON.stringify(r));

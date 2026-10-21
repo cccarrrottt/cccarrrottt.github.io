@@ -578,6 +578,15 @@ function entryLinkTarget(raw){
   const here = u.origin + u.pathname === location.origin + location.pathname;
   return (here || raw.trim().startsWith('#') || SITE_ORIGINS.includes(u.origin)) ? want : null;
 }
+/* Whether a link points into this chart at all, whatever entry it names —
+   one whose entry has since been deleted is still not a link to elsewhere. */
+function linksIntoChart(raw){
+  if(typeof raw !== 'string' || !raw.trim()) return false;
+  if(raw.trim().startsWith('#')) return true;
+  let u;
+  try{ u = new URL(raw.trim(), location.href); }catch(e){ return false; }
+  return SITE_ORIGINS.includes(u.origin) || u.origin + u.pathname === location.origin + location.pathname;
+}
 function openEntryFromHash(){
   const want = entryFromHash(location.hash);
   if(want && nodes.has(want.id)) openEntryOn(want.id, want.tab);

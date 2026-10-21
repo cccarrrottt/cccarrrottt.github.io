@@ -8,6 +8,8 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A link from one entry to another keeps the arrow in its tab. It wore
+  the chart's own site icon, the same grey square on every such link.
 - A rippled connector no longer freezes the page while it is pointed at,
   open or dragged. The marks for bending it were placed by sampling the
   drawn path point by point, which on a wavy line cost half a second on
