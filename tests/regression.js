@@ -15081,17 +15081,22 @@ async function main(){
       const sgn = spec && spec.after ? 1 : -1;
       beginBarDrag(fake, 'rdM');
       const dy = ((top - bar1.cross) + 1.2) * vs;
+      // Not without Shift: a guide is asked for, as it is for an entry.
       window.dispatchEvent(new MouseEvent('mousemove', {clientX:400, clientY:300 + dy * sgn * (spec.k === 'y' ? 1 : 0),
                                                         bubbles:true}));
+      await wait(100);
+      const guideUnasked = document.querySelectorAll('#guideLayer .align-guide-line').length;
+      window.dispatchEvent(new MouseEvent('mousemove', {clientX:400, clientY:300 + dy * sgn * (spec.k === 'y' ? 1 : 0),
+                                                        shiftKey:true, bubbles:true}));
       await wait(100);
       const guideShown = document.querySelectorAll('#guideLayer .align-guide-line').length;
       window.dispatchEvent(new MouseEvent('mouseup', {clientX:400, clientY:300 + dy, bubbles:true}));
       await wait(300);
       const bar2 = amalgamBars.get('rdM');
       out.barGuideAt = JSON.stringify({k: spec && spec.k, top, before: bar1 && +bar1.cross.toFixed(2),
-                                       after: bar2 && +bar2.cross.toFixed(2), guideShown,
+                                       after: bar2 && +bar2.cross.toFixed(2), guideUnasked, guideShown,
                                        left: document.querySelectorAll('#guideLayer .align-guide-line').length});
-      out.barGuide = !!spec && spec.k === 'y' && guideShown === 1 && !!bar2 && Math.abs(bar2.cross - top) < 0.01 &&
+      out.barGuide = !!spec && spec.k === 'y' && guideUnasked === 0 && guideShown === 1 && !!bar2 && Math.abs(bar2.cross - top) < 0.01 &&
                      document.querySelectorAll('#guideLayer .align-guide-line').length === 0;
     }
 
@@ -15124,7 +15129,7 @@ async function main(){
         rR.lossRecentres, rR.lossAt);
   check('the strips a merge is connected from light up in its border\'s gradient',
         rR.bandGrad, rR.bandGradAt);
-  check('a merge\'s bar, carried, shows a guide where it comes level with an entry, and lands on that level',
+  check('a merge\'s bar, carried with Shift and only then, shows a guide where it comes level with an entry, and lands on that level',
         rR.barGuide, rR.barGuideAt);
 
   });
@@ -17788,6 +17793,74 @@ async function main(){
   });
   check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
+  });
+  await scenario("ends without a rule, a picture's cross, and defaults that say so", async () => {
+  const r = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['ff_a', 'Five A', null, null, null, null, {pos:[3200, -900]}]);
+      workingNodes.push(['ff_b', 'Five B', 'ff_a', null, null, null, {pos:[3200, -760]}]);
+      workingNodes.push(['ff_i', '', null, null, null, 'image', {pos:[3400, -900], size:[60, 40]}]);
+    });
+    await pause(200);
+    // A connector's two ends: no rule between them, and "No" for nothing.
+    openStyleBar({kind:'edge', from:'ff_a', to:'ff_b', x:300, y:300});
+    applyStyleBar('endIn', 'none');
+    const endOut = styleBar.querySelector('[data-group="endOut"]');
+    const cs = getComputedStyle(endOut);
+    out.ends = {rule: cs.borderLeftWidth, pad: cs.paddingLeft,
+                face: styleBar.querySelector('[data-group="endIn"] .style-bar-drop-face').textContent,
+                none: endOut.querySelector('[data-value="none"]').textContent};
+    const line = styleBar.querySelector('[data-group="corners"]');
+    out.otherRule = getComputedStyle(line).borderLeftWidth;
+    closeStyleBar();
+    // A picture's menu: a cross takes the picture off, and no Delete.
+    openFreeMenu('ff_i', {clientX:200, clientY:200});
+    await pause(50);
+    const clear = document.getElementById('freeMenuImageClear');
+    out.cross = clear.textContent.trim();
+    out.crossBeside = clear.parentNode.contains(document.getElementById('freeMenuImageUrl'));
+    out.noDelete = getComputedStyle(document.getElementById('freeMenuDelete')).display === 'none' ||
+                   !document.getElementById('freeMenuDelete').getClientRects().length;
+    closeFreeMenu();
+    out.editCross = document.getElementById('editImageClear').textContent.trim();
+    // Untagged's count stands in the column the others' do.
+    buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await pause(400);
+    const rows = [...document.querySelectorAll('#tagsList .legend-item')].filter(r=> r.querySelector('.count'));
+    const rights = rows.map(r=> Math.round(r.querySelector('.count').getBoundingClientRect().right * 10) / 10);
+    out.counts = {rows: rows.length, right: [...new Set(rights)], untagged: !!document.querySelector('#tagsList .legend-tag-del-room')};
+    setSideTab(document.getElementById('tagsPanel'), false);
+    // The citation colour, at the program's own, wears the dashed edge.
+    const held = SETTINGS.refColor;
+    SETTINGS.refColor = DEFAULT_REF_COLOR;
+    const box = document.getElementById('refColorInput');
+    box.value = refColor(); paintHexSquare(box);
+    const sq = box.previousElementSibling;
+    out.refDefault = sq.classList.contains('inherited');
+    SETTINGS.refColor = '#123456';
+    box.value = refColor(); paintHexSquare(box);
+    out.refOwn = sq.classList.contains('inherited');
+    if(held === undefined) delete SETTINGS.refColor; else SETTINGS.refColor = held;
+    box.value = refColor(); paintHexSquare(box);
+    applyEdit(()=>{
+      for(let i = workingNodes.length - 1; i >= 0; i--) if(/^ff_/.test(workingNodes[i][0])) workingNodes.splice(i, 1);
+      for(let k = EDGE_STYLES.length - 1; k >= 0; k--) if(/^ff_/.test(EDGE_STYLES[k].from)) EDGE_STYLES.splice(k, 1);
+    });
+    return out;
+  });
+  check('a connector\'s two ends stand together, with no rule between',
+        r.ends.rule === '0px' && r.ends.pad === '0px' && r.otherRule !== '0px', JSON.stringify(r.ends));
+  check('…and "No" is how an end says it has nothing', r.ends.face === 'No' && r.ends.none === 'No', JSON.stringify(r.ends));
+  check('a picture is taken off by a cross beside its address', r.cross === '✕' && r.crossBeside && r.editCross === '✕',
+        JSON.stringify(r));
+  check('an image\'s menu has no Delete', r.noDelete);
+  check('every tag\'s count, Untagged\'s too, stands in one column',
+        r.counts.rows >= 2 && r.counts.right.length === 1 && r.counts.right[0] > 0 && r.counts.untagged, JSON.stringify(r.counts));
+  check('the citation colour at the program\'s own wears the dashed edge, and a chosen one does not',
+        r.refDefault && !r.refOwn, JSON.stringify(r));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

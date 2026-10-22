@@ -503,14 +503,19 @@ buildSideTabs();
       paintHexSquare(box);
     };
     squareForHexInput(box, {title: 'the colour every [n] mark is drawn in',
-                            isDefault: ()=> !isHexColor(SETTINGS && SETTINGS.refColor)});
+                            isDefault: ()=> refColor().toLowerCase() === DEFAULT_REF_COLOR});
     const commit = ()=>{
       const v = box.value.trim();
       const ok = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);
       box.classList.toggle('bad', !ok);
       if(!ok) return;
       box.style.setProperty('--swatch', v);
-      applyEdit(()=>{ SETTINGS.refColor = v; });
+      /* The default is the absence of the field, so a colour typed back
+         to it is the default again rather than a choice that happens to
+         match it, and wears the dashed edge that says so. */
+      applyEdit(()=>{
+        if(v.toLowerCase() === DEFAULT_REF_COLOR) delete SETTINGS.refColor; else SETTINGS.refColor = v;
+      });
       rebuildChart();
       buildSideTabs();
     };
@@ -518,7 +523,7 @@ buildSideTabs();
     box.addEventListener('click', ev=> ev.stopPropagation());
     if(reset) reset.addEventListener('click', ev=>{
       ev.stopPropagation();
-      applyEdit(()=>{ SETTINGS.refColor = DEFAULT_REF_COLOR; });
+      applyEdit(()=>{ delete SETTINGS.refColor; });
       sync(); rebuildChart(); buildSideTabs();
     });
     sync();

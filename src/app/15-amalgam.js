@@ -1462,7 +1462,10 @@ window.addEventListener('mousemove', ev=>{
   const along = (st.spec.k === 'y' ? dy : dx) / vs;
   const step = dragIsFree(ev) ? Math.round(along) : snapToGrid(along);
   st.lead = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? step : -step));
-  if(dragIsFree(ev)) clearGuides();
+  /* Asked for with Shift, as an entry's and a corner's are (see the
+     entry drag in 18-canvas-gestures): offered unasked, they took the bar
+     a few units off where the hand put it whenever anything was near. */
+  if(dragIsFree(ev) || !ev.shiftKey) clearGuides();
   else {
     /* Measured from where the hand is, not from the grid step it was
        rounded to: a level a few units off the grid could otherwise never

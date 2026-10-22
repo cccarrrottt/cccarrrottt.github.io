@@ -90,10 +90,10 @@ const STYLE_BAR_EDGE_LINE = [
 /* An end carries an arrow, a T or nothing: three answers to one
    question, so each end is one menu of the three, the start's on the left
    and the end's on the right. */
-const STYLE_BAR_END_IN = [['none', '╶', 'Nothing at the start'],
+const STYLE_BAR_END_IN = [['none', 'No', 'Nothing at the start'],
                           ['in', '◄', 'Arrowhead at the start'],
                           ['tin', '⊢', 'T at the start, stopped short of the entry']];
-const STYLE_BAR_END_OUT = [['none', '╴', 'Nothing at the end'],
+const STYLE_BAR_END_OUT = [['none', 'No', 'Nothing at the end'],
                            ['out', '►', 'Arrowhead at the end'],
                            ['tout', '⊣', 'T at the end, stopped short of the entry — broad strokes']];
 /* The rows that are one choice out of several looks — a border, a

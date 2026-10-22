@@ -1120,6 +1120,12 @@ function buildTagRow(tag, catName){
     del.title = count ? `Remove this tag from all ${count} entries carrying it` : 'Delete this unused tag';
     del.addEventListener('click', ev=>{ ev.stopPropagation(); deleteTagEverywhere(tag, count); });
     row.appendChild(del);
+  } else if(!readOnlyView){
+    const room = document.createElement('span');
+    room.className = 'legend-tag-del legend-tag-del-room';
+    room.textContent = '\u2715';
+    room.setAttribute('aria-hidden', 'true');
+    row.appendChild(room);
   }
   if(tag !== UNTAGGED && !readOnlyView){
     /* Filing a tag is carrying it: pick the row up and drop it on the

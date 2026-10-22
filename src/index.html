@@ -172,10 +172,12 @@
           </div>
           <div class="editor-field" id="editImageField" style="display:none;">
             <label for="editImageInput">Portrait — image URL, or pick a file</label>
-            <input id="editImageInput" type="text" placeholder="https://… or leave blank">
+            <div class="image-url-row">
+              <input id="editImageInput" type="text" placeholder="https://… or leave blank">
+              <button type="button" class="image-clear" id="editImageClear" title="Take the picture off">✕</button>
+            </div>
             <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
               <button type="button" class="editor-btn" id="editImagePick">Choose file…</button>
-              <button type="button" class="editor-btn" id="editImageClear">Clear</button>
             </div>
             <p class="editor-help">A chosen file is embedded in the chart itself, so it keeps working for everyone; it is scaled down first to keep the page small.</p>
             <!-- A card's picture is fitted whole and its band takes the
@@ -491,10 +493,12 @@
       <div id="freeMenuImagePart">
         <div class="editor-field">
           <label for="freeMenuImageUrl">Image — URL, or pick a file</label>
-          <input id="freeMenuImageUrl" type="text" placeholder="https://… or leave blank">
+          <div class="image-url-row">
+            <input id="freeMenuImageUrl" type="text" placeholder="https://… or leave blank">
+            <button type="button" class="image-clear" id="freeMenuImageClear" title="Take the picture off">✕</button>
+          </div>
           <div class="free-menu-row">
             <button type="button" class="editor-btn" id="freeMenuImagePick">Choose file…</button>
-            <button type="button" class="editor-btn" id="freeMenuImageClear">Clear</button>
           </div>
         </div>
         <!-- Where it stands in the stack is set from the hover bar on the
@@ -520,7 +524,7 @@
         </div>
       </div>
 
-      <div class="edge-popover-actions">
+      <div class="edge-popover-actions" id="freeMenuActions">
         <button class="editor-btn" id="freeMenuDelete">Delete</button>
       </div>
     </div>

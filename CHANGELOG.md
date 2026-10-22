@@ -8,6 +8,16 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A connector's two end menus stand together with no rule between them,
+  and nothing at an end reads "No".
+- A merge's bar shows guides, and lands on them, only with Shift held, as
+  an entry and a corner do; it used to offer them unasked.
+- A picture is taken off by a ✕ beside its address, the tags panel's ✕,
+  rather than a button marked Clear; an image's menu has no Delete.
+- Untagged's count stands in the column every other tag's count does.
+- The citation colour at the program's own wears the dashed edge every
+  default colour wears, also when a chart saved it explicitly; resetting
+  it or typing it back takes the setting off.
 - The looks on the style bar that are one choice out of several are menus:
   a button showing what is chosen, the rest unfolding under it when
   pressed: an entry's border, an array's hatching, a hub's scenery, a

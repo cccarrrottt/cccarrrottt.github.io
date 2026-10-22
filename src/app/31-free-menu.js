@@ -55,6 +55,10 @@ function openFreeMenu(id, evt){
   document.getElementById('freeMenuTitle').textContent = isImage ? 'Image' : 'Text';
   freeMenuImagePart.style.display = isImage ? '' : 'none';
   freeMenuTextPart.style.display  = isImage ? 'none' : '';
+  /* A picture is deleted as an entry is — selected, and the Delete key or
+     the chart's menu — and the owner found a Delete button in its menu one
+     too many, beside the one that takes off only its picture. */
+  document.getElementById('freeMenuActions').hidden = isImage;
   if(isImage){
     freeMenuImageUrl.value = n.image || '';
   } else {
