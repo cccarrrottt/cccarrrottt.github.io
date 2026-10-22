@@ -1121,7 +1121,13 @@ function buildTagRow(tag, catName){
     del.addEventListener('click', ev=>{ ev.stopPropagation(); deleteTagEverywhere(tag, count); });
     row.appendChild(del);
   } else if(!readOnlyView){
-    const room = document.createElement('span');
+    /* A button like the ✕ it stands in for, not a span: a button takes
+       its own font, and a span the row's, and the two ✕ were a fraction
+       of a pixel apart — enough to put the count out of its column. */
+    const room = document.createElement('button');
+    room.type = 'button';
+    room.disabled = true;
+    room.tabIndex = -1;
     room.className = 'legend-tag-del legend-tag-del-room';
     room.textContent = '\u2715';
     room.setAttribute('aria-hidden', 'true');
