@@ -43,10 +43,16 @@ self.addEventListener('fetch', ev => {
   if(req.method !== 'GET') return;
   const url = new URL(req.url);
   if(url.origin !== self.location.origin) return;
-  if(req.mode === 'navigate' || url.href.split(/[?#]/)[0] === PAGE || url.pathname.endsWith('/index.html')){
+  /* The chart's own address, and only it. Every navigation used to get the
+     chart, so any other page put beside it on the site — a 404, a second
+     page — could never be reached once this worker was installed; and
+     nothing told whoever typed the address wrong. */
+  const here = url.href.split(/[?#]/)[0];
+  if(here === PAGE || here === PAGE + 'index.html'){
     ev.respondWith(thePage());
     return;
   }
+  if(req.mode === 'navigate') return;
   if(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/.test(url.pathname) || HASHED.test(url.pathname)){
     ev.respondWith(aPicture(req));
     return;

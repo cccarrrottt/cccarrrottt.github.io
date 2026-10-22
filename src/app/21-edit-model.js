@@ -434,7 +434,13 @@ async function saveNow(){
        is still unsaved". The reader is told what actually happened and
        what to do about it, and the Save button comes back enabled. */
     if(code==='conflict'){
-      setSaveState('err', ON_SITE
+      /* On the site the service merges what it can (worker/index.js); a
+         refusal there means both saves changed the same thing, and says
+         which. */
+      const what = ON_SITE ? siteConflictWords(e.conflicts) : '';
+      setSaveState('err', what
+        ? `A newer save changed ${what} too \u2014 export your copy, then reload and make your change again`
+        : ON_SITE
         ? 'The repository has a newer chart than this page — export your copy, then reload once the site has caught up'
         : 'Someone else published a newer version — export your copy, then reload');
     }

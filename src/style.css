@@ -1912,6 +1912,36 @@
   .note-overlay-body .fig-grip{display:none;}
   .note-overlay-empty{color:var(--ink-faint);}
 
+  /* The chart as text (41-text-view.js). A document, so it is set like
+     one: the names as links, everything else as the about panel's prose.
+     Each level is indented a little and marked with a rule, and the rule
+     stops moving in past a few levels — a long line of sequels would
+     otherwise walk off the right of a phone. */
+  .text-view-card{width:min(640px, 92vw);}
+  .text-view-body .tv-count{color:var(--ink-faint);}
+  .tv-list{list-style:none;margin:0;padding:0;}
+  .tv-list .tv-list{margin:6px 0 0 4px;padding-left:12px;border-left:1px solid var(--line);}
+  .tv-list .tv-list .tv-list .tv-list .tv-list .tv-list{margin-left:0;padding-left:8px;}
+  .tv-entry{margin:0 0 10px;}
+  .tv-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;}
+  .tv-name{color:var(--ink);font-weight:600;font-size:13.5px;text-decoration:none;}
+  .tv-name:hover, .tv-name:focus-visible{color:var(--accent);text-decoration:underline;}
+  .tv-tags{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);}
+  .about-body p.tv-also, .about-body p.tv-from, .about-body p.tv-note, .about-body p.tv-link{
+    margin:2px 0 0;font-size:12.5px;line-height:1.55;
+  }
+  .about-body p.tv-note{white-space:pre-line;}
+  .tv-from .tv-name{font-weight:500;font-size:12.5px;}
+  .tv-link a{color:var(--accent);word-break:break-all;}
+  /* Out of sight until the keyboard reaches it; then at the top left,
+     over the bar, where the eye already is. */
+  .skip-link{
+    position:absolute;left:8px;top:-60px;z-index:200;
+    background:var(--panel);color:var(--ink);border:1px solid var(--accent);
+    padding:8px 12px;border-radius:4px;font-size:13px;text-decoration:none;
+  }
+  .skip-link:focus{top:8px;}
+
   .editor-btn{
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;padding:7px 12px;border-radius:4px;

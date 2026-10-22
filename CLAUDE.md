@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 40 files. **They are not modules.** The page is a single
+`src/app/` holds 41 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -16,7 +16,12 @@ So:
 - Moving a function between parts is free **only** if it is not read during
   boot before the part that now holds it has run. Function *declarations*
   hoist within a script, and the assembled program is one script — but
-  `const`/`let`/`var` initialisation does not.
+  `const`/`let`/`var` initialisation does not. `tools/tdz.js` (run by
+  `tools/lint.py`) walks start-up and every call it makes and reports a
+  const, let or class reached before its statement; the first chart is
+  built in part 02, so anything `buildModel` asks is read then. Its
+  `KNOWN` list is for a function that returns before such a read, with
+  the reason — not for silencing a finding.
 - Adding a part means adding it to `APP_PARTS` in `build.py` **and** to the
   loader array in `src/index.html`. The build refuses a mismatch between the
   two, a missing part, and a part on disk that nothing lists.
@@ -45,6 +50,12 @@ chart. A kept chart's number is its own: one kept without a number is form
 new step with the number it ends at, and `DATA_FORMAT` goes up by one.
 Tests write entries in the current form; one that means an old chart says
 so with `migrateChart(1)`.
+
+The same contents as JSON — `{format, nodes: [records], edgeStyles, …}` —
+are what "Export the contents as JSON" writes and Import reads, and
+`src/site/chart.schema.json` (published at the site's root) describes
+them. A field added to an entry or a connector belongs in the schema too;
+the suite validates the owner's chart and a chart of every kind against it.
 
 ## Where the chart's contents actually live
 
@@ -102,7 +113,7 @@ Six checks, and all six have to be green:
 python3 build.py
 python3 tools/data_check.py      # ~instant, and run it AFTER the build
 python3 tests/build_guard.py     # ~seconds
-python3 tools/lint.py            # ~seconds
+python3 tools/lint.py            # ~seconds, and tools/tdz.js with it
 node tests/worker.js             # ~instant, the write service
 node tests/regression.js         # ~6 minutes, against dist
 node tests/regression.js src     # ~6 minutes, against src
@@ -193,6 +204,13 @@ site") and `build_guard`:
 - **No part may contain a closing script tag**, in a string or a comment:
   the program is inside a `<script>` in every build but the site's, and the
   parser ends it there. The build refuses it and names the part.
+- **A save made on an older chart is merged, not refused.** The service
+  reads the `data.js` the save was made on (its base, by blob id) and
+  merges region by region, item by item — an item is a line, named by
+  what opens it (`ITEM_KEY`, `worker/index.js`), which is why every
+  serializer writes one item to a line and must keep doing so. Only what
+  both changed differently is a 409, with the colliding items named. The
+  answer carries the merged regions and `over`, the file it replaced.
 - **A page that is behind the repository may not save.** `build.py` writes
   the git blob id of `src/data.js` into the page — as a
   `<meta name="rhizome-data-sha">` in the wrapper's head, outside the

@@ -173,6 +173,52 @@ const LOCAL_TAG = 'local multiverse';
    opens with its scenery intact rather than with two tags that name
    nothing. See migrateTagSpellings. */
 const TAG_RENAMES = {'multiversal-hub': HUB_TAG, 'local-multiverse': LOCAL_TAG};
+/* The grounds (drawn in 10-decor.js). Declared here rather than beside
+   their drawing because the first chart is built while this part runs,
+   and building it asks of every tag whether it is one of these. */
+const FANFIC_TAG = 'fan-fiction';
+/* The second ground.
+ *
+ * "Unreleased" is the other thing an entry can be that is not a claim
+ * about its content: it exists, it is documented, and it never came out.
+ * It is drawn the way fan-fiction is — a patch of ruled ground under the
+ * entry, fading out past it — because the two say the same KIND of thing
+ * about a reality and belong in the same visual language. What separates
+ * them is the ruling: fan-fiction is a warm gold lattice, woven, made by
+ * hands that were not the owner's; unreleased is a cold grey comb of
+ * straight verticals, like a shutter or a barred window, with no weave at
+ * all. An entry can carry both. */
+const UNRELEASED_TAG = 'unreleased';
+/* Tags that DO something.
+ *
+ * Almost every tag on this chart is a label: it names a thing the reader
+ * can filter by and changes nothing about the entry that carries it.
+ * A few are not — "fan-fiction" lays a weave on the canvas around every
+ * entry that has it — and from the panel the two kinds looked identical,
+ * so nothing said why one tag redrew the chart and its neighbour did not.
+ *
+ * This is the register of the ones that act. Each names what it does, in a
+ * sentence the panel shows when the reader asks. Adding a tag with an
+ * effect means adding it here in the same change, and the star appears on
+ * its own. */
+/* Two archetypes that stopped being archetypes.
+ *
+ * "Multiversal hub" and "local multiverse" were shapes, and being shapes
+ * they were exclusive: an entry could be a hub or a pocket reality, never
+ * both, and choosing one threw the other's outline away. But neither was
+ * ever really an OUTLINE — a hub is a box with an echo spreading out of
+ * it, a local multiverse a box with copies of itself stacked behind — and
+ * an echo or a stack is something an entry HAS, not something it IS.
+ *
+ * As tags they compose: a pocket reality can be a hub, a mirror reality
+ * can be a local multiverse, a bio can be both, and every one of them
+ * keeps its own border, its own colours and its own ports. */
+const SPECIAL_TAGS = {
+  [FANFIC_TAG]: 'Entries with this tag are drawn standing on a woven ground.',
+  [UNRELEASED_TAG]: 'Entries with this tag are drawn standing on a ruled grey ground.',
+  [HUB_TAG]: 'Entries with this tag are drawn with an echo spreading out of them.',
+  [LOCAL_TAG]: 'Entries with this tag are drawn with a stack of near-identical worlds behind them.'
+};
 
 /* Where each connector's crossbar was last drawn; see joinCandidates.
    Declared here rather than beside it because the first buildModel runs
@@ -773,8 +819,18 @@ function buildModel(){
   structEdges.length = 0;
   componentMeta.length = 0;
 
+const twice = [];
 workingNodes.forEach(item=>{
   let [id,label,parent,edgeLabel,note,shape,opts] = item;
+  /* An id is the entry's name to everything that points at it, so a second
+     entry under the same one cannot be told apart from the first. It used
+     to replace it here, half-way — the first one's place in the chart, the
+     second one's words — while the editor, which finds an entry by the
+     first match (workingEntry), went on editing the one no longer drawn.
+     The first is the entry; the second is left out, and said so. The
+     editor and import both refuse to make one (validateNodes); this is
+     for a file edited by hand. */
+  if(nodes.has(id)){ twice.push(id); return; }
   let parents;
   if(parent===undefined || parent===null){
     parents = [];
@@ -853,7 +909,7 @@ workingNodes.forEach(item=>{
     // just after the layout pass below); when absent the node keeps
     // flowing with the automatic layout as it always has.
     pos: (!isArray && opts && Array.isArray(opts.pos) && opts.pos.length===2 &&
-          typeof opts.pos[0]==='number' && typeof opts.pos[1]==='number') ? {x:opts.pos[0], y:opts.pos[1]} : null,
+          Number.isFinite(opts.pos[0]) && Number.isFinite(opts.pos[1])) ? {x:opts.pos[0], y:opts.pos[1]} : null,
     // Portrait for a character bio: any URL the page may load, or an
     // embedded data: URI.
     /* A portrait, if it is a picture at all. Asked here rather than at
@@ -920,6 +976,11 @@ workingNodes.forEach(item=>{
           ? {w:opts.size[0], h:opts.size[1]} : null
   });
 });
+// Once per set of names, not on every redraw.
+if(twice.length && buildModel.twice !== twice.join('\n')){
+  buildModel.twice = twice.join('\n');
+  console.warn('Rhizome: more than one entry is called ' + twice.map(t=> JSON.stringify(t)).join(', ') + '; only the first of each is drawn.');
+}
 settleArrayMembers();
 
 // Build structEdges only now that every node exists. label/color come from

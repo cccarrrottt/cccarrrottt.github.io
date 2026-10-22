@@ -238,9 +238,7 @@ function drawBendHandles(){
       if(readOnlyView) return;
       const list = bendListOf(target.from, target.to);
       list.splice(i, 1);
-      pushUndo();
       applyEdit(()=>{ setBendList(target.from, target.to, list); });
-      refreshSaveUI();
     });
   });
 }

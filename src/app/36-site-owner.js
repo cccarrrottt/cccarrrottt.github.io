@@ -43,6 +43,10 @@ const ownerBtn = document.getElementById('ownerBtn');
    was built from and moves with every save, so a second save before the
    site has caught up is still a save on top of the first. */
 let siteBase = DATA_SHA;
+/* The data.js files a save from this page replaced. The service saying the
+   repository holds one of them is this page's own save not yet published,
+   not a newer chart from somewhere else. */
+const siteSavedOver = new Set();
 /* Whether the service takes pictures as files beside the chart (see
    tookMedia). Asked, not assumed: a page published before the service that
    takes them would otherwise send paths to a service that drops the files,
@@ -113,10 +117,40 @@ function siteRequest(path, init){
 function siteOffline(){
   return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
-function siteError(code, message){
+function siteError(code, message, body){
   const e = new Error(message);
   e.code = code;
+  if(body && Array.isArray(body.conflicts)) e.conflicts = body.conflicts;
   return e;
+}
+/* What collided, in words: the entries by their names on the chart where
+   the service named one, the region otherwise. */
+const SITE_REGION_WORDS = {NODES: 'entries', EDGESTYLES: 'connector styles', STICKERS: 'stickers', MEDIA: 'pictures',
+                           COMMENTS: 'comments', TAGCATS: 'tag categories', REFS: 'references', SETTINGS: 'the chart\u2019s settings'};
+function siteConflictWords(conflicts){
+  if(!Array.isArray(conflicts) || !conflicts.length) return '';
+  const names = conflicts.slice(0, 4).map(c=>{
+    if(!c.item) return SITE_REGION_WORDS[c.region] || c.region;
+    if(c.region === 'NODES'){
+      const n = nodes.get(c.item);
+      return '\u201c' + (n ? stripMarkup(n.label) : c.item).slice(0, 40) + '\u201d';
+    }
+    return '\u201c' + c.item + '\u201d';
+  });
+  return names.join(', ') + (conflicts.length > 4 ? ' and ' + (conflicts.length - 4) + ' more' : '');
+}
+/* The chart as the service merged it. Through applyEdit, as an import is:
+   one step of undo, and undoing it is an edit like any other. The paths
+   the save lifted its own pictures to are given their bytes back, because
+   the site serves them only once it has been published again. */
+function takeMergedChart(parts, uris){
+  const text = REGION_NAMES.map(name=>{
+    let t = typeof parts[name] === 'string' ? parts[name] : '';
+    Object.keys(uris || {}).forEach(ref=>{ t = t.split(ref).join(uris[ref]); });
+    return `/* @@EDIT:${name}:START@@ */\n${t}\n/* @@EDIT:${name}:END@@ */`;
+  }).join('\n');
+  importChartFromText(text);
+  savedParts = snapshotParts();
 }
 
 function updateOwnerBtn(){
@@ -163,7 +197,7 @@ async function checkSiteOwner(){
      with the answer lost on the way back — the service says so rather than
      calling it a conflict, and this page is current after all. */
   if(sitePending && me.sha && me.sha !== siteBase) await flushOutbox();
-  if(me.sha && siteBase && me.sha !== siteBase){
+  if(me.sha && siteBase && me.sha !== siteBase && !siteSavedOver.has(me.sha)){
     if(!sitePending) setSaveState('err', 'The repository has a newer chart than this page. It is still being published — reload in a few minutes to edit.');
     return false;
   }
@@ -238,11 +272,15 @@ async function saveToSite(){
   const {res, body} = answer;
   if(res.status === 401){ forgetSiteSession(); throw siteError('signed_out', 'your sign-in has expired.'); }
   if(res.status === 403) throw siteError('not_writer', 'this account may not edit the chart.');
-  if(res.status === 409) throw siteError('conflict', 'the repository has a newer chart.');
+  if(res.status === 409) throw siteError('conflict', 'the repository has a newer chart.', body);
   if(res.status === 413) throw siteError('too_large', 'the chart is too large to send.');
   if(!res.ok) throw siteError('site_' + res.status, (body && body.error) || 'the save service refused the save.');
+  if(body && body.over) siteSavedOver.add(body.over);
   if(body && body.sha) siteBase = body.sha;
   tookMedia(sent);
+  /* Made on an older chart and merged with what the repository got since:
+     what this page shows is half of it until it takes the rest. */
+  if(body && body.merged && body.parts) takeMergedChart(body.parts, sent.uris);
   /* This save carried everything a kept one did, and more. */
   if(sitePending){ await dropOutbox(); sitePending = false; }
   savedParts = snapshotParts();
@@ -321,19 +359,32 @@ async function sendOutbox(){
   const {res, body} = answer;
   if(res.status === 401){ forgetSiteSession(); setSaveState('err', SITE_SIGN_IN_TO_SEND); return false; }
   /* Kept, not thrown away: the work is still the owner's, and Export takes
-     it as a file. Putting the two charts together is not this code's to
-     guess at. */
+     it as a file. The service has already put together everything that
+     did not collide; what is left is the owner's call. */
   if(res.status === 409){
-    setSaveState('err', 'The repository has a newer chart than the one the changes on this device were made on. They are kept here \u2014 Export takes them as a file.');
+    const what = siteConflictWords(body && body.conflicts);
+    setSaveState('err', what
+      ? `The changes on this device and a newer save both changed ${what}. They are kept here \u2014 Export takes them as a file.`
+      : 'The repository has a newer chart than the one the changes on this device were made on. They are kept here \u2014 Export takes them as a file.');
     return false;
   }
   if(!res.ok) return false;
-  if(body && body.sha) siteBase = body.sha;
+  if(body && body.over) siteSavedOver.add(body.over);
   tookMedia(sent);
   /* A Save made while this one was on its way is a later chart, made on
-     top of this one — it stays, on the new base. */
+     top of this one — it stays, on the new base. Unless this one was
+     merged: then the later one has not seen what the merge brought in,
+     and sent on the new base it would take that out again. It keeps the
+     base it was made on, and is merged in its turn. */
   const now = await readOutbox();
-  if(now && now.at !== kept.at) await putOutbox(Object.assign({}, now, {base: siteBase}));
+  const later = !!(now && now.at !== kept.at);
+  if(body && body.merged){
+    if(!later && !isDirty()){
+      if(body.sha) siteBase = body.sha;
+      if(body.parts) takeMergedChart(body.parts, sent.uris);
+    }
+  } else if(body && body.sha) siteBase = body.sha;
+  if(later){ if(!(body && body.merged)) await putOutbox(Object.assign({}, now, {base: siteBase})); }
   else { await dropOutbox(); sitePending = false; }
   if(!isDirty() && !sitePending){
     setSaveState('ok', 'Sent to the site \u2014 it shows there in a few minutes');

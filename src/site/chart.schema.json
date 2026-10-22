@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cccarrrottt.github.io/chart.schema.json",
+  "title": "Rhizome Project chart",
+  "description": "The contents of a Rhizome Project chart as JSON: what the page's 'Export the contents as JSON' writes and what its Import reads. The same contents are kept in src/data.js as JavaScript, one record to a line; this is that file's open form. Fields this schema does not name are allowed, so a file written by a newer page still validates; the page itself refuses a file whose format is higher than its own.",
+  "type": "object",
+  "required": ["format", "nodes"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "format": {
+      "description": "Which form the records are written in. 2 is records with their fields named. A page migrates an older form when it reads it, and refuses a newer one.",
+      "type": "integer", "minimum": 1
+    },
+    "nodes": {
+      "description": "The entries, in the order they are drawn and listed.",
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/definitions/entry"}
+    },
+    "edgeStyles": {
+      "description": "How a connector between two entries is drawn, for the connectors that are not drawn the default way.",
+      "type": "array", "items": {"$ref": "#/definitions/edgeStyle"}
+    },
+    "stickers": {"type": "array", "items": {"$ref": "#/definitions/sticker"}},
+    "media": {"type": "array", "items": {"$ref": "#/definitions/media"}},
+    "comments": {"type": "array", "items": {"$ref": "#/definitions/comment"}},
+    "tagCats": {"type": "array", "items": {"$ref": "#/definitions/tagCat"}},
+    "refs": {"type": "array", "items": {"$ref": "#/definitions/ref"}},
+    "settings": {"$ref": "#/definitions/settings"}
+  },
+  "definitions": {
+    "id": {
+      "description": "An entry's name to everything that points at it. Any script; no control characters or line breaks; not blank.",
+      "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
+    },
+    "hex": {"type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"},
+    "point": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+    "border": {"enum": ["solid", "dashed", "dotted", "dashdot", "double", "wavy"]},
+    "side": {"enum": ["top", "right", "bottom", "left"]},
+    "snap": {"type": "string", "pattern": "^(mid|leg:\\d{1,3})$"},
+    "entry": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": {"$ref": "#/definitions/id"},
+        "label": {"type": "string", "description": "What the entry says, in the page's markup ({{…}} stickers and readings, [[…]] links, citations)."},
+        "parent": {
+          "description": "The entry or entries it descends from; a line is drawn from each.",
+          "oneOf": [{"$ref": "#/definitions/id"}, {"type": "array", "items": {"$ref": "#/definitions/id"}}]
+        },
+        "edgeLabel": {"type": "string", "description": "What the line from its parents says."},
+        "note": {"type": "string", "description": "The entry's longer text, shown when it is opened."},
+        "shape": {
+          "type": "string",
+          "description": "Absent is a box. Otherwise ellipse (a character with a portrait), callout, amalgam (a merge of its parents), image, textbox or array (a frame round its members). Older charts may carry shapes that are migrated on reading."
+        },
+        "pos": {"$ref": "#/definitions/point", "description": "Where it was put by hand, [x, y] in chart units."},
+        "size": {"$ref": "#/definitions/point", "description": "[w, h], when it was sized by hand."},
+        "rot": {"type": "number", "description": "Degrees, for a free shape."},
+        "z": {"type": "number"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "colors": {"type": "array", "items": {"$ref": "#/definitions/hex"}, "description": "Its border colours, outermost first; absent takes its tags' colours."},
+        "bg": {"type": "array", "items": {"$ref": "#/definitions/hex"}, "description": "What it is filled with; more than one is a gradient."},
+        "border": {"$ref": "#/definitions/border"},
+        "decor": {"$ref": "#/definitions/border"},
+        "square": {"type": "boolean"},
+        "link": {"type": "string"},
+        "image": {"type": "string", "description": "A picture: a data: URI, an http(s) address, or media/<sha256>.<ext> beside the page."},
+        "font": {"type": "string"},
+        "fontSize": {"type": "number"},
+        "multiLang": {"type": "boolean"},
+        "langTabs": {
+          "type": "array",
+          "items": {"type": "object", "required": ["tag", "text"],
+                    "properties": {"tag": {"type": "string"}, "text": {"type": "string"}}}
+        },
+        "leader": {
+          "description": "A callout's anchor: the connector it points at and how far along it.",
+          "type": "object", "required": ["from", "to"],
+          "properties": {
+            "from": {"$ref": "#/definitions/id"}, "to": {"$ref": "#/definitions/id"},
+            "at": {"type": "number", "minimum": 0, "maximum": 1},
+            "snap": {"$ref": "#/definitions/snap"},
+            "line": {"enum": ["dashed", "dotted", "dashdot", "double", "sinusoid"]},
+            "shelf": {"type": "boolean"}
+          }
+        },
+        "bar": {
+          "description": "Where an amalgam's merge bar was put by hand.",
+          "type": "object", "required": ["k", "lead"],
+          "properties": {"k": {"enum": ["x", "y"]}, "lead": {"type": "number"}, "after": {"type": "boolean"}}
+        },
+        "members": {"type": "array", "items": {"$ref": "#/definitions/id"}, "description": "An array's entries."},
+        "hatch": {"enum": ["diag-r", "diag-l", "vert", "horiz"]},
+        "card": {"type": "boolean"},
+        "cardCrop": {"type": "boolean"},
+        "cardImgW": {"type": "number"},
+        "cardImgH": {"type": "number"},
+        "bioCard": {"type": "boolean"},
+        "bioSide": {"enum": ["left", "right"]},
+        "medium": {"type": "string"}
+      }
+    },
+    "edgeStyle": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": {"$ref": "#/definitions/id"}, "to": {"$ref": "#/definitions/id"},
+        "routing": {"enum": ["orthogonal", "straight", "curve"]},
+        "dash": {"enum": ["solid", "dashed", "dotted", "dashdot", "double"]},
+        "arrow": {"type": "boolean"}, "arrowIn": {"type": "boolean"},
+        "teeOut": {"type": "boolean"}, "teeIn": {"type": "boolean"},
+        "sinusoid": {"type": "boolean"},
+        "note": {"type": "string"},
+        "notePos": {"enum": ["above", "on", "below"]},
+        "noteAt": {"type": "number", "minimum": 0, "maximum": 1},
+        "noteSnap": {"$ref": "#/definitions/snap"},
+        "noteBg": {"$ref": "#/definitions/hex"},
+        "noteFrame": {"type": "boolean"}, "noteSquare": {"type": "boolean"},
+        "bends": {"type": "array", "items": {"$ref": "#/definitions/point"}, "description": "Points the line passes through, set by hand, from the source end."},
+        "bendSides": {"type": "array", "items": {"$ref": "#/definitions/side"}, "minItems": 2, "maxItems": 2},
+        "color": {"$ref": "#/definitions/hex"}, "colorFixed": {"type": "boolean"},
+        "gradient": {"type": "array", "items": {"$ref": "#/definitions/hex"}, "minItems": 2, "maxItems": 2},
+        "fromSide": {"$ref": "#/definitions/side"}, "toSide": {"$ref": "#/definitions/side"},
+        "fromRing": {"type": "integer", "minimum": 0}, "toRing": {"type": "integer", "minimum": 0},
+        "square": {"type": "boolean"}
+      }
+    },
+    "sticker": {
+      "type": "object", "required": ["key", "src"],
+      "properties": {"key": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"}, "name": {"type": "string"}, "src": {"type": "string"}}
+    },
+    "media": {
+      "type": "object", "required": ["key", "src"],
+      "properties": {"key": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"}, "name": {"type": "string"},
+                     "kind": {"enum": ["image", "video"]}, "src": {"type": "string"}}
+    },
+    "comment": {
+      "type": "object", "required": ["id", "text"],
+      "properties": {"id": {"type": "string"}, "nick": {"type": "string"}, "kind": {"type": "string"},
+                     "at": {"type": "string"}, "text": {"type": "string"}, "done": {"type": "boolean"}}
+    },
+    "tagCat": {
+      "type": "object", "required": ["name", "tags"],
+      "properties": {"name": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}}
+    },
+    "ref": {
+      "type": "object", "required": ["key"],
+      "properties": {"key": {"type": "string"}, "title": {"type": "string"}, "detail": {"type": "string"}, "url": {"type": "string"}}
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "refColor": {"$ref": "#/definitions/hex"},
+        "legend": {"type": "object", "additionalProperties": {"type": "string"}},
+        "legendNames": {"type": "object", "additionalProperties": {"type": "string"}},
+        "legendHidden": {"type": "array", "items": {"type": "string"}},
+        "legendAdded": {"type": "array", "items": {"type": "string"}},
+        "legendOwn": {"type": "array", "items": {"type": "object", "required": ["id"],
+          "properties": {"id": {"type": "string", "pattern": "^own\\d+$"}, "name": {"type": "string"},
+                         "meaning": {"type": "string"}, "color": {"$ref": "#/definitions/hex"}}}},
+        "tagColors": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}},
+        "groundColors": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}}}
+      }
+    }
+  }
+}

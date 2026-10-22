@@ -10391,7 +10391,20 @@ async function main(){
     if(u.pathname === '/save'){
       const b = JSON.parse(q.postData());
       api.saves.push(b);
-      if(b.base !== api.sha) return reply(409, {error: 'the repository has a newer chart.'});
+      if(b.base !== api.sha){
+        // What the service answers when both saves changed one thing…
+        if(api.conflicts) return reply(409, {error: 'the repository has a newer chart, and it changed something this save changed too.', conflicts: api.conflicts});
+        // …and when they did not: the save merged with the desk's, which added a reference.
+        if(api.mergeNext){
+          api.mergeNext = false;
+          const over = api.sha;
+          api.sha = 'merged-sha';
+          api.saves[api.saves.length - 1].merged = true;
+          const parts = {...b.parts, REFS: b.parts.REFS.replace(/\n\];$/, "\n  {key:'desk-ref', title:'From the desk'},\n];")};
+          return reply(200, {sha: api.sha, over, merged: true, parts});
+        }
+        return reply(409, {error: 'the repository has a newer chart.'});
+      }
       Object.keys(b.media || {}).forEach(k => { api.files[k] = Buffer.from(b.media[k], 'base64'); });
       api.sha = 'sha-after-save-' + api.saves.length;
       return reply(200, {sha: api.sha});
@@ -10753,6 +10766,26 @@ async function main(){
   });
   check('a kept Save the repository has moved past is refused, and stays kept rather than lost',
         p4.pending && p4.kept && /newer chart/.test(p4.said) && /Export/.test(p4.said), JSON.stringify(p4));
+  /* The service puts the two together, and refuses only where both
+     changed the same thing — naming it, by the name it has on the chart. */
+  api.conflicts = [{region: 'NODES', item: await phone.evaluate(() => workingNodes[0][0])}];
+  await phone.evaluate(() => window.dispatchEvent(new Event('online')));
+  await wait(600);
+  const p5 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()),
+                                                said: document.getElementById('saveStateText').textContent}));
+  check('a kept Save that collides with a newer one says what both changed, and stays kept',
+        p5.pending && p5.kept && /\u201cAND THIS ON THE TRAIN\u201d/.test(p5.said) && /Export/.test(p5.said), JSON.stringify(p5));
+  api.conflicts = null;
+  api.mergeNext = true;
+  await phone.evaluate(() => window.dispatchEvent(new Event('online')));
+  await phone.waitForFunction(() => !sitePending, null, {timeout: 5000}).catch(() => {});
+  await wait(300);
+  const p6 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()), base: siteBase,
+                                                first: workingNodes[0][1], desk: REFS.some(r => r.key === 'desk-ref'),
+                                                dirty: isDirty(), readOnly: readOnlyView}));
+  check('one that does not collide is merged, and the page takes the other device\'s half as well',
+        !p6.pending && !p6.kept && p6.base === 'merged-sha' && p6.first === 'AND THIS ON THE TRAIN' && p6.desk && !p6.dirty && !p6.readOnly,
+        JSON.stringify(p6));
   await phone.evaluate(() => dropOutbox());
   await phone.close();
   api.sha = dataSha;
@@ -11038,7 +11071,7 @@ async function main(){
     if(!up){ r.destroy(); return; }
     const rel = q.url.split('?')[0];
     const body = files[rel === '/index.html' ? '/' : rel];
-    if(!body){ r.writeHead(404); r.end(); return; }
+    if(!body){ r.writeHead(404, {'Content-Type': 'text/plain'}); r.end('not here'); return; }
     r.writeHead(200, {'Content-Type': rel === '/' || rel === '/index.html' ? 'text/html; charset=utf-8' : (TYPES[path.extname(rel)] || 'application/octet-stream')});
     r.end(body);
   });
@@ -11091,6 +11124,12 @@ async function main(){
     await p.reload({waitUntil: 'load'});
     const fresh = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page')));
     check('with a connection, the page is fetched afresh rather than taken from the copy', fresh);
+    const other = await c.newPage();
+    const elsewhere = await other.goto(at + 'not-the-chart.html').then(r => ({status: r.status(), sw: r.fromServiceWorker()}));
+    const isChart = await other.evaluate(() => typeof rebuildChart === 'function').catch(() => false);
+    await other.close();
+    check('another address on the site is the site\'s answer for it, not the chart',
+          elsewhere.status === 404 && !elsewhere.sw && !isChart, JSON.stringify({elsewhere, isChart}));
     up = false;
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
     const keptNewer = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page'))).catch(() => false);
@@ -16611,18 +16650,28 @@ async function main(){
       out.coordContained = /size/.test(getComputedStyle(box).contain) && /layout/.test(getComputedStyle(box).contain);
       centreViewOn(1234, -567, 1.25);
     }
-    let saved = null; try{ saved = JSON.parse(localStorage.getItem('rhizome.view')); }catch(e){}
+    let saved = null; try{ saved = JSON.parse(localStorage.getItem(VIEW_KEY)); }catch(e){}
     out.saved = saved;
+    out.viewKeyIsTheChart = VIEW_KEY === 'rhizome.view:' + STORE_KEY.slice(STORE_PREFIX.length) && localStorage.getItem('rhizome.view') === null;
     vs = 0.3; vx = 0; vy = 0; applyTransform();
     await wait(50);
-    localStorage.setItem('rhizome.view', JSON.stringify({x:1234, y:-567, s:1.25}));
+    localStorage.setItem(VIEW_KEY, JSON.stringify({x:1234, y:-567, s:1.25}));
     openingView();
     const c1 = viewCentre();
     out.restored = Math.abs(c1.x - 1234) < 1 && Math.abs(c1.y + 567) < 1 && Math.abs(vs - 1.25) < 1e-6;
     document.getElementById('coordHome').click();
     const c2 = viewCentre();
     out.home = Math.abs(c2.x) < 1 && Math.abs(c2.y) < 1 && Math.abs(vs - 1.25) < 1e-6;
+    // Another chart's view is not this one's; the old shared key is read
+    // only while this chart has none of its own.
+    localStorage.removeItem(VIEW_KEY);
+    localStorage.setItem('rhizome.view:/another/chart.html', JSON.stringify({x:999, y:999, s:2}));
+    localStorage.setItem('rhizome.view', JSON.stringify({x:-50, y:60, s:0.5}));
+    openingView();
+    const c4 = viewCentre();
+    out.legacy = Math.abs(c4.x + 50) < 1 && Math.abs(c4.y - 60) < 1 && Math.abs(vs - 0.5) < 1e-6;
     localStorage.removeItem('rhizome.view');
+    localStorage.removeItem('rhizome.view:/another/chart.html');
     openingView();
     const c3 = viewCentre();
     out.fresh = Math.abs(c3.x) < 1 && Math.abs(c3.y) < 1 && vs === 1;
@@ -16702,6 +16751,9 @@ async function main(){
         r17.saved && r17.saved.x === 1234 && r17.saved.y === -567 && r17.saved.s === 1.25 && r17.restored,
         JSON.stringify(r17.saved));
   check('⌖ goes to x 0, y 0 at the same zoom', r17.home);
+  check('the view is kept under this chart\'s own address, so two charts in one browser do not share one',
+        r17.viewKeyIsTheChart);
+  check('and the view everyone kept before, under one key, opens a chart that has none of its own yet', r17.legacy);
   check('a first visit opens on the origin, in the middle', r17.fresh);
   check('an amalgam level with its middle parent has a straight stem', r17.stemStraight, JSON.stringify(r17.stem));
   check('a wave runs flat into a trimmed end', r17.heldFlat);
@@ -17920,6 +17972,301 @@ async function main(){
   check('tags with no category sit in a dashed field with a mark in its middle and no words',
         r.loose.missing ? r.loose.hasItems : (r.loose.border === 'dashed' && r.loose.text === '' && r.loose.off < 2),
         JSON.stringify(r.loose));
+  });
+  await scenario("the chart as text", async () => {
+  /* The same chart written out as a document (41-text-view.js), for a
+     screen reader and for whatever reads the page without running it.
+     It is in the page from start-up, before anyone opens it; every entry
+     is in it once; and a name in it opens that entry on the chart. */
+  const boot = await page.evaluate(()=>({
+    built: document.querySelectorAll('#textViewBody .tv-name').length > 0,
+    open: document.getElementById('textViewOverlay').classList.contains('open')
+  }));
+  check('the text is in the page before anyone opens it', boot.built && !boot.open, JSON.stringify(boot));
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    try{
+      applyEdit(()=>{
+        workingNodes.push(['tv_a', 'Alpha {{u:solid|one}}', null, null, 'A note\non two lines', null, {pos:[4000, 3000], tags:['tvtag'], link:'https://example.com/a'}]);
+        workingNodes.push(['tv_b', 'Beta', 'tv_a', 'adapted', null, null, {pos:[4300, 3000], multiLang:true, langTabs:[{tag:'JP', text:'ベータ'}]}]);
+        workingNodes.push(['tv_c', 'Gamma', ['tv_b', 'tv_a'], 'merged', null, null, {pos:[4600, 3000]}]);
+        workingNodes.push(['tv_d', 'A remark', 'tv_a', null, null, 'callout', {pos:[4000, 3300]}]);
+        workingNodes.push(['tv_e', 'Frame', null, null, null, 'array', {members:['tv_a', 'tv_b']}]);
+        workingNodes.push(['tv_f', 'Caption', null, null, null, 'textbox', {pos:[4000, 3500]}]);
+        workingNodes.push(['tv_g', 'Delta', ['tv_a', 'tv_a'], null, null, null, {pos:[4900, 3000], link:'#entry=tv_c'}]);
+        EDGE_STYLES.push({from:'tv_a', to:'tv_c', note:'and also'});
+      });
+      document.getElementById('textViewToggle').click();
+      const box = document.getElementById('textViewOverlay');
+      out.opened = box.classList.contains('open') && document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'true';
+      out.focusInside = box.contains(document.activeElement);
+      const heads = Array.from(box.querySelectorAll('.tv-head .tv-name')).map(a=> a.dataset.id);
+      const listed = Array.from(nodes.values()).filter(n=> !isArrayNode(n) && !isFreeShape(n.shape) && n.shape !== 'callout').map(n=> n.id);
+      out.eachOnce = heads.length === listed.length && new Set(heads).size === heads.length && listed.every(id=> heads.includes(id));
+      out.leftOut = ['tv_d', 'tv_e', 'tv_f'].filter(id=> heads.includes(id));
+      const item = id=> box.querySelector(`.tv-head .tv-name[data-id="${id}"]`).closest('.tv-entry');
+      const a = item('tv_a'), b = item('tv_b'), c = item('tv_c');
+      out.aText = a.querySelector('.tv-head').textContent;
+      out.aNote = a.querySelector(':scope > .tv-note').textContent;
+      out.aLink = a.querySelector(':scope > .tv-link a').href;
+      out.bUnderA = b.parentElement.closest('.tv-entry') === a;
+      out.bFrom = b.querySelector(':scope > .tv-from').textContent;
+      out.bAlso = b.querySelector(':scope > .tv-also').textContent;
+      out.cUnderB = c.parentElement.closest('.tv-entry') === b;
+      out.cFrom = Array.from(c.querySelectorAll(':scope > .tv-from')).map(p=> p.textContent);
+      const d = item('tv_g');
+      out.dFrom = d.querySelectorAll(':scope > .tv-from').length;
+      out.dSee = d.querySelector(':scope > .tv-link').textContent;
+      out.dSeeId = d.querySelector(':scope > .tv-link a').dataset.id;
+      /* An edit while it is open is in it at once. */
+      applyEdit(()=>{ workingNodes[workingIndex('tv_b')][1] = 'Beta renamed'; });
+      out.renamed = box.querySelector('.tv-head .tv-name[data-id="tv_b"]').textContent;
+      /* A name opens its entry, and the reader is taken to its panel. */
+      box.querySelector('.tv-head .tv-name[data-id="tv_c"]').click();
+      out.picked = selectedId;
+      out.closed = !box.classList.contains('open') && document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'false';
+      out.focusTitle = document.activeElement && document.activeElement.id;
+      deselect();
+      /* On the drawing: one image per entry, named in words; the frame and
+         the connectors are not read at all. */
+      const g = id=> document.querySelector(`.node[data-id="${id}"]`);
+      out.role = g('tv_a').getAttribute('role');
+      out.label = g('tv_a').getAttribute('aria-label');
+      out.arrayHidden = g('tv_e').getAttribute('aria-hidden');
+      out.edgesHidden = document.getElementById('edgeLayer').getAttribute('aria-hidden');
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('it opens from the bar, says so, and takes the focus', r.opened && r.focusInside, JSON.stringify(r));
+  check('every entry is in it once', r.eachOnce, JSON.stringify(r));
+  eq('callouts, frames and captions are not entries in it', r.leftOut.join(','), '');
+  check('a name is said in words, with its tags', r.aText.includes('Alpha one') && r.aText.includes('tvtag'), r.aText);
+  check('with its note and its link', r.aNote === 'A note\non two lines' && r.aLink === 'https://example.com/a', JSON.stringify([r.aNote, r.aLink]));
+  check('an entry stands under the one it comes from, with what its line says', r.bUnderA && r.bFrom === 'adapted', JSON.stringify(r));
+  eq('and the names it goes by on its tabs', r.bAlso, 'Also: ベータ');
+  check('two parents: under the first, and the second named with its line', r.cUnderB &&
+        r.cFrom.length === 2 && r.cFrom[0] === 'merged' && r.cFrom[1] === 'Also from Alpha one — merged — and also',
+        JSON.stringify(r.cFrom));
+  check('a parent named twice is one parent', r.dFrom === 0, JSON.stringify(r.dFrom));
+  check('and a link into the chart is a name that opens that entry', r.dSee === 'See Gamma' && r.dSeeId === 'tv_c', JSON.stringify([r.dSee, r.dSeeId]));
+  eq('an edit while it is open is in it at once', r.renamed, 'Beta renamed');
+  check('a name opens its entry and takes the reader to its panel', r.picked === 'tv_c' && r.closed && r.focusTitle === 'detailTitle',
+        JSON.stringify([r.picked, r.closed, r.focusTitle]));
+  check('on the drawing an entry is one image named in words', r.role === 'img' && r.label === 'Alpha one (tvtag)', JSON.stringify([r.role, r.label]));
+  check('and frames and connectors are not read off it', r.arrayHidden === 'true' && r.edgesHidden === 'true', JSON.stringify([r.arrayHidden, r.edgesHidden]));
+  /* The first key press reaches the way to the text, and Escape shuts it. */
+  /* From the top of the page, as a reader arriving: focusing the body
+     moves where the next Tab starts from. */
+  await page.evaluate(()=>{ document.body.tabIndex = -1; document.body.focus(); });
+  await page.keyboard.press('Tab');
+  await page.evaluate(()=> document.body.removeAttribute('tabindex'));
+  const first = await page.evaluate(()=> document.activeElement && document.activeElement.id);
+  await page.keyboard.press('Enter');
+  const viaSkip = await page.evaluate(()=> document.getElementById('textViewOverlay').classList.contains('open'));
+  await page.keyboard.press('Escape');
+  const shut = await page.evaluate(()=> !document.getElementById('textViewOverlay').classList.contains('open') &&
+                                       document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'false');
+  check('the first Tab reaches the way to the text, and Enter takes it', first === 'skipToText' && viaSkip, JSON.stringify([first, viaSkip]));
+  check('Escape shuts it like the other panels', shut);
+  });
+  await scenario("the contents as JSON, as the schema says", async () => {
+  /* The open form of the chart: what Export as JSON writes is what
+     src/site/chart.schema.json describes, and Import reads it back to the
+     same chart. Checked on the chart the page opened with — the owner's —
+     and on one that uses every kind of thing a chart can hold. */
+  const Ajv = require('ajv');
+  const schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'site', 'chart.schema.json'), 'utf8'));
+  const ajv = new Ajv({allErrors: true});
+  const validate = ajv.compile(schema);
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    try{
+      out.owners = chartJsonText(chartJsonOf(chartDataOnly()));
+      applyEdit(()=>{
+        workingNodes.push(['js_a', 'A {{u:solid|thing}}', null, 'from', 'A note', null,
+          {pos:[4000, 3000], tags:['x'], colors:['#cc2222'], bg:['#ffffff'], border:'dashed', square:true,
+           langTabs:[{tag:'JP', text:'あ'}], multiLang:true, link:'https://example.com'}]);
+        workingNodes.push(['js_b', 'B', 'js_a', null, null, 'callout', {pos:[4300, 3000], leader:{from:'js_a', to:'js_c', at:0.25, line:'dashed'}}]);
+        workingNodes.push(['js_c', 'C', ['js_a', 'js_b'], null, null, 'amalgam', {bar:{k:'x', lead:40}}]);
+        workingNodes.push(['js_d', 'Frame', null, null, null, 'array', {members:['js_a', 'js_b'], hatch:'vert'}]);
+        EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true,
+                          note:'on it', notePos:'on', noteAt:0.3, bends:[[4100, 2950]], bendSides:['right', 'left'],
+                          color:'#123456', fromSide:'right', toSide:'left', fromRing:1, square:false});
+      });
+      const text = chartJsonText(chartJsonOf(chartDataOnly()));
+      out.full = text;
+      out.oneToALine = text.split('\n').filter(l=> /^    \{"id":/.test(l)).length === workingNodes.length;
+      // As the page would write it: the same chart is the same file.
+      const norm = ()=> chartDataOnly();
+      const wanted = norm();
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); EDGE_STYLES.length = 0; });
+      importChartFromText(text);
+      out.back = norm() === wanted;
+      if(!out.back){ const got = norm(); let i = 0; while(i < got.length && got[i] === wanted[i]) i++;
+                     out.diff = [wanted.slice(Math.max(0, i - 120), i + 120), got.slice(Math.max(0, i - 120), i + 120)]; }
+      const newer = JSON.parse(text); newer.format = DATA_FORMAT + 1;
+      try{ importChartFromText(JSON.stringify(newer)); out.newer = 'taken'; }catch(e){ out.newer = e.message; }
+      try{ importChartFromText('{"nodes": 3}'); out.notChart = 'taken'; }catch(e){ out.notChart = e.message; }
+      try{ importChartFromText('{"nodes": ['); out.broken = 'taken'; }catch(e){ out.broken = e.message; }
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  const owners = JSON.parse(r.owners), full = JSON.parse(r.full);
+  const okOwners = validate(owners), errsOwners = validate.errors;
+  const okFull = validate(full), errsFull = validate.errors;
+  check('the chart as JSON is what the schema describes', okOwners,
+        JSON.stringify(errsOwners && errsOwners.slice(0, 3).map(e => [e.dataPath, e.message, JSON.stringify(e.dataPath.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => o && o[k], owners))])));
+  check('and so is one with every kind of thing a chart holds', okFull, JSON.stringify(errsFull && errsFull.slice(0, 3)));
+  check('it names its schema and its form, at the top', full.$schema === 'https://cccarrrottt.github.io/chart.schema.json' &&
+        full.format === 2 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
+  check('one entry to a line, so two exports compare line by line', r.oneToALine);
+  check('Import reads it back to the same chart', r.back, JSON.stringify(r.diff));
+  check('a JSON chart from a newer page is refused', /newer version/.test(r.newer), r.newer);
+  check('and JSON that is not a chart, or does not parse, says so', /no Rhizome Project chart/.test(r.notChart) && /not a chart/.test(r.broken),
+        JSON.stringify([r.notChart, r.broken]));
+  check('and the schema refuses what the page would refuse',
+        !validate({format: 2, nodes: []}) && !validate({format: 2, nodes: [{id: 'a'}]}) &&
+        !validate({format: 2, nodes: [{id: 'a', label: 'A', pos: [1]}]}) &&
+        !validate({format: 2, nodes: [{id: 'a', label: 'A'}], edgeStyles: [{from: 'a', to: 'b', bends: [[1, 'x']]}]}));
+  });
+  await scenario("a chart that opens with a coloured tag and a picture from the web", async () => {
+  /* Both are asked about while the first chart is built, in part 02 — and
+     both used to be answered by a const of a later part, so the page threw
+     before it drew anything. tools/tdz.js found them; this opens them. */
+  const c = await browser.newContext({viewport:{width:1200, height:800}});
+  await c.route('https://fonts.googleapis.com/**', r => r.fulfill({status: 200, contentType: 'text/css', body: ''}));
+  await c.route('https://fonts.gstatic.com/**', r => r.fulfill({status: 200, contentType: 'text/css', body: ''}));
+  await c.route('https://pictures.example/**', r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
+  await c.addInitScript(key => {
+    try{ localStorage.setItem(key, JSON.stringify({v: 1, settings: {format: 2, tagColors: {coloured: '#cc2222'}},
+      nodes: [['oa', 'Tagged', null, null, null, null, {tags: ['coloured'], pos: [0, 0]}],
+              ['ob', 'Pictured', 'oa', null, null, 'ellipse', {image: 'https://pictures.example/p.png', pos: [300, 0]}]]})); }catch(e){}
+  }, 'rhizome.chart:/' + PAGE);
+  const p = await c.newPage();
+  const errs = [];
+  p.on('pageerror', e => errs.push(e.message));
+  await p.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil: 'load'});
+  const opened = await p.waitForFunction(() => typeof rebuildChart === 'function' && document.querySelectorAll('#nodeLayer .node').length === 2,
+                                         null, {timeout: 8000}).then(() => true, () => false);
+  const got = opened ? await p.evaluate(() => ({colour: nodes.get('oa').color, image: nodes.get('ob').image})) : null;
+  check('a chart with a coloured tag and a picture from a web address opens, and draws both',
+        opened && errs.length === 0 && got.colour === '#cc2222' && got.image === 'https://pictures.example/p.png',
+        JSON.stringify({opened, errs, got}));
+  await c.close();
+  });
+  await scenario("a chart edited by hand, and words that look like its markers", async () => {
+  /* What a hand-edited file can hold that the editor never writes, and
+     what a reader can type that looks like the file's own seams. */
+  const r = await page.evaluate(async ()=>{
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    const warned = [];
+    const warn = console.warn;
+    console.warn = (...a)=> { warned.push(a.join(' ')); };
+    try{
+      // Two entries under one name: the first is the entry.
+      applyEdit(()=>{
+        workingNodes.push(['hx_a', 'The first', null, null, null, null, {pos:[3000, 2000]}]);
+        workingNodes.push(['hx_a', 'The second', null, null, null, null, {pos:[3400, 2400]}]);
+      });
+      await pause(50);
+      const drawn = [...document.querySelectorAll('#nodeLayer .node')].filter(n=> n.dataset.id === 'hx_a');
+      out.dupDrawn = drawn.length;
+      out.dupFirst = nodes.get('hx_a').label === 'The first' && nodes.get('hx_a').pos.x === 3000;
+      out.dupWarned = warned.some(w=> /"hx_a"/.test(w));
+      const warnedOnce = warned.length;
+      rebuildChart();
+      out.dupWarnedOnce = warned.length === warnedOnce;
+      applyEdit(()=>{ workingNodes.splice(workingNodes.length - 1, 1); });
+
+      // Bends that are not points, and a position that is not a number.
+      applyEdit(()=>{
+        workingNodes.push(['hx_b', 'To', 'hx_a', null, null, null, {pos:[3300, 2000]}]);
+        workingNodes.push(['hx_c', 'Nowhere', null, null, null, null, {pos:[NaN, 5]}]);
+        EDGE_STYLES.push({from:'hx_a', to:'hx_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          bends:[[3150, 1950], [NaN, 4], {x: 1, y: 2}, [3200, 'x']]});
+      });
+      await pause(50);
+      const route = drawnRoutes.get(calloutEdgeKey('hx_a', 'hx_b'));
+      out.bendsKept = JSON.stringify(edgeStyleFor('hx_a', 'hx_b').bends);
+      out.routeFinite = !!route && route.pts.every(p=> Number.isFinite(p.x) && Number.isFinite(p.y));
+      out.posDropped = nodes.get('hx_c').pos === null;
+      // Out again before the file is written: import refuses them, rightly.
+      applyEdit(()=>{
+        const hc = workingNodes.find(it=> it[0] === 'hx_c');
+        hc[2] = 'hx_a'; hc[6] = {pos:[3300, 2300]};
+        EDGE_STYLES.splice(EDGE_STYLES.findIndex(st=> st.from === 'hx_a' && st.to === 'hx_b'), 1);
+      });
+
+      // A note that quotes a region's marker is written so it cannot end the region.
+      const quote = 'see /* @@EDIT:NODES:END@@ */ and @@@ too';
+      applyEdit(()=>{ workingNodes.push(['hx_d', quote]); });
+      const file = chartDataOnly();
+      out.markers = (file.match(/@@EDIT:NODES:END@@/g) || []).length;
+      const parts = writeChartParts();
+      out.partsClean = Object.keys(parts).every(k=> parts[k].indexOf('@@EDIT:') < 0);
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
+      importChartFromText(file);
+      const back = workingNodes.find(it=> it[0] === 'hx_d');
+      out.quoteBack = !!back && back[1] === quote;
+
+      // The note's ground: switching notes with the field still focused is a second step.
+      applyEdit(()=>{
+        EDGE_STYLES.push({from:'hx_a', to:'hx_b', routing:'orthogonal', dash:'solid', arrow:true, note:'One'});
+        EDGE_STYLES.push({from:'hx_a', to:'hx_c', routing:'orthogonal', dash:'solid', arrow:true, note:'Two'});
+      });
+      await pause(50);
+      const field = document.querySelector('#styleBar [data-group="noteBg"] input');
+      openStyleBar({kind:'note', from:'hx_a', to:'hx_b'});
+      field.focus();
+      field.value = '#ffeeaa'; field.dispatchEvent(new Event('input'));
+      field.value = '#ffeebb'; field.dispatchEvent(new Event('input'));
+      openStyleBar({kind:'note', from:'hx_a', to:'hx_c'});
+      field.value = '#aaeeff'; field.dispatchEvent(new Event('input'));
+      // One undo takes back the second note's ground and leaves the first's.
+      undoLastEdit();
+      const bgOf = (f, t)=> (EDGE_STYLES.find(st=> st.from === f && st.to === t) || {}).noteBg || null;
+      out.afterUndo = [bgOf('hx_a', 'hx_b'), bgOf('hx_a', 'hx_c')];
+      field.blur();
+      closeStyleBar && closeStyleBar();
+      // A note started on a plain connector is written with the connector's defaults.
+      applyEdit(()=>{ for(let k = EDGE_STYLES.length - 1; k >= 0; k--) if(EDGE_STYLES[k].from === 'hx_a' && EDGE_STYLES[k].to === 'hx_b') EDGE_STYLES.splice(k, 1); });
+      startEdgeNote('hx_a', 'hx_b');
+      const raw = EDGE_STYLES.find(st=> st.from === 'hx_a' && st.to === 'hx_b');
+      raw.note = 'A remark';
+      out.plainNote = serializeEdgeStyles(EDGE_STYLES).split('\n').find(l=> l.includes("from:'hx_a', to:'hx_b'"));
+      try{ closeNodeEditor(true); }catch(e){}
+    } finally {
+      console.warn = warn;
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('of two entries under one name only the first is drawn, and it is the first one\'s',
+        r.dupDrawn === 1 && r.dupFirst, JSON.stringify(r));
+  check('and the console says so, once, not on every redraw', r.dupWarned && r.dupWarnedOnce);
+  check('a bend that is not a pair of numbers is left out, and the route stays on the chart',
+        r.bendsKept === '[[3150,1950]]' && r.routeFinite, r.bendsKept);
+  check('a position that is not a number is no position', r.posDropped);
+  check('a note quoting a region\'s marker is written without one, and reads back as typed',
+        r.markers === 1 && r.partsClean && r.quoteBack, JSON.stringify({markers: r.markers, clean: r.partsClean, back: r.quoteBack}));
+  check('a note started on a plain connector keeps the connector\'s line and arrow when written',
+        !!r.plainNote && /routing:'orthogonal', dash:'solid', arrow:true/.test(r.plainNote) && !/undefined|arrow:null/.test(r.plainNote), r.plainNote);
+  check('a note\'s ground typed into, then another note\'s, is two steps of undo, not one',
+        r.afterUndo[0] === '#ffeebb' && r.afterUndo[1] === null, JSON.stringify(r.afterUndo));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

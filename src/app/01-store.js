@@ -294,10 +294,13 @@ function edgeStyleFor(from, to){
     noteSnap: validSnap(o.noteSnap),
     /* Points this connector has to pass through, set by hand — see
        handBends. In chart coordinates, in order from the source end. */
-    bends: (Array.isArray(o.bends) && o.bends.length) ? o.bends : null,
+    /* Each a pair of finite numbers, or it is not kept: a point at NaN
+       sends the whole route there, and one written as {x, y} by hand was
+       read as a point at undefined. */
+    bends: cleanBends(o.bends),
     /* Which sides the route left and arrived by when those points were set.
        A route pinned by hand is pinned at its ends too: see resolvePorts. */
-    bendSides: (Array.isArray(o.bends) && o.bends.length && Array.isArray(o.bendSides) &&
+    bendSides: (cleanBends(o.bends) && Array.isArray(o.bendSides) &&
                 o.bendSides.length === 2 && o.bendSides.every(s=> SIDES.includes(s)))
                ? o.bendSides.slice() : null,
     noteDir: (typeof o.noteDir === 'number' && isFinite(o.noteDir)) ? o.noteDir : null,
@@ -331,6 +334,11 @@ function edgeStyleFor(from, to){
 }
 
 
+function cleanBends(list){
+  if(!Array.isArray(list)) return null;
+  const out = list.filter(b=> Array.isArray(b) && b.length === 2 && Number.isFinite(b[0]) && Number.isFinite(b[1]));
+  return out.length ? (out.length === list.length ? list : out) : null;
+}
 /* A snap is written as 'mid' or 'leg:N' — N the leg's order along the
    route. Anything else is no snap at all. */
 function validSnap(v){

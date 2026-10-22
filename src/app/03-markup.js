@@ -493,8 +493,11 @@ function stripMarkup(label){
    that merely navigate are allowed through; anything else renders as no
    link at all rather than as a link that quietly does something else.
    Protocol-relative and relative URLs resolve against this page, which is
-   why they are resolved here rather than pattern-matched. */
-const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'ftp:']);
+   why they are resolved here rather than pattern-matched.
+   The schemes are written inside the function, not as a const beside it:
+   the first chart is built while part 02 runs, an entry's picture from a
+   web address is asked about then, and a const of this part did not exist
+   yet — such a chart did not open (tools/tdz.js). */
 function safeUrl(raw){
   if(typeof raw !== 'string') return null;
   const t = raw.trim();
@@ -502,7 +505,7 @@ function safeUrl(raw){
   let u;
   try{ u = new URL(t, location.href); }
   catch(e){ return null; }
-  return SAFE_URL_SCHEMES.has(u.protocol) ? u.href : null;
+  return /^(https?|mailto|ftp):$/.test(u.protocol) ? u.href : null;
 }
 /* Text going into HTML — including into an ATTRIBUTE, which is why the
    quotes are here. Chart data is not all typed by the person looking at

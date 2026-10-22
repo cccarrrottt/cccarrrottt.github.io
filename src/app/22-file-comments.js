@@ -77,14 +77,15 @@ function chartDataOnly(){
     `/* @@EDIT:${name}:START@@ */\n${parts[name]}\n/* @@EDIT:${name}:END@@ */`
   ).join('\n\n') + '\n';
 }
-async function exportChartData(){
+async function exportChartData(asJson){
   clearFileStatus();
   let out, name;
   try{
     /* A file is opened where the site's media folder is not, so the
        pictures it names go inside it. */
     out = await inlineMediaRefs(chartDataOnly());
-    name = chartFileName().replace(/\.html?$/i, '') + '-data.js';
+    if(asJson) out = chartJsonText(chartJsonOf(out));
+    name = chartFileName().replace(/\.html?$/i, '') + (asJson ? '.json' : '-data.js');
   }catch(e){
     setFileStatus('err', 'Export failed: ' + (e && e.message ? e.message : 'unknown error'));
     return;
@@ -297,25 +298,76 @@ function readRegionObject(src, name){
     return (Array.isArray(val) && val[0] && typeof val[0] === 'object') ? val[0] : null;
   }catch(e){ return null; }
 }
+/* The chart in a file, as plain values, whichever form the file is in:
+   the regions a page or Export data writes, or the JSON Export as JSON
+   writes (chartJsonOf). Everything after this reads the values and does
+   not care which. */
+function chartOfText(text){
+  if(/^\s*\{/.test(text)){
+    let d;
+    try{ d = JSON.parse(text); }catch(e){ throw new Error('that file is not a chart: it reads as JSON, but not as JSON that parses.'); }
+    if(!d || typeof d !== 'object' || !Array.isArray(d.nodes)) throw new Error('that file has no Rhizome Project chart in it.');
+    const list = v=> Array.isArray(v) ? v : null;
+    /* The form is said once, at the top, rather than inside the settings
+       as the regions say it: it is about the whole file. */
+    const settings = (d.settings && typeof d.settings === 'object' && !Array.isArray(d.settings)) ? Object.assign({}, d.settings) : {};
+    if(typeof d.format === 'number') settings.format = d.format;
+    return {nodes: d.nodes, edgeStyles: list(d.edgeStyles), stickers: list(d.stickers), media: list(d.media),
+            comments: list(d.comments), tagCats: list(d.tagCats), refs: list(d.refs), settings};
+  }
+  return {nodes: readRegionArray(text, 'NODES'), edgeStyles: readRegionArray(text, 'EDGESTYLES'),
+          stickers: readRegionArray(text, 'STICKERS'), media: readRegionArray(text, 'MEDIA'),
+          comments: readRegionArray(text, 'COMMENTS'), tagCats: readRegionArray(text, 'TAGCATS'),
+          refs: readRegionArray(text, 'REFS'), settings: readRegionObject(text, 'SETTINGS')};
+}
+/* And the other way: the chart as JSON with every item a record, which
+   is what chart.schema.json (published beside the site) describes. Made
+   from the regions as written rather than from the page's working values,
+   so it carries exactly what a Save would and nothing the page keeps for
+   itself. Pictures are inside it, as they are in every file that leaves
+   the site. */
+function chartJsonOf(text){
+  const c = chartOfText(text);
+  const settings = Object.assign({}, c.settings || {});
+  delete settings.format;
+  return {
+    $schema: SITE_ORIGINS[0] + '/chart.schema.json',
+    format: DATA_FORMAT,
+    nodes: (c.nodes || []).map(it=> recordOfEntry(entryOfRecord(it))),
+    edgeStyles: c.edgeStyles || [], stickers: c.stickers || [], media: c.media || [],
+    comments: c.comments || [], tagCats: c.tagCats || [], refs: c.refs || [], settings
+  };
+}
+// One item to a line, as data.js is, so two exports compare line by line.
+function chartJsonText(d){
+  const keys = Object.keys(d);
+  return '{\n' + keys.map((k, i)=>{
+    const v = d[k], end = i < keys.length - 1 ? ',' : '';
+    return Array.isArray(v) && v.length
+      ? `  ${JSON.stringify(k)}: [\n${v.map(x=> '    ' + JSON.stringify(x)).join(',\n')}\n  ]${end}`
+      : `  ${JSON.stringify(k)}: ${JSON.stringify(v)}${end}`;
+  }).join('\n') + '\n}\n';
+}
 function importChartFromText(text){
-  const listed = readRegionArray(text, 'NODES');
+  const c = chartOfText(text);
+  const listed = c.nodes;
   if(!listed || !listed.length){
     throw new Error('that file has no Rhizome Project chart in it.');
   }
   const nodesIn = listed.map(entryOfRecord);
-  const stylesIn = readRegionArray(text, 'EDGESTYLES') || [];
-  const stickersIn = sanitizeStickers(readRegionArray(text, 'STICKERS') || []);
-  const mediaIn = sanitizeMedia(readRegionArray(text, 'MEDIA') || []);
-  const commentsIn = readRegionArray(text, 'COMMENTS') || [];
+  const stylesIn = c.edgeStyles || [];
+  const stickersIn = sanitizeStickers(c.stickers || []);
+  const mediaIn = sanitizeMedia(c.media || []);
+  const commentsIn = c.comments || [];
   /* Older exports predate categories and simply have no such region. That
      is not a broken file — it is a chart with no categories — so it reads
      as an empty list rather than refusing the import. */
-  const catsIn = sanitizeTagCats(readRegionArray(text, 'TAGCATS') || []);
-  const refsIn = sanitizeRefs(readRegionArray(text, 'REFS') || []);
+  const catsIn = sanitizeTagCats(c.tagCats || []);
+  const refsIn = sanitizeRefs(c.refs || []);
   /* And the chart's own settings, which import used to skip — so a chart
      brought in from a file quietly kept the OPEN chart's citation colour
      and lost its own. */
-  const settingsIn = readRegionObject(text, 'SETTINGS');
+  const settingsIn = c.settings;
   /* A file written in a form this page does not know yet is a file from a
      newer page; read by this one it would come out partly, and wrongly. */
   if(settingsIn && typeof settingsIn.format === 'number' && settingsIn.format > DATA_FORMAT){
@@ -416,6 +468,7 @@ document.getElementById('fileClose').onclick = ()=> filePopover.classList.remove
 filePopover.addEventListener('click', ev=> ev.stopPropagation());
 document.getElementById('fileExport').onclick = (ev)=>{ ev.stopPropagation(); exportChart(); };
 document.getElementById('fileExportData').onclick = (ev)=>{ ev.stopPropagation(); exportChartData(); };
+document.getElementById('fileExportJson').onclick = (ev)=>{ ev.stopPropagation(); exportChartData(true); };
 /* ---------------------------------------------------------------------
    The chart as a picture
    ---------------------------------------------------------------------
