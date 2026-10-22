@@ -39,7 +39,7 @@
 const NODES = [
   {id:'uprising', label:'{{#cc22cc|{{u:solid|Beast Wars: }}}}{{u:solid|[[Upris|{{z:20|readin}}g]]ing}}{{s:images}}{{u:solid|фыву}}', parent:['uprising-copy', 'asdasd-1-copy'], pos:[-60.02, -21.79], colors:['#20242b'], square:true},
   {id:'uprising-copy', label:'Beast Wars: Uprising', parent:'uprising', pos:[292.98, 62.71], colors:['#20242b'], border:'dashdot'},
-  {id:'asdasd', label:'asda{{u:double|sdи}}', note:'{{m:nagahurt}}', pos:[-196.67, 88.55], colors:['#20242b', '#c2c'], tags:['local multiverse', 'fan-fiction', 'multiversal hub'], border:'wavy', size:[50.35, 20.14]},
+  {id:'asdasd', label:'asda{{u:double|sdи}}', note:'{{m:nagahurt}}', pos:[-196.67, 88.55], colors:['#20242b', '#c2c'], tags:['local multiverse', 'fan-fiction', 'multiversal hub'], border:'wavy', size:[50.35, 20.14], decor:'wavy'},
   {id:'asdasd-copy', label:'asdasd', parent:'asdasd', pos:[-122.41, 82.22], colors:['#20242b'], border:'dashdot'},
   {id:'beast-wars-uprising-copy', label:'Beast Wars: Uprising', pos:[-242, 297.28], tags:['fan-fiction'], colors:['#20242b'], square:true},
   {id:'beast-wars-uprising-copy-2', label:'Beast Wars: Uprising', pos:[-111.02, 297.21], colors:['#22cc'], square:true, link:'https://cccarrrottt.github.io/#entry=beast-wars-uprising-copy-3'},
@@ -48,9 +48,8 @@ const NODES = [
   {id:'beast-wars-uprising-copy-5', label:'Beast Wars: Uprising', parent:['beast-wars-uprising-copy', 'beast-wars-uprising-copy-2', 'beast-wars-uprising-copy-3', 'beast-wars-uprising-copy-4', 'beast-wars-uprising-copy-6'], shape:'amalgam', pos:[31.99, 390.93], colors:['#20242b'], square:true, border:'dotted', bar:{k:'y', after:true, lead:34}},
   {id:'beast-wars-uprising-copy-6', label:'Beast Wars: Uprising', pos:[305.98, 297.28], colors:['#cccc'], square:true},
   {id:'beast-wars-uprising-copy-7', label:'Beast Wars: Uprising', parent:['beast-wars-uprising-copy', 'array'], pos:[-424.54, 297.21], colors:['#20242b'], square:true},
-  {id:'callout', label:'year 1914dhdhd', shape:'callout', pos:[406.39, 140.44], leader:{from:'asdasd-copy', to:'uprising-copy', at:0.9999}},
   {id:'callout-2', label:'sdafsdf', shape:'callout', pos:[-128.28, 319.3], leader:{from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', at:0.6565, line:'dashed', shelf:true}},
-  {id:'asdasd-1-copy', label:'Dghdhx', colors:['#20242b'], pos:[-6.09, 83.58], border:'double'},
+  {id:'asdasd-1-copy', label:'Dghdhx', colors:['#20242b'], pos:[-16.16, 53.37], border:'double'},
   {id:'asdasd-1-copy-2', label:'a', colors:['#20242b'], pos:[53.4, 197.07], tags:['local multiverse'], square:true},
   {id:'node', label:'asdsa', shape:'ellipse', pos:[-211.02, -11.79], colors:['#20242b'], image:'media/bad8aa8b4beebd4fcc4f408a73a108030482920fd3ce9b6305f2b1fd66acdc61.png', tags:['unreleased']},
   {id:'node-2', label:'фыв', shape:'textbox', pos:[34.31, 183.69], rot:340},
@@ -74,7 +73,12 @@ const NODES = [
   {id:'node-copy-8', label:'Човьлы', pos:[-569.89, -17.22], colors:['#20242b'], card:true},
   {id:'node-12', label:'SD', pos:[-336.69, 527.91]},
   {id:'array', label:'', shape:'array', members:['node-9', 'node-10', 'node-12'], bg:['#c2c'], hatch:'diag-r', border:'dotted'},
-  {id:'callout-3', label:'', shape:'callout', pos:[142, 77], leader:{from:'asdasd-copy', to:'beast-wars-uprising-copy-4', at:0.4546205290939717}},
+  {id:'callout-3', label:'', shape:'callout', pos:[-80.59, 47.82], leader:{from:'asdasd-copy', to:'beast-wars-uprising-copy-4', at:0.2581}},
+  {id:'node-13', label:'**Bug:** drag + mouse wheel', pos:[312.17, 123.95]},
+  {id:'bug-drag-mouse-wheel-copy', label:'**Rework:** GitHub-like issue buttons', pos:[312.17, 151.05]},
+  {id:'rework-github-like-issue-buttons-copy', label:'**Rework:** amalgam connector system', pos:[312.17, 181.26]},
+  {id:'rework-amalgam-connector-system-copy', label:'**Adjust:** animation toggler on .gif\'s', pos:[312.17, 211.47]},
+  {id:'adjust-animation-toggler-on-gif-s-copy', label:'**Add:** miscellaneous decorative node shapes', pos:[312.17, 241.68]},
 ];
 /* @@EDIT:NODES:END@@ */
 
