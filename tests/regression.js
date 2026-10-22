@@ -17816,6 +17816,95 @@ async function main(){
   check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
   });
+  await scenario("the contents as JSON, as the schema says", async () => {
+  /* The open form of the chart: what Export as JSON writes is what
+     src/site/chart.schema.json describes, and Import reads it back to the
+     same chart. Checked on the chart the page opened with — the owner's —
+     and on one that uses every kind of thing a chart can hold. */
+  const Ajv = require('ajv');
+  const schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'site', 'chart.schema.json'), 'utf8'));
+  const ajv = new Ajv({allErrors: true});
+  const validate = ajv.compile(schema);
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    try{
+      out.owners = chartJsonText(chartJsonOf(chartDataOnly()));
+      applyEdit(()=>{
+        workingNodes.push(['js_a', 'A {{u:solid|thing}}', null, 'from', 'A note', null,
+          {pos:[4000, 3000], tags:['x'], colors:['#cc2222'], bg:['#ffffff'], border:'dashed', square:true,
+           langTabs:[{tag:'JP', text:'あ'}], multiLang:true, link:'https://example.com'}]);
+        workingNodes.push(['js_b', 'B', 'js_a', null, null, 'callout', {pos:[4300, 3000], leader:{from:'js_a', to:'js_c', at:0.25, line:'dashed'}}]);
+        workingNodes.push(['js_c', 'C', ['js_a', 'js_b'], null, null, 'amalgam', {bar:{k:'x', lead:40}}]);
+        workingNodes.push(['js_d', 'Frame', null, null, null, 'array', {members:['js_a', 'js_b'], hatch:'vert'}]);
+        EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true,
+                          note:'on it', notePos:'on', noteAt:0.3, bends:[[4100, 2950]], bendSides:['right', 'left'],
+                          color:'#123456', fromSide:'right', toSide:'left', fromRing:1, square:false});
+      });
+      const text = chartJsonText(chartJsonOf(chartDataOnly()));
+      out.full = text;
+      out.oneToALine = text.split('\n').filter(l=> /^    \{"id":/.test(l)).length === workingNodes.length;
+      // As the page would write it: the same chart is the same file.
+      const norm = ()=> chartDataOnly();
+      const wanted = norm();
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); EDGE_STYLES.length = 0; });
+      importChartFromText(text);
+      out.back = norm() === wanted;
+      if(!out.back){ const got = norm(); let i = 0; while(i < got.length && got[i] === wanted[i]) i++;
+                     out.diff = [wanted.slice(Math.max(0, i - 120), i + 120), got.slice(Math.max(0, i - 120), i + 120)]; }
+      const newer = JSON.parse(text); newer.format = DATA_FORMAT + 1;
+      try{ importChartFromText(JSON.stringify(newer)); out.newer = 'taken'; }catch(e){ out.newer = e.message; }
+      try{ importChartFromText('{"nodes": 3}'); out.notChart = 'taken'; }catch(e){ out.notChart = e.message; }
+      try{ importChartFromText('{"nodes": ['); out.broken = 'taken'; }catch(e){ out.broken = e.message; }
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  const owners = JSON.parse(r.owners), full = JSON.parse(r.full);
+  const okOwners = validate(owners), errsOwners = validate.errors;
+  const okFull = validate(full), errsFull = validate.errors;
+  check('the chart as JSON is what the schema describes', okOwners, JSON.stringify(errsOwners && errsOwners.slice(0, 3)));
+  check('and so is one with every kind of thing a chart holds', okFull, JSON.stringify(errsFull && errsFull.slice(0, 3)));
+  check('it names its schema and its form, at the top', full.$schema === 'https://cccarrrottt.github.io/chart.schema.json' &&
+        full.format === 2 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
+  check('one entry to a line, so two exports compare line by line', r.oneToALine);
+  check('Import reads it back to the same chart', r.back, JSON.stringify(r.diff));
+  check('a JSON chart from a newer page is refused', /newer version/.test(r.newer), r.newer);
+  check('and JSON that is not a chart, or does not parse, says so', /no Rhizome Project chart/.test(r.notChart) && /not a chart/.test(r.broken),
+        JSON.stringify([r.notChart, r.broken]));
+  check('and the schema refuses what the page would refuse',
+        !validate({format: 2, nodes: []}) && !validate({format: 2, nodes: [{id: 'a'}]}) &&
+        !validate({format: 2, nodes: [{id: 'a', label: 'A', pos: [1]}]}) &&
+        !validate({format: 2, nodes: [{id: 'a', label: 'A'}], edgeStyles: [{from: 'a', to: 'b', bends: [[1, 'x']]}]}));
+  });
+  await scenario("a chart that opens with a coloured tag and a picture from the web", async () => {
+  /* Both are asked about while the first chart is built, in part 02 — and
+     both used to be answered by a const of a later part, so the page threw
+     before it drew anything. tools/tdz.js found them; this opens them. */
+  const c = await browser.newContext({viewport:{width:1200, height:800}});
+  await c.route('https://fonts.googleapis.com/**', r => r.fulfill({status: 200, contentType: 'text/css', body: ''}));
+  await c.route('https://fonts.gstatic.com/**', r => r.fulfill({status: 200, contentType: 'text/css', body: ''}));
+  await c.route('https://pictures.example/**', r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
+  await c.addInitScript(key => {
+    try{ localStorage.setItem(key, JSON.stringify({v: 1, settings: {format: 2, tagColors: {coloured: '#cc2222'}},
+      nodes: [['oa', 'Tagged', null, null, null, null, {tags: ['coloured'], pos: [0, 0]}],
+              ['ob', 'Pictured', 'oa', null, null, 'ellipse', {image: 'https://pictures.example/p.png', pos: [300, 0]}]]})); }catch(e){}
+  }, 'rhizome.chart:/' + PAGE);
+  const p = await c.newPage();
+  const errs = [];
+  p.on('pageerror', e => errs.push(e.message));
+  await p.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil: 'load'});
+  const opened = await p.waitForFunction(() => typeof rebuildChart === 'function' && document.querySelectorAll('#nodeLayer .node').length === 2,
+                                         null, {timeout: 8000}).then(() => true, () => false);
+  const got = opened ? await p.evaluate(() => ({colour: nodes.get('oa').color, image: nodes.get('ob').image})) : null;
+  check('a chart with a coloured tag and a picture from a web address opens, and draws both',
+        opened && errs.length === 0 && got.colour === '#cc2222' && got.image === 'https://pictures.example/p.png',
+        JSON.stringify({opened, errs, got}));
+  await c.close();
+  });
   await scenario("a chart edited by hand, and words that look like its markers", async () => {
   /* What a hand-edited file can hold that the editor never writes, and
      what a reader can type that looks like the file's own seams. */

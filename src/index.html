@@ -537,14 +537,15 @@
       <div class="file-actions">
         <button type="button" class="editor-btn primary" id="fileExport">Export a standalone page</button>
         <button type="button" class="editor-btn" id="fileExportData">Export just the contents</button>
+        <button type="button" class="editor-btn" id="fileExportJson">Export the contents as JSON</button>
         <button type="button" class="editor-btn" id="fileExportPng">Export a picture (PNG)</button>
         <button type="button" class="editor-btn" id="fileExportSvg">Export a picture (SVG)</button>
         <button type="button" class="editor-btn" id="fileImport">Import a chart file…</button>
         <button type="button" class="editor-btn" id="fileForget">Discard changes saved here</button>
       </div>
-      <p class="file-note">An exported page is the whole chart — drawing, editor and contents in one file. Open it anywhere, edit it, export it again; it needs no server and no account. <b>Just the contents</b> is the same entries without the page around them: a few kilobytes instead of a few hundred, for handing your work to someone rebuilding the page.</p>
+      <p class="file-note">An exported page is the whole chart — drawing, editor and contents in one file. Open it anywhere, edit it, export it again; it needs no server and no account. <b>Just the contents</b> is the same entries without the page around them: a few kilobytes instead of a few hundred, for handing your work to someone rebuilding the page. <b>As JSON</b> is the same contents for other programs, described by <a href="https://cccarrrottt.github.io/chart.schema.json" target="_blank" rel="noopener">chart.schema.json</a>; Import reads it back.</p>
     </div>
-    <input type="file" id="fileImportInput" accept=".html,.htm,.js,.txt,text/html,text/plain" style="display:none;">
+    <input type="file" id="fileImportInput" accept=".html,.htm,.js,.json,.txt,text/html,text/plain,application/json" style="display:none;">
 
     <div class="edge-popover" id="edgePopover">
       <div class="edge-popover-head">
