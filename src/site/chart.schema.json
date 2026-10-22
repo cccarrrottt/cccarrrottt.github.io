@@ -116,6 +116,7 @@
         "noteSnap": {"$ref": "#/definitions/snap"},
         "noteBg": {"$ref": "#/definitions/hex"},
         "noteFrame": {"type": "boolean"}, "noteSquare": {"type": "boolean"},
+        "noteAlong": {"type": "boolean", "description": "The note is written along its line, bending with it."},
         "bends": {"type": "array", "items": {"$ref": "#/definitions/point"}, "description": "Points the line passes through, set by hand, from the source end."},
         "bendSides": {"type": "array", "items": {"$ref": "#/definitions/side"}, "minItems": 2, "maxItems": 2},
         "color": {"$ref": "#/definitions/hex"}, "colorFixed": {"type": "boolean"},

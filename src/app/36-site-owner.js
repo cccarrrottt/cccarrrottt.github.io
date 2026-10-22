@@ -452,7 +452,7 @@ if(ON_SITE){
     head.appendChild(el);
   };
   link('manifest', 'manifest.webmanifest');
-  link('icon', 'icon.svg', {type: 'image/svg+xml'});
+  // The tab's own icon, R·P, is in the head already (build.py, favicon_link).
   link('apple-touch-icon', 'apple-touch-icon.png');
   meta('theme-color', '#141c2b');
   meta('apple-mobile-web-app-capable', 'yes');

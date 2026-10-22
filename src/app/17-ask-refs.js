@@ -390,7 +390,8 @@ function createCategory(raw){
   if(!name) return;
   if(name === UNGROUPED){ setLegendStatus('err', 'That name is reserved.'); return; }
   if(realCategories().some(c=> c.name === name)){ setLegendStatus('err', `“${name}” already exists.`); return; }
-  applyEdit(()=> TAG_CATS.push({name, tags:[]}));
+  // First, where it was named: see buildSideTabs.
+  applyEdit(()=> TAG_CATS.unshift({name, tags:[]}));
   buildSideTabs();
   setLegendStatus('ok', `Added category “${name}”.`);
 }

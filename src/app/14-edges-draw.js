@@ -361,9 +361,18 @@ function redrawEdges(){
     /* Asked unconditionally: whether there is anything to draw is one
        question with one answer, and drawEdgeNote is where it lives — an
        empty note is still drawn while it is being started. */
-    drawEdgeNote(style.note, pts, style.notePos, e.from, e.to, style.noteAt, paint, style.noteBg);
+    /* A note and a callout's dot sit on the line as it is DRAWN. A curve
+       is drawn through its route rather than along it, so placed on the
+       route they stood off in the air beside the curve, as far off as the
+       curve swung away from the corners (the owner's report, 22.10). The
+       curve is the one the line and its hit path are made from, uncut by
+       the heads, so a fraction along it means the same thing to the note,
+       to a dot being dragged and to a click picking a point. */
+    const onLine = style.routing === 'curve' && !style.sinusoid
+      ? curveThrough(pts, CURVE_STEP, {start: cutIn > 0, end: cutOut > 0}) : pts;
+    drawEdgeNote(style.note, onLine, style.notePos, e.from, e.to, style.noteAt, paint, style.noteBg);
     // Every callout hanging off this connector, now that its route is known.
-    drawCalloutLeaders(e.from, e.to, pts, paint);
+    drawCalloutLeaders(e.from, e.to, onLine, paint, pts);
     edgeHit(d, e.from, e.to);
   });
 

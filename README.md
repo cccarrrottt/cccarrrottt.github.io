@@ -547,7 +547,7 @@ calls `pruneArrayMembers`, which drops an array left with no members.
 ## The chart as text
 
 The drawing has no reading order, so the chart is also written out as a
-document (`41-text-view.js`): the list button in the top bar opens every
+document (`41-text-view.js`): a button in About this chart opens every
 entry once, under the entry it comes from, with its tags, its note, what
 each line into it says and its link. An entry with several parents is
 listed under the first and names the others. Arrays, pictures, captions and

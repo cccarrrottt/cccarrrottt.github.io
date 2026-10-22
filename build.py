@@ -64,6 +64,7 @@ build says when it had nothing to carry from, and says when what it carried
 differs from the sources; tools/data_check.py asks the same question on its
 own and answers with an exit code.
 """
+import base64
 import hashlib
 import re
 import shutil
@@ -352,11 +353,24 @@ def carry_data(data_js, source_text, label, partial=False, force=False):
 SHA_META = 'rhizome-data-sha'
 
 
+def favicon_link():
+    """The tab's icon, "R·P" (src/favicon.png), written into the head.
+
+    The owner's own drawing, byte for byte — not a redrawing of it. Inline
+    as a data: address rather than a file beside the page, so it is the
+    same wherever the page is opened (the site, a copy on disk, an export)
+    and is never one more request that can fail."""
+    png = (SRC / 'favicon.png').read_bytes()
+    return ('<link rel="icon" type="image/png" href="data:image/png;base64,'
+            + base64.b64encode(png).decode('ascii') + '">\n')
+
+
 def wrap(page, head_extra=''):
     """A page's content, inside the document a browser needs around it."""
     return ('<!doctype html>\n<html lang="en">\n<head>\n'
             '<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            + favicon_link()
             + head_extra +
             '</head>\n<body>\n'
             + page +

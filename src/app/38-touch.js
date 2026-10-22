@@ -140,7 +140,7 @@ const touchMenu = (()=>{
 })();
 /* `kind` is what was held: 'selection' (or true) offers everything, a
    connector ('edge') only Delete, and anything else only Paste. */
-function openTouchMenu(x, y, kind){
+function openTouchMenu(x, y, kind, byMouse){
   const offers = (kind === true || kind === 'selection') ? null
     : kind === 'edge' ? ['delete'] : ['paste'];
   touchMenu.querySelectorAll('button').forEach(b=>{
@@ -153,6 +153,16 @@ function openTouchMenu(x, y, kind){
   touchMenu.hidden = false;
   const host = document.querySelector('.main').getBoundingClientRect();
   const w = touchMenu.offsetWidth, h = touchMenu.offsetHeight;
+  if(byMouse){
+    /* From a right click it opens where menus open under a mouse: its
+       corner at the pointer, turned back from an edge it would run over. */
+    let left = x - host.left + 2, top = y - host.top + 2;
+    if(left + w > host.width - 4) left = x - host.left - w - 2;
+    if(top + h > host.height - 4) top = y - host.top - h - 2;
+    touchMenu.style.left = Math.max(4, left) + 'px';
+    touchMenu.style.top = Math.max(4, top) + 'px';
+    return;
+  }
   // Above the finger, clear of it; under it where there is no room above.
   let top = y - host.top - h - 28;
   if(top < 4) top = y - host.top + 28;
@@ -588,4 +598,47 @@ function touchFollow(el){
    for. */
 document.addEventListener('contextmenu', ev=>{
   if(touchGesture) ev.preventDefault();
+}, true);
+
+/* The same menu from a right click (the owner's ask, 22.10): Cut, Copy,
+ * Paste, Array and Delete over what was clicked, as a long press gives
+ * them on a phone. What was clicked is taken hold of as a left click
+ * would — an entry outside the selection becomes the selection, as it
+ * does in every file manager, and a connector's panel opens — so the menu
+ * acts on what the pointer was on. A right click inside the selection
+ * keeps the selection whole. Text being written keeps the browser's own
+ * menu, which is where spelling and the clipboard live there. */
+svg.addEventListener('contextmenu', ev=>{
+  if(touchGesture || readOnlyView) return;
+  const t = ev.target;
+  if(t.closest && t.closest('[contenteditable="true"], [contenteditable="plaintext-only"], input, textarea')) return;
+  const st = {held: true, target: t};
+  const kind = touchMenuFor(st);
+  if(!kind) return;
+  ev.preventDefault();
+  closeTouchMenu();
+  const click = ()=> t.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true,
+                                                              clientX: ev.clientX, clientY: ev.clientY, button: 0}));
+  if(kind === 'add'){
+    /* Picked quietly: the menu is what was asked for, not the entry's
+       panel, which a left click would open. */
+    const id = t.closest('.node').dataset.id;
+    selectNode(id, {quiet: true});
+    paintMultiSelection();
+    openTouchMenu(ev.clientX, ev.clientY, 'selection', true);
+  } else if(kind === 'edge'){
+    click();
+    if(!edgePopover.classList.contains('open')) return;
+    openTouchMenu(ev.clientX, ev.clientY, 'edge', true);
+  } else {
+    openTouchMenu(ev.clientX, ev.clientY, kind, true);
+  }
+});
+/* A mouse puts the menu away the way a finger does: by pressing anywhere
+   else, or with Escape. */
+document.addEventListener('mousedown', ev=>{
+  if(!touchMenu.hidden && !touchMenu.contains(ev.target)) closeTouchMenu();
+}, true);
+document.addEventListener('keydown', ev=>{
+  if(ev.key === 'Escape' && !touchMenu.hidden){ closeTouchMenu(); ev.stopPropagation(); }
 }, true);

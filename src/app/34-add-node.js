@@ -18,11 +18,11 @@ const NODE_STYLE_PICKS = [
   {value:'ellipse', label:'Character bio', hint:'A portrait circle, with its words on a card beside it.'},
   {value:'amalgam', label:'Amalgam',       hint:'A reality made of others: its lineages merge into one bar and one arrow.'},
   {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
-  {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'},
-  /* Not a new entry but a frame round the ones picked — offered here
-     because this is where a reader looks for "make something", and greyed
-     until there are two to frame (see openAddFab). */
-  {value:'array',   label:'Array',         hint:'A border round the entries picked (Ctrl+G).'}
+  {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}
+  /* Array stood here too, greyed until two entries were picked. It is not
+     a new entry but a frame round picked ones, so it lives where the
+     picked ones are acted on: the menu a right click or a long press opens
+     over them, beside Cut and Copy, and Ctrl+G (the owner's ask, 22.10). */
 ];
 function nodeStyleIcon(kind){
   const SVG = 'http://www.w3.org/2000/svg';
@@ -48,10 +48,6 @@ function nodeStyleIcon(kind){
     add('path', {d:'M20,7 V12', class:'nsi-line'});
     add('path', {d:'M17,10 L20,13.4 L23,10 Z', class:'nsi-fill'});
     box(14, 12);
-  } else if(kind === 'array'){
-    add('rect', {x:3, y:3, width:34, height:24, class:'nsi-line', 'stroke-dasharray':'3 2'});
-    add('rect', {x:7, y:8, width:11, height:8, class:'nsi-box'});
-    add('rect', {x:22, y:14, width:11, height:8, class:'nsi-box'});
   } else if(kind === 'textbox'){
     box(8, 14);
     add('path', {d:'M15,12 H25 M20,12 V19', class:'nsi-mark'});
@@ -80,15 +76,12 @@ NODE_STYLE_PICKS.forEach(p=>{
   b.addEventListener('click', ev=>{
     ev.stopPropagation();
     closeAddFab();
-    if(p.value === 'array') makeArrayOfSelection();
-    else addEntryOfStyle(p.value);
+    addEntryOfStyle(p.value);
   });
   addFabStyles.appendChild(b);
 });
 function openAddFab(){
   if(readOnlyView) return;
-  const arr = addFabStyles.querySelector('[data-value="array"]');
-  if(arr) arr.disabled = multiSelection.size < 2;
   addFab.classList.add('open');
   addFabBtn.setAttribute('aria-expanded', 'true');
 }

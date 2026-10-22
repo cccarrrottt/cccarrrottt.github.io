@@ -309,9 +309,11 @@ function drawArrowHead(parent, x, y, angleDeg, fill, from, to, clipTo, clipRing)
  * bar TEE_GAP back from it, as wide as an arrowhead and as thick as a
  * line; filled rather than stroked, so a gradient connector paints it
  * exactly as it paints its heads. */
-/* The gap is a pixel (the owner's measure), counted from the border's
-   outer edge rather than the line it is drawn on — see teeBack. */
-const TEE_GAP = 1, TEE_W = 2, TEE_HALF = ARROW_HALF + 1;
+/* The gap is two and a half pixels, counted from the border's outer edge
+   rather than the line it is drawn on — see teeBack. It was one (the
+   owner's first measure, 21.10); at one the bar read as stuck to the
+   border, and the owner asked for a little more (22.10). */
+const TEE_GAP = 2.5, TEE_W = 2, TEE_HALF = ARROW_HALF + 1;
 /* How much of its line a T gives up: the gap, and the bar's near half, so
    the line ends inside the bar and not a hair short of it. */
 const TEE_CUT = TEE_GAP + TEE_W / 2;

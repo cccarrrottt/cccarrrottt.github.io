@@ -66,13 +66,13 @@ function borderHalfOf(n){
    it has none: the same conditions the drawing below asks (language chips
    on anything but a portrait or a free element, a link's tab on anything
    but a free element), and the active chip's height, which is the link
-   tab's too, with half the link tab's 0.9 outline, the thicker of the two. */
+   tab's too, with half the tabs' outline, which is the border's weight. */
 function tabReachOf(n){
   const shape = n.shape || 'rect';
   if(isFreeShape(shape) || shape === 'array') return 0;
   const chips = !!n.multiLang && shape !== 'ellipse';
   const link = !!(n.link && safeUrl(n.link));
-  return chips || link ? CHIP_TAB_H + 0.45 : 0;
+  return chips || link ? CHIP_TAB_H + NODE_BORDER_W / 2 : 0;
 }
 /* The cut for those tabs: everything outside the outermost ripple, its
    stroke included, so a tab stops where the drawn border begins. */
@@ -1292,10 +1292,14 @@ const drawOne = (n)=>{
    * out of the new properties looking exactly as it did. */
   if(!isFree) textFill = readableOn(textFill, (n.bg && n.bg.length) ? n.bg[0] : null);
 
-  /* An array is taken hold of by its frame and nowhere else. Its middle is
-     the chart — entries, connectors and open paper to pan or lasso across
-     — so its ground and rings answer nothing, and a band along the
-     outermost ring does instead. The hatching is laid over the ground,
+  /* An array is taken hold of anywhere inside it and on a band along its
+     frame. It used to be the band alone, so the paper inside belonged to
+     the chart; but a band either side of a line that starts connectors
+     was a strange thing to aim at, and the owner asked for the whole of
+     it (22.10). The entries and connectors inside are drawn over the
+     array, so they still answer first; only the open paper between them
+     now moves the frame instead of the view. Its ground and rings answer
+     nothing — the catcher does. The hatching is laid over the ground,
      inside the border. */
   if(isArray){
     g.querySelectorAll(':scope > rect:not(.node-hover-pad), :scope > path')
@@ -1311,9 +1315,8 @@ const drawOne = (n)=>{
     }
     /* The band is wider than an entry's ports, which lie along the
        middle of it: a press on the line itself starts a connector, as it
-       does on an entry, and a press either side of the line takes hold of
-       the array. A tab on the top edge did that job for a while; the owner
-       found it one control too many for a frame that is already there. */
+       does on an entry. A tab on the top edge did the holding for a while;
+       the owner found it one control too many for a frame already there. */
     const out = (ringCountOf(n) - 1) * ringStepFor(n);
     el('rect', {class:'array-hit', x:n.x-out, y:n.y-out, width:n.w+out*2, height:h+out*2,
                 rx: rad(cornerR+out)}, g);

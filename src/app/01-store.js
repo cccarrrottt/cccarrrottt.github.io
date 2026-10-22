@@ -244,7 +244,7 @@ const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, 
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
                              fromRing: 0, toRing: 0, gradient: null, square: true,
-                             noteFrame: true, noteSquare: false };
+                             noteFrame: true, noteSquare: false, noteAlong: false };
 function edgeStyleFor(from, to){
   const o = EDGE_STYLES.find(s=>s.from===from && s.to===to);
   if(!o) return DEFAULT_EDGE_STYLE;
@@ -327,6 +327,8 @@ function edgeStyleFor(from, to){
        chooses how it is written down. */
     noteFrame: o.noteFrame !== false,
     noteSquare: !!o.noteSquare,
+    // Written along the line, bending with it, rather than level on a plate.
+    noteAlong: !!o.noteAlong,
     // Two hex colours to sweep between along the connector, or null.
     gradient: (Array.isArray(o.gradient) && o.gradient.length===2 &&
                o.gradient.every(isHexColor)) ? o.gradient.slice() : null

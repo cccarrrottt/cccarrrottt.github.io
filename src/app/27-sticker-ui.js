@@ -55,7 +55,7 @@ function uniqueStickerKey(base){
 function stickerDataFromFile(file, crop){
   if(/gif/i.test(file.type)){
     if(file.size > STICKER_GIF_LIMIT){
-      return Promise.reject(new Error(`"${file.name}" is ${Math.round(file.size/1024)} KB — GIF stickers have to stay under ${Math.round(STICKER_GIF_LIMIT/1024)} KB, because the whole picture is stored inside the chart.`));
+      return Promise.reject(new Error(`"${file.name}" is ${Math.round(file.size/1024)} KB — a GIF has to stay under ${Math.round(STICKER_GIF_LIMIT/1024)} KB, because the whole picture is stored inside the chart.`));
     }
     return new Promise((resolve, reject)=>{
       const reader = new FileReader();
@@ -180,13 +180,17 @@ function openStickerLibrary(){
   clearStickerStatus();
   renderStickerLibrary();
   stickerOverlay.classList.add('open');
+  placeUnderButton(stickerOverlay, document.getElementById('stickersToggle'));
 }
+/* The button opens the menu and shuts it again, as Export/Import's does. */
 document.getElementById('stickersToggle').onclick = ()=>{
+  const open = stickerOverlay.classList.contains('open');
   closeToolbarMenus('stickerOverlay');
-  openStickerLibrary();
+  if(open) stickerOverlay.classList.remove('open');
+  else openStickerLibrary();
 };
 document.getElementById('stickerClose').onclick = ()=> stickerOverlay.classList.remove('open');
-stickerOverlay.addEventListener('click', e=>{ if(e.target===stickerOverlay) stickerOverlay.classList.remove('open'); });
+stickerOverlay.addEventListener('click', ev=> ev.stopPropagation());
 document.getElementById('stickerUpload').onclick = ()=>{ stickerReplaceKey = null; stickerFile.click(); };
 
 /* The miniature picker. One ☺ button is added to every formatting toolbar

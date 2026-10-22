@@ -3481,9 +3481,10 @@ async function main(){
     closeEdgePopover();
     await new Promise(r=> setTimeout(r, 200));
 
-    /* Lineages routed straight keep their bar (0.12.0, the owner's word:
-       the super-line stays and its segments may be straight). It used to
-       vanish, every line running to one point. */
+    /* Lineages routed straight (the owner's rule, 22.10): the two at the
+       ends of the bar leave it and run on a slant to the end of the bar
+       the others make, here the one lineage in the middle, which keeps
+       it. The merge keeps its junction and its arrow. */
     applyEdit(()=>{
       workingNodes.push(['sa','Alpha',null,null,null,null,{pos:[37000,-900], colors:['#c23b22']}]);
       workingNodes.push(['sb','Beta',null,null,null,null,{pos:[37300,-900], colors:['#1d7a5f']}]);
@@ -3497,10 +3498,11 @@ async function main(){
     out.straightMembers = document.querySelectorAll('.amalgam-member[data-to="sm"]').length;
     out.straightJoints = document.querySelectorAll('.amalgam-joint[data-to="sm"]').length;
     out.straightJunction = document.querySelectorAll('.amalgam-junction[data-to="sm"]').length;
-    /* Turn TWO of the three back to elbows and the bar comes back — all
-       three still have a place on it, so there are two seams — while the
-       one still routed straight runs to ITS OWN landing in a single line
-       rather than coming down onto it and turning. */
+    out.straightDirect = [...document.querySelectorAll('.amalgam-direct[data-to="sm"]')].map(p=> p.dataset.from).sort().join();
+    /* Turn TWO of the three back to elbows: the one still routed straight
+       is at the end of the bar, so it runs in a single line to the end of
+       the bar the other two make — its neighbour's landing — rather than
+       coming down onto a stretch of its own. */
     ['sa','sb'].forEach(f=>{
       EDGE_STYLES.find(x=> x.from===f && x.to==='sm').routing = 'orthogonal';
     });
@@ -3520,7 +3522,9 @@ async function main(){
        the far end of the stretch of bar it then owns. */
     const scNums = (scD.match(/-?[\d.]+/g) || []).map(Number);
     out.scLandX = scNums[2];
-    out.landsAtOwnPlace = Math.abs(scNums[2] - (sc.x + sc.w/2)) < 8;
+    const sbLand = amalgamBars.get('sm').landings.find(l=> l.from === 'sb').at;
+    out.landsAtBarEnd = Math.abs(scNums[2] - sbLand) < 0.5 && Math.abs(scNums[2] - (sc.x + sc.w/2)) > 8;
+    out.sbLand = sbLand;
 
     /* A note on a merged lineage stands on the far side from the entries
        feeding the merge, and never on the line it belongs to. */
@@ -3632,15 +3636,13 @@ async function main(){
   check('a redraw does not fade the connectors back in', r16.noFade);
   check('a note placed on a connector survives restyling it',
         r16.emptyLeaderKept);
-  check('lineages routed straight keep the bar, every one on its own stretch of it',
-        r16.straightMembers === 3 && r16.straightJoints === 2 && r16.straightJunction === 1,
-        JSON.stringify({m:r16.straightMembers, j:r16.straightJoints, b:r16.straightJunction}));
-  check('one elbowed lineage brings the bar back for all of them',
-        r16.mixedJoints === 2, String(r16.mixedJoints));
-  check('and a straight one runs to its own place on it, in one line',
-        r16.straightOneIsOneRun && r16.landsAtOwnPlace,
-        JSON.stringify({oneRun:r16.straightOneIsOneRun, ownPlace:r16.landsAtOwnPlace,
-                        land:r16.scLandX}));
+  check('straight lineages at the ends of a bar leave it for the bar between them',
+        r16.straightMembers === 3 && r16.straightDirect === 'sa,sc' && r16.straightJunction === 1,
+        JSON.stringify({m:r16.straightMembers, d:r16.straightDirect, b:r16.straightJunction}));
+  check('and a straight one at an end runs to the end of the others\' bar, in one line',
+        r16.straightOneIsOneRun && r16.landsAtBarEnd,
+        JSON.stringify({oneRun:r16.straightOneIsOneRun, barEnd:r16.landsAtBarEnd,
+                        land:r16.scLandX, sb:r16.sbLand}));
   check('a note on a merged lineage stands away from the entries feeding it',
         r16.noteAway, String(r16.noteAway));
   check('and never lies across the line it points at', r16.noteOffLine,
@@ -8331,7 +8333,7 @@ async function main(){
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
   check('the + picks an archetype by its picture',
-        r39.pickCount === 6 && r39.picksDrawn && r39.pickWrites,
+        r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
@@ -13821,7 +13823,7 @@ async function main(){
       out.fabShutAtRest = !shown() && turned() === 'none';
       document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
-      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 6 &&
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
@@ -15472,14 +15474,16 @@ async function main(){
       closeStyleBar();
     }
 
-    /* …and square to its shelf it meets it in the MIDDLE, a T, as the
-       owner drew it: the words are centred on the place they mark. One
-       leaning a hair off upright is the same T, badly dropped, and is
-       straightened; one leaning plainly is a slant and keeps the end. */
+    /* …and the words stay where they were put. They used to be pulled
+       over the place they mark whenever the leader stood within 15° of
+       upright, which made a shelf jump to square on every drop near it;
+       the owner found that it took the placing out of their hands
+       (22.10). Shift, which snaps a callout's angle to eighths of a turn,
+       is how a T is asked for now. */
     {
       const k = nodes.get('fvS');
       const x2 = +document.querySelector('.callout-leader[data-id="fvS"] .leader-line').getAttribute('x2');
-      out.shelfT = Math.abs(k.x + k.w/2 - x2) < 0.05;
+      out.shelfT = Math.abs(k.x - (X + 190)) < 0.01 && Math.abs(k.x + k.w/2 - x2) > 1;
       applyEdit(()=>{
         // The anchor is near X+216: fvN's span stops some pixels
         // just short of it, fvL's well short.
@@ -15494,8 +15498,8 @@ async function main(){
       const nN = geo('fvN'), nL = geo('fvL');
       const kept = entryOpts(workingNodes.find(e=> e[0] === 'fvN')).pos;
       out.shelfTnear = JSON.stringify({nN, nL, kept});
-      out.shelfTnearOk = Math.abs(nN.x1 - nN.x2) < 0.05 && Math.abs((nN.box[0] + nN.box[1])/2 - nN.x2) < 0.05 &&
-        Math.abs(kept[0] - nodes.get('fvN').pos.x) < 0.01 &&
+      out.shelfTnearOk = Math.abs(nodes.get('fvN').x - (X + 180)) < 0.01 && Math.abs(nN.x2 - nN.box[1]) < 0.05 &&
+        Math.abs(kept[0] - (X + 180)) < 0.01 &&
         Math.abs(nL.x1 - nL.x2) > 20 && Math.abs(nL.x2 - nL.box[1]) < 0.05;
       applyEdit(()=>{ workingNodes = workingNodes.filter(e=> e[0] !== 'fvN' && e[0] !== 'fvL'); });
       await wait(200);
@@ -15685,8 +15689,8 @@ async function main(){
     return out;
   });
   check('a drafting leader drops square onto a shelf drawn in its own line', rF.shelfDrop && rF.shelfInk, rF.shelfAt);
-  check('a drafting leader square to its shelf meets it in the middle, a T', rF.shelfT, rF.shelfAt);
-  check('and one a hair off upright is straightened into the T, one plainly leaning keeps its end', rF.shelfTnearOk, rF.shelfTnear);
+  check('a drafting leader\'s words stay where they were put, not pulled square over the place they mark', rF.shelfT, rF.shelfAt);
+  check('one a hair off upright keeps its place and its end, as one plainly leaning does', rF.shelfTnearOk, rF.shelfTnear);
   check('and a shelf is not offered a border or corners', rF.shelfBar);
   check('a drafting leader never crosses its own words: below their connector they hang under the shelf', rF.clear, rF.clearAt);
   check('the style bar over an entry stands clear of its tabs', rF.barOverTabs, rF.barTabsAt);
@@ -16328,11 +16332,24 @@ async function main(){
                         !!(workingNodes.find(t=> t[0] === 'mbM')[6].bar);
       out.handBarAt = JSON.stringify({at0, now: barAt()});
     }
-    // Every lineage straight, and the bar is still there.
-    ['mbA','mbB','mbC'].forEach(f=> EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true}));
+    /* Every lineage straight: the two at the ends run to the middle one,
+       which keeps the bar, and the merge still has its junction. */
+    /* Set on the style each lineage already has, where it has one:
+       edgeStyleFor reads the first, so a second pushed after it is never
+       seen — which is how this once made only the middle one straight. */
+    ['mbA','mbB','mbC'].forEach(f=>{
+      const had = EDGE_STYLES.find(x=> x.from === f && x.to === 'mbM');
+      if(had) had.routing = 'straight';
+      else EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true});
+    });
     redrawEdges(); await wait(200);
     out.straightJoints = document.querySelectorAll('.amalgam-joint[data-to="mbM"]').length;
-    out.straightKeepsBar = !!hit() && out.straightJoints >= 1;
+    out.straightJoints = JSON.stringify({j: !!document.querySelector('.amalgam-junction[data-to="mbM"]'),
+      d: [...document.querySelectorAll('.amalgam-direct[data-to="mbM"]')].map(p=> p.dataset.from),
+      m: document.querySelectorAll('.amalgam-member[data-to="mbM"]').length});
+    out.straightKeepsBar = !!document.querySelector('.amalgam-junction[data-to="mbM"]') &&
+      document.querySelectorAll('.amalgam-direct[data-to="mbM"]').length === 2 &&
+      document.querySelectorAll('.amalgam-member[data-to="mbM"]').length === 3;
 
     applyEdit(()=>{
       workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
@@ -16369,7 +16386,7 @@ async function main(){
   check('the field on a connector\'s note keeps its frame on the plate', r.noteFrameOnPlate, r.noteFrame);
   check('a lineage given its side by hand still leaves the bar something to be carried from',
         r.handCarried, JSON.stringify({rest:r.handRest, at:r.handBarAt}));
-  check('straight lineages keep the bar', r.straightKeepsBar, String(r.straightJoints));
+  check('every lineage straight still makes a merge with a junction', r.straightKeepsBar, String(r.straightJoints));
   });
   await scenario("seen from far away: patches by tag, then by category", async () => {
   const r = await page.evaluate(async ()=>{
@@ -17587,7 +17604,7 @@ async function main(){
     return out;
   });
   check('a connector can end in a T instead of an arrow', t.tee && t.arrowheads === 0, JSON.stringify(t));
-  check('the T stands a pixel off the outer edge of the entry’s border', Math.abs(t.gap - 1) < 0.1, JSON.stringify(t));
+  check('the T stands TEE_GAP (2.5 px) off the outer edge of the entry’s border', Math.abs(t.gap - 2.5) < 0.1, JSON.stringify(t));
   check('the T lies across the line', t.across >= 8, JSON.stringify(t));
   check('the line stops at the T', t.lineToBar <= 1.5, JSON.stringify(t));
   check('the legend names the T', t.legend);
@@ -17639,18 +17656,25 @@ async function main(){
     await pause(100);
     const tab = document.querySelector('.node[data-id="az_a"] .node-link-bg');
     const fr = nodes.get(out.id);
-    out.tabGap = tab ? round2(tab.getBBox().y + tab.parentNode.transform.baseVal.consolidate().matrix.f - (fr.y + borderHalfOf(fr)) - 0.45) : null;
+    out.tabGap = tab ? round2(tab.getBBox().y + tab.parentNode.transform.baseVal.consolidate().matrix.f - (fr.y + borderHalfOf(fr)) - parseFloat(getComputedStyle(tab).strokeWidth) / 2) : null;
     applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'az_a'); const o = Object.assign({}, it[6]); delete o.link; it[6] = o; });
     await pause(100);
     const kids = [...viewport.children];
     out.behind = kids.indexOf(arrayLayer) < kids.indexOf(edgeLayer) && kids.indexOf(arrayLayer) > kids.indexOf(backLayer);
     out.inLayer = !!arrayLayer.querySelector(`.node[data-id="${out.id}"]`);
     out.obstacle = buildObstacleRects().some(r=> r.id === out.id);
-    // Its middle is the chart's: a press there reaches the paper.
+    /* Its middle is the array's: a press on the paper inside it takes
+       hold of the frame (the owner's ask, 22.10), and a press on a member
+       still reaches the member. On screen first: elementFromPoint finds
+       nothing off it. */
+    flyToNode(out.id); await pause(100);
     const sr = svg.getBoundingClientRect();
-    const px = sr.left + (arr.x + arr.w - 6) * vs + vx, py = sr.top + (arr.y + arr.h - 6) * vs + vy;
-    const hit = document.elementFromPoint(px, py);
-    out.middleFree = !(hit && hit.closest && hit.closest(`.node[data-id="${out.id}"]`));
+    const at = (wx, wy)=> document.elementFromPoint(sr.left + wx * vs + vx, sr.top + wy * vs + vy);
+    // Open paper inside it: between the two members, clear of their line.
+    const hit = at(Math.min(m1.x, m2.x) + 6, (m1.y + m1.h + m2.y) / 2);
+    out.middleHeld = !!(hit && hit.classList.contains('array-hit') && hit.closest(`.node[data-id="${out.id}"]`));
+    const onMember = at(m1.x + m1.w / 2, m1.y + m1.h / 2);
+    out.memberFirst = !!(onMember && onMember.closest && onMember.closest('.node[data-id="az_a"], .node[data-id="az_b"]'));
     out.tab = !!arrayLayer.querySelector(`.node[data-id="${out.id}"] .array-tab`);
     /* Its look: black, half see-through, and nothing behind it — a ground
        written into the entry by hand included. */
@@ -17702,7 +17726,8 @@ async function main(){
   check('…and their tabs two pixels off its frame', a.tabGap !== null && Math.abs(a.tabGap - 2) < 0.3, String(a.tabGap));
   check('arrays are drawn over a backdrop and under the connectors', a.behind && a.inLayer, JSON.stringify(a));
   check('the router does not go round an array', !a.obstacle);
-  check('the middle of an array is the chart’s', a.middleFree, JSON.stringify(a));
+  check('an array is taken hold of anywhere inside it, and a member inside still answers for itself',
+        a.middleHeld && a.memberFirst, JSON.stringify({middleHeld: a.middleHeld, memberFirst: a.memberFirst}));
   check('an array has ports, no size grips and no tab', !a.tab && a.handles === 4 && a.grips === 0, JSON.stringify(a));
   check('an array is black, half see-through and hollow', !!a.look && a.look.stroke === '#000000' &&
         a.look.fill === 'none' && +a.look.opacity === 0.5, JSON.stringify(a.look));
@@ -17923,16 +17948,19 @@ async function main(){
   const r = await page.evaluate(async ()=>{
     const out = {};
     const pause = ms => new Promise(ok => setTimeout(ok, ms));
-    // The file menu: titled Import/Export, tiles in two columns, no prose.
+    // The file menu: titled Export/Import, five file icons in a row, no prose.
     const pop = document.getElementById('filePopover');
+    pop.classList.add('open');
     out.file = {
       head: pop.querySelector('.edge-popover-head span').textContent.trim(),
-      cols: getComputedStyle(pop.querySelector('.file-actions')).gridTemplateColumns.split(' ').length,
+      cols: new Set([...pop.querySelectorAll('.file-tile')].map(b=> b.getBoundingClientRect().top)).size === 1 &&
+            pop.querySelectorAll('.file-tile').length === 5 ? 5 : -1,
       where: !!document.getElementById('fileWhere'),
       note: !!pop.querySelector('.file-note, p'),
-      pics: [...pop.querySelectorAll('.file-pic')].map(b=> b.textContent.trim()),
+      pics: [...pop.querySelectorAll('.file-tile .fmt-label')].map(t=> t.textContent.trim()),
       wide: [...pop.querySelectorAll('.file-wide')].map(b=> b.id)
     };
+    pop.classList.remove('open');
     // One Sign in, and it asks for a reader's session: the owner is told
     // apart by the service, not by which button they pressed.
     const btn = document.getElementById('ownerBtn');
@@ -17942,7 +17970,7 @@ async function main(){
     try{ btn.onclick(); } finally { window.open = held; }
     out.sign = {label: btn.textContent.trim(), url: opened[0] || ''};
     out.suggestNote = !!document.getElementById('suggestNote');
-    out.stickerProse = !!document.querySelector('.sticker-card p, .sticker-hint');
+    out.stickerProse = !!document.querySelector('#stickerOverlay p, .sticker-hint');
     // A GIF is kept byte for byte, so it still moves.
     const gif = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), c=> c.charCodeAt(0));
     const src = await stickerDataFromFile(new File([gif], 'a.gif', {type:'image/gif'}));
@@ -17961,10 +17989,10 @@ async function main(){
     setSideTab(document.getElementById('tagsPanel'), false);
     return out;
   });
-  check('the file menu is called Import/Export and says nothing else',
-        r.file.head === 'Import/Export' && !r.file.where && !r.file.note, JSON.stringify(r.file));
-  check('…its exports stand two by two, the pictures as PNG and SVG tiles, Import across the bottom',
-        r.file.cols === 2 && r.file.pics.join() === 'PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
+  check('the file menu is called Export/Import and says nothing else',
+        r.file.head === 'Export/Import' && !r.file.where && !r.file.note, JSON.stringify(r.file));
+  check('…its exports are a row of five file icons, HTML, JS, JSON, PNG and SVG, Import across the bottom',
+        r.file.cols === 5 && r.file.pics.join() === 'HTML,JS,JSON,PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
   check('there is one Sign in, and it asks for a reader\'s session',
         r.sign.label === 'Sign in' && /\/login\?/.test(r.sign.url) && /as=reader/.test(r.sign.url), JSON.stringify(r.sign));
   check('Suggestions and Stickers carry no notes', !r.suggestNote && !r.stickerProse, JSON.stringify(r));
@@ -17972,6 +18000,253 @@ async function main(){
   check('tags with no category sit in a dashed field with a mark in its middle and no words',
         r.loose.missing ? r.loose.hasItems : (r.loose.border === 'dashed' && r.loose.text === '' && r.loose.off < 2),
         JSON.stringify(r.loose));
+  });
+  await scenario("menus under their buttons, a right click, the drawers above the corner", async () => {
+  const r = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    const rect = id=> document.getElementById(id).getBoundingClientRect();
+    /* Export/Import and Stickers drop from their own buttons. */
+    document.getElementById('fileToggle').click(); await pause(100);
+    out.file = {pop: rect('filePopover'), btn: rect('fileToggle')};
+    document.getElementById('fileToggle').click();
+    document.getElementById('stickersToggle').click(); await pause(100);
+    out.stick = {pop: rect('stickerOverlay'), btn: rect('stickersToggle'),
+                 plus: document.getElementById('stickerUpload').textContent.trim(),
+                 overlay: document.getElementById('stickerOverlay').classList.contains('about-overlay')};
+    document.getElementById('stickersToggle').click(); await pause(50);
+    out.stickShut = !document.getElementById('stickerOverlay').classList.contains('open');
+    /* The chart as text is offered in About, not in the bar. */
+    out.textIn = !!document.querySelector('#aboutOverlay #textViewToggle') && !document.querySelector('.topbar #textViewToggle');
+    /* The add button makes entries; an array is not one of them. */
+    out.fabArray = !!document.querySelector('#addFabStyles [data-value="array"]');
+    /* A new category is named at the top, and stays there. */
+    startNewCategoryEntry(); await pause(50);
+    const groups = ()=> [...document.querySelectorAll('#tagsList .legend-group')];
+    out.namingAt = groups().findIndex(g=> g.classList.contains('legend-group-new'));
+    const box = document.querySelector('.legend-group-new .legend-group-name');
+    box.textContent = 'Zz newest';
+    box.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+    await pause(100);
+    out.madeAt = groups().findIndex(g=> g.querySelector('.legend-group-name') && g.querySelector('.legend-group-name').textContent === 'Zz newest');
+    out.firstCat = TAG_CATS[0] && TAG_CATS[0].name;
+    undoLastEdit(); await pause(100);
+    /* The drawers end above the coordinates box, which stays put. */
+    const coordBox = ()=> document.querySelector('.coord').getBoundingClientRect();
+    const coordAt = coordBox().left;
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
+    panels.forEach(id=> setSideTab(document.getElementById(id), true));
+    await pause(250);
+    const lowest = Math.max(...panels.map(id=> document.querySelector('#' + id + ' .side-tab-body').getBoundingClientRect().bottom));
+    out.coord = {before: coordAt, after: coordBox().left, top: coordBox().top, lowest};
+    panels.forEach(id=> setSideTab(document.getElementById(id), false));
+    /* A GIF chosen for a portrait or a picture is kept whole. */
+    const gif = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), c=> c.charCodeAt(0));
+    const target = document.createElement('input');
+    bioImageTargetInput = target;
+    const dt = new DataTransfer(); dt.items.add(new File([gif], 'a.gif', {type:'image/gif'}));
+    const fileIn = document.getElementById('bioImageFile');
+    fileIn.files = dt.files;
+    fileIn.dispatchEvent(new Event('change'));
+    for(let i = 0; i < 40 && !target.value; i++) await pause(25);
+    out.portraitGif = target.value === 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    out.cropperShut = !document.getElementById('cropOverlay').classList.contains('open');
+    /* A tab is outlined at the border's weight. */
+    applyEdit(()=> workingNodes.push(['rc_a', 'Right A', null, null, null, null,
+      {pos:[24000, 24000], multiLang:true, langTabs:[{tag:'JP', text:'x'}], link:'https://example.com/'}]));
+    applyEdit(()=> workingNodes.push(['rc_b', 'Right B', null, null, null, null, {pos:[24300, 24000]}]));
+    await pause(150);
+    const sw = sel=> parseFloat(getComputedStyle(document.querySelector(`.node[data-id="rc_a"] ${sel}`)).strokeWidth);
+    out.tabs = {chip: sw('.lang-chip-bg'), link: sw('.node-link-bg'), border: NODE_BORDER_W};
+    /* The tab's icon is the owner's own R·P drawing (87 × 87), written
+       into the page — the PNG itself, not a redrawing of it. */
+    const icon = document.querySelector('link[rel="icon"]');
+    // Inline in the built page; beside it, as a file, in the sources.
+    const bytes = !icon ? new Uint8Array(0) : new Uint8Array(await fetch(icon.href)
+      .then(r=> r.ok ? r.arrayBuffer() : new ArrayBuffer(0)).catch(()=> new ArrayBuffer(0)));
+    const u32 = (o)=> ((bytes[o] << 24) | (bytes[o+1] << 16) | (bytes[o+2] << 8) | bytes[o+3]) >>> 0;
+    out.favicon = bytes.length > 24 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+                  u32(16) === 87 && u32(20) === 87;
+    out.faviconInline = /^data:image\/png;base64,/.test(icon ? icon.getAttribute('href') : '');
+    flyToNode('rc_a'); await pause(150);
+    const at = id=>{ const b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect(); return {x: b.left + b.width/2, y: b.top + b.height/2}; };
+    out.a = at('rc_a'); out.b = at('rc_b');
+    return out;
+  });
+  const near = (a, b)=> Math.abs(a - b) < 1.5;
+  check('Export/Import opens under its own button', near(r.file.pop.left, r.file.btn.left) && r.file.pop.top >= r.file.btn.bottom - 1,
+        JSON.stringify(r.file));
+  check('Stickers is a menu under its own button, with a + to add, and its button shuts it',
+        near(r.stick.pop.left, r.stick.btn.left) && r.stick.pop.top >= r.stick.btn.bottom - 1 && r.stick.plus === '+' &&
+        !r.stick.overlay && r.stickShut, JSON.stringify(r.stick));
+  check('the chart as text is offered in About, not in the bar', r.textIn);
+  check('the add button offers no array', !r.fabArray);
+  check('a new category is named at the top and made there', r.namingAt === 1 && r.madeAt === 1 && r.firstCat === 'Zz newest',
+        JSON.stringify({namingAt: r.namingAt, madeAt: r.madeAt, firstCat: r.firstCat}));
+  check('the drawers end above the coordinates, which do not move when one opens',
+        r.coord.before === r.coord.after && r.coord.lowest <= r.coord.top, JSON.stringify(r.coord));
+  check('a GIF for a portrait or a picture is kept whole, with no cropper', r.portraitGif && r.cropperShut);
+  check('language tabs and a link\'s tab are outlined at the border\'s weight',
+        r.tabs.chip === r.tabs.border && r.tabs.link === r.tabs.border, JSON.stringify(r.tabs));
+  check('the tab\'s icon is the owner\'s R·P drawing', r.favicon);
+  if(MODE !== 'src') check('and the built page carries it inside', r.faviconInline);
+  /* A right click: the menu at the pointer over what was clicked. */
+  await page.mouse.click(r.a.x, r.a.y, {button: 'right'});
+  await wait(150);
+  const m1 = await page.evaluate(()=>{ const m = document.getElementById('touchMenu');
+    return {shown: !m.hidden, acts: [...m.querySelectorAll('button')].filter(b=> !b.hidden).map(b=> b.dataset.act),
+            sel: selectedId, box: m.getBoundingClientRect().toJSON()}; });
+  check('a right click on an entry picks it and offers Cut, Copy, Paste and Delete at the pointer',
+        m1.shown && m1.sel === 'rc_a' && m1.acts.join() === 'cut,copy,paste,delete' &&
+        Math.abs(m1.box.left - r.a.x) < 8 && Math.abs(m1.box.top - r.a.y) < 8, JSON.stringify(m1));
+  await page.keyboard.press('Escape');
+  await page.evaluate(()=>{ selectNode('rc_a'); multiSelection.add('rc_a'); multiSelection.add('rc_b'); });
+  await page.mouse.click(r.b.x, r.b.y, {button: 'right'});
+  await wait(150);
+  const m2 = await page.evaluate(()=>{ const m = document.getElementById('touchMenu');
+    return {shown: !m.hidden, acts: [...m.querySelectorAll('button')].filter(b=> !b.hidden).map(b=> b.dataset.act), many: multiSelection.size}; });
+  check('…and inside a selection of two it keeps them both and offers Array', m2.shown && m2.many === 2 && m2.acts.includes('array'),
+        JSON.stringify(m2));
+  await page.mouse.click(300, 700, {button: 'right'});
+  await wait(150);
+  const m3 = await page.evaluate(()=>{ const m = document.getElementById('touchMenu');
+    return {shown: !m.hidden, acts: [...m.querySelectorAll('button')].filter(b=> !b.hidden).map(b=> b.dataset.act)}; });
+    check('on open paper a right click offers Paste', m3.shown && m3.acts.join() === 'paste', JSON.stringify(m3));
+  await page.mouse.click(320, 720);
+  await wait(100);
+  check('a press elsewhere puts it away', await page.evaluate(()=> document.getElementById('touchMenu').hidden));
+  await page.evaluate(()=>{ deselect(); applyEdit(()=>{ workingNodes = workingNodes.filter(e=> !/^rc_/.test(e[0])); }); });
+  });
+  await scenario("notes and callouts stand on a curve as it is drawn", async () => {
+  /* A curve is drawn through its route rather than along it, and a note
+     placed on the route stood beside the curve in the air. Measured
+     against the drawn line itself. */
+  const r = await page.evaluate(async ()=>{
+    const X = 31000, Y = 31000;
+    const beforeStyles = EDGE_STYLES.slice();
+    applyEdit(()=>{
+      workingNodes.push(['cn_a', 'Start', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['cn_b', 'Finish', 'cn_a', null, null, null, {pos:[X + 360, Y + 220]}]);
+      workingNodes.push(['cn_c', 'A callout', null, null, null, 'callout', {pos:[X + 60, Y + 200], leader:{from:'cn_a', to:'cn_b', at:0.3}}]);
+      EDGE_STYLES.push({from:'cn_a', to:'cn_b', routing:'curve', note:'on the line', noteAt:0.5, notePos:'on'});
+    });
+    await new Promise(ok=> setTimeout(ok, 250));
+    const line = drawnLineOf('cn_a', 'cn_b');
+    const off = (x, y)=>{
+      let best = Infinity;
+      for(let i = 1; i < line.length; i++){
+        const a = line[i-1], b = line[i], dx = b.x - a.x, dy = b.y - a.y, L = dx*dx + dy*dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - a.x)*dx + (y - a.y)*dy) / L));
+        best = Math.min(best, Math.hypot(a.x + dx*t - x, a.y + dy*t - y));
+      }
+      return Math.round(best * 100) / 100;
+    };
+    const plate = document.querySelector('.edge-note[data-from="cn_a"][data-to="cn_b"] .edge-note-plate');
+    const pb = plate.getBBox();
+    const dot = document.querySelector('.callout-leader[data-id="cn_c"] .leader-dot');
+    const out = {note: off(pb.x + pb.width/2, pb.y + pb.height/2), dot: off(+dot.getAttribute('cx'), +dot.getAttribute('cy'))};
+    /* Written along the line (the owner's toggle, 22.10): one button on the
+       note's bar, the words on a path that keeps the side asked for at the
+       same distance all the way along, and no plate. */
+    applyEdit(()=> Object.assign(EDGE_STYLES.find(x=> x.from === 'cn_a' && x.to === 'cn_b'), {notePos:'above'}));
+    openStyleBar({kind:'note', from:'cn_a', to:'cn_b'});
+    const btn = document.querySelector('#styleBar [data-group="noteAlong"] button');
+    out.button = !!btn && !btn.closest('[data-group]').hidden;
+    if(btn) btn.click();
+    await new Promise(ok=> setTimeout(ok, 200));
+    out.stored = !!edgeStyleFor('cn_a', 'cn_b').noteAlong &&
+                 /noteAlong:true/.test(serializeEdgeStyles(EDGE_STYLES));
+    out.framesGreyed = !!document.querySelector('#styleBar [data-group="frame"] button:disabled');
+    closeStyleBar();
+    const g = document.querySelector('.edge-note[data-from="cn_a"][data-to="cn_b"]');
+    const tp = g && g.querySelector('textPath');
+    const along = g && g.querySelector('.edge-note-along-path');
+    out.alongDrawn = !!tp && tp.textContent === 'on the line' && !g.querySelector('.edge-note-plate');
+    if(along){
+      const L = along.getTotalLength(), ds = [];
+      for(let k = 1; k < 10; k++){ const q = along.getPointAtLength(L * k / 10); ds.push(off(q.x, q.y)); }
+      // A copy of the line half a size and three units off it.
+      const want = EDGE_NOTE_FS * 0.5 + 3;
+      out.alongOffset = ds;
+      out.alongEven = ds.every(d=> Math.abs(d - want) < 1.2);
+    }
+    /* And a line running right to left is written left to right. */
+    applyEdit(()=>{
+      workingNodes.push(['cn_d', 'Back', null, null, null, null, {pos:[X + 400, Y + 400]}]);
+      workingNodes.push(['cn_e', 'Here', 'cn_d', null, null, null, {pos:[X, Y + 600]}]);
+      EDGE_STYLES.push({from:'cn_d', to:'cn_e', routing:'curve', note:'backwards', noteAlong:true});
+    });
+    await new Promise(ok=> setTimeout(ok, 250));
+    const back = document.querySelector('.edge-note[data-from="cn_d"] .edge-note-along-path');
+    if(back){
+      const L = back.getTotalLength();
+      out.upright = back.getPointAtLength(0).x < back.getPointAtLength(L).x;
+    }
+    applyEdit(()=>{ workingNodes = workingNodes.filter(e=> !/^cn_/.test(e[0])); refill(EDGE_STYLES, beforeStyles); });
+    return out;
+  });
+  check('a note on a curve stands on the curve', r.note < 1.5, JSON.stringify(r));
+  check('and so does a callout\'s dot', r.dot < 1.5, JSON.stringify(r));
+  check('a note can be written along its line, from its bar',
+        r.button && r.stored && r.alongDrawn && r.framesGreyed, JSON.stringify(r));
+  check('and keeps its side at one distance all along the curve', r.alongEven, JSON.stringify(r.alongOffset));
+  check('and a line running leftwards is still written upright', r.upright, String(r.upright));
+  });
+  await scenario("a straight lineage leaves the bar where it crosses nothing", async () => {
+  /* The owner's rule for a merge whose lineage is routed straight (22.10):
+     at an end of the bar it runs to the end of the bar the others make; in
+     the middle it runs into the junction bead unless that line would cross
+     another lineage, when it stays on the bar; standing over the junction
+     it already drops into it. Five lineages, one straight at a time. */
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const G = GRID, X = snapToGrid(33000), Y = snapToGrid(33000);
+    const ids = ['A','B','C','D','E'].map(c=> 'sl' + c);
+    const lift = [4, 1, 3, 0, 5];
+    const make = (straight, under)=>{
+      applyEdit(()=>{
+        workingNodes = workingNodes.filter(e=> !/^sl/.test(e[0]));
+        refill(EDGE_STYLES, EDGE_STYLES.filter(x=> !/^sl/.test(x.to)));
+        ids.forEach((id, i)=> workingNodes.push([id, 'Lineage ' + 'ABCDE'[i], null, null, null, null,
+          {pos:[X + G*14*i, Y + G*lift[i]]}]));
+        workingNodes.push(['slM', 'Amalgam', ids, null, null, 'amalgam', {pos:[X + G*under, Y + G*30]}]);
+        straight.forEach(i=> EDGE_STYLES.push({from: ids[i], to: 'slM', routing: 'straight'}));
+      });
+    };
+    const look = (id)=>{
+      const p = document.querySelector(`.amalgam-member[data-from="${id}"][data-to="slM"]`);
+      const nums = p ? (p.getAttribute('d').match(/-?[\d.]+/g) || []).map(Number) : [];
+      const j = document.querySelector('.amalgam-junction[data-to="slM"]');
+      const bar = amalgamBars.get('slM');
+      return {direct: !!(p && p.classList.contains('amalgam-direct')),
+              end: {x: nums[nums.length - 2], y: nums[nums.length - 1]},
+              junction: j ? {x: +j.getAttribute('cx'), y: +j.getAttribute('cy')} : null,
+              land: bar ? Object.fromEntries(bar.landings.map(l=> [l.from, l.at])) : {},
+              joints: [...document.querySelectorAll('.amalgam-joint[data-to="slM"]')]
+                        .map(c=> +(+c.getAttribute('cx')).toFixed(1))};
+    };
+    const out = {};
+    try{
+      // The amalgam under the middle lineage: the junction stands over C.
+      make([0], 26); await wait(250); out.edge = look('slA');
+      make([1], 26); await wait(250); out.middle = look('slB');
+      // The amalgam under D: B's line into the junction would cross C.
+      make([1], 40); await wait(250); out.crossing = look('slB');
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x)); refill(EDGE_STYLES, beforeStyles); });
+    }
+    return out;
+  });
+  const near = (a, b)=> a && b && Math.abs(a.x - b.x) < 0.6 && Math.abs(a.y - b.y) < 0.6;
+  check('a straight lineage at an end of the bar runs to the end of the others\' bar',
+        r.edge.direct && Math.abs(r.edge.end.x - r.edge.land.slB) < 0.6 &&
+        r.edge.joints.some(x=> Math.abs(x - r.edge.land.slB) < 0.6), JSON.stringify(r.edge));
+  check('one in the middle that crosses nothing runs into the junction',
+        r.middle.direct && near(r.middle.end, r.middle.junction), JSON.stringify(r.middle));
+  check('and one whose line would cross another lineage stays on the bar',
+        !r.crossing.direct && !near(r.crossing.end, r.crossing.junction), JSON.stringify(r.crossing));
   });
   await scenario("the chart as text", async () => {
   /* The same chart written out as a document (41-text-view.js), for a

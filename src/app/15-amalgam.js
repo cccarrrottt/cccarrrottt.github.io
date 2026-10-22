@@ -505,7 +505,7 @@ function drawAmalgam(list, ports){
      super-line they were asking about. The owner's word is that the bar
      stays and its lineages may be straight on it. */
   const allMembers = members;
-  const n = members.length;
+  let n = members.length;
   /* Where the bar hangs — see amalgamGeometry, which works it out from the
      entry and its lineages alone so that the answer is available before
      the ports are assigned as well as here. */
@@ -590,9 +590,78 @@ function drawAmalgam(list, ports){
      * anybody's: an entry goes where it is put. */
     return c - base;
   };
-  const wanted = members.map(alongOf);
-  const landings = spreadLandings(wanted,
+  const wantedAll = members.map(alongOf);
+  const landingsAll = spreadLandings(wantedAll,
     members.map(e=> !entryBeingCarried(e.from)), AMALGAM_PITCH);
+  /* Which straight lineages leave the bar (the owner's rule, 22.10).
+   *
+     A lineage routed straight that stays on the bar comes straight DOWN
+     onto its own landing — exactly the line it would have with elbows, so
+     asking for straight changed nothing a reader could see. It now runs
+     on a slant where that says something and crosses nothing:
+   *
+      - at either END of the bar it gives up its stretch, the bar is built
+        from the others, and it runs to the end of that bar on its side.
+        Running on to the junction instead would cross every lineage
+        standing between it and the middle;
+      - in the MIDDLE it runs straight into the junction bead, unless that
+        line would cross another lineage on the way, when it stays on the
+        bar as before. The one standing over the junction already drops
+        into it, and stays as it is;
+      - one lineage always keeps the bar, so there is a bar for the merged
+        arrow to leave from and for the others to land on.
+   *
+     A middle lineage that the edges' leaving made the outermost one on the
+     bar stays, so the bar's ends — and the junction clamped between them —
+     are settled before any middle one is asked about. */
+  const leaves = new Map();
+  const straightAt = (i)=> edgeStyleFor(members[i].from, members[i].to).routing === 'straight' &&
+                           !!(ports.get(members[i]) && ports.get(members[i]).p1);
+  if(n >= 2){
+    if(straightAt(0)) leaves.set(0, 'end');
+    if(straightAt(n-1)) leaves.set(n-1, 'end');
+    if(leaves.size === n){
+      // Two lineages, both straight: the one nearer the entry keeps the bar.
+      leaves.delete(Math.abs(landingsAll[0]) <= Math.abs(landingsAll[n-1]) ? 0 : n-1);
+    }
+  }
+  const keptIdx = members.map((_, i)=> i).filter(i=> !leaves.has(i));
+  const kLo = landingsAll[keptIdx[0]], kHi = landingsAll[keptIdx[keptIdx.length - 1]];
+  const junctionK = Math.max(kLo, Math.min(kHi, 0));
+  const ptOn = (off)=> ({x: cx + ux*off, y: cy + uy*off});
+  const startOf = (i)=>{ const p = ports.get(members[i]).p1; return {x: p.x, y: p.y}; };
+  const endOf = (i)=> leaves.get(i) === 'end' ? ptOn(i === 0 ? kLo : kHi)
+                    : leaves.get(i) === 'junction' ? ptOn(junctionK) : ptOn(landingsAll[i]);
+  const crosses = (a, b, c, d)=>{
+    const den = (b.x - a.x)*(d.y - c.y) - (b.y - a.y)*(d.x - c.x);
+    if(Math.abs(den) < 1e-9) return false;
+    const t = ((c.x - a.x)*(d.y - c.y) - (c.y - a.y)*(d.x - c.x)) / den;
+    const u = ((c.x - a.x)*(b.y - a.y) - (c.y - a.y)*(b.x - a.x)) / den;
+    // Meeting at an end — the bead, a landing — is not crossing.
+    const e = 0.02;
+    return t > e && t < 1 - e && u > e && u < 1 - e;
+  };
+  for(let i = 1; i < n - 1; i++){
+    if(leaves.has(i) || !straightAt(i)) continue;
+    if(i === keptIdx[0] || i === keptIdx[keptIdx.length - 1]) continue;
+    if(Math.abs(landingsAll[i] - junctionK) < 0.5) continue;
+    const a = startOf(i), b2 = ptOn(junctionK);
+    let blocked = false;
+    for(let j = 0; j < n && !blocked; j++){
+      if(j === i || !(ports.get(members[j]) && ports.get(members[j]).p1)) continue;
+      blocked = crosses(a, b2, startOf(j), endOf(j));
+    }
+    if(!blocked) leaves.set(i, 'junction');
+  }
+  /* The bar itself is laid out from the lineages that stay on it. Their
+     landings are the ones worked out for everybody, so a lineage leaving
+     moves none of the others. */
+  const departed = [];
+  leaves.forEach((how, i)=> departed.push({e: members[i], how, start: startOf(i)}));
+  const keep = members.map((_, i)=> !leaves.has(i));
+  members = members.filter((_, i)=> keep[i]);
+  const landings = landingsAll.filter((_, i)=> keep[i]);
+  n = members.length;
   /* The junction, where the bar hands over to the merged arrow: the
      MIDDLE of the ground the lineages cover.
    *
@@ -619,7 +688,11 @@ function drawAmalgam(list, ports){
      reach the thing it feeds — so it stands in front of the entry,
      clamped to the bar it has to leave from, and travels along the bar as
      the entry is dragged. Nothing else on the merge depends on it. */
-  const seam = (landings[0] + landings[n-1]) / 2;
+  /* Taken from EVERY lineage, those that left the bar included, and only
+     then held on the bar that is drawn: a straight lineage leaving moves
+     no colour's hand-over and no callout anchored on a stretch. */
+  const seam = Math.max(landings[0], Math.min(landings[n-1],
+    (landingsAll[0] + landingsAll[landingsAll.length - 1]) / 2));
   /* Where the merged arrow leaves the bar — in front of the entry, and on
      a LANDING when it is nearly on one.
    *
@@ -650,9 +723,9 @@ function drawAmalgam(list, ports){
        out from; the second is how far a parent's port stands from its
        own middle, which is what a parent being carried along the bar is
        really positioning. */
-    landings: members.map((e, i)=> ({from: e.from,
-                                     at: (ux ? cx : cy) + landings[i],
-                                     port: (ux ? cx : cy) + wanted[i]}))
+    landings: allMembers.map((e, i)=> ({from: e.from,
+                                        at: (ux ? cx : cy) + landingsAll[i],
+                                        port: (ux ? cx : cy) + wantedAll[i]}))
   });
   /* The bar is STRAIGHT. It was straight before two rounds of trying to
      give it a shape, and neither shape was ever the point: a bow away from
@@ -894,6 +967,34 @@ function drawAmalgam(list, ports){
       barPieces.push({from: e.from, d});
     }
   }
+  /* The lineages that left the bar: one straight line each, from the port
+     to the end of the bar on its side or into the junction (see `leaves`
+     above). Everything a lineage carries — the ring cap, its note and
+     callouts, the hit line, its part of a lit bar — goes with it. */
+  const departedEnds = [];
+  departed.forEach(({e, how, start})=>{
+    const style = Object.assign({}, edgeStyleFor(e.from, e.to), {bends: undefined});
+    const color = amalgamMemberColor(e);
+    const dash = DASH_PATTERNS[style.dash];
+    const end = how === 'end'
+      ? barPt(landings[allMembers.indexOf(e) === 0 ? 0 : n - 1])
+      : dimple;
+    const pts = [start, end];
+    const d = style.sinusoid ? wavyPath(pts)
+                             : `M${start.x.toFixed(2)},${start.y.toFixed(2)} L${end.x.toFixed(2)},${end.y.toFixed(2)}`;
+    const attrs = {class:'edge struct amalgam-member amalgam-direct', d, stroke: color,
+                   'data-from':e.from, 'data-to':e.to};
+    if(dash) attrs['stroke-dasharray'] = dash;
+    edgePath(attrs, style, edgeLayer);
+    drawRingCap(ports.get(e).p1, color, dash, e.from, e.to, isDoubleDash(style), d);
+    drawEdgeNote(style.note, pts, style.notePos, e.from, e.to, style.noteAt, color, style.noteBg);
+    drawCalloutLeaders(e.from, e.to, pts, color);
+    edgeHit(d, e.from, e.to);
+    barPieces.push({from: e.from, d});
+    if(how === 'end') departedEnds.push({at: end, pair: [color,
+      amalgamMemberColor(allMembers.indexOf(e) === 0 ? members[0] : members[n - 1])],
+      from: e.from, to: (allMembers.indexOf(e) === 0 ? members[0] : members[n - 1]).from});
+  });
   amalgamBars.get(b.id).pieces = barPieces;
   const colors = allMembers.map(amalgamMemberColor);
   // It leaves from a point ON the bar, so the bar and the arrow are one
@@ -985,6 +1086,18 @@ function drawAmalgam(list, ports){
                   r, fill:jointPaint, 'data-from':'', 'data-to':b.id,
                   'data-pair': members[i].from + '\u0000' + members[i+1].from}, edgeLayer);
   }
+
+  /* A lineage that runs to the end of the bar joins it there, and the join
+     is marked like every other hand-over on the bar — unless the junction's
+     own bead is already standing on it. */
+  departedEnds.forEach(({at, pair, from, to})=>{
+    if(Math.hypot(at.x - dimple.x, at.y - dimple.y) < AMALGAM_BEAD_CLEAR) return;
+    const r = AMALGAM_JOINT_R;
+    const paint = makeEdgeGradient(pair, [{x: at.x - ux*r, y: at.y - uy*r}, {x: at.x + ux*r, y: at.y + uy*r}]);
+    beadGround(at, r);
+    el('circle', {class:'amalgam-bead amalgam-joint', cx:at.x.toFixed(2), cy:at.y.toFixed(2),
+                  r, fill:paint, 'data-from':'', 'data-to':b.id, 'data-pair': from + '\u0000' + to}, edgeLayer);
+  });
 
   const beadR = AMALGAM_BEAD_R;
   const beadPaint = makeEdgeGradient(colors, [

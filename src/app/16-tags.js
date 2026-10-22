@@ -661,6 +661,11 @@ function buildLegend(){
   legendList.appendChild(tagHead);
   legendList.appendChild(buildTagFilterRow());
   legendList.appendChild(buildLooseBlock(uncategorised.filter(tagMatchesFilter)));
+  /* A category being named stands at the top, under the field of tags
+     with none, and is made there (createCategory puts it first): reaching
+     for the button at the head of the panel and finding the new heading at
+     the foot of a long list was the owner's complaint (22.10). */
+  if(pendingNewCat) legendList.appendChild(buildNewCategoryBlock());
   const shown = groups.map(g=> ({name:g.name, tags:g.tags.filter(tagMatchesFilter)}));
   let any = false;
   shown.forEach(group=>{
@@ -671,7 +676,6 @@ function buildLegend(){
     any = true;
     legendList.appendChild(buildCategoryBlock(group));
   });
-  if(pendingNewCat) legendList.appendChild(buildNewCategoryBlock());
   if(tagFilterText && !any && !uncategorised.length){
     const none = document.createElement('div');
     none.className = 'legend-empty';

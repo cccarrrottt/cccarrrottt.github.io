@@ -8,6 +8,38 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Export/Import (renamed from Import/Export) is a row of five file
+  icons, HTML, JS, JSON, PNG and SVG, one family drawn in the page's own
+  style, with Import file under them. It drops from its own button, as
+  Stickers now does too: the sticker library is a menu with a + rather
+  than a window in the middle of the chart.
+- The chart as text is opened from About this chart, not from the bar.
+- A new tag category is made at the top of the Tags drawer, where it is
+  named, not at the foot of the list.
+- The drawers down the left edge end above the coordinates box, which no
+  longer slides right when one opens.
+- An animated GIF put in a picture or a character portrait keeps moving:
+  it is kept as it came instead of being redrawn, which kept one frame.
+- A right click on the chart opens the same Cut, Copy, Paste, Array and
+  Delete menu a long press opens on a phone. The add button no longer
+  offers Array, and an array is taken hold of anywhere inside its frame.
+- Language tabs and a link's tab are outlined at the weight of the
+  entry's border.
+- Notes and callouts on a curved connector stand on the curve as drawn,
+  not on the route it is drawn through.
+- A drafting callout's words stay where they are put; they were pulled
+  square over the point they mark whenever the leader was near upright.
+- The browser tab shows R·P, the owner's own drawing of it.
+- A lineage of a merge routed straight leaves the bar where that says
+  something and crosses nothing: at an end of the bar it runs on a slant
+  to the end of the bar the others make; in the middle it runs straight
+  into the junction, unless that line would cross another lineage, when
+  it stays on the bar as before.
+- A connector's note can be written along its line, bending with it,
+  from a button on the note's bar. Above, on and below keep their
+  meaning, at the same distance all the way along; a line running right
+  to left is still written upright.
+- A T at the end of a connector stands 2.5 px off the border, not 1.
 - The file menu is called Import/Export and is drawn as the owner
   sketched it: Export page and Export contents side by side, the PNG and
   SVG pictures as two tiles with a picture on each, Import file across
