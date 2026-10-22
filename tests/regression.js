@@ -17816,6 +17816,107 @@ async function main(){
   check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
   });
+  await scenario("the chart as text", async () => {
+  /* The same chart written out as a document (41-text-view.js), for a
+     screen reader and for whatever reads the page without running it.
+     It is in the page from start-up, before anyone opens it; every entry
+     is in it once; and a name in it opens that entry on the chart. */
+  const boot = await page.evaluate(()=>({
+    built: document.querySelectorAll('#textViewBody .tv-name').length > 0,
+    open: document.getElementById('textViewOverlay').classList.contains('open')
+  }));
+  check('the text is in the page before anyone opens it', boot.built && !boot.open, JSON.stringify(boot));
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    try{
+      applyEdit(()=>{
+        workingNodes.push(['tv_a', 'Alpha {{u:solid|one}}', null, null, 'A note\non two lines', null, {pos:[4000, 3000], tags:['tvtag'], link:'https://example.com/a'}]);
+        workingNodes.push(['tv_b', 'Beta', 'tv_a', 'adapted', null, null, {pos:[4300, 3000], multiLang:true, langTabs:[{tag:'JP', text:'ベータ'}]}]);
+        workingNodes.push(['tv_c', 'Gamma', ['tv_b', 'tv_a'], 'merged', null, null, {pos:[4600, 3000]}]);
+        workingNodes.push(['tv_d', 'A remark', 'tv_a', null, null, 'callout', {pos:[4000, 3300]}]);
+        workingNodes.push(['tv_e', 'Frame', null, null, null, 'array', {members:['tv_a', 'tv_b']}]);
+        workingNodes.push(['tv_f', 'Caption', null, null, null, 'textbox', {pos:[4000, 3500]}]);
+        workingNodes.push(['tv_g', 'Delta', ['tv_a', 'tv_a'], null, null, null, {pos:[4900, 3000], link:'#entry=tv_c'}]);
+        EDGE_STYLES.push({from:'tv_a', to:'tv_c', note:'and also'});
+      });
+      document.getElementById('textViewToggle').click();
+      const box = document.getElementById('textViewOverlay');
+      out.opened = box.classList.contains('open') && document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'true';
+      out.focusInside = box.contains(document.activeElement);
+      const heads = Array.from(box.querySelectorAll('.tv-head .tv-name')).map(a=> a.dataset.id);
+      const listed = Array.from(nodes.values()).filter(n=> !isArrayNode(n) && !isFreeShape(n.shape) && n.shape !== 'callout').map(n=> n.id);
+      out.eachOnce = heads.length === listed.length && new Set(heads).size === heads.length && listed.every(id=> heads.includes(id));
+      out.leftOut = ['tv_d', 'tv_e', 'tv_f'].filter(id=> heads.includes(id));
+      const item = id=> box.querySelector(`.tv-head .tv-name[data-id="${id}"]`).closest('.tv-entry');
+      const a = item('tv_a'), b = item('tv_b'), c = item('tv_c');
+      out.aText = a.querySelector('.tv-head').textContent;
+      out.aNote = a.querySelector(':scope > .tv-note').textContent;
+      out.aLink = a.querySelector(':scope > .tv-link a').href;
+      out.bUnderA = b.parentElement.closest('.tv-entry') === a;
+      out.bFrom = b.querySelector(':scope > .tv-from').textContent;
+      out.bAlso = b.querySelector(':scope > .tv-also').textContent;
+      out.cUnderB = c.parentElement.closest('.tv-entry') === b;
+      out.cFrom = Array.from(c.querySelectorAll(':scope > .tv-from')).map(p=> p.textContent);
+      const d = item('tv_g');
+      out.dFrom = d.querySelectorAll(':scope > .tv-from').length;
+      out.dSee = d.querySelector(':scope > .tv-link').textContent;
+      out.dSeeId = d.querySelector(':scope > .tv-link a').dataset.id;
+      /* An edit while it is open is in it at once. */
+      applyEdit(()=>{ workingNodes[workingIndex('tv_b')][1] = 'Beta renamed'; });
+      out.renamed = box.querySelector('.tv-head .tv-name[data-id="tv_b"]').textContent;
+      /* A name opens its entry, and the reader is taken to its panel. */
+      box.querySelector('.tv-head .tv-name[data-id="tv_c"]').click();
+      out.picked = selectedId;
+      out.closed = !box.classList.contains('open') && document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'false';
+      out.focusTitle = document.activeElement && document.activeElement.id;
+      deselect();
+      /* On the drawing: one image per entry, named in words; the frame and
+         the connectors are not read at all. */
+      const g = id=> document.querySelector(`.node[data-id="${id}"]`);
+      out.role = g('tv_a').getAttribute('role');
+      out.label = g('tv_a').getAttribute('aria-label');
+      out.arrayHidden = g('tv_e').getAttribute('aria-hidden');
+      out.edgesHidden = document.getElementById('edgeLayer').getAttribute('aria-hidden');
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('it opens from the bar, says so, and takes the focus', r.opened && r.focusInside, JSON.stringify(r));
+  check('every entry is in it once', r.eachOnce, JSON.stringify(r));
+  eq('callouts, frames and captions are not entries in it', r.leftOut.join(','), '');
+  check('a name is said in words, with its tags', r.aText.includes('Alpha one') && r.aText.includes('tvtag'), r.aText);
+  check('with its note and its link', r.aNote === 'A note\non two lines' && r.aLink === 'https://example.com/a', JSON.stringify([r.aNote, r.aLink]));
+  check('an entry stands under the one it comes from, with what its line says', r.bUnderA && r.bFrom === 'adapted', JSON.stringify(r));
+  eq('and the names it goes by on its tabs', r.bAlso, 'Also: ベータ');
+  check('two parents: under the first, and the second named with its line', r.cUnderB &&
+        r.cFrom.length === 2 && r.cFrom[0] === 'merged' && r.cFrom[1] === 'Also from Alpha one — merged — and also',
+        JSON.stringify(r.cFrom));
+  check('a parent named twice is one parent', r.dFrom === 0, JSON.stringify(r.dFrom));
+  check('and a link into the chart is a name that opens that entry', r.dSee === 'See Gamma' && r.dSeeId === 'tv_c', JSON.stringify([r.dSee, r.dSeeId]));
+  eq('an edit while it is open is in it at once', r.renamed, 'Beta renamed');
+  check('a name opens its entry and takes the reader to its panel', r.picked === 'tv_c' && r.closed && r.focusTitle === 'detailTitle',
+        JSON.stringify([r.picked, r.closed, r.focusTitle]));
+  check('on the drawing an entry is one image named in words', r.role === 'img' && r.label === 'Alpha one (tvtag)', JSON.stringify([r.role, r.label]));
+  check('and frames and connectors are not read off it', r.arrayHidden === 'true' && r.edgesHidden === 'true', JSON.stringify([r.arrayHidden, r.edgesHidden]));
+  /* The first key press reaches the way to the text, and Escape shuts it. */
+  /* From the top of the page, as a reader arriving: focusing the body
+     moves where the next Tab starts from. */
+  await page.evaluate(()=>{ document.body.tabIndex = -1; document.body.focus(); });
+  await page.keyboard.press('Tab');
+  await page.evaluate(()=> document.body.removeAttribute('tabindex'));
+  const first = await page.evaluate(()=> document.activeElement && document.activeElement.id);
+  await page.keyboard.press('Enter');
+  const viaSkip = await page.evaluate(()=> document.getElementById('textViewOverlay').classList.contains('open'));
+  await page.keyboard.press('Escape');
+  const shut = await page.evaluate(()=> !document.getElementById('textViewOverlay').classList.contains('open') &&
+                                       document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'false');
+  check('the first Tab reaches the way to the text, and Enter takes it', first === 'skipToText' && viaSkip, JSON.stringify([first, viaSkip]));
+  check('Escape shuts it like the other panels', shut);
+  });
   await scenario("the contents as JSON, as the schema says", async () => {
   /* The open form of the chart: what Export as JSON writes is what
      src/site/chart.schema.json describes, and Import reads it back to the

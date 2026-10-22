@@ -15,35 +15,42 @@
 <!-- @@BODY:BEGIN@@ -->
 
 <div class="app">
+  <!-- The first thing a keyboard reaches, and invisible until it does: the
+       drawing has no reading order, and the list of entries has one. -->
+  <a class="skip-link" id="skipToText" href="#textViewOverlay">Skip to the chart as text</a>
   <div class="topbar">
     <div class="brand">
       <div class="mark">Rhizome<span>·</span>Project</div>
       <div class="sub">A cartography of crossed realities</div>
     </div>
     <button class="icon-btn" id="gridToggle" title="Alignment grid — ruled in the same steps entries snap to">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><line x1="9.2" y1="3.5" x2="9.2" y2="20.5"/><line x1="14.8" y1="3.5" x2="14.8" y2="20.5"/><line x1="3.5" y1="9.2" x2="20.5" y2="9.2"/><line x1="3.5" y1="14.8" x2="20.5" y2="14.8"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><line x1="9.2" y1="3.5" x2="9.2" y2="20.5"/><line x1="14.8" y1="3.5" x2="14.8" y2="20.5"/><line x1="3.5" y1="9.2" x2="20.5" y2="9.2"/><line x1="3.5" y1="14.8" x2="20.5" y2="14.8"/></svg>
     </button>
     <button class="icon-btn" id="lodToggle" title="Patches from far away — past a point, entries are drawn as a patch per tag, then per category">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4.5 9.5c0-3 2.6-5 5.4-4.6 2 .3 2.4 1.7 4.3 1.6 2.4-.1 4.8 1.3 4.8 4 0 2.4-1.7 3.2-1.5 5.2.2 2.3-1.9 4-4.4 3.6-2-.3-2.6-1.8-4.6-1.6-2.6.2-4.9-1.3-5-3.8-.1-2.2 1-2.6 1-4.4z"/><circle cx="9.5" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13.5" r="1.3" fill="currentColor" stroke="none"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4.5 9.5c0-3 2.6-5 5.4-4.6 2 .3 2.4 1.7 4.3 1.6 2.4-.1 4.8 1.3 4.8 4 0 2.4-1.7 3.2-1.5 5.2.2 2.3-1.9 4-4.4 3.6-2-.3-2.6-1.8-4.6-1.6-2.6.2-4.9-1.3-5-3.8-.1-2.2 1-2.6 1-4.4z"/><circle cx="9.5" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13.5" r="1.3" fill="currentColor" stroke="none"/></svg>
     </button>
     <button class="icon-btn" id="themeToggle" title="Dark background">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
     </button>
     <button class="icon-btn" id="fileToggle" title="Export or import this chart as a file">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5.5M9.5 14.5 12 17l2.5-2.5"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5.5M9.5 14.5 12 17l2.5-2.5"/></svg>
     </button>
     <button class="icon-btn" id="stickersToggle" title="Stickers">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 12.5A8.5 8.5 0 1 1 12 3.5a8.5 8.5 0 0 1 8.5 9z"/><path d="M20.4 12.4c-4.3 0-7.9 3.5-7.9 7.9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.4" r="1" fill="currentColor" stroke="none"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 12.5A8.5 8.5 0 1 1 12 3.5a8.5 8.5 0 0 1 8.5 9z"/><path d="M20.4 12.4c-4.3 0-7.9 3.5-7.9 7.9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.4" r="1" fill="currentColor" stroke="none"/></svg>
     </button>
     <button class="icon-btn" id="commentsToggle" title="Suggestions" style="display:none;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
+    </button>
+    <button class="icon-btn" id="textViewToggle" title="The chart as text — every entry, under the one it comes from"
+            aria-label="The chart as text" aria-expanded="false" aria-controls="textViewOverlay">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="12" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
     </button>
     <button class="icon-btn" id="aboutToggle" title="About this chart">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
     </button>
     <div class="search-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="searchInput" type="text" placeholder="Search realities, titles, characters…" autocomplete="off">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" aria-label="Search the chart" placeholder="Search realities, titles, characters…" autocomplete="off">
       <div class="search-results" id="searchResults"></div>
     </div>
     <div class="save-state" id="saveState" aria-live="polite">
@@ -56,7 +63,7 @@
   </div>
 
   <div class="main">
-    <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="The chart — its entries are listed as text under the list button">
       <defs id="svgDefs"></defs>
       <g id="viewport"></g>
     </svg>
@@ -113,11 +120,11 @@
     <div class="detail" id="detail">
       <div class="detail-head">
         <div class="swatch" id="detailSwatch"></div>
-        <h2 id="detailTitle">—</h2>
+        <h2 id="detailTitle" tabindex="-1">—</h2>
         <button class="detail-edit-btn" id="detailSuggest" title="Suggest a change to this entry" hidden><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg></button>
         <button class="detail-edit-btn" id="detailLink" title="Copy a link to this entry"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></svg></button>
         <button class="detail-edit-btn" id="detailEditToggle" title="Edit this entry">✎</button>
-        <button class="detail-close" id="detailClose">✕</button>
+        <button class="detail-close" aria-label="Close" id="detailClose">✕</button>
       </div>
       <div class="detail-tags" id="detailTags">—</div>
       <div class="detail-body">
@@ -326,7 +333,7 @@
       <div class="about-card">
         <div class="detail-head" style="border-bottom:1px solid var(--line);">
           <h2 class="head-type" id="noteOverlayTitle">Note</h2>
-          <button class="detail-close" id="noteOverlayClose">✕</button>
+          <button class="detail-close" aria-label="Close" id="noteOverlayClose">✕</button>
         </div>
         <div class="about-body note-overlay-body" id="noteOverlayBody"></div>
       </div>
@@ -336,7 +343,7 @@
       <div class="about-card">
         <div class="detail-head" style="border-bottom:1px solid var(--line);">
           <h2 class="head-type">About this chart</h2>
-          <button class="detail-close" id="aboutClose">✕</button>
+          <button class="detail-close" aria-label="Close" id="aboutClose">✕</button>
         </div>
         <div class="about-body">
           <p class="about-version" id="aboutVersion"></p>
@@ -350,6 +357,17 @@
       </div>
     </div>
 
+    <!-- The chart as text: see 41-text-view.js, which fills it. -->
+    <div class="about-overlay" id="textViewOverlay" role="dialog" aria-labelledby="textViewHead">
+      <div class="about-card text-view-card">
+        <div class="detail-head" style="border-bottom:1px solid var(--line);">
+          <h2 class="head-type" id="textViewHead">The chart as text</h2>
+          <button class="detail-close" aria-label="Close" id="textViewClose">✕</button>
+        </div>
+        <div class="about-body text-view-body" id="textViewBody"></div>
+      </div>
+    </div>
+
     <!-- Suggestions: a reader's word on an entry, kept as an issue in the
          chart's repository rather than in the chart. Only on the published
          site, where the write service is that carries it there; the button
@@ -358,7 +376,7 @@
       <div class="about-card comments-card">
         <div class="detail-head" style="border-bottom:1px solid var(--line);">
           <h2 class="head-type">Suggestions</h2>
-          <button class="detail-close" id="commentsClose">✕</button>
+          <button class="detail-close" aria-label="Close" id="commentsClose">✕</button>
         </div>
         <div class="about-body">
 
@@ -419,7 +437,7 @@
       <div class="crop-box">
         <div class="crop-head">
           <h2 id="cropTitle">Choose the part to use</h2>
-          <button class="detail-close" id="cropClose">&#10005;</button>
+          <button class="detail-close" aria-label="Close" id="cropClose">&#10005;</button>
         </div>
         <div class="crop-stage" id="cropStage">
           <img id="cropImage" alt="">
@@ -444,7 +462,7 @@
       <div class="about-card sticker-card">
         <div class="detail-head" style="border-bottom:1px solid var(--line);">
           <h2 class="head-type">Stickers</h2>
-          <button class="detail-close" id="stickerClose">✕</button>
+          <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
         </div>
         <div class="about-body">
           <p>A sticker is a small square picture you can drop into any text on the chart the way you would an emoji — an entry's label, a note, a language tab, a loose block of text. Use the ☺ button beside any text field to insert one.</p>
@@ -485,7 +503,7 @@
     <div class="free-menu" id="freeMenu">
       <div class="edge-popover-head">
         <span id="freeMenuTitle">Element</span>
-        <button class="detail-close" id="freeMenuClose">✕</button>
+        <button class="detail-close" aria-label="Close" id="freeMenuClose">✕</button>
       </div>
 
       <div id="freeMenuImagePart">
@@ -530,7 +548,7 @@
     <div class="file-popover" id="filePopover">
       <div class="edge-popover-head">
         <span>This chart as a file</span>
-        <button class="detail-close" id="fileClose">✕</button>
+        <button class="detail-close" aria-label="Close" id="fileClose">✕</button>
       </div>
       <div class="editor-status" id="fileStatus"></div>
       <p class="file-note" id="fileWhere"></p>
@@ -550,7 +568,7 @@
     <div class="edge-popover" id="edgePopover">
       <div class="edge-popover-head">
         <span id="edgeStyleLabel" hidden></span>
-        <button class="detail-close" id="styleClose">✕</button>
+        <button class="detail-close" aria-label="Close" id="styleClose">✕</button>
       </div>
       <div class="editor-status" id="styleStatus"></div>
 
@@ -675,6 +693,7 @@
     '38-touch.js',
     '39-lod.js',
     '40-arrays.js',
+    '41-text-view.js',
   ];
   var NL = String.fromCharCode(10);
   Promise.all(PARTS.map(function(p){

@@ -8,6 +8,14 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The chart can be read as text. A new button in the top bar opens every
+  entry as a list, each under the entry it comes from, with its tags, its
+  note, what its lines say and its link; a name opens that entry on the
+  chart. The same list is in the page from start-up, so a screen reader
+  and a search engine meet the chart's words in order. On the drawing an
+  entry is now read as one image named in words, connectors and frames
+  are not read at all, the first Tab reaches a link to the text, and the
+  close buttons and the search box have names.
 - A Save made on an older chart — from a second device, or kept on a
   phone with no signal and sent later — is merged with what the
   repository got in between instead of refused. Only an entry both saves

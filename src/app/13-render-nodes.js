@@ -320,6 +320,11 @@ const drawOne = (n)=>{
   if(isImage) g.classList.add('node-image');
   if(isTextbox) g.classList.add('node-textbox');
   if(isCard) g.classList.add('node-card');
+  /* One image to a screen reader, named in words (spokenNameOf): what is
+     drawn inside is text in pieces, stickers and grips. A frame or a bare
+     picture says nothing the list of entries does not (41-text-view.js). */
+  if(isArray || isImage) g.setAttribute('aria-hidden', 'true');
+  else { g.setAttribute('role', 'img'); g.setAttribute('aria-label', spokenNameOf(n)); }
   const fontFamily = fontFamilyFor(n.font);
   /* A callout and a connector's plate are two forms of the same remark, so
      they are set the same: the plate's size, in the plate's face, wrapping

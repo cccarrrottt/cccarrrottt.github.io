@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 40 files, one per subsystem — see "One scope, many
+  app/         the program, 41 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
   site/        published beside the page on the site only: the manifest, the
                icons and the service worker that make it an app a phone keeps
@@ -66,7 +66,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 40 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 41 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -543,6 +543,23 @@ the router's obstacles and the level of detail; its middle answers nothing,
 so it is carried by a band either side of its frame, and a drag redraws it with
 `renderNodes({arraysOnly: true})` rather than sliding it. Deleting entries
 calls `pruneArrayMembers`, which drops an array left with no members.
+
+## The chart as text
+
+The drawing has no reading order, so the chart is also written out as a
+document (`41-text-view.js`): the list button in the top bar opens every
+entry once, under the entry it comes from, with its tags, its note, what
+each line into it says and its link. An entry with several parents is
+listed under the first and names the others. Arrays, pictures, captions and
+callouts are things drawn on the chart rather than entries, and are left
+out, as the search leaves them out. A name opens its entry on the chart.
+
+The list is built from the model at start-up and again after any edit while
+it is open, so it is in the page for a screen reader and for a search engine
+without anyone opening it. On the drawing itself each entry is one image
+named by its words and tags, and the connectors, frames and scenery are
+hidden from screen readers, since the list already says all of it in order.
+The first Tab reaches a link that opens the list.
 
 ## A merge's bar
 
