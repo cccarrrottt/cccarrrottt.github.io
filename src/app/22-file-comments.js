@@ -400,30 +400,13 @@ async function gateExport(){
   if(!btn) return;
   if(await capDownloadsPromise) return;
   btn.disabled = true;
-  btn.title = 'This copy cannot hand you a file.';
-  const note = document.getElementById('fileWhere');
-  if(note) note.textContent = note.textContent +
-    ' This copy cannot save a file to your computer \u2014 it is published without download permission so that it stays publicly shareable.';
-}
-function describeWhereItSaves(){
-  const el = document.getElementById('fileWhere');
-  if(!el) return;
-  el.textContent = HOSTED
-    ? 'Save publishes a new version of this page on claude.ai.'
-    : ON_SITE
-    ? (readOnlyView
-        ? 'Only the chart\u2019s owner can change this page. Export takes a copy of your own that you can edit.'
-        : 'Save sends the chart to the repository; the site shows it once it has been rebuilt, in a few minutes.')
-    : (STORAGE_OK
-        ? 'Save keeps this chart in this browser, for this file. Export to move it anywhere else.'
-        : 'This browser will not let the page store anything, so Export is the only way to keep your work.');
+  btn.title = 'This copy cannot save a file to your computer \u2014 it is published without download permission so that it stays publicly shareable.';
 }
 
 document.getElementById('fileToggle').onclick = ()=>{
   const willOpen = !filePopover.classList.contains('open');
   closeToolbarMenus('filePopover');
   clearFileStatus();
-  describeWhereItSaves();
   gateExport();
   const forget = document.getElementById('fileForget');
   forget.style.display = (!HOSTED && !ON_SITE && STORAGE_OK && readStoredChart()) ? '' : 'none';
@@ -818,7 +801,6 @@ const suggestAbout = document.getElementById('suggestAbout');
 const suggestSignInBtn = document.getElementById('suggestSignIn');
 const suggestSwitchBtn = document.getElementById('suggestSwitch');
 const suggestSubmitBtn = document.getElementById('commentSubmit');
-const suggestNote = document.getElementById('suggestNote');
 const detailSuggest = document.getElementById('detailSuggest');
 const COMMENT_KINDS = ['correction','addition','deletion'];
 const SUGGESTIONS_ON = ON_SITE && !!SITE_API;
@@ -862,9 +844,7 @@ function paintSuggestForm(){
   suggestSubmitBtn.disabled = suggestBusy;
   commentKind.disabled = commentText.disabled = !signed;
   if(commentTitle) commentTitle.disabled = !signed;
-  suggestNote.textContent = signed
-    ? `Posted as ${siteOwner || siteReader}, as an issue in the chart’s repository on GitHub — you can follow it there, and the owner is told.`
-    : 'Suggestions are kept as issues in the chart’s repository on GitHub, so posting one takes a GitHub account. Signing in lets you suggest and nothing else.';
+  suggestSubmitBtn.title = signed ? `Posted as ${siteOwner || siteReader}, as an issue in the chart’s repository on GitHub` : '';
 }
 
 function openSuggestions(entry){

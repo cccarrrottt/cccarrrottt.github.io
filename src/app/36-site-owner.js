@@ -122,12 +122,12 @@ function siteError(code, message){
 function updateOwnerBtn(){
   if(!ownerBtn) return;
   ownerBtn.hidden = !(ON_SITE && SITE_API);
-  ownerBtn.textContent = (siteOwner || siteReader) ? 'Sign out' : 'Owner sign-in';
+  ownerBtn.textContent = (siteOwner || siteReader) ? 'Sign out' : 'Sign in';
   ownerBtn.title = siteOwner
     ? `Signed in as ${siteOwner}. Sign out to see the chart as readers do.`
     : siteReader
     ? `Signed in as ${siteReader}, to make suggestions. Sign out to leave.`
-    : 'Sign in with GitHub to edit this chart. Only its owner can.';
+    : 'Sign in with GitHub: anyone may suggest a change, and the owner edits.';
 }
 
 /* Asked once at load, and again whenever a sign-in completes. Anything
@@ -188,9 +188,9 @@ function workOffline(){
 /* A popup rather than a redirect, so that unsaved work in this tab is still
    here when the sign-in comes back — a session that expired mid-edit is
    renewed without losing the edit. A browser that refuses the popup gets
-   the redirect, which returns to this address. A reader signing in to
-   suggest asks for a reader's session; the service hands one out only
-   when asked, so Owner sign-in with the wrong account still gets nothing. */
+   the redirect, which returns to this address. Every sign-in on the page
+   asks for a reader's session, which the service makes the owner's when
+   the account is one; asked without `as`, it still refuses anyone else. */
 function siteSignIn(as){
   const base = SITE_API + '/login?origin=' + encodeURIComponent(location.origin) + (as === 'reader' ? '&as=reader' : '');
   const w = window.open(base, 'rhizome-sign-in', 'width=520,height=720');
@@ -203,7 +203,6 @@ function siteSignOut(){
   paintSuggestionMarks();
   markReadOnly(false);
   updateOwnerBtn();
-  describeWhereItSaves();
   /* What was listed came through the session; what any reader may see
      comes from GitHub, so it is fetched again rather than kept. */
   loadSuggestions();
@@ -262,7 +261,7 @@ function tookMedia(sent){
 }
 
 /* ---- the outbox: a Save that could not be sent yet ---- */
-const SITE_SIGN_IN_TO_SEND = 'Changes saved on this device are waiting \u2014 press Owner sign-in to send them';
+const SITE_SIGN_IN_TO_SEND = 'Changes saved on this device are waiting \u2014 press Sign in to send them';
 function readOutbox(){ return draftDo('readonly', st=> st.get(SITE_OUTBOX_KEY)); }
 function dropOutbox(){ return draftDo('readwrite', st=> st.delete(SITE_OUTBOX_KEY)); }
 function putOutbox(entry){ return draftDo('readwrite', st=> st.put(entry, SITE_OUTBOX_KEY)); }
@@ -356,7 +355,12 @@ document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible' && sitePending) siteReconnected();
 });
 
-if(ownerBtn) ownerBtn.onclick = ()=>{ if(siteOwner || siteReader) siteSignOut(); else siteSignIn(); };
+/* One sign-in for everybody (the owner's ask, 22.10). It is the reader's
+   sign-in, which the service turns into the owner's session when the
+   account is the owner's (see callback in worker/index.js) — so whoever
+   signs in may suggest, and the owner edits as before. It used to be
+   "Owner sign-in", and a reader who pressed it was turned away. */
+if(ownerBtn) ownerBtn.onclick = ()=>{ if(siteOwner || siteReader) siteSignOut(); else siteSignIn('reader'); };
 
 /* The redirect path hands the session back in the fragment, which never
    reaches any server. It is taken out of the address at once, so it is not

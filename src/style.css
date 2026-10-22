@@ -1280,13 +1280,17 @@
   /* ---- where a tag lives before it is filed ------------------------
      No heading: it is not a category, it is the space under the search
      box. A rule under it sets it off from the first real category. */
+  /* Outlined all round with a dashed line: a holding place rather than a
+     category, which a solid frame or a heading would make it look like.
+     An outline, not a border: a border would push the tags inside it a
+     pixel off the column every other row's name, count and ✕ stand in. */
   .legend-loose{
-    padding:2px 0 6px;margin-bottom:2px;
-    border-bottom:1px dashed var(--grid);
+    padding:3px 0;margin:2px 0 6px;
+    outline:1px dashed var(--ink-faint);outline-offset:-1px;border-radius:6px;
   }
   .legend-loose-hint{
-    padding:3px 8px 1px;font-size:9.5px;line-height:1.5;
-    color:var(--ink-faint);font-style:italic;
+    display:flex;align-items:center;justify-content:center;
+    min-height:30px;color:var(--ink-faint);
   }
   /* A tag being written. The shape is already there — an empty luggage
      label with the caret in it — so what you are naming looks like what it
@@ -2145,9 +2149,11 @@
   }
   .file-popover.open{display:flex;}
   .file-popover .editor-status{margin:0;}
-  .file-actions{display:flex;flex-direction:column;gap:6px;}
-  .file-actions .editor-btn{width:100%;}
-  .file-note{font-size:11px;color:var(--ink-faint);line-height:1.55;margin:0;}
+  .file-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .file-actions .editor-btn{width:100%;margin:0;}
+  .file-actions .file-tile{min-height:52px;line-height:1.3;white-space:normal;}
+  .file-actions .file-pic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;}
+  .file-actions .file-wide{grid-column:1 / -1;}
   body.read-only #fileForget{display:none;}
 
   /* The click menu for a free-standing picture or text block. Same floating
@@ -2249,7 +2255,6 @@
   /* Stickers ---------------------------------------------------------- */
   .sticker-card{width:min(560px, 92vw);}
   .sticker-add{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 6px;}
-  .sticker-hint{font-size:11px;color:var(--ink-faint);line-height:1.5;flex:1;min-width:180px;}
   .sticker-status{margin-bottom:8px;}
   .sticker-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(92px, 1fr));

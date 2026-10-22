@@ -38,9 +38,10 @@
    A READER who signs in to suggest gets a session too, marked as a
    reader's. It opens /me, /suggestions and /suggest and nothing else:
    /save and /resolve ask for an owner on every request, as they always did,
-   and a reader's token could not write the file anyway. Signing in through
-   Owner sign-in with an account that is not an owner still gets no session
-   at all — a reader's session is only handed out when it was asked for.
+   and a reader's token could not write the file anyway. A sign-in that
+   does not ask for a reader's session, with an account that is not an
+   owner, still gets none at all — a reader's session is only handed out
+   when it was asked for. The page's one Sign in asks for it.
 
    A SESSION is the GitHub token, encrypted with SESSION_SECRET (AES-GCM,
    which also makes it tamper-evident) together with the login and an
@@ -394,7 +395,7 @@ async function login(env, url){
 async function callback(env, url){
   const state = await unseal(env, 'state', url.searchParams.get('state') || '');
   const code = url.searchParams.get('code');
-  if(!state || !code) return page('<p>This sign-in link has expired. Close this window and press Owner sign-in again.</p>', 400);
+  if(!state || !code) return page('<p>This sign-in link has expired. Close this window and press Sign in again.</p>', 400);
   const res = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {'Accept': 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'rhizome-edit'},

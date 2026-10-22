@@ -10457,7 +10457,7 @@ async function main(){
         JSON.stringify({rows: r.tagRows, dels: r.tagDeletes, clicked: r.edgeClicked, panel: r.edgePanel}));
   check('a chart left in this browser by the old editable site is not shown', !r.oldEditShown);
   check('it offers no Save', r.saveHidden);
-  check('but it does offer the owner a way in', r.signIn === 'Owner sign-in', r.signIn);
+  check('but it does offer a way in, to everybody', r.signIn === 'Sign in', r.signIn);
   check('an edit made in it does nothing', r.editRefused && r.stillClean,
         JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
   check('a reader may still take a copy away', r.exportOffered);
@@ -10784,7 +10784,7 @@ async function main(){
   const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
-  const api = {asked: 0, loginAs: [], posted: [], resolved: [], list: [], ghAsked: 0};
+  const api = {asked: 0, loginAs: [], account: 'reader', posted: [], resolved: [], list: [], ghAsked: 0};
   const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
@@ -10814,7 +10814,10 @@ async function main(){
     if(u.pathname === '/login'){
       const as = u.searchParams.get('as');
       api.loginAs.push(as || 'owner');
-      const token = as === 'reader' ? 'reader-session' : 'good-session';
+      /* As the service does: which session comes back is decided by the
+         account GitHub signed in, not by the button. The owner signing in
+         through the one Sign in a reader uses still gets the owner's. */
+      const token = api.account === 'owner' ? 'good-session' : 'reader-session';
       return r.fulfill({status: 200, contentType: 'text/html', body:
         `<script>opener.postMessage({rhizomeSession:${JSON.stringify(token)}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
     }
@@ -10957,13 +10960,14 @@ async function main(){
             ghTitles: Array.isArray(fromGitHub) ? fromGitHub.map(x=> x.title) : String(fromGitHub)};
   });
   check('signing out forgets the reader, and what the session listed goes with it',
-        r3.stored === null && r3.button === 'Owner sign-in' && r3.right === 0, JSON.stringify(r3));
+        r3.stored === null && r3.button === 'Sign in' && r3.right === 0, JSON.stringify(r3));
   check('and the marks come back as any reader sees them, read from GitHub again',
         r3.marks === 2 && api.ghAsked > ghBefore, JSON.stringify(r3));
   check('read from GitHub, a suggestion\'s own title comes back without its kind, and an untitled one has none',
         Array.isArray(r3.ghTitles) && r3.ghTitles.join('|') === 'A sequel|', JSON.stringify(r3.ghTitles));
 
   /* ---- the owner closes one ---- */
+  api.account = 'owner';
   const popup2 = c.waitForEvent('page');
   await site.click('#ownerBtn');
   await popup2;
@@ -10982,7 +10986,7 @@ async function main(){
     out.marksAfter = [...document.querySelectorAll('#suggestionLayer .suggestion-mark')].map(g => g.dataset.id);
     return out;
   });
-  check('the owner signs in as the owner, from the same page', api.loginAs.join() === 'reader,owner' && !r4.readOnly,
+  check('the owner signs in as the owner, through the same Sign in as everybody', api.loginAs.join() === 'reader,reader' && !r4.readOnly,
         api.loginAs.join() + ' ' + JSON.stringify(r4));
   check('opened from the bar, the form is about the chart as a whole', /chart as a whole/.test(r4.about), r4.about);
   check('the owner is offered Done on a suggestion, and it closes it as done',
@@ -10994,6 +10998,7 @@ async function main(){
      The owner trying a reader's account found the page still posting as
      the owner: whoever is signed in stays signed in. The form offers
      another account, which lets go of this one and asks again. */
+  api.account = 'reader';
   const popup3 = c.waitForEvent('page');
   const r5a = await site.evaluate(() => {
     const b = document.getElementById('suggestSwitch');
@@ -11005,7 +11010,7 @@ async function main(){
   await site.waitForFunction(() => !document.getElementById('commentSubmit').hidden, null, {timeout: 5000}).catch(() => {});
   check('signed in, the form offers another GitHub account', r5a.shown, JSON.stringify(r5a));
   check('which lets go of the owner and signs in again as a reader',
-        r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,owner,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
+        r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,reader,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   await c.close();
   });
@@ -17861,6 +17866,60 @@ async function main(){
         r.counts.rows >= 2 && r.counts.right.length === 1 && r.counts.right[0] > 0 && r.counts.untagged, JSON.stringify(r.counts));
   check('the citation colour at the program\'s own wears the dashed edge, and a chosen one does not',
         r.refDefault && !r.refOwn, JSON.stringify(r));
+  });
+  await scenario("menus without their notes, one sign-in, a moving sticker", async () => {
+  const r = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    // The file menu: titled Import/Export, tiles in two columns, no prose.
+    const pop = document.getElementById('filePopover');
+    out.file = {
+      head: pop.querySelector('.edge-popover-head span').textContent.trim(),
+      cols: getComputedStyle(pop.querySelector('.file-actions')).gridTemplateColumns.split(' ').length,
+      where: !!document.getElementById('fileWhere'),
+      note: !!pop.querySelector('.file-note, p'),
+      pics: [...pop.querySelectorAll('.file-pic')].map(b=> b.textContent.trim()),
+      wide: [...pop.querySelectorAll('.file-wide')].map(b=> b.id)
+    };
+    // One Sign in, and it asks for a reader's session: the owner is told
+    // apart by the service, not by which button they pressed.
+    const btn = document.getElementById('ownerBtn');
+    const opened = [];
+    const held = window.open;
+    window.open = (url)=>{ opened.push(String(url)); return {}; };
+    try{ btn.onclick(); } finally { window.open = held; }
+    out.sign = {label: btn.textContent.trim(), url: opened[0] || ''};
+    out.suggestNote = !!document.getElementById('suggestNote');
+    out.stickerProse = !!document.querySelector('.sticker-card p, .sticker-hint');
+    // A GIF is kept byte for byte, so it still moves.
+    const gif = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), c=> c.charCodeAt(0));
+    const src = await stickerDataFromFile(new File([gif], 'a.gif', {type:'image/gif'}));
+    out.gif = src === 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    // Tags with no category: a dashed field, and a mark in its middle.
+    buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await pause(300);
+    const loose = document.querySelector('#tagsList .legend-loose');
+    const hint = loose && loose.querySelector('.legend-loose-hint');
+    if(loose && hint){
+      const a = loose.getBoundingClientRect(), b = hint.querySelector('svg').getBoundingClientRect();
+      out.loose = {border: getComputedStyle(loose).outlineStyle, text: hint.textContent.trim(),
+                   off: Math.abs((a.left + a.right) / 2 - (b.left + b.right) / 2)};
+    } else out.loose = {missing: true, hasItems: !!loose};
+    setSideTab(document.getElementById('tagsPanel'), false);
+    return out;
+  });
+  check('the file menu is called Import/Export and says nothing else',
+        r.file.head === 'Import/Export' && !r.file.where && !r.file.note, JSON.stringify(r.file));
+  check('…its exports stand two by two, the pictures as PNG and SVG tiles, Import across the bottom',
+        r.file.cols === 2 && r.file.pics.join() === 'PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
+  check('there is one Sign in, and it asks for a reader\'s session',
+        r.sign.label === 'Sign in' && /\/login\?/.test(r.sign.url) && /as=reader/.test(r.sign.url), JSON.stringify(r.sign));
+  check('Suggestions and Stickers carry no notes', !r.suggestNote && !r.stickerProse, JSON.stringify(r));
+  check('a GIF sticker is kept byte for byte, so it moves', r.gif);
+  check('tags with no category sit in a dashed field with a mark in its middle and no words',
+        r.loose.missing ? r.loose.hasItems : (r.loose.border === 'dashed' && r.loose.text === '' && r.loose.off < 2),
+        JSON.stringify(r.loose));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

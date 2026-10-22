@@ -164,8 +164,8 @@ chart.
 ## The published site, and who may edit it
 
 There is one page, and on the site it is the same file for everybody. It
-opens as a reader; the owner presses **Owner sign-in**, signs in with GitHub,
-and the same tab becomes the editor. **Save** then commits the chart's
+opens as a reader; anyone may press **Sign in** and sign in with GitHub to
+suggest a change, and when it is the owner, the same tab becomes the editor. **Save** then commits the chart's
 regions into `src/data.js` on `main`, and CI rebuilds the site from that
 commit, so a save is on the site a few minutes after it is made.
 
@@ -432,8 +432,8 @@ somebody who misuses it is blocked with GitHub's own button.
   by where it is installed, and that is this repository alone.
 - A reader's session opens the suggestions and nothing else. The write
   service checks on every request that Save and closing a suggestion come
-  from a login in `OWNERS`, and Owner sign-in with any other account still
-  gets no session at all.
+  from a login in `OWNERS`. The page's one Sign in asks for a reader's
+  session, which the service makes the owner's when the account is one.
 - What makes an issue a suggestion is a marker at the end of its text,
   naming the entry and the kind of change — not a label, because GitHub
   drops the labels of anyone who cannot push. An ordinary issue about the

@@ -8,6 +8,19 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The file menu is called Import/Export and is drawn as the owner
+  sketched it: Export page and Export contents side by side, the PNG and
+  SVG pictures as two tiles with a picture on each, Import file across
+  the bottom. What each one does is on its tooltip; the paragraphs are gone.
+- One Sign in, for everybody. It used to read "Owner sign in", while
+  readers signed in from Suggestions. Now anyone signs in with it to leave
+  a suggestion, and the service still decides who edits: the owner's login
+  gets the editor, anyone else a reader's session.
+- Suggestions and Stickers lost their explanatory notes. Animated GIF
+  stickers already worked and still do: a GIF is kept byte for byte (up to
+  512 KB), so it keeps moving.
+- In Tags, the field for tags with no category is outlined with a dashed
+  line and shows a small tray in its middle instead of a sentence.
 - A connector's two end menus stand together with no rule between them,
   and nothing at an end reads "No".
 - A merge's bar shows guides, and lands on them, only with Shift held, as
