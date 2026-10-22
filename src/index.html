@@ -58,7 +58,7 @@
     </div>
     <button class="save-btn" id="saveBtn" disabled title="Publish your changes to this page (Ctrl+S)">Save</button>
     <div class="view-badge" title="You are viewing this chart; only its owner can change it">View only</div>
-    <button class="owner-btn" id="ownerBtn" hidden title="Sign in with GitHub to edit this chart. Only its owner can.">Owner sign-in</button>
+    <button class="owner-btn" id="ownerBtn" hidden title="Sign in with GitHub: anyone may suggest a change, and the owner edits.">Sign in</button>
     <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
   </div>
 
@@ -179,10 +179,12 @@
           </div>
           <div class="editor-field" id="editImageField" style="display:none;">
             <label for="editImageInput">Portrait — image URL, or pick a file</label>
-            <input id="editImageInput" type="text" placeholder="https://… or leave blank">
+            <div class="image-url-row">
+              <input id="editImageInput" type="text" placeholder="https://… or leave blank">
+              <button type="button" class="image-clear" id="editImageClear" title="Take the picture off">✕</button>
+            </div>
             <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
               <button type="button" class="editor-btn" id="editImagePick">Choose file…</button>
-              <button type="button" class="editor-btn" id="editImageClear">Clear</button>
             </div>
             <p class="editor-help">A chosen file is embedded in the chart itself, so it keeps working for everyone; it is scaled down first to keep the page small.</p>
             <!-- A card's picture is fitted whole and its band takes the
@@ -394,10 +396,9 @@
             <div class="editor-status" id="commentStatusMsg"></div>
             <div class="comment-compose-row">
               <button type="button" class="editor-btn primary" id="commentSubmit" hidden>Post</button>
-              <button type="button" class="editor-btn primary" id="suggestSignIn">Sign in with GitHub to suggest</button>
+              <button type="button" class="editor-btn primary" id="suggestSignIn" title="Suggestions are kept as issues in the chart’s repository on GitHub, so posting one takes a GitHub account">Sign in</button>
               <button type="button" class="editor-btn" id="suggestSwitch" hidden>Use another GitHub account</button>
             </div>
-            <p class="comment-note" id="suggestNote"></p>
           </div>
 
           <div class="comment-list" id="commentList"></div>
@@ -465,11 +466,9 @@
           <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
         </div>
         <div class="about-body">
-          <p>A sticker is a small square picture you can drop into any text on the chart the way you would an emoji — an entry's label, a note, a language tab, a loose block of text. Use the ☺ button beside any text field to insert one.</p>
           <div class="sticker-status editor-status" id="stickerStatus"></div>
           <div class="sticker-add">
-            <button type="button" class="editor-btn primary" id="stickerUpload">Add stickers…</button>
-            <span class="sticker-hint">Square images or GIFs. A still picture is shrunk to fit; an animated GIF is kept as it is, so keep those small.</span>
+            <button type="button" class="editor-btn primary" id="stickerUpload" title="Square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">Add stickers…</button>
           </div>
           <div class="sticker-grid" id="stickerGrid"></div>
         </div>
@@ -509,10 +508,12 @@
       <div id="freeMenuImagePart">
         <div class="editor-field">
           <label for="freeMenuImageUrl">Image — URL, or pick a file</label>
-          <input id="freeMenuImageUrl" type="text" placeholder="https://… or leave blank">
+          <div class="image-url-row">
+            <input id="freeMenuImageUrl" type="text" placeholder="https://… or leave blank">
+            <button type="button" class="image-clear" id="freeMenuImageClear" title="Take the picture off">✕</button>
+          </div>
           <div class="free-menu-row">
             <button type="button" class="editor-btn" id="freeMenuImagePick">Choose file…</button>
-            <button type="button" class="editor-btn" id="freeMenuImageClear">Clear</button>
           </div>
         </div>
         <!-- Where it stands in the stack is set from the hover bar on the
@@ -538,7 +539,7 @@
         </div>
       </div>
 
-      <div class="edge-popover-actions">
+      <div class="edge-popover-actions" id="freeMenuActions">
         <button class="editor-btn" id="freeMenuDelete">Delete</button>
       </div>
     </div>
@@ -547,21 +548,25 @@
          which is what keeps it independent of any one host. -->
     <div class="file-popover" id="filePopover">
       <div class="edge-popover-head">
-        <span>This chart as a file</span>
+        <span>Import/Export</span>
         <button class="detail-close" aria-label="Close" id="fileClose">✕</button>
       </div>
       <div class="editor-status" id="fileStatus"></div>
-      <p class="file-note" id="fileWhere"></p>
+      <!-- Four tiles and a bar, as the owner drew it (22.10): the two
+           exports of the chart, the two pictures, and the way back in. The
+           JSON export, which came after the sketch, takes a row of its own
+           between the exports and the pictures.
+           What each one does is on its title, not in a paragraph under
+           them. -->
       <div class="file-actions">
-        <button type="button" class="editor-btn primary" id="fileExport">Export a standalone page</button>
-        <button type="button" class="editor-btn" id="fileExportData">Export just the contents</button>
-        <button type="button" class="editor-btn" id="fileExportJson">Export the contents as JSON</button>
-        <button type="button" class="editor-btn" id="fileExportPng">Export a picture (PNG)</button>
-        <button type="button" class="editor-btn" id="fileExportSvg">Export a picture (SVG)</button>
-        <button type="button" class="editor-btn" id="fileImport">Import a chart file…</button>
-        <button type="button" class="editor-btn" id="fileForget">Discard changes saved here</button>
+        <button type="button" class="editor-btn primary file-tile" id="fileExport" title="The whole chart as one page: drawing, editor and contents. Opens anywhere, needs no server and no account.">Export page</button>
+        <button type="button" class="editor-btn file-tile" id="fileExportData" title="Just the entries, without the page around them: a few kilobytes instead of a few hundred.">Export contents</button>
+        <button type="button" class="editor-btn file-wide" id="fileExportJson" title="The same contents as JSON, for other programs: described by chart.schema.json beside the site, and Import reads it back.">Export JSON</button>
+        <button type="button" class="editor-btn file-tile file-pic" id="fileExportPng" title="Export a picture (PNG)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M3.5 17l5.5-6 4 4.5 2.5-2.5 5 4.5"/><circle cx="16" cy="9" r="1.6"/></svg><span>PNG</span></button>
+        <button type="button" class="editor-btn file-tile file-pic" id="fileExportSvg" title="Export a picture (SVG)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M3.5 17l5.5-6 4 4.5 2.5-2.5 5 4.5"/><circle cx="16" cy="9" r="1.6"/></svg><span>SVG</span></button>
+        <button type="button" class="editor-btn file-wide" id="fileImport" title="Open a page or a contents file exported from a chart">Import file</button>
+        <button type="button" class="editor-btn file-wide" id="fileForget" title="Forget the changes this browser keeps for this file">Discard changes saved here</button>
       </div>
-      <p class="file-note">An exported page is the whole chart — drawing, editor and contents in one file. Open it anywhere, edit it, export it again; it needs no server and no account. <b>Just the contents</b> is the same entries without the page around them: a few kilobytes instead of a few hundred, for handing your work to someone rebuilding the page. <b>As JSON</b> is the same contents for other programs, described by <a href="https://cccarrrottt.github.io/chart.schema.json" target="_blank" rel="noopener">chart.schema.json</a>; Import reads it back.</p>
     </div>
     <input type="file" id="fileImportInput" accept=".html,.htm,.js,.json,.txt,text/html,text/plain,application/json" style="display:none;">
 

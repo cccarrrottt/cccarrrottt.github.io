@@ -695,11 +695,17 @@ function buildLooseBlock(tags){
   tags.forEach(tag=> wrap.appendChild(buildTagRow(tag, UNGROUPED)));
   if(pendingNewTag) wrap.appendChild(buildNewTagRow());
   else if(!tags.length){
+    /* A mark rather than a sentence (the owner's ask, 22.10): an empty
+       tray, in the middle of the dashed field, for a place tags only pass
+       through. What it means is on its title. */
     const hint = document.createElement('div');
     hint.className = 'legend-loose-hint';
-    hint.textContent = readOnlyView
+    hint.title = readOnlyView
       ? 'Every tag is filed under a category.'
-      : 'Tags with no category appear here. Drag one out of a category to bring it back.';
+      : 'Tags with no category wait here. Drag one out of a category to bring it back.';
+    hint.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">'
+      + '<path d="M3 13.5l2.6-7.2A1.5 1.5 0 0 1 7 5.3h10a1.5 1.5 0 0 1 1.4 1l2.6 7.2V18a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/>'
+      + '<path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg>';
     wrap.appendChild(hint);
   }
   return wrap;
@@ -1120,6 +1126,18 @@ function buildTagRow(tag, catName){
     del.title = count ? `Remove this tag from all ${count} entries carrying it` : 'Delete this unused tag';
     del.addEventListener('click', ev=>{ ev.stopPropagation(); deleteTagEverywhere(tag, count); });
     row.appendChild(del);
+  } else if(!readOnlyView){
+    /* A button like the ✕ it stands in for, not a span: a button takes
+       its own font, and a span the row's, and the two ✕ were a fraction
+       of a pixel apart — enough to put the count out of its column. */
+    const room = document.createElement('button');
+    room.type = 'button';
+    room.disabled = true;
+    room.tabIndex = -1;
+    room.className = 'legend-tag-del legend-tag-del-room';
+    room.textContent = '\u2715';
+    room.setAttribute('aria-hidden', 'true');
+    row.appendChild(room);
   }
   if(tag !== UNTAGGED && !readOnlyView){
     /* Filing a tag is carrying it: pick the row up and drop it on the

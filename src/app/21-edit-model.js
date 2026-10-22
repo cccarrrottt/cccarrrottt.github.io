@@ -449,7 +449,7 @@ async function saveNow(){
     else if(code === 'signed_out'){
       siteOwner = null;
       updateOwnerBtn();
-      setSaveState('err', 'Your sign-in has expired — press Owner sign-in, then Save again');
+      setSaveState('err', 'Your sign-in has expired — press Sign in, then Save again');
     }
     else if(isReadOnlyError(e)){
       markReadOnly(isPermanentRefusal(e));

@@ -1280,13 +1280,17 @@
   /* ---- where a tag lives before it is filed ------------------------
      No heading: it is not a category, it is the space under the search
      box. A rule under it sets it off from the first real category. */
+  /* Outlined all round with a dashed line: a holding place rather than a
+     category, which a solid frame or a heading would make it look like.
+     An outline, not a border: a border would push the tags inside it a
+     pixel off the column every other row's name, count and ✕ stand in. */
   .legend-loose{
-    padding:2px 0 6px;margin-bottom:2px;
-    border-bottom:1px dashed var(--grid);
+    padding:3px 0;margin:2px 0 6px;
+    outline:1px dashed var(--ink-faint);outline-offset:-1px;border-radius:6px;
   }
   .legend-loose-hint{
-    padding:3px 8px 1px;font-size:9.5px;line-height:1.5;
-    color:var(--ink-faint);font-style:italic;
+    display:flex;align-items:center;justify-content:center;
+    min-height:30px;color:var(--ink-faint);
   }
   /* A tag being written. The shape is already there — an empty luggage
      label with the caret in it — so what you are naming looks like what it
@@ -1325,6 +1329,19 @@
     font-size:10px;color:var(--ink-faint);line-height:1;
   }
   .legend-tag-del:hover{color:var(--danger,#c23b22);}
+  /* Untagged has no ✕, and keeps its room so its count stands in the
+     column every other count does. */
+  .legend-tag-del-room{visibility:hidden;pointer-events:none;}
+  /* A picture's address and, at its end, the ✕ that takes the picture off:
+     the same ✕ the tags panel takes a tag off with, rather than a button
+     marked Clear. */
+  .image-url-row{display:flex;align-items:center;gap:4px;}
+  .image-url-row input{flex:1 1 auto;min-width:0;}
+  .image-clear{
+    background:none;border:none;padding:0 3px;cursor:pointer;flex:0 0 auto;
+    font-size:12px;color:var(--ink-faint);line-height:1;
+  }
+  .image-clear:hover{color:var(--danger,#c23b22);}
   /* The panel used to keep a line of running commentary at the top —
      "Added [3].", "Deleted “canon”." — narrating edits whose result is
      already the list right underneath. The elements are gone; the setters
@@ -2162,9 +2179,11 @@
   }
   .file-popover.open{display:flex;}
   .file-popover .editor-status{margin:0;}
-  .file-actions{display:flex;flex-direction:column;gap:6px;}
-  .file-actions .editor-btn{width:100%;}
-  .file-note{font-size:11px;color:var(--ink-faint);line-height:1.55;margin:0;}
+  .file-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .file-actions .editor-btn{width:100%;margin:0;}
+  .file-actions .file-tile{min-height:52px;line-height:1.3;white-space:normal;}
+  .file-actions .file-pic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;}
+  .file-actions .file-wide{grid-column:1 / -1;}
   body.read-only #fileForget{display:none;}
 
   /* The click menu for a free-standing picture or text block. Same floating
@@ -2266,7 +2285,6 @@
   /* Stickers ---------------------------------------------------------- */
   .sticker-card{width:min(560px, 92vw);}
   .sticker-add{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 6px;}
-  .sticker-hint{font-size:11px;color:var(--ink-faint);line-height:1.5;flex:1;min-width:180px;}
   .sticker-status{margin-bottom:8px;}
   .sticker-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(92px, 1fr));
@@ -3017,8 +3035,24 @@
     box-shadow:var(--shadow);
   }
   .style-bar[hidden], .style-bar-group[hidden]{display:none;}
-  .style-bar-group{display:flex;gap:2px;}
+  .style-bar-group{display:flex;gap:2px;align-items:center;}
   .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
+  /* A menu: its face on the bar, its choices unfolding under it, one per
+     line, over whatever is below. */
+  .style-bar-drop{position:relative;}
+  .style-bar .style-bar-drop-face{width:30px;position:relative;padding-right:7px;}
+  .style-bar .style-bar-drop-face::after{content:'▾';position:absolute;right:2px;bottom:2px;font-size:7px;opacity:0.7;}
+  .style-bar-drop-list{
+    display:none;position:absolute;top:100%;left:0;margin-top:4px;z-index:1;
+    flex-direction:column;gap:2px;padding:3px;
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);
+  }
+  .style-bar-group:not([hidden]) ~ .style-bar-drop .style-bar-drop-list{left:6px;}
+  /* A connector's two ends are one pair, start and end: no rule between. */
+  .style-bar-group[data-group="endIn"]:not([hidden]) ~ .style-bar-group[data-group="endOut"]{padding-left:0;border-left:0;}
+  .style-bar-group[data-group="endIn"]:not([hidden]) ~ .style-bar-group[data-group="endOut"] .style-bar-drop-list{left:0;}
+  .style-bar-drop.open .style-bar-drop-list{display:flex;}
+  .style-bar-drop.open .style-bar-drop-face{color:var(--ink);border-color:var(--accent);}
   .style-bar button{
     width:24px;height:22px;padding:0;
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);

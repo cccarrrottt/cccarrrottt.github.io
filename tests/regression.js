@@ -10470,7 +10470,7 @@ async function main(){
         JSON.stringify({rows: r.tagRows, dels: r.tagDeletes, clicked: r.edgeClicked, panel: r.edgePanel}));
   check('a chart left in this browser by the old editable site is not shown', !r.oldEditShown);
   check('it offers no Save', r.saveHidden);
-  check('but it does offer the owner a way in', r.signIn === 'Owner sign-in', r.signIn);
+  check('but it does offer a way in, to everybody', r.signIn === 'Sign in', r.signIn);
   check('an edit made in it does nothing', r.editRefused && r.stillClean,
         JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
   check('a reader may still take a copy away', r.exportOffered);
@@ -10817,7 +10817,7 @@ async function main(){
   const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
-  const api = {asked: 0, loginAs: [], posted: [], resolved: [], list: [], ghAsked: 0};
+  const api = {asked: 0, loginAs: [], account: 'reader', posted: [], resolved: [], list: [], ghAsked: 0};
   const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
@@ -10847,7 +10847,10 @@ async function main(){
     if(u.pathname === '/login'){
       const as = u.searchParams.get('as');
       api.loginAs.push(as || 'owner');
-      const token = as === 'reader' ? 'reader-session' : 'good-session';
+      /* As the service does: which session comes back is decided by the
+         account GitHub signed in, not by the button. The owner signing in
+         through the one Sign in a reader uses still gets the owner's. */
+      const token = api.account === 'owner' ? 'good-session' : 'reader-session';
       return r.fulfill({status: 200, contentType: 'text/html', body:
         `<script>opener.postMessage({rhizomeSession:${JSON.stringify(token)}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
     }
@@ -10990,13 +10993,14 @@ async function main(){
             ghTitles: Array.isArray(fromGitHub) ? fromGitHub.map(x=> x.title) : String(fromGitHub)};
   });
   check('signing out forgets the reader, and what the session listed goes with it',
-        r3.stored === null && r3.button === 'Owner sign-in' && r3.right === 0, JSON.stringify(r3));
+        r3.stored === null && r3.button === 'Sign in' && r3.right === 0, JSON.stringify(r3));
   check('and the marks come back as any reader sees them, read from GitHub again',
         r3.marks === 2 && api.ghAsked > ghBefore, JSON.stringify(r3));
   check('read from GitHub, a suggestion\'s own title comes back without its kind, and an untitled one has none',
         Array.isArray(r3.ghTitles) && r3.ghTitles.join('|') === 'A sequel|', JSON.stringify(r3.ghTitles));
 
   /* ---- the owner closes one ---- */
+  api.account = 'owner';
   const popup2 = c.waitForEvent('page');
   await site.click('#ownerBtn');
   await popup2;
@@ -11015,7 +11019,7 @@ async function main(){
     out.marksAfter = [...document.querySelectorAll('#suggestionLayer .suggestion-mark')].map(g => g.dataset.id);
     return out;
   });
-  check('the owner signs in as the owner, from the same page', api.loginAs.join() === 'reader,owner' && !r4.readOnly,
+  check('the owner signs in as the owner, through the same Sign in as everybody', api.loginAs.join() === 'reader,reader' && !r4.readOnly,
         api.loginAs.join() + ' ' + JSON.stringify(r4));
   check('opened from the bar, the form is about the chart as a whole', /chart as a whole/.test(r4.about), r4.about);
   check('the owner is offered Done on a suggestion, and it closes it as done',
@@ -11027,6 +11031,7 @@ async function main(){
      The owner trying a reader's account found the page still posting as
      the owner: whoever is signed in stays signed in. The form offers
      another account, which lets go of this one and asks again. */
+  api.account = 'reader';
   const popup3 = c.waitForEvent('page');
   const r5a = await site.evaluate(() => {
     const b = document.getElementById('suggestSwitch');
@@ -11038,7 +11043,7 @@ async function main(){
   await site.waitForFunction(() => !document.getElementById('commentSubmit').hidden, null, {timeout: 5000}).catch(() => {});
   check('signed in, the form offers another GitHub account', r5a.shown, JSON.stringify(r5a));
   check('which lets go of the owner and signs in again as a reader',
-        r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,owner,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
+        r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,reader,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   await c.close();
   });
@@ -13117,12 +13122,20 @@ async function main(){
     const sb = await pp.evaluate(()=>{
       const b = document.getElementById('styleBar');
       const r = b.getBoundingClientRect();
-      const btn = b.querySelector('[data-group="border"] button[data-value="dashed"]').getBoundingClientRect();
-      return {shown: !b.hidden, left: r.left, right: r.right, at: [btn.x + btn.width/2, btn.y + btn.height/2]};
+      const face = b.querySelector('[data-group="border"] .style-bar-drop-face').getBoundingClientRect();
+      return {shown: !b.hidden, left: r.left, right: r.right, at: [face.x + face.width/2, face.y + face.height/2]};
     });
     check('a tap on an entry leaves its style bar open, on the screen',
           sb.shown && sb.left >= 0 && sb.right <= 390, JSON.stringify(sb));
+    // The border is a menu: a tap unfolds it, and a tap on a choice sets it.
     await pp.touchscreen.tap(sb.at[0], sb.at[1]);
+    await wait(150);
+    const pick = await pp.evaluate(()=>{
+      const r = document.querySelector('#styleBar [data-group="border"] button[data-value="dashed"]').getBoundingClientRect();
+      return [r.x + r.width/2, r.y + r.height/2, r.height];
+    });
+    check('…a tap on the border unfolds its choices', pick[2] > 0, JSON.stringify(pick));
+    await pp.touchscreen.tap(pick[0], pick[1]);
     await wait(250);
     eq('…and a tap on the bar restyles the entry',
        await pp.evaluate(()=> (entryOpts(workingEntry('tpA').entry) || {}).border), 'dashed');
@@ -15112,17 +15125,22 @@ async function main(){
       const sgn = spec && spec.after ? 1 : -1;
       beginBarDrag(fake, 'rdM');
       const dy = ((top - bar1.cross) + 1.2) * vs;
+      // Not without Shift: a guide is asked for, as it is for an entry.
       window.dispatchEvent(new MouseEvent('mousemove', {clientX:400, clientY:300 + dy * sgn * (spec.k === 'y' ? 1 : 0),
                                                         bubbles:true}));
+      await wait(100);
+      const guideUnasked = document.querySelectorAll('#guideLayer .align-guide-line').length;
+      window.dispatchEvent(new MouseEvent('mousemove', {clientX:400, clientY:300 + dy * sgn * (spec.k === 'y' ? 1 : 0),
+                                                        shiftKey:true, bubbles:true}));
       await wait(100);
       const guideShown = document.querySelectorAll('#guideLayer .align-guide-line').length;
       window.dispatchEvent(new MouseEvent('mouseup', {clientX:400, clientY:300 + dy, bubbles:true}));
       await wait(300);
       const bar2 = amalgamBars.get('rdM');
       out.barGuideAt = JSON.stringify({k: spec && spec.k, top, before: bar1 && +bar1.cross.toFixed(2),
-                                       after: bar2 && +bar2.cross.toFixed(2), guideShown,
+                                       after: bar2 && +bar2.cross.toFixed(2), guideUnasked, guideShown,
                                        left: document.querySelectorAll('#guideLayer .align-guide-line').length});
-      out.barGuide = !!spec && spec.k === 'y' && guideShown === 1 && !!bar2 && Math.abs(bar2.cross - top) < 0.01 &&
+      out.barGuide = !!spec && spec.k === 'y' && guideUnasked === 0 && guideShown === 1 && !!bar2 && Math.abs(bar2.cross - top) < 0.01 &&
                      document.querySelectorAll('#guideLayer .align-guide-line').length === 0;
     }
 
@@ -15155,7 +15173,7 @@ async function main(){
         rR.lossRecentres, rR.lossAt);
   check('the strips a merge is connected from light up in its border\'s gradient',
         rR.bandGrad, rR.bandGradAt);
-  check('a merge\'s bar, carried, shows a guide where it comes level with an entry, and lands on that level',
+  check('a merge\'s bar, carried with Shift and only then, shows a guide where it comes level with an entry, and lands on that level',
         rR.barGuide, rR.barGuideAt);
 
   });
@@ -15554,12 +15572,12 @@ async function main(){
       const press = (group, value)=> styleBar.querySelector(
         `.style-bar-group[data-group="${group}"] button[data-value="${value}"]`).click();
       press('edgeLine', 'dotted');
-      press('ends', 'in');
+      press('endIn', 'in');
       press('corners', 'round');
       await wait(150);
       const st = edgeStyleFor('fvA', 'fvB');
       out.edgeBarAt = JSON.stringify({groups, dash: st.dash, arrowIn: st.arrowIn, square: st.square});
-      out.edgeBar = groups.join() === 'edgeLine,corners,ends' && st.dash === 'dotted' &&
+      out.edgeBar = groups.join() === 'edgeLine,corners,endIn,endOut' && st.dash === 'dotted' &&
         // Square to start with since 0.12.0, so the press rounds them.
         st.arrowIn === true && st.square === false && !styleBar.hidden;
       closeStyleBar();
@@ -17549,15 +17567,15 @@ async function main(){
       out.lineToBar = round2(Math.abs(end.y - bb.y));
     }
     out.legend = keyMarksInUse().some(m=> m.key === 'line:tee');
-    // From the bar: the lit T comes off, the arrow goes on, the T goes on again.
+    // From the bar: nothing at the end, an arrow, the T again, and a T at the start.
     styleBarTarget = {kind:'edge', from:'tz_a', to:'tz_b', x:10, y:10};
-    applyStyleBar('ends', 'tout');
+    applyStyleBar('endOut', 'none');
     out.offAll = edgeStyleFor('tz_a', 'tz_b');
-    applyStyleBar('ends', 'out');
+    applyStyleBar('endOut', 'out');
     out.arrow = edgeStyleFor('tz_a', 'tz_b');
-    applyStyleBar('ends', 'tout');
+    applyStyleBar('endOut', 'tout');
     out.back = edgeStyleFor('tz_a', 'tz_b');
-    applyStyleBar('ends', 'tin');
+    applyStyleBar('endIn', 'tin');
     out.both = edgeStyleFor('tz_a', 'tz_b');
     closeStyleBar();
     await pause(100);
@@ -17573,7 +17591,7 @@ async function main(){
   check('the T lies across the line', t.across >= 8, JSON.stringify(t));
   check('the line stops at the T', t.lineToBar <= 1.5, JSON.stringify(t));
   check('the legend names the T', t.legend);
-  check('pressing the lit T takes the end off', t.offAll.arrow === false && !t.offAll.teeOut, JSON.stringify(t.offAll));
+  check('choosing nothing for the end takes the T off', t.offAll.arrow === false && !t.offAll.teeOut, JSON.stringify(t.offAll));
   check('the arrow and the T take each other’s place', t.arrow.arrow !== false && !t.arrow.teeOut &&
         t.back.arrow !== false && t.back.teeOut, JSON.stringify([t.arrow, t.back]));
   check('the start can take a T as well', t.both.arrowIn && t.both.teeIn && t.teeIn, JSON.stringify(t.both));
@@ -17647,6 +17665,20 @@ async function main(){
     styleBarTarget = {kind:'node', id: out.id};
     syncStyleBar();
     out.rows = [...styleBar.querySelectorAll('.style-bar-group')].filter(r=> !r.hidden).map(r=> r.dataset.group);
+    /* The border and the hatching are menus: one face each, showing the
+       choice, and the list unfolding under it on a press. */
+    { const row = styleBar.querySelector('[data-group="hatch"]');
+      const face = row.querySelector('.style-bar-drop-face');
+      const list = row.querySelector('.style-bar-drop-list');
+      const shut = !list.getBoundingClientRect().height;
+      face.click();
+      const fr = face.getBoundingClientRect(), lr = list.getBoundingClientRect();
+      const opened = lr.height > 0 && lr.top >= fr.bottom;
+      list.querySelector('[data-value="vert"]').click();
+      await pause(100);
+      out.menu = {shut, opened, closed: !styleBar.querySelector('.style-bar-drop.open'),
+                  hatch: nodes.get(out.id).hatch, face: styleBar.querySelector('[data-group="hatch"] .style-bar-drop-face').textContent,
+                  faces: styleBar.querySelectorAll('.style-bar-group:not([hidden]) > .style-bar-drop-face').length}; }
     applyStyleBar('hatch', 'diag-l');
     applyStyleBar('border', 'dashed');
     await pause(100);
@@ -17676,6 +17708,9 @@ async function main(){
         a.look.fill === 'none' && +a.look.opacity === 0.5, JSON.stringify(a.look));
   check('the bar offers an array its border, hatching and colour, and no ground',
         ['border', 'hatch', 'arrayInk'].every(r=> a.rows.includes(r)) && !a.rows.includes('turn') && !a.rows.includes('cardBg'), a.rows.join(','));
+  check('on its bar the border and the hatching are menus that unfold, set and fold again',
+        a.menu.shut && a.menu.opened && a.menu.closed && a.menu.hatch === 'vert' && a.menu.face === '▥' && a.menu.faces === 2,
+        JSON.stringify(a.menu));
   eq('the hatching is the frame’s colour, half see-through', a.hatchInk, '#000000 0.5');
   check('a hatching and a border style are drawn and written down',
         a.hatch && a.dashed && /"hatch":"diag-l"/.test(a.savedLook) && /"border":"dashed"/.test(a.savedLook), JSON.stringify(a));
@@ -17815,6 +17850,128 @@ async function main(){
   });
   check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
+  });
+  await scenario("ends without a rule, a picture's cross, and defaults that say so", async () => {
+  const r = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['ff_a', 'Five A', null, null, null, null, {pos:[3200, -900]}]);
+      workingNodes.push(['ff_b', 'Five B', 'ff_a', null, null, null, {pos:[3200, -760]}]);
+      workingNodes.push(['ff_i', '', null, null, null, 'image', {pos:[3400, -900], size:[60, 40]}]);
+    });
+    await pause(200);
+    // A connector's two ends: no rule between them, and "No" for nothing.
+    openStyleBar({kind:'edge', from:'ff_a', to:'ff_b', x:300, y:300});
+    applyStyleBar('endIn', 'none');
+    const endOut = styleBar.querySelector('[data-group="endOut"]');
+    const cs = getComputedStyle(endOut);
+    out.ends = {rule: cs.borderLeftWidth, pad: cs.paddingLeft,
+                face: styleBar.querySelector('[data-group="endIn"] .style-bar-drop-face').textContent,
+                none: endOut.querySelector('[data-value="none"]').textContent};
+    const line = styleBar.querySelector('[data-group="corners"]');
+    out.otherRule = getComputedStyle(line).borderLeftWidth;
+    closeStyleBar();
+    // A picture's menu: a cross takes the picture off, and no Delete.
+    openFreeMenu('ff_i', {clientX:200, clientY:200});
+    await pause(50);
+    const clear = document.getElementById('freeMenuImageClear');
+    out.cross = clear.textContent.trim();
+    out.crossBeside = clear.parentNode.contains(document.getElementById('freeMenuImageUrl'));
+    out.noDelete = getComputedStyle(document.getElementById('freeMenuDelete')).display === 'none' ||
+                   !document.getElementById('freeMenuDelete').getClientRects().length;
+    closeFreeMenu();
+    out.editCross = document.getElementById('editImageClear').textContent.trim();
+    // Untagged's count stands in the column the others' do.
+    buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await pause(400);
+    const rows = [...document.querySelectorAll('#tagsList .legend-item')].filter(r=> r.querySelector('.count'));
+    const rights = rows.map(r=> Math.round(r.querySelector('.count').getBoundingClientRect().right * 10) / 10);
+    out.counts = {rows: rows.length, right: [...new Set(rights)], untagged: !!document.querySelector('#tagsList .legend-tag-del-room')};
+    setSideTab(document.getElementById('tagsPanel'), false);
+    // The citation colour, at the program's own, wears the dashed edge.
+    const held = SETTINGS.refColor;
+    SETTINGS.refColor = DEFAULT_REF_COLOR;
+    const box = document.getElementById('refColorInput');
+    box.value = refColor(); paintHexSquare(box);
+    const sq = box.previousElementSibling;
+    out.refDefault = sq.classList.contains('inherited');
+    SETTINGS.refColor = '#123456';
+    box.value = refColor(); paintHexSquare(box);
+    out.refOwn = sq.classList.contains('inherited');
+    if(held === undefined) delete SETTINGS.refColor; else SETTINGS.refColor = held;
+    box.value = refColor(); paintHexSquare(box);
+    applyEdit(()=>{
+      for(let i = workingNodes.length - 1; i >= 0; i--) if(/^ff_/.test(workingNodes[i][0])) workingNodes.splice(i, 1);
+      for(let k = EDGE_STYLES.length - 1; k >= 0; k--) if(/^ff_/.test(EDGE_STYLES[k].from)) EDGE_STYLES.splice(k, 1);
+    });
+    return out;
+  });
+  check('a connector\'s two ends stand together, with no rule between',
+        r.ends.rule === '0px' && r.ends.pad === '0px' && r.otherRule !== '0px', JSON.stringify(r.ends));
+  check('…and "No" is how an end says it has nothing', r.ends.face === 'No' && r.ends.none === 'No', JSON.stringify(r.ends));
+  check('a picture is taken off by a cross beside its address', r.cross === '✕' && r.crossBeside && r.editCross === '✕',
+        JSON.stringify(r));
+  check('an image\'s menu has no Delete', r.noDelete);
+  check('every tag\'s count, Untagged\'s too, stands in one column',
+        r.counts.rows >= 2 && r.counts.right.length === 1 && r.counts.right[0] > 0 && r.counts.untagged, JSON.stringify(r.counts));
+  check('the citation colour at the program\'s own wears the dashed edge, and a chosen one does not',
+        r.refDefault && !r.refOwn, JSON.stringify(r));
+  });
+  await scenario("menus without their notes, one sign-in, a moving sticker", async () => {
+  const r = await page.evaluate(async ()=>{
+    const out = {};
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    // The file menu: titled Import/Export, tiles in two columns, no prose.
+    const pop = document.getElementById('filePopover');
+    out.file = {
+      head: pop.querySelector('.edge-popover-head span').textContent.trim(),
+      cols: getComputedStyle(pop.querySelector('.file-actions')).gridTemplateColumns.split(' ').length,
+      where: !!document.getElementById('fileWhere'),
+      note: !!pop.querySelector('.file-note, p'),
+      pics: [...pop.querySelectorAll('.file-pic')].map(b=> b.textContent.trim()),
+      wide: [...pop.querySelectorAll('.file-wide')].map(b=> b.id)
+    };
+    // One Sign in, and it asks for a reader's session: the owner is told
+    // apart by the service, not by which button they pressed.
+    const btn = document.getElementById('ownerBtn');
+    const opened = [];
+    const held = window.open;
+    window.open = (url)=>{ opened.push(String(url)); return {}; };
+    try{ btn.onclick(); } finally { window.open = held; }
+    out.sign = {label: btn.textContent.trim(), url: opened[0] || ''};
+    out.suggestNote = !!document.getElementById('suggestNote');
+    out.stickerProse = !!document.querySelector('.sticker-card p, .sticker-hint');
+    // A GIF is kept byte for byte, so it still moves.
+    const gif = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), c=> c.charCodeAt(0));
+    const src = await stickerDataFromFile(new File([gif], 'a.gif', {type:'image/gif'}));
+    out.gif = src === 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    // Tags with no category: a dashed field, and a mark in its middle.
+    buildSideTabs();
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await pause(300);
+    const loose = document.querySelector('#tagsList .legend-loose');
+    const hint = loose && loose.querySelector('.legend-loose-hint');
+    if(loose && hint){
+      const a = loose.getBoundingClientRect(), b = hint.querySelector('svg').getBoundingClientRect();
+      out.loose = {border: getComputedStyle(loose).outlineStyle, text: hint.textContent.trim(),
+                   off: Math.abs((a.left + a.right) / 2 - (b.left + b.right) / 2)};
+    } else out.loose = {missing: true, hasItems: !!loose};
+    setSideTab(document.getElementById('tagsPanel'), false);
+    return out;
+  });
+  check('the file menu is called Import/Export and says nothing else',
+        r.file.head === 'Import/Export' && !r.file.where && !r.file.note, JSON.stringify(r.file));
+  check('…its exports stand two by two, the pictures as PNG and SVG tiles, Import across the bottom',
+        r.file.cols === 2 && r.file.pics.join() === 'PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
+  check('there is one Sign in, and it asks for a reader\'s session',
+        r.sign.label === 'Sign in' && /\/login\?/.test(r.sign.url) && /as=reader/.test(r.sign.url), JSON.stringify(r.sign));
+  check('Suggestions and Stickers carry no notes', !r.suggestNote && !r.stickerProse, JSON.stringify(r));
+  check('a GIF sticker is kept byte for byte, so it moves', r.gif);
+  check('tags with no category sit in a dashed field with a mark in its middle and no words',
+        r.loose.missing ? r.loose.hasItems : (r.loose.border === 'dashed' && r.loose.text === '' && r.loose.off < 2),
+        JSON.stringify(r.loose));
   });
   await scenario("the chart as text", async () => {
   /* The same chart written out as a document (41-text-view.js), for a

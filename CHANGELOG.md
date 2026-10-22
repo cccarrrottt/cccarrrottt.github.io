@@ -8,6 +8,37 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The file menu is called Import/Export and is drawn as the owner
+  sketched it: Export page and Export contents side by side, the PNG and
+  SVG pictures as two tiles with a picture on each, Import file across
+  the bottom. Export JSON, which came after the sketch, has a row of its
+  own between the exports and the pictures. What each one does is on its tooltip; the paragraphs are gone.
+- One Sign in, for everybody. It used to read "Owner sign in", while
+  readers signed in from Suggestions. Now anyone signs in with it to leave
+  a suggestion, and the service still decides who edits: the owner's login
+  gets the editor, anyone else a reader's session.
+- Suggestions and Stickers lost their explanatory notes. Animated GIF
+  stickers already worked and still do: a GIF is kept byte for byte (up to
+  512 KB), so it keeps moving.
+- In Tags, the field for tags with no category is outlined with a dashed
+  line and shows a small tray in its middle instead of a sentence.
+- A connector's two end menus stand together with no rule between them,
+  and nothing at an end reads "No".
+- A merge's bar shows guides, and lands on them, only with Shift held, as
+  an entry and a corner do; it used to offer them unasked.
+- A picture is taken off by a ✕ beside its address, the tags panel's ✕,
+  rather than a button marked Clear; an image's menu has no Delete.
+- Untagged's count stands in the column every other tag's count does.
+- The citation colour at the program's own wears the dashed edge every
+  default colour wears, also when a chart saved it explicitly; resetting
+  it or typing it back takes the setting off.
+- The looks on the style bar that are one choice out of several are menus:
+  a button showing what is chosen, the rest unfolding under it when
+  pressed: an entry's border, an array's hatching, a hub's scenery, a
+  connector's line and a callout's leader. A connector's ends are two
+  menus, the start's and the end's, each of nothing, an arrow or a T,
+  where there were four buttons that toggled. An array's bar went from
+  266 px wide to 185.
 - The chart can be read as text. A new button in the top bar opens every
   entry as a list, each under the entry it comes from, with its tags, its
   note, what its lines say and its link; a name opens that entry on the
