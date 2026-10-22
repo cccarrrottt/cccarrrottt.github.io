@@ -8,6 +8,20 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- An array has no tab: it is taken hold of either side of its frame, the
+  line itself being its ports. It has no ground either: its colour is its
+  frame's and its hatching's, black unless one is chosen, and both are
+  half see-through. An array that was given a ground colour wears it on
+  its frame instead.
+- An array stands two pixels off its members, from the outer edge of their
+  borders to the inner edge of its own, and clears their tabs by as much:
+  it used to leave two steps of the grid, which read as an empty frame
+  round the first. A T stands a pixel off the outer edge of the border it
+  ends at, instead of five off the line the border is drawn on.
+- A curve's end with no head is the curve as drawn, again: it was held
+  straight for a dozen units and then made to turn in what was left, a
+  kink where it left its entry. Under a head the line is still straight,
+  and now joins the curve along the curve's own direction.
 - Panning is smooth on a large chart: a frame of a drag on 600 entries
   went from about 67 ms to 3.5. Moving the drawing was never the cost —
   the coordinates in the corner were: rewriting them laid out the page,

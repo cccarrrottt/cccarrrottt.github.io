@@ -160,7 +160,7 @@ const styleBar = (()=>{
        "no colour", which is not what a blank ground means here. */
     /* …except where blank is the default INK, which is what the square
        then shows. */
-    squareForHexInput(input, {title, fallback: ink ? ()=> DEFAULT_NODE_COLOR : ()=>
+    squareForHexInput(input, {title, fallback: ink ? ()=> ARRAY_INK : ()=>
       getComputedStyle(document.body).getPropertyValue('--panel').trim() || '#ffffff'});
     input.addEventListener('mousedown', ev=> ev.stopPropagation());
     input.addEventListener('keydown', ev=> ev.stopPropagation());
@@ -198,7 +198,7 @@ const styleBar = (()=>{
   });
   /* An array's frame. An entry is coloured in its settings, which an
      array has none of, so its colour is set here, beside its ground. */
-  hexGroup('arrayInk', 'The colour of the array’s frame — blank is the default ink', (t, v)=>{
+  hexGroup('arrayInk', 'The colour of the array’s frame and hatching — blank is black', (t, v)=>{
     if(t.kind !== 'node') return;
     const found = workingEntry(t.id);
     if(!found) return;
@@ -347,7 +347,7 @@ function syncStyleBar(){
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
   rows.edgeLine.hidden = rows.ends.hidden = t.kind !== 'edge';
   rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
-  rows.cardBg.hidden = !(n && ((isCalloutNode(n) && !(n.leader && n.leader.shelf)) || isArr));
+  rows.cardBg.hidden = !(n && isCalloutNode(n) && !(n.leader && n.leader.shelf));
   const showHex = (row, v)=>{
     const input = row.querySelector('input');
     if(document.activeElement !== input){ input.value = v || ''; input.classList.remove('bad'); }
@@ -454,7 +454,7 @@ function positionStyleBar(){
     /* Clear of the tabs standing on its top edge as well: over them, the
        bar hid the very language tabs and link a reader had come to press. */
     const g = qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
-    if(g) g.querySelectorAll('.lang-chips, .node-link, .array-tab').forEach(t=>{
+    if(g) g.querySelectorAll('.lang-chips, .node-link').forEach(t=>{
       const r = t.getBoundingClientRect();
       if(r.height) top = Math.min(top, r.top - host.top);
     });

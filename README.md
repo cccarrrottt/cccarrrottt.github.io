@@ -529,10 +529,11 @@ entry, `[id, '', null, null, null, 'array', {members:[ids], …}]`, with no
 position or size of its own: once its members are drawn, `fitArray` sets its
 box round their outer rings with `2 * GRID` to spare, innermost array first,
 and it is drawn through the same code as an entry's box into `#arrayLayer`,
-under the connectors. Its look is `colors`, `bg`, `border`, `square` and
-`hatch` (`diag-r`, `diag-l`, `vert`, `horiz`). It is taken out of the layout,
+under the connectors. Its look is `colors` (black by default, frame and
+hatching both, half see-through), `border`, `square` and `hatch` (`diag-r`,
+`diag-l`, `vert`, `horiz`); it has no ground. It is taken out of the layout,
 the router's obstacles and the level of detail; its middle answers nothing,
-so it is carried by the tab on its top edge, and a drag redraws it with
+so it is carried by a band either side of its frame, and a drag redraws it with
 `renderNodes({arraysOnly: true})` rather than sliding it. Deleting entries
 calls `pruneArrayMembers`, which drops an array left with no members.
 

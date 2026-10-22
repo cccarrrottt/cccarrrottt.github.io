@@ -44,9 +44,7 @@ function siteIconInto(g, link, dy){
    ringed or rippled entry's tabs clear all of it. */
 function tabBaseOf(n){
   const own = (ringCountOf(n) - 1) * ringStepFor(n);
-  const out = isWavyBorder(n) ? POCKET_AMP + NODE_BORDER_W / 2
-            : borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2
-            : NODE_BORDER_W / 2;
+  const out = borderHalfOf(n);
   /* On a rippled border there is no straight edge to stand on. Stood on
      the crests, a tab floated over every trough beside it with a gap of
      paper under its foot. So it is carried down past the troughs (`sink`)
@@ -54,6 +52,27 @@ function tabBaseOf(n){
      way it grows out of a straight border, and its top stays where it was. */
   const sink = isWavyBorder(n) ? 2 * POCKET_AMP + NODE_BORDER_W : 0;
   return {y: n.y - own - out + sink, sink, left: n.x - own, right: n.x + n.w + own};
+}
+/* How far an entry's outermost border reaches past the line it is drawn
+   on: half a stroke, half the band of a double border, or the crest of a
+   ripple. What stands off a border (a T, an array's frame) measures from
+   here, so the gap a reader sees is the gap that was asked for. */
+function borderHalfOf(n){
+  return isWavyBorder(n) ? POCKET_AMP + NODE_BORDER_W / 2
+       : borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2
+       : NODE_BORDER_W / 2;
+}
+/* How far an entry's tabs stand above its border's outer edge, or 0 when
+   it has none: the same conditions the drawing below asks (language chips
+   on anything but a portrait or a free element, a link's tab on anything
+   but a free element), and the active chip's height, which is the link
+   tab's too, with half the link tab's 0.9 outline, the thicker of the two. */
+function tabReachOf(n){
+  const shape = n.shape || 'rect';
+  if(isFreeShape(shape) || shape === 'array') return 0;
+  const chips = !!n.multiLang && shape !== 'ellipse';
+  const link = !!(n.link && safeUrl(n.link));
+  return chips || link ? CHIP_TAB_H + 0.45 : 0;
 }
 /* The cut for those tabs: everything outside the outermost ripple, its
    stroke included, so a tab stops where the drawn border begins. */
@@ -790,9 +809,10 @@ const drawOne = (n)=>{
   const bgPaint = (n.bg && n.bg.length)
     ? (n.bg.length > 1 ? makeGradient(n.bg, false, nodeDefs) : n.bg[0])
     : null;
-  /* An array with no ground of its own lets the paper show through it:
-     the chart under the frame is still the chart. */
-  const bgFillStyle = bgPaint ? `fill:${bgPaint};` : isArray ? 'fill:none;' : '';
+  /* An array has no ground: the paper shows through it, because the
+     chart under the frame is still the chart. Its colour is its frame's
+     and its hatching's. */
+  const bgFillStyle = isArray ? 'fill:none;' : bgPaint ? `fill:${bgPaint};` : '';
   /* One ring of the border, drawn in whatever style the entry wears.
      `make(inset)` gives the geometry for an outline that far inside the
      ring's own line. A DOUBLE border is two rails either side of that
@@ -1284,20 +1304,14 @@ const drawOne = (n)=>{
       else Object.assign(a, {x:n.x+ins, y:n.y+ins, width:n.w-ins*2, height:h-ins*2, rx:rad(cornerR-ins)});
       el(isWavy ? 'path' : 'rect', a, g);
     }
+    /* The band is wider than an entry's ports, which lie along the
+       middle of it: a press on the line itself starts a connector, as it
+       does on an entry, and a press either side of the line takes hold of
+       the array. A tab on the top edge did that job for a while; the owner
+       found it one control too many for a frame that is already there. */
     const out = (ringCountOf(n) - 1) * ringStepFor(n);
     el('rect', {class:'array-hit', x:n.x-out, y:n.y-out, width:n.w+out*2, height:h+out*2,
                 rx: rad(cornerR+out)}, g);
-    /* …and by a tab on its top edge, because the frame's sides are its
-       ports, as an entry's are: a press on a side starts a connector. The
-       tab is the one place that only means "this array" — carry it, pick
-       it — grown out of the border like an entry's tabs, in its colour. */
-    const base = tabBaseOf(n);
-    const TW = 26, TH = CHIP_TAB_H + 2;
-    const tab = el('g', {class:'array-tab',
-      transform:`translate(${round2(base.left + 4 + TW/2)},${round2(base.y - TH/2)})`}, g);
-    el('path', {d: tabOutline(TW, TH, 3) + ' Z', style:`fill:${tabInkOf(ringColors)};`}, tab);
-    [-5, 0, 5].forEach(dx=> el('circle', {cx:dx, cy:0.5, r:1.1, class:'array-tab-dot'}, tab));
-    el('title', {}, tab).textContent = 'Drag to move the array; click to pick it';
   }
 
   /* A rotated caption or picture turns about its own centre. Only the
