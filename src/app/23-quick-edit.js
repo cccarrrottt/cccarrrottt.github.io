@@ -122,6 +122,11 @@ function jsStr(s){
     .replace(/\\/g,'\\\\')
     .replace(/'/g,"\\'")
     .replace(/</g,'\\x3c')
+    /* Two at-signs side by side are where a region's markers begin. A note
+       that quotes one — "@@EDIT:NODES:END@@" — would otherwise end the
+       region in the middle of itself on the next read, and the write
+       service refuses such a save outright. Escaped, it reads back the same. */
+    .replace(/@@/g,'@\\x40')
     .replace(/\n/g,'\\n')
     .replace(/\r/g,'\\r')
     .replace(/\u2028/g,'\\u2028')
@@ -485,13 +490,11 @@ function writeLanguagesOff(id){
   if(!found) return;
   const opts = entryOpts(found.entry);
   if(!opts.multiLang && !opts.langTabs) return;
-  pushUndo();
   applyEdit(()=>{
     delete opts.multiLang;
     delete opts.langTabs;
     putEntry(found.index, found.entry, opts);
   });
-  refreshSaveUI();
 }
 function setEditStatus(kind, msg){ detailEditStatusEl.className = 'editor-status show ' + kind; detailEditStatusEl.textContent = msg; }
 function clearEditStatus(){ detailEditStatusEl.className = 'editor-status'; detailEditStatusEl.textContent = ''; }

@@ -773,8 +773,18 @@ function buildModel(){
   structEdges.length = 0;
   componentMeta.length = 0;
 
+const twice = [];
 workingNodes.forEach(item=>{
   let [id,label,parent,edgeLabel,note,shape,opts] = item;
+  /* An id is the entry's name to everything that points at it, so a second
+     entry under the same one cannot be told apart from the first. It used
+     to replace it here, half-way — the first one's place in the chart, the
+     second one's words — while the editor, which finds an entry by the
+     first match (workingEntry), went on editing the one no longer drawn.
+     The first is the entry; the second is left out, and said so. The
+     editor and import both refuse to make one (validateNodes); this is
+     for a file edited by hand. */
+  if(nodes.has(id)){ twice.push(id); return; }
   let parents;
   if(parent===undefined || parent===null){
     parents = [];
@@ -853,7 +863,7 @@ workingNodes.forEach(item=>{
     // just after the layout pass below); when absent the node keeps
     // flowing with the automatic layout as it always has.
     pos: (!isArray && opts && Array.isArray(opts.pos) && opts.pos.length===2 &&
-          typeof opts.pos[0]==='number' && typeof opts.pos[1]==='number') ? {x:opts.pos[0], y:opts.pos[1]} : null,
+          Number.isFinite(opts.pos[0]) && Number.isFinite(opts.pos[1])) ? {x:opts.pos[0], y:opts.pos[1]} : null,
     // Portrait for a character bio: any URL the page may load, or an
     // embedded data: URI.
     /* A portrait, if it is a picture at all. Asked here rather than at
@@ -920,6 +930,11 @@ workingNodes.forEach(item=>{
           ? {w:opts.size[0], h:opts.size[1]} : null
   });
 });
+// Once per set of names, not on every redraw.
+if(twice.length && buildModel.twice !== twice.join('\n')){
+  buildModel.twice = twice.join('\n');
+  console.warn('Rhizome: more than one entry is called ' + twice.map(t=> JSON.stringify(t)).join(', ') + '; only the first of each is drawn.');
+}
 settleArrayMembers();
 
 // Build structEdges only now that every node exists. label/color come from

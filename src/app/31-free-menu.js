@@ -390,9 +390,7 @@ squareForHexInput(styleColor2Input, {title: 'where the gradient ends',
     if(!currentEdgeStyleTarget || readOnlyView) return;
     const {from, to} = currentEdgeStyleTarget;
     if(!bendListOf(from, to).length) return;
-    pushUndo();
     applyEdit(()=>{ setBendList(from, to, []); });
-    refreshSaveUI();
   });
 }
 /* ---- picking where a leader note is pinned ---------------------------

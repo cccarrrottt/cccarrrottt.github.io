@@ -87,6 +87,8 @@ const STATE_MINUTES = 10;
 const MAX_BODY = 25 * 1024 * 1024;
 // What a suggestion may say. A paragraph or three is a suggestion; past
 // this it is an essay, and the issue is still there to write it in.
+// A suggestion or a close: a few kilobytes of text at most.
+const MAX_SMALL_BODY = 64 * 1024;
 const SUGGESTION_KINDS = ['correction', 'addition', 'deletion'];
 const MAX_SUGGESTION = 4000;
 const MAX_SUGGESTION_TITLE = 120;
@@ -191,6 +193,31 @@ export async function blobSha(text){
 /* ---- GitHub ---------------------------------------------------------- */
 
 function httpError(status, message){ const e = new Error(message); e.status = status; return e; }
+
+/* A request's body as JSON, read no further than `max` bytes. The header
+   that says how long a body is was all this used to ask, and a client may
+   leave it out or say anything in it — a chunked upload has none — so the
+   bytes are counted as they arrive, and the read stops at the limit. */
+export async function readJson(request, max, what){
+  const said = Number(request.headers.get('Content-Length') || 0);
+  if(said > max) throw httpError(413, `${what} is too large.`);
+  const parts = [];
+  let got = 0;
+  if(request.body){
+    const reader = request.body.getReader();
+    for(;;){
+      const {done, value} = await reader.read();
+      if(done) break;
+      got += value.byteLength;
+      if(got > max){ try{ await reader.cancel(); }catch(e){} throw httpError(413, `${what} is too large.`); }
+      parts.push(value);
+    }
+  }
+  const all = new Uint8Array(got);
+  let at = 0;
+  for(const p of parts){ all.set(p, at); at += p.byteLength; }
+  try{ return JSON.parse(dec.decode(all)); }catch(e){ throw httpError(400, `${what} is not JSON.`); }
+}
 
 async function gh(token, path, init, refused){
   const res = await fetch('https://api.github.com' + path, Object.assign({}, init, {
@@ -403,7 +430,11 @@ async function callback(env, url){
   });
   const got = res.ok ? await res.json() : null;
   if(!got || !got.access_token) return page('<p>GitHub did not complete the sign-in. Close this window and try again.</p>', 502);
-  const user = await gh(got.access_token, '/user');
+  /* This answers a browser window, not the page's script: a refusal here
+     has to be a page someone can read, not the JSON the catch-all writes. */
+  let user;
+  try{ user = await gh(got.access_token, '/user'); }
+  catch(e){ return page('<p>GitHub would not say who signed in. Close this window and try again.</p>', 502); }
   const owner = isOwner(env, user.login);
   if(!owner && state.as !== 'reader'){
     return page(`<p>Signed in as ${esc(user.login)}, who is not this chart's owner. Nothing was changed; you can close this window.</p>`, 403);
@@ -433,10 +464,7 @@ async function me(env, request, ctx){
 
 async function save(env, request, ctx){
   const s = await session(env, request, ctx, 'owner');
-  const size = Number(request.headers.get('Content-Length') || 0);
-  if(size > MAX_BODY) throw httpError(413, 'the chart is too large to save.');
-  let body;
-  try{ body = await request.json(); }catch(e){ throw httpError(400, 'the save is not JSON.'); }
+  const body = await readJson(request, MAX_BODY, 'the save');
   if(!body || typeof body.base !== 'string' || !body.parts || typeof body.parts !== 'object'){
     throw httpError(400, 'the save needs a base and the chart\'s regions.');
   }
@@ -508,8 +536,7 @@ async function suggestions(env, request, ctx){
 
 async function suggest(env, request, ctx){
   const s = await session(env, request, ctx, 'reader');
-  let body;
-  try{ body = await request.json(); }catch(e){ throw httpError(400, 'the suggestion is not JSON.'); }
+  const body = await readJson(request, MAX_SMALL_BODY, 'the suggestion');
   const text = body && typeof body.text === 'string' ? body.text.trim() : '';
   if(!body || SUGGESTION_KINDS.indexOf(body.kind) < 0) throw httpError(400, 'a suggestion is a correction, an addition or a deletion.');
   if(!text) throw httpError(400, 'the suggestion says nothing.');
@@ -530,8 +557,7 @@ async function suggest(env, request, ctx){
 
 async function resolve(env, request, ctx){
   const s = await session(env, request, ctx, 'owner');
-  let body;
-  try{ body = await request.json(); }catch(e){ throw httpError(400, 'the request is not JSON.'); }
+  const body = await readJson(request, MAX_SMALL_BODY, 'the request');
   const number = body && Number(body.number);
   if(!Number.isInteger(number) || number < 1) throw httpError(400, 'which suggestion?');
   const reason = body.reason === 'not_planned' ? 'not_planned' : 'completed';

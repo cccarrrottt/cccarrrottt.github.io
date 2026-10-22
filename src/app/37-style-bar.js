@@ -169,7 +169,11 @@ const styleBar = (()=>{
       const v = input.value.trim();
       if(v && !readHex(input)) return;
       input.classList.remove('bad');
-      if(input.dataset.pushed !== '1'){ pushUndo(); input.dataset.pushed = '1'; }
+      /* One step per thing typed into, not per spell of focus: the bar
+         can move to another note while the field keeps the caret, and the
+         second note's colour used to land in the first one's step. */
+      const who = [styleBarTarget.kind, styleBarTarget.id, styleBarTarget.from, styleBarTarget.to].join('\u0001');
+      if(input.dataset.pushed !== who){ pushUndo(); input.dataset.pushed = who; }
       apply(styleBarTarget, v);
       refreshSaveUI();
     });

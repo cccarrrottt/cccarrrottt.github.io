@@ -11033,7 +11033,7 @@ async function main(){
     if(!up){ r.destroy(); return; }
     const rel = q.url.split('?')[0];
     const body = files[rel === '/index.html' ? '/' : rel];
-    if(!body){ r.writeHead(404); r.end(); return; }
+    if(!body){ r.writeHead(404, {'Content-Type': 'text/plain'}); r.end('not here'); return; }
     r.writeHead(200, {'Content-Type': rel === '/' || rel === '/index.html' ? 'text/html; charset=utf-8' : (TYPES[path.extname(rel)] || 'application/octet-stream')});
     r.end(body);
   });
@@ -11086,6 +11086,12 @@ async function main(){
     await p.reload({waitUntil: 'load'});
     const fresh = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page')));
     check('with a connection, the page is fetched afresh rather than taken from the copy', fresh);
+    const other = await c.newPage();
+    const elsewhere = await other.goto(at + 'not-the-chart.html').then(r => ({status: r.status(), sw: r.fromServiceWorker()}));
+    const isChart = await other.evaluate(() => typeof rebuildChart === 'function').catch(() => false);
+    await other.close();
+    check('another address on the site is the site\'s answer for it, not the chart',
+          elsewhere.status === 404 && !elsewhere.sw && !isChart, JSON.stringify({elsewhere, isChart}));
     up = false;
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
     const keptNewer = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page'))).catch(() => false);
@@ -16593,18 +16599,28 @@ async function main(){
       out.coordContained = /size/.test(getComputedStyle(box).contain) && /layout/.test(getComputedStyle(box).contain);
       centreViewOn(1234, -567, 1.25);
     }
-    let saved = null; try{ saved = JSON.parse(localStorage.getItem('rhizome.view')); }catch(e){}
+    let saved = null; try{ saved = JSON.parse(localStorage.getItem(VIEW_KEY)); }catch(e){}
     out.saved = saved;
+    out.viewKeyIsTheChart = VIEW_KEY === 'rhizome.view:' + STORE_KEY.slice(STORE_PREFIX.length) && localStorage.getItem('rhizome.view') === null;
     vs = 0.3; vx = 0; vy = 0; applyTransform();
     await wait(50);
-    localStorage.setItem('rhizome.view', JSON.stringify({x:1234, y:-567, s:1.25}));
+    localStorage.setItem(VIEW_KEY, JSON.stringify({x:1234, y:-567, s:1.25}));
     openingView();
     const c1 = viewCentre();
     out.restored = Math.abs(c1.x - 1234) < 1 && Math.abs(c1.y + 567) < 1 && Math.abs(vs - 1.25) < 1e-6;
     document.getElementById('coordHome').click();
     const c2 = viewCentre();
     out.home = Math.abs(c2.x) < 1 && Math.abs(c2.y) < 1 && Math.abs(vs - 1.25) < 1e-6;
+    // Another chart's view is not this one's; the old shared key is read
+    // only while this chart has none of its own.
+    localStorage.removeItem(VIEW_KEY);
+    localStorage.setItem('rhizome.view:/another/chart.html', JSON.stringify({x:999, y:999, s:2}));
+    localStorage.setItem('rhizome.view', JSON.stringify({x:-50, y:60, s:0.5}));
+    openingView();
+    const c4 = viewCentre();
+    out.legacy = Math.abs(c4.x + 50) < 1 && Math.abs(c4.y - 60) < 1 && Math.abs(vs - 0.5) < 1e-6;
     localStorage.removeItem('rhizome.view');
+    localStorage.removeItem('rhizome.view:/another/chart.html');
     openingView();
     const c3 = viewCentre();
     out.fresh = Math.abs(c3.x) < 1 && Math.abs(c3.y) < 1 && vs === 1;
@@ -16684,6 +16700,9 @@ async function main(){
         r17.saved && r17.saved.x === 1234 && r17.saved.y === -567 && r17.saved.s === 1.25 && r17.restored,
         JSON.stringify(r17.saved));
   check('⌖ goes to x 0, y 0 at the same zoom', r17.home);
+  check('the view is kept under this chart\'s own address, so two charts in one browser do not share one',
+        r17.viewKeyIsTheChart);
+  check('and the view everyone kept before, under one key, opens a chart that has none of its own yet', r17.legacy);
   check('a first visit opens on the origin, in the middle', r17.fresh);
   check('an amalgam level with its middle parent has a straight stem', r17.stemStraight, JSON.stringify(r17.stem));
   check('a wave runs flat into a trimmed end', r17.heldFlat);
@@ -17763,6 +17782,101 @@ async function main(){
   });
   check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
+  });
+  await scenario("a chart edited by hand, and words that look like its markers", async () => {
+  /* What a hand-edited file can hold that the editor never writes, and
+     what a reader can type that looks like the file's own seams. */
+  const r = await page.evaluate(async ()=>{
+    const pause = ms => new Promise(ok => setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    const warned = [];
+    const warn = console.warn;
+    console.warn = (...a)=> { warned.push(a.join(' ')); };
+    try{
+      // Two entries under one name: the first is the entry.
+      applyEdit(()=>{
+        workingNodes.push(['hx_a', 'The first', null, null, null, null, {pos:[3000, 2000]}]);
+        workingNodes.push(['hx_a', 'The second', null, null, null, null, {pos:[3400, 2400]}]);
+      });
+      await pause(50);
+      const drawn = [...document.querySelectorAll('#nodeLayer .node')].filter(n=> n.dataset.id === 'hx_a');
+      out.dupDrawn = drawn.length;
+      out.dupFirst = nodes.get('hx_a').label === 'The first' && nodes.get('hx_a').pos.x === 3000;
+      out.dupWarned = warned.some(w=> /"hx_a"/.test(w));
+      const warnedOnce = warned.length;
+      rebuildChart();
+      out.dupWarnedOnce = warned.length === warnedOnce;
+      applyEdit(()=>{ workingNodes.splice(workingNodes.length - 1, 1); });
+
+      // Bends that are not points, and a position that is not a number.
+      applyEdit(()=>{
+        workingNodes.push(['hx_b', 'To', 'hx_a', null, null, null, {pos:[3300, 2000]}]);
+        workingNodes.push(['hx_c', 'Nowhere', null, null, null, null, {pos:[NaN, 5]}]);
+        EDGE_STYLES.push({from:'hx_a', to:'hx_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          bends:[[3150, 1950], [NaN, 4], {x: 1, y: 2}, [3200, 'x']]});
+      });
+      await pause(50);
+      const route = drawnRoutes.get(calloutEdgeKey('hx_a', 'hx_b'));
+      out.bendsKept = JSON.stringify(edgeStyleFor('hx_a', 'hx_b').bends);
+      out.routeFinite = !!route && route.pts.every(p=> Number.isFinite(p.x) && Number.isFinite(p.y));
+      out.posDropped = nodes.get('hx_c').pos === null;
+      // Out again before the file is written: import refuses them, rightly.
+      applyEdit(()=>{
+        const hc = workingNodes.find(it=> it[0] === 'hx_c');
+        hc[2] = 'hx_a'; hc[6] = {pos:[3300, 2300]};
+        EDGE_STYLES.splice(EDGE_STYLES.findIndex(st=> st.from === 'hx_a' && st.to === 'hx_b'), 1);
+      });
+
+      // A note that quotes a region's marker is written so it cannot end the region.
+      const quote = 'see /* @@EDIT:NODES:END@@ */ and @@@ too';
+      applyEdit(()=>{ workingNodes.push(['hx_d', quote]); });
+      const file = chartDataOnly();
+      out.markers = (file.match(/@@EDIT:NODES:END@@/g) || []).length;
+      const parts = writeChartParts();
+      out.partsClean = Object.keys(parts).every(k=> parts[k].indexOf('@@EDIT:') < 0);
+      applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
+      importChartFromText(file);
+      const back = workingNodes.find(it=> it[0] === 'hx_d');
+      out.quoteBack = !!back && back[1] === quote;
+
+      // The note's ground: switching notes with the field still focused is a second step.
+      applyEdit(()=>{
+        EDGE_STYLES.push({from:'hx_a', to:'hx_b', routing:'orthogonal', dash:'solid', arrow:true, note:'One'});
+        EDGE_STYLES.push({from:'hx_a', to:'hx_c', routing:'orthogonal', dash:'solid', arrow:true, note:'Two'});
+      });
+      await pause(50);
+      const field = document.querySelector('#styleBar [data-group="noteBg"] input');
+      openStyleBar({kind:'note', from:'hx_a', to:'hx_b'});
+      field.focus();
+      field.value = '#ffeeaa'; field.dispatchEvent(new Event('input'));
+      field.value = '#ffeebb'; field.dispatchEvent(new Event('input'));
+      openStyleBar({kind:'note', from:'hx_a', to:'hx_c'});
+      field.value = '#aaeeff'; field.dispatchEvent(new Event('input'));
+      // One undo takes back the second note's ground and leaves the first's.
+      undoLastEdit();
+      const bgOf = (f, t)=> (EDGE_STYLES.find(st=> st.from === f && st.to === t) || {}).noteBg || null;
+      out.afterUndo = [bgOf('hx_a', 'hx_b'), bgOf('hx_a', 'hx_c')];
+      field.blur();
+      closeStyleBar && closeStyleBar();
+    } finally {
+      console.warn = warn;
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('of two entries under one name only the first is drawn, and it is the first one\'s',
+        r.dupDrawn === 1 && r.dupFirst, JSON.stringify(r));
+  check('and the console says so, once, not on every redraw', r.dupWarned && r.dupWarnedOnce);
+  check('a bend that is not a pair of numbers is left out, and the route stays on the chart',
+        r.bendsKept === '[[3150,1950]]' && r.routeFinite, r.bendsKept);
+  check('a position that is not a number is no position', r.posDropped);
+  check('a note quoting a region\'s marker is written without one, and reads back as typed',
+        r.markers === 1 && r.partsClean && r.quoteBack, JSON.stringify({markers: r.markers, clean: r.partsClean, back: r.quoteBack}));
+  check('a note\'s ground typed into, then another note\'s, is two steps of undo, not one',
+        r.afterUndo[0] === '#ffeebb' && r.afterUndo[1] === null, JSON.stringify(r.afterUndo));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

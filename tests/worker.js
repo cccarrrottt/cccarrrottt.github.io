@@ -81,7 +81,9 @@ function fakeGitHub(){
     if(u.host === 'github.com' && u.pathname === '/login/oauth/access_token'){
       return ok(body.code === 'code-owner' ? pair()
               : body.code === 'code-other' ? {access_token: 'tok-other'}
-              : body.code === 'code-reader' ? {access_token: 'tok-reader'} : {error: 'bad_verification_code'});
+              : body.code === 'code-reader' ? {access_token: 'tok-reader'}
+              // A token GitHub hands out and then will not answer /user for.
+              : body.code === 'code-nouser' ? {access_token: 'tok-gone'} : {error: 'bad_verification_code'});
     }
     if(!gh.users[auth]) return new Response('{}', {status: 401});
     const p = u.pathname.replace('/repos/owner/site', '');
@@ -202,6 +204,10 @@ function partsOf(text){
   r = await call(`/callback?code=code-other&state=${st}`);
   const other = await r.text();
   check('an account that is not the owner gets no session', r.status === 403 && !/rhizomeSession/.test(other), r.status);
+  r = await call(`/callback?code=code-nouser&state=${st}`);
+  check('a GitHub that will not say who signed in gets a page that says so, not JSON',
+        r.status === 502 && /text\/html/.test(r.headers.get('Content-Type') || '') && /would not say who/.test(await r.text()),
+        r.status + ' ' + r.headers.get('Content-Type'));
   r = await call(`/callback?code=code-owner&state=${encodeURIComponent('forged')}`);
   check('a forged state is refused', r.status === 400);
   r = await call(`/callback?code=code-owner&state=${st}`);
@@ -376,6 +382,22 @@ function partsOf(text){
   check('and one that says nothing', r.status === 400 && gh.issues.length === 0);
   r = await suggest(reader, {kind: 'addition', text: 'x'.repeat(4001)});
   check('and one too long to be a suggestion', r.status === 413 && gh.issues.length === 0);
+  /* A body that does not say how long it is: the bytes are what is counted.
+     It arrives as a stream, as a chunked upload does, with no header. */
+  const streamed = (bytes) => new ReadableStream({start(c){
+    const chunk = new TextEncoder().encode(' '.repeat(16384));
+    for(let n = 0; n < bytes; n += chunk.length) c.enqueue(chunk);
+    c.enqueue(new TextEncoder().encode(JSON.stringify({kind: 'addition', text: 'x'})));
+    c.close();
+  }});
+  r = await call('/suggest', {method: 'POST', duplex: 'half', headers: {Authorization: 'Bearer ' + reader, Origin: SITE,
+                 'Content-Type': 'application/json'}, body: streamed(200 * 1024)});
+  check('a body past the limit is refused though no header said how long it was',
+        r.status === 413 && gh.issues.length === 0, r.status);
+  r = await call('/suggest', {method: 'POST', duplex: 'half', headers: {Authorization: 'Bearer ' + reader, Origin: SITE,
+                 'Content-Type': 'application/json'}, body: streamed(0)});
+  check('and one within it, streamed the same way, is read', r.status === 200 && gh.issues.length === 1, r.status);
+  gh.issues.length = 0;
 
   const oddId = 'odd --> id <!-- with "quotes"';
   r = await suggest(reader, {kind: 'correction', text: 'The year is wrong.\n\nIt came out in 1986.', entry: oddId, label: 'Beast Wars:\n Uprising'});
