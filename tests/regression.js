@@ -17595,6 +17595,9 @@ async function main(){
     styleBarTarget = {kind:'node', id: out.id};
     syncStyleBar();
     out.rows = [...styleBar.querySelectorAll('.style-bar-group')].filter(r=> !r.hidden).map(r=> r.dataset.group);
+    { const rb = styleBar.querySelector('[data-group="border"]').getBoundingClientRect();
+      const rh = styleBar.querySelector('[data-group="hatch"]').getBoundingClientRect();
+      out.stacked = rh.top >= rb.bottom && Math.abs(rh.left - rb.left) < 0.5; }
     applyStyleBar('hatch', 'diag-l');
     applyStyleBar('border', 'dashed');
     await pause(100);
@@ -17624,6 +17627,7 @@ async function main(){
         a.look.fill === 'none' && +a.look.opacity === 0.5, JSON.stringify(a.look));
   check('the bar offers an array its border, hatching and colour, and no ground',
         ['border', 'hatch', 'arrayInk'].every(r=> a.rows.includes(r)) && !a.rows.includes('turn') && !a.rows.includes('cardBg'), a.rows.join(','));
+  check('on its bar the hatching stands under the border, not beside it', a.stacked, JSON.stringify(a.stacked));
   eq('the hatching is the frame’s colour, half see-through', a.hatchInk, '#000000 0.5');
   check('a hatching and a border style are drawn and written down',
         a.hatch && a.dashed && /"hatch":"diag-l"/.test(a.savedLook) && /"border":"dashed"/.test(a.savedLook), JSON.stringify(a));

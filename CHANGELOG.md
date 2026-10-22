@@ -8,6 +8,8 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- On an array's bar its hatching stands under its border instead of beside
+  it, so the bar is narrower by that whole row.
 - An array has no tab: it is taken hold of either side of its frame, the
   line itself being its ports. It has no ground either: its colour is its
   frame's and its hatching's, black unless one is chosen, and both are

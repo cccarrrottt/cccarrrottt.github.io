@@ -2987,8 +2987,16 @@
     box-shadow:var(--shadow);
   }
   .style-bar[hidden], .style-bar-group[hidden]{display:none;}
-  .style-bar-group{display:flex;gap:2px;}
-  .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
+  /* Centred, for the bar that is two rows high: the rest stand at the
+     middle of the pair rather than along its top. */
+  .style-bar-group{display:flex;gap:2px;align-items:center;}
+  .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]),
+  .style-bar-pair:has(> .style-bar-group:not([hidden])) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
+  /* The border and an array's hatching, one under the other; gone with
+     both of its rows, so it leaves no gap in the bar. */
+  .style-bar-pair{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;}
+  .style-bar-pair:not(:has(> .style-bar-group:not([hidden]))){display:none;}
+  .style-bar-pair > .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:0;border-left:0;}
   .style-bar button{
     width:24px;height:22px;padding:0;
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);

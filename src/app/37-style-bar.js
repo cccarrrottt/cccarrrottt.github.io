@@ -114,7 +114,7 @@ const styleBar = (()=>{
   bar.className = 'style-bar';
   bar.id = 'styleBar';
   bar.hidden = true;
-  const group = (name, list)=>{
+  const group = (name, list, into)=>{
     const row = document.createElement('div');
     row.className = 'style-bar-group';
     row.dataset.group = name;
@@ -126,11 +126,19 @@ const styleBar = (()=>{
       b.title = title;
       row.appendChild(b);
     });
-    bar.appendChild(row);
+    (into || bar).appendChild(row);
     return row;
   };
-  group('border', STYLE_BAR_BORDERS);
-  group('hatch', STYLE_BAR_HATCH);
+  /* An array's border and its hatching stand one over the other rather
+     than side by side (the owner's choice): they are the two rows only an
+     array shows together, and side by side they made its bar the widest
+     on the chart. Anything else shows the border alone, and the pair is
+     then just that row. */
+  const pair = document.createElement('div');
+  pair.className = 'style-bar-pair';
+  bar.appendChild(pair);
+  group('border', STYLE_BAR_BORDERS, pair);
+  group('hatch', STYLE_BAR_HATCH, pair);
   group('decor', STYLE_BAR_DECOR);
   group('frame', STYLE_BAR_FRAMES);
   group('edgeLine', STYLE_BAR_EDGE_LINE);
