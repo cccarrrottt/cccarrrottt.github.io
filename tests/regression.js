@@ -10391,7 +10391,20 @@ async function main(){
     if(u.pathname === '/save'){
       const b = JSON.parse(q.postData());
       api.saves.push(b);
-      if(b.base !== api.sha) return reply(409, {error: 'the repository has a newer chart.'});
+      if(b.base !== api.sha){
+        // What the service answers when both saves changed one thing…
+        if(api.conflicts) return reply(409, {error: 'the repository has a newer chart, and it changed something this save changed too.', conflicts: api.conflicts});
+        // …and when they did not: the save merged with the desk's, which added a reference.
+        if(api.mergeNext){
+          api.mergeNext = false;
+          const over = api.sha;
+          api.sha = 'merged-sha';
+          api.saves[api.saves.length - 1].merged = true;
+          const parts = {...b.parts, REFS: b.parts.REFS.replace(/\n\];$/, "\n  {key:'desk-ref', title:'From the desk'},\n];")};
+          return reply(200, {sha: api.sha, over, merged: true, parts});
+        }
+        return reply(409, {error: 'the repository has a newer chart.'});
+      }
       Object.keys(b.media || {}).forEach(k => { api.files[k] = Buffer.from(b.media[k], 'base64'); });
       api.sha = 'sha-after-save-' + api.saves.length;
       return reply(200, {sha: api.sha});
@@ -10753,6 +10766,26 @@ async function main(){
   });
   check('a kept Save the repository has moved past is refused, and stays kept rather than lost',
         p4.pending && p4.kept && /newer chart/.test(p4.said) && /Export/.test(p4.said), JSON.stringify(p4));
+  /* The service puts the two together, and refuses only where both
+     changed the same thing — naming it, by the name it has on the chart. */
+  api.conflicts = [{region: 'NODES', item: await phone.evaluate(() => workingNodes[0][0])}];
+  await phone.evaluate(() => window.dispatchEvent(new Event('online')));
+  await wait(600);
+  const p5 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()),
+                                                said: document.getElementById('saveStateText').textContent}));
+  check('a kept Save that collides with a newer one says what both changed, and stays kept',
+        p5.pending && p5.kept && /\u201cAND THIS ON THE TRAIN\u201d/.test(p5.said) && /Export/.test(p5.said), JSON.stringify(p5));
+  api.conflicts = null;
+  api.mergeNext = true;
+  await phone.evaluate(() => window.dispatchEvent(new Event('online')));
+  await phone.waitForFunction(() => !sitePending, null, {timeout: 5000}).catch(() => {});
+  await wait(300);
+  const p6 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()), base: siteBase,
+                                                first: workingNodes[0][1], desk: REFS.some(r => r.key === 'desk-ref'),
+                                                dirty: isDirty(), readOnly: readOnlyView}));
+  check('one that does not collide is merged, and the page takes the other device\'s half as well',
+        !p6.pending && !p6.kept && p6.base === 'merged-sha' && p6.first === 'AND THIS ON THE TRAIN' && p6.desk && !p6.dirty && !p6.readOnly,
+        JSON.stringify(p6));
   await phone.evaluate(() => dropOutbox());
   await phone.close();
   api.sha = dataSha;

@@ -84,7 +84,7 @@ async function mediaRefOf(uri, mime, b64){
   return ref;
 }
 async function liftMedia(parts){
-  const out = {}, files = {};
+  const out = {}, files = {}, uris = {};
   for(const name of Object.keys(parts)){
     const text = parts[name];
     if(typeof text !== 'string'){ out[name] = text; continue; }
@@ -94,11 +94,14 @@ async function liftMedia(parts){
       const ref = await mediaRefOf(m[0], m[1], m[3]);
       if(!ref) continue;
       swap.set(m[0], ref);
+      uris[ref] = m[0];
       if(!mediaSent.has(ref)) files[ref] = m[3];
     }
     out[name] = swap.size ? text.replace(DATA_URI_IN_TEXT, u => swap.get(u) || u) : text;
   }
-  return {parts: out, files};
+  // `uris`: each path and the bytes it stands for, so a chart that comes
+  // back from the service with paths in it can be given its bytes again.
+  return {parts: out, files, uris};
 }
 /* And back: every path in a text replaced by the bytes it names, for a copy
    that will be opened where there is no folder beside it. A file that

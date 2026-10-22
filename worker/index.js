@@ -190,6 +190,116 @@ export async function blobSha(text){
   return Array.from(d, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* ---- two saves made on one chart ------------------------------------- */
+
+/* The text between a region's markers, as applyRegions wrote it: the
+   markers are each followed and preceded by one line break that is not
+   the region's. */
+export function regionsOf(file){
+  const out = {};
+  for(const name of REGIONS){
+    const start = `/* @@EDIT:${name}:START@@ */`, end = `/* @@EDIT:${name}:END@@ */`;
+    const i = file.indexOf(start), j = file.indexOf(end);
+    if(i < 0 || j < 0 || j < i) return null;
+    let text = file.slice(i + start.length, j);
+    if(text.startsWith('\n')) text = text.slice(1);
+    if(text.endsWith('\n')) text = text.slice(0, -1);
+    out[name] = text;
+  }
+  return out;
+}
+
+/* Every list the page writes has one item to a line, and each item opens
+   with what names it (see the serializers in 23-quick-edit.js and
+   29-editors.js). That is what makes a merge possible without reading
+   the chart: an item is its line, and its name is the start of it. */
+const STR = String.raw`'((?:[^'\\]|\\.)*)'`;
+const ITEM_KEY = {
+  NODES: new RegExp(String.raw`^\s*\{id:${STR}`),
+  COMMENTS: new RegExp(String.raw`^\s*\{id:${STR}`),
+  EDGESTYLES: new RegExp(String.raw`^\s*\{from:${STR}, to:${STR}`),
+  STICKERS: new RegExp(String.raw`^\s*\{key:${STR}`),
+  MEDIA: new RegExp(String.raw`^\s*\{key:${STR}`),
+  REFS: new RegExp(String.raw`^\s*\{key:${STR}`),
+  TAGCATS: new RegExp(String.raw`^\s*\{name:${STR}`)
+};
+// A region as its opening line, its items by name in order, and its close;
+// null when it is not written one item to a line, which is then no merge.
+function itemsOf(name, text){
+  const lines = text.split('\n').map(l => l.replace(/\s+$/, ''));
+  let head, tail, body;
+  const one = /^(const \w+ = \[)\];$/.exec(lines[0]);
+  if(lines.length === 1 && one){ head = one[1]; tail = '];'; body = []; }
+  else{
+    if(lines.length < 2 || !/^const \w+ = \[$/.test(lines[0]) || lines[lines.length - 1] !== '];') return null;
+    head = lines[0]; tail = '];'; body = lines.slice(1, -1).filter(l => l.trim());
+  }
+  const items = new Map();
+  for(const line of body){
+    const m = ITEM_KEY[name].exec(line);
+    if(!m) return null;
+    const key = m.slice(1).join('\u0000');
+    if(items.has(key)) return null;
+    items.set(key, line);
+  }
+  return {head, tail, items};
+}
+
+/* Three charts: the one a save was made on (base), the one the repository
+   has now (theirs), and the save (mine). What only one side changed is
+   taken from that side; what both changed the same way is taken once;
+   what both changed differently is a conflict, and nothing is merged —
+   the save is refused as it always was, with the names of what collided.
+   An entry is the unit: two edits to one entry collide even when they
+   touch different fields, because a line is all this reads. */
+export function mergeRegions(base, theirs, mine){
+  const out = {}, conflicts = [];
+  for(const name of REGIONS){
+    const b = base[name], t = theirs[name], m = mine[name];
+    if(m === b || m === t){ out[name] = t; continue; }
+    if(t === b){ out[name] = m; continue; }
+    if(!ITEM_KEY[name]){ conflicts.push({region: name}); continue; }
+    const B = itemsOf(name, b), T = itemsOf(name, t), M = itemsOf(name, m);
+    if(!B || !T || !M){ conflicts.push({region: name}); continue; }
+    const keep = new Map();
+    const say = key => conflicts.push({region: name, item: key.split('\u0000').join(' → ')});
+    for(const [key, tl] of T.items){
+      const bl = B.items.get(key), ml = M.items.get(key);
+      if(ml === undefined){
+        if(bl === undefined) keep.set(key, tl);         // theirs added it
+        else if(bl !== tl) say(key);                    // they changed what mine took out
+        continue;                                       // else mine took it out
+      }
+      if(ml === tl || ml === bl) keep.set(key, tl);
+      else if(tl === bl) keep.set(key, ml);
+      else say(key);
+    }
+    // What mine added goes after the item it follows in mine.
+    let after = null;
+    const order = [...keep.keys()];
+    for(const [key, ml] of M.items){
+      if(T.items.has(key)){ after = key; continue; }
+      const bl = B.items.get(key);
+      if(bl === undefined){
+        const at = after === null ? 0 : order.indexOf(after) + 1;
+        order.splice(at, 0, key);
+        keep.set(key, ml);
+        after = key;
+      } else if(bl !== ml) say(key);                    // mine changed what they took out
+    }
+    const lines = order.filter(k => keep.has(k)).map(k => keep.get(k));
+    out[name] = !lines.length && name === 'EDGESTYLES' ? M.head + '];'
+              : [M.head, ...lines, M.tail].join('\n');
+  }
+  if(conflicts.length){
+    const e = httpError(409, 'the repository has a newer chart, and it changed ' +
+      (conflicts.length === 1 ? 'something' : conflicts.length + ' things') + ' this save changed too.');
+    e.conflicts = conflicts;
+    throw e;
+  }
+  return out;
+}
+
 /* ---- GitHub ---------------------------------------------------------- */
 
 function httpError(status, message){ const e = new Error(message); e.status = status; return e; }
@@ -317,7 +427,9 @@ async function commitData(env, token, now, text, login, media){
   });
   if(res.status === 422) throw httpError(409, 'the branch moved while this save was being made.');
   if(!res.ok) throw httpError(res.status === 403 ? 403 : 502, `GitHub answered ${res.status} to the branch update.`);
-  return {sha: blob.sha, commit: commit.sha};
+  // `over`: the data.js this one replaced, so a page that was told of that
+  // one a moment ago knows it has been overtaken by its own save.
+  return {sha: blob.sha, commit: commit.sha, over: now.sha};
 }
 
 /* ---- HTTP ------------------------------------------------------------ */
@@ -470,19 +582,34 @@ async function save(env, request, ctx){
   }
   const now = await currentData(env, s.gh);
   const file = await readBlob(env, s.gh, now.sha);
-  const next = applyRegions(file, body.parts);
-  const media = await checkMedia(body.media, next, file, now.media);
+  let next = applyRegions(file, body.parts);
+  let media = await checkMedia(body.media, next, file, now.media);
   // A save of exactly what is there changes nothing, whatever it was made
   // on top of. That is not a courtesy: a save kept on a phone with a bad
   // signal can be committed and its answer lost on the way back, and the
   // phone sends it again on an older base. Calling that a conflict would
   // tell the owner their work collides with itself.
   if(next === file && !media.length) return {sha: now.sha, unchanged: true};
-  // Otherwise the page must be saving on top of the file that is actually
-  // there. Anything else is a page that is behind, and saving it would
-  // write an older chart over a newer one.
-  if(now.sha !== body.base) throw httpError(409, 'the repository has a newer chart.');
-  return commitData(env, s.gh, now, next, s.login, media);
+  /* A save made on an older chart — a second device, or a phone's kept
+     Save sent days later — is put together with what the repository got
+     in between, and refused only where the two changed the same thing.
+     Written as it was sent, it would put the older chart back over the
+     newer one. The answer carries the chart as merged, because the page
+     that sent it has not seen the other half. */
+  let merged = null;
+  if(now.sha !== body.base){
+    let base;
+    try{ base = /^[0-9a-f]{40}$/.test(body.base) ? regionsOf(await readBlob(env, s.gh, body.base)) : null; }
+    catch(e){ base = null; }
+    const theirs = regionsOf(file);
+    if(!base || !theirs) throw httpError(409, 'the repository has a newer chart.');
+    merged = mergeRegions(base, theirs, body.parts);
+    next = applyRegions(file, merged);
+    media = await checkMedia(body.media, next, file, now.media);
+    if(next === file && !media.length) return {sha: now.sha, unchanged: true, merged: true, parts: merged};
+  }
+  const done = await commitData(env, s.gh, now, next, s.login, media);
+  return merged ? Object.assign(done, {merged: true, parts: merged}) : done;
 }
 
 /* ---- suggestions ----------------------------------------------------- */
@@ -590,7 +717,8 @@ export default {
       return json({error: 'not found'}, 404, h);
     }catch(e){
       const status = e.status || 500;
-      return json(withSession({error: status === 500 ? 'the save service failed.' : e.message}), status, h);
+      return json(withSession(Object.assign({error: status === 500 ? 'the save service failed.' : e.message},
+                                            e.conflicts ? {conflicts: e.conflicts} : {})), status, h);
     }
   }
 };

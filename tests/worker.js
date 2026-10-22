@@ -302,7 +302,9 @@ function partsOf(text){
         after.replace('\n/* a reference added in the browser */', '') === DATA);
 
   r = await post(s, {base: gitSha(DATA), parts});
-  check('the page\'s old base is now refused, so it cannot undo that save', r.status === 409);
+  body = await r.json();
+  check('the page\'s old base, sending the chart it was made on, cannot undo that save',
+        r.status === 200 && body.unchanged && gitSha(gh.dataAt(gh.head)) === gitSha(after), r.status + ' ' + JSON.stringify(body).slice(0, 200));
   const headBefore = gh.head;
   r = await post(s, {base: gitSha(DATA), parts: edited});
   body = await r.json();
@@ -340,6 +342,79 @@ function partsOf(text){
   picHead = gh.head;
   r = await post(s, {base: body.sha, parts: {...again, NODES: again.NODES + `\n/* {image:'${picRef}'} */`}});
   check('and a chart may name one that is there without sending it', r.status === 200 && gh.head !== picHead);
+
+  /* Two saves made on one chart: a second device, or a phone's kept Save
+     sent days later. What each changed is put together; only what both
+     changed is refused. */
+  r = await post(s, {base: gitSha(gh.dataAt(gh.head)), parts: partsOf(DATA)});
+  const clean = (await r.json()).sha;
+  check('(a clean chart to merge on)', r.status === 200 && gitSha(gh.dataAt(gh.head)) === clean);
+  const P = partsOf(DATA);
+  const line = (region, re) => P[region].split('\n').find(l => re.test(l));
+  const refLine = line('REFS', /^  \{key:'ref',/), nodeLine = line('NODES', /^  \{id:'uprising-copy',/);
+  const addTo = (parts, region, l) => ({...parts, [region]: parts[region].replace(/\n\];$/, '\n' + l + '\n];')});
+  const one = addTo(P, 'REFS', "  {key:'m-one', title:'One'},");
+  r = await post(s, {base: clean, parts: one});
+  const firstSave = await r.json();
+  check('(one device saves a reference)', r.status === 200 && !firstSave.merged);
+  const two = addTo(P, 'NODES', "  {id:'m-two', label:'Two'},");
+  r = await post(s, {base: clean, parts: two});
+  body = await r.json();
+  const merged = gh.dataAt(gh.head);
+  check('a save made on the older chart is merged with it rather than refused',
+        r.status === 200 && body.merged && merged.includes("{key:'m-one', title:'One'}") && merged.includes("{id:'m-two', label:'Two'}"),
+        r.status + ' ' + JSON.stringify(body).slice(0, 200));
+  check('and nothing else in the file moved',
+        merged.replace("\n  {id:'m-two', label:'Two'},", '').replace("\n  {key:'m-one', title:'One'},", '') === gh.blobs.get(clean));
+  check('the answer carries the chart as merged, and what it was saved over',
+        !!body.parts && body.parts.REFS.includes("key:'m-one'") && body.parts.NODES.includes("id:'m-two'") && body.over === firstSave.sha,
+        JSON.stringify({over: body.over, first: firstSave.sha}));
+  const mergedSha = body.sha;
+  // The same entry changed on both: refused, and named.
+  const mine = {...P, REFS: P.REFS.replace(refLine, refLine.replace("title:''", "title:'Mine'"))};
+  const theirs = {...body.parts, REFS: body.parts.REFS.replace(refLine, refLine.replace("title:''", "title:'Theirs'"))};
+  r = await post(s, {base: mergedSha, parts: theirs});
+  const theirsSave = await r.json();
+  check('(the other device retitles a reference)', r.status === 200);
+  const headMine = gh.head;
+  r = await post(s, {base: clean, parts: mine});
+  body = await r.json();
+  check('the same entry changed differently on both is refused, and named',
+        r.status === 409 && gh.head === headMine && Array.isArray(body.conflicts) &&
+        body.conflicts.length === 1 && body.conflicts[0].region === 'REFS' && body.conflicts[0].item === 'ref',
+        r.status + ' ' + JSON.stringify(body));
+  // Changed the same way on both: no conflict at all.
+  const same = {...P, REFS: P.REFS.replace(refLine, refLine.replace("title:''", "title:'Theirs'"))};
+  r = await post(s, {base: clean, parts: same});
+  body = await r.json();
+  check('the same change made on both is no conflict', r.status === 200 && body.unchanged && body.merged, r.status + ' ' + JSON.stringify(body).slice(0, 160));
+  // Taken out on one, changed on the other.
+  const gone = {...P, NODES: P.NODES.replace(nodeLine + '\n', '')};
+  const changed = {...theirs, NODES: theirs.NODES.replace(nodeLine, nodeLine.replace("label:'Beast Wars: Uprising'", "label:'Renamed'"))};
+  r = await post(s, {base: theirsSave.sha, parts: changed});
+  check('(the other device renames an entry)', r.status === 200);
+  const headThen = gh.head;
+  r = await post(s, {base: clean, parts: gone});
+  body = await r.json();
+  check('an entry taken out on one and changed on the other is refused', r.status === 409 && gh.head === headThen &&
+        body.conflicts && body.conflicts[0].item === 'uprising-copy', r.status + ' ' + JSON.stringify(body));
+  // And one taken out where the other did not touch it is taken out.
+  const goneRef = {...P, REFS: P.REFS.replace(line('REFS', /^  \{key:'ref-2',/) + '\n', '')};
+  r = await post(s, {base: clean, parts: goneRef});
+  body = await r.json();
+  check('an entry taken out on one and left alone on the other is taken out',
+        r.status === 200 && body.merged && !gh.dataAt(gh.head).includes("{key:'ref-2',") && gh.dataAt(gh.head).includes("label:'Renamed'"),
+        r.status + ' ' + JSON.stringify(body).slice(0, 200));
+  // Settings are one line, so both changing them is a conflict.
+  const s1 = {...body.parts, SETTINGS: body.parts.SETTINGS.replace("'#c23b22'", "'#112233'")};
+  r = await post(s, {base: body.sha, parts: s1});
+  const headS = gh.head;
+  r = await post(s, {base: clean, parts: {...P, SETTINGS: P.SETTINGS.replace("'#c23b22'", "'#445566'")}});
+  body = await r.json();
+  check('settings changed on both are refused', r.status === 409 && gh.head === headS && body.conflicts[0].region === 'SETTINGS',
+        r.status + ' ' + JSON.stringify(body));
+  r = await post(s, {base: 'f'.repeat(40), parts: two});
+  check('a base the repository never had is refused, not merged against nothing', r.status === 409);
 
   /* Suggestions. A reader signs in by asking to; the same account through
      Owner sign-in is still turned away above. */
