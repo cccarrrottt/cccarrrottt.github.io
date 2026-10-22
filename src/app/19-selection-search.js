@@ -450,7 +450,7 @@ function updateAddFabPosition(){
    time because they are created all over this file. The tabs at the left
    edge are not among them: they cover none of these, and each keeps its
    own state until it is pressed again. */
-const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'aboutOverlay'];
+const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'aboutOverlay', 'textViewOverlay'];
 function closeToolbarMenus(keep){
   TOOLBAR_SURFACES.forEach(id=>{
     if(id === keep) return;
@@ -872,6 +872,7 @@ function rebuildChart(){
   if(bioCardNodeId && !nodes.has(bioCardNodeId)) closeBioCard();
   else drawBioCard();
   paintSuggestionMarks();
+  textViewChanged();
 }
 
 /* The add button is positioned against whatever part of the canvas the

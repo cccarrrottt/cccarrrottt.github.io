@@ -274,8 +274,13 @@ function centreViewOn(x, y, s){
    the offsets, which mean a different place in a window of another size.
    A reload used to fit the whole chart to the window, and whoever was
    working on one corner of it had to find that corner again. The first
-   visit opens on the origin, in the middle of the screen. */
-const VIEW_KEY = 'rhizome.view';
+   visit opens on the origin, in the middle of the screen.
+   Kept per chart, under the same document address the chart itself is
+   (STORE_KEY): two charts opened in one browser used to share one view,
+   so the second opened wherever the first was left. The key everyone had
+   before is read once, for a chart that has none of its own yet. */
+const VIEW_KEY = 'rhizome.view:' + STORE_KEY.slice(STORE_PREFIX.length);
+const OLD_VIEW_KEY = 'rhizome.view';
 function rememberView(){
   clearTimeout(rememberView.timer);
   rememberView.timer = setTimeout(()=>{
@@ -286,7 +291,7 @@ function rememberView(){
 }
 function openingView(){
   let v = null;
-  try{ v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); }catch(e){ v = null; }
+  try{ v = JSON.parse(localStorage.getItem(VIEW_KEY) || localStorage.getItem(OLD_VIEW_KEY) || 'null'); }catch(e){ v = null; }
   if(v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.s) && v.s > 0)
     centreViewOn(v.x, v.y, Math.min(3, Math.max(0.08, v.s)));
   else centreViewOn(0, 0, 1);

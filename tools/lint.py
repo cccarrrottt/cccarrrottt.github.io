@@ -8,6 +8,9 @@ name nothing reads, a name declared twice — and every one of those questions
 is meaningless about a part on its own. Linted separately, every part reports
 hundreds of errors that say only "this file is not the whole program".
 
+A fourth question is asked of the same file by tools/tdz.js: whether start-up
+reads a const, let or class before the part that declares it has run.
+
 So the parts are assembled into one file, that file is linted, and each
 message is carried back to the part and line it came from. The assembly is
 pure concatenation, so the arithmetic is exact: no source map, nothing to get
@@ -95,6 +98,22 @@ def main():
             warnings += kind == 'warning'
             print(f'{where}:{line}:{m.get("column", 0)}  {kind}  '
                   f'{m["message"]}  {m.get("ruleId") or ""}')
+
+    # A const, let or class that start-up reaches before its part has run:
+    # see tools/tdz.js. It is an error — the page does not open.
+    t = subprocess.run(['node', 'tools/tdz.js', str(ASSEMBLED)], cwd=ROOT, capture_output=True, text=True)
+    if t.returncode != 0:
+        sys.stderr.write(t.stderr)
+        return 2
+    for f in json.loads(t.stdout):
+        where, line = locate(starts, f['line'])
+        dpart, dline = locate(starts, f['declared'])
+        rpart, rline = locate(starts, f['read'])
+        through = f', through {" → ".join(f["via"])}' if f['via'] else ''
+        errors += 1
+        print(f'src/app/{where}:{line}:{f["column"]}  error  start-up reaches {f["name"]} '
+              f'(src/app/{dpart}:{dline}) before it is declared{through}, read at '
+              f'src/app/{rpart}:{rline}  tdz')
 
     total = errors + warnings
     print(f'\n{total} problem{"" if total == 1 else "s"} '
