@@ -87,12 +87,24 @@ const STYLE_BAR_EDGE_LINE = [
   ['dotted', '┈┈', 'Dotted line'], ['dashdot', '─·', 'Dash-dotted line'],
   ['double', '═', 'Double line'], ['sinusoid', '∿', 'Wavy line']
 ];
-/* An end carries an arrow, a T or nothing. The T is a pair of buttons of
-   its own rather than a third state of the arrow's, so each end's mark is
-   one press away and what is lit says which it is. */
-const STYLE_BAR_ENDS = [['tin', '⊢', 'T at the start, stopped short of the entry'],
-                        ['in', '◄', 'Arrowhead at the start'], ['out', '►', 'Arrowhead at the end'],
-                        ['tout', '⊣', 'T at the end, stopped short of the entry — broad strokes']];
+/* An end carries an arrow, a T or nothing: three answers to one
+   question, so each end is one menu of the three, the start's on the left
+   and the end's on the right. */
+const STYLE_BAR_END_IN = [['none', '╶', 'Nothing at the start'],
+                          ['in', '◄', 'Arrowhead at the start'],
+                          ['tin', '⊢', 'T at the start, stopped short of the entry']];
+const STYLE_BAR_END_OUT = [['none', '╴', 'Nothing at the end'],
+                           ['out', '►', 'Arrowhead at the end'],
+                           ['tout', '⊣', 'T at the end, stopped short of the entry — broad strokes']];
+/* The rows that are one choice out of several looks — a border, a
+   hatching, a line, an end — are menus: one button showing what is
+   chosen, the rest unfolding under it when pressed (the owner's ask: the
+   bar was a row of every look at once, wider than most entries it stood
+   over). A toggle stays a button, since it has nothing to unfold. */
+const STYLE_BAR_MENUS = {
+  border: 'Border', hatch: 'Hatching', decor: 'Scenery', edgeLine: 'Line',
+  leader: 'Leader line', endIn: 'The start', endOut: 'The end'
+};
 /* Which side of its line a note rides. */
 /* An array's ground may be hatched as well as coloured — see
    arrayHatchPaint. The glyphs are the hatched squares the font already
@@ -114,36 +126,44 @@ const styleBar = (()=>{
   bar.className = 'style-bar';
   bar.id = 'styleBar';
   bar.hidden = true;
-  const group = (name, list, into)=>{
+  const group = (name, list)=>{
     const row = document.createElement('div');
     row.className = 'style-bar-group';
     row.dataset.group = name;
+    /* A menu keeps its choices in a list of their own, under a face that
+       has no value: everything that lights, greys or presses a choice
+       asks for buttons with one, and finds the same buttons it always did. */
+    let into = row;
+    if(STYLE_BAR_MENUS[name]){
+      row.classList.add('style-bar-drop');
+      const face = document.createElement('button');
+      face.type = 'button';
+      face.className = 'style-bar-drop-face';
+      face.title = STYLE_BAR_MENUS[name];
+      row.appendChild(face);
+      into = document.createElement('div');
+      into.className = 'style-bar-drop-list';
+      row.appendChild(into);
+    }
     list.forEach(([value, glyph, title])=>{
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.value = value;
       b.textContent = glyph;
       b.title = title;
-      row.appendChild(b);
+      into.appendChild(b);
     });
-    (into || bar).appendChild(row);
+    bar.appendChild(row);
     return row;
   };
-  /* An array's border and its hatching stand one over the other rather
-     than side by side (the owner's choice): they are the two rows only an
-     array shows together, and side by side they made its bar the widest
-     on the chart. Anything else shows the border alone, and the pair is
-     then just that row. */
-  const pair = document.createElement('div');
-  pair.className = 'style-bar-pair';
-  bar.appendChild(pair);
-  group('border', STYLE_BAR_BORDERS, pair);
-  group('hatch', STYLE_BAR_HATCH, pair);
+  group('border', STYLE_BAR_BORDERS);
+  group('hatch', STYLE_BAR_HATCH);
   group('decor', STYLE_BAR_DECOR);
   group('frame', STYLE_BAR_FRAMES);
   group('edgeLine', STYLE_BAR_EDGE_LINE);
   group('corners', STYLE_BAR_CORNERS);
-  group('ends', STYLE_BAR_ENDS);
+  group('endIn', STYLE_BAR_END_IN);
+  group('endOut', STYLE_BAR_END_OUT);
   group('turn', STYLE_BAR_TURN);
   group('stack', STYLE_BAR_STACK);
   group('leader', STYLE_BAR_LEADER);
@@ -237,11 +257,19 @@ const styleBar = (()=>{
     ev.stopPropagation();
     const b = ev.target.closest('button');
     if(!b || b.disabled || !styleBarTarget) return;
-    if(b.parentNode.dataset.group === 'link'){
+    const row = b.closest('.style-bar-group');
+    if(b.classList.contains('style-bar-drop-face')){
+      const open = !row.classList.contains('open');
+      shutStyleBarMenus();
+      row.classList.toggle('open', open);
+      return;
+    }
+    shutStyleBarMenus();
+    if(row.dataset.group === 'link'){
       if(styleBarTarget.kind === 'node') copyEntryLink(styleBarTarget.id, b, 'Copy a link to this array');
       return;
     }
-    applyStyleBar(b.parentNode.dataset.group, b.dataset.value);
+    applyStyleBar(row.dataset.group, b.dataset.value);
   });
   const host = document.querySelector('.main');
   if(host) host.appendChild(bar);
@@ -291,11 +319,31 @@ function letStyleBarGo(){
 function closeStyleBar(){
   clearTimeout(styleBarTimer);
   styleBarTarget = null;
+  shutStyleBarMenus();
   styleBar.hidden = true;
+}
+function shutStyleBarMenus(){
+  styleBar.querySelectorAll('.style-bar-drop.open').forEach(r=> r.classList.remove('open'));
+}
+/* Each menu's face wears the choice that is lit, and is greyed when every
+   choice under it is. Asked after every sync, whatever it lit. */
+function paintStyleBarMenus(){
+  styleBar.querySelectorAll('.style-bar-drop').forEach(row=>{
+    const face = row.querySelector('.style-bar-drop-face');
+    const opts = [...row.querySelectorAll('.style-bar-drop-list button')];
+    const lit = opts.find(b=> b.classList.contains('on')) || opts[0];
+    face.textContent = lit ? lit.textContent : '';
+    face.title = STYLE_BAR_MENUS[row.dataset.group] + (lit ? ': ' + lit.title : '');
+    face.disabled = opts.every(b=> b.disabled);
+  });
+}
+function syncStyleBar(){
+  syncStyleBarRows();
+  paintStyleBarMenus();
 }
 /* The buttons, lit and greyed for the thing the bar is on, and the bar put
    over it. */
-function syncStyleBar(){
+function syncStyleBarRows(){
   const t = styleBarTarget;
   const n = styleBarNode();
   const style = t && (t.kind === 'note' || t.kind === 'edge') ? edgeStyleFor(t.from, t.to) : null;
@@ -318,7 +366,7 @@ function syncStyleBar(){
        rounded under a wave, and are rounded again when the wave is taken
        off. Unlit while greyed, the bar claimed the opposite of what the
        entry would do the moment the button came back. */
-    row.querySelectorAll('button').forEach(b=>{
+    row.querySelectorAll('button[data-value]').forEach(b=>{
       b.disabled = !!(off && off(b.dataset.value));
       b.classList.toggle('on', b.dataset.value === value);
     });
@@ -335,7 +383,7 @@ function syncStyleBar(){
   if(!rows.stack.hidden){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     rows.leader.hidden = rows.leaderForm.hidden = true;
-    rows.edgeLine.hidden = rows.ends.hidden = true;
+    rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = true;
     rows.noteSide.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
     light(rows.stack, (n.z || 0) < 0 ? 'behind' : '');
     styleBar.hidden = false;
@@ -345,7 +393,7 @@ function syncStyleBar(){
   if(decorOn){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     rows.leader.hidden = rows.leaderForm.hidden = true;
-    rows.edgeLine.hidden = rows.ends.hidden = true;
+    rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = true;
     rows.noteSide.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
     light(rows.decor, decorStyleOf(decorOn));
     styleBar.hidden = false;
@@ -353,7 +401,7 @@ function syncStyleBar(){
     return;
   }
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
-  rows.edgeLine.hidden = rows.ends.hidden = t.kind !== 'edge';
+  rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = t.kind !== 'edge';
   rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
   rows.cardBg.hidden = !(n && isCalloutNode(n) && !(n.leader && n.leader.shelf));
   const showHex = (row, v)=>{
@@ -378,17 +426,14 @@ function syncStyleBar(){
        explains itself. */
     const merged = isMergePart(t.from, t.to);
     const out = isMergedArrow(t.from, t.to);
-    rows.ends.querySelectorAll('button').forEach(b=>{
-      b.disabled = merged;
-      const v = b.dataset.value;
-      b.classList.toggle('on',
-        v === 'in' ? !!style.arrowIn && !style.teeIn
-        : v === 'tin' ? !!style.teeIn
-        : v === 'tout' ? !!style.teeOut
-        : style.arrow !== false && !style.teeOut);
-      b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
-              : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
-                       : STYLE_BAR_ENDS.find(e=> e[0] === b.dataset.value)[2];
+    light(rows.endIn, style.arrowIn ? (style.teeIn ? 'tin' : 'in') : 'none', ()=> merged);
+    light(rows.endOut, style.arrow !== false ? (style.teeOut ? 'tout' : 'out') : 'none', ()=> merged);
+    [[rows.endIn, STYLE_BAR_END_IN], [rows.endOut, STYLE_BAR_END_OUT]].forEach(([row, list])=>{
+      row.querySelectorAll('button[data-value]').forEach(b=>{
+        b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
+                : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
+                         : list.find(e=> e[0] === b.dataset.value)[2];
+      });
     });
     styleBar.hidden = false;
     positionStyleBar();
@@ -577,20 +622,12 @@ function applyStyleBar(group, value){
       change.dash = value === 'sinusoid' ? 'solid' : value;
     } else if(group === 'corners'){
       change.square = kept.square ? false : undefined;
-    } else if(group === 'ends'){
-      /* Pressing the mark an end already wears takes it off; pressing the
-         other one swaps it. */
-      if(value === 'in' || value === 'tin'){
-        const tee = value === 'tin';
-        const lit = kept.arrowIn && !!kept.teeIn === tee;
-        change.arrowIn = !lit || undefined;
-        change.teeIn = (!lit && tee) || undefined;
-      } else {
-        const tee = value === 'tout';
-        const lit = kept.arrow !== false && !!kept.teeOut === tee;
-        change.arrow = !lit;
-        change.teeOut = (!lit && tee) || undefined;
-      }
+    } else if(group === 'endIn'){
+      change.arrowIn = value !== 'none' || undefined;
+      change.teeIn = value === 'tin' || undefined;
+    } else if(group === 'endOut'){
+      change.arrow = value !== 'none';
+      change.teeOut = value === 'tout' || undefined;
     }
     applyEdit(()=> setEdgeStyleOverride(t.from, t.to, Object.assign({}, kept, change)));
   } else {

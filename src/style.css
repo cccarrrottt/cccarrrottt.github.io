@@ -2987,16 +2987,21 @@
     box-shadow:var(--shadow);
   }
   .style-bar[hidden], .style-bar-group[hidden]{display:none;}
-  /* Centred, for the bar that is two rows high: the rest stand at the
-     middle of the pair rather than along its top. */
   .style-bar-group{display:flex;gap:2px;align-items:center;}
-  .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]),
-  .style-bar-pair:has(> .style-bar-group:not([hidden])) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
-  /* The border and an array's hatching, one under the other; gone with
-     both of its rows, so it leaves no gap in the bar. */
-  .style-bar-pair{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;}
-  .style-bar-pair:not(:has(> .style-bar-group:not([hidden]))){display:none;}
-  .style-bar-pair > .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:0;border-left:0;}
+  .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
+  /* A menu: its face on the bar, its choices unfolding under it, one per
+     line, over whatever is below. */
+  .style-bar-drop{position:relative;}
+  .style-bar .style-bar-drop-face{width:30px;position:relative;padding-right:7px;}
+  .style-bar .style-bar-drop-face::after{content:'▾';position:absolute;right:2px;bottom:2px;font-size:7px;opacity:0.7;}
+  .style-bar-drop-list{
+    display:none;position:absolute;top:100%;left:0;margin-top:4px;z-index:1;
+    flex-direction:column;gap:2px;padding:3px;
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);
+  }
+  .style-bar-group:not([hidden]) ~ .style-bar-drop .style-bar-drop-list{left:6px;}
+  .style-bar-drop.open .style-bar-drop-list{display:flex;}
+  .style-bar-drop.open .style-bar-drop-face{color:var(--ink);border-color:var(--accent);}
   .style-bar button{
     width:24px;height:22px;padding:0;
     background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);

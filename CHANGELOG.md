@@ -8,8 +8,13 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
-- On an array's bar its hatching stands under its border instead of beside
-  it, so the bar is narrower by that whole row.
+- The looks on the style bar that are one choice out of several are menus:
+  a button showing what is chosen, the rest unfolding under it when
+  pressed: an entry's border, an array's hatching, a hub's scenery, a
+  connector's line and a callout's leader. A connector's ends are two
+  menus, the start's and the end's, each of nothing, an arrow or a T,
+  where there were four buttons that toggled. An array's bar went from
+  266 px wide to 185.
 - An array has no tab: it is taken hold of either side of its frame, the
   line itself being its ports. It has no ground either: its colour is its
   frame's and its hatching's, black unless one is chosen, and both are

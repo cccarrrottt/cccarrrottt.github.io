@@ -13078,12 +13078,20 @@ async function main(){
     const sb = await pp.evaluate(()=>{
       const b = document.getElementById('styleBar');
       const r = b.getBoundingClientRect();
-      const btn = b.querySelector('[data-group="border"] button[data-value="dashed"]').getBoundingClientRect();
-      return {shown: !b.hidden, left: r.left, right: r.right, at: [btn.x + btn.width/2, btn.y + btn.height/2]};
+      const face = b.querySelector('[data-group="border"] .style-bar-drop-face').getBoundingClientRect();
+      return {shown: !b.hidden, left: r.left, right: r.right, at: [face.x + face.width/2, face.y + face.height/2]};
     });
     check('a tap on an entry leaves its style bar open, on the screen',
           sb.shown && sb.left >= 0 && sb.right <= 390, JSON.stringify(sb));
+    // The border is a menu: a tap unfolds it, and a tap on a choice sets it.
     await pp.touchscreen.tap(sb.at[0], sb.at[1]);
+    await wait(150);
+    const pick = await pp.evaluate(()=>{
+      const r = document.querySelector('#styleBar [data-group="border"] button[data-value="dashed"]').getBoundingClientRect();
+      return [r.x + r.width/2, r.y + r.height/2, r.height];
+    });
+    check('…a tap on the border unfolds its choices', pick[2] > 0, JSON.stringify(pick));
+    await pp.touchscreen.tap(pick[0], pick[1]);
     await wait(250);
     eq('…and a tap on the bar restyles the entry',
        await pp.evaluate(()=> (entryOpts(workingEntry('tpA').entry) || {}).border), 'dashed');
@@ -15515,12 +15523,12 @@ async function main(){
       const press = (group, value)=> styleBar.querySelector(
         `.style-bar-group[data-group="${group}"] button[data-value="${value}"]`).click();
       press('edgeLine', 'dotted');
-      press('ends', 'in');
+      press('endIn', 'in');
       press('corners', 'round');
       await wait(150);
       const st = edgeStyleFor('fvA', 'fvB');
       out.edgeBarAt = JSON.stringify({groups, dash: st.dash, arrowIn: st.arrowIn, square: st.square});
-      out.edgeBar = groups.join() === 'edgeLine,corners,ends' && st.dash === 'dotted' &&
+      out.edgeBar = groups.join() === 'edgeLine,corners,endIn,endOut' && st.dash === 'dotted' &&
         // Square to start with since 0.12.0, so the press rounds them.
         st.arrowIn === true && st.square === false && !styleBar.hidden;
       closeStyleBar();
@@ -17497,15 +17505,15 @@ async function main(){
       out.lineToBar = round2(Math.abs(end.y - bb.y));
     }
     out.legend = keyMarksInUse().some(m=> m.key === 'line:tee');
-    // From the bar: the lit T comes off, the arrow goes on, the T goes on again.
+    // From the bar: nothing at the end, an arrow, the T again, and a T at the start.
     styleBarTarget = {kind:'edge', from:'tz_a', to:'tz_b', x:10, y:10};
-    applyStyleBar('ends', 'tout');
+    applyStyleBar('endOut', 'none');
     out.offAll = edgeStyleFor('tz_a', 'tz_b');
-    applyStyleBar('ends', 'out');
+    applyStyleBar('endOut', 'out');
     out.arrow = edgeStyleFor('tz_a', 'tz_b');
-    applyStyleBar('ends', 'tout');
+    applyStyleBar('endOut', 'tout');
     out.back = edgeStyleFor('tz_a', 'tz_b');
-    applyStyleBar('ends', 'tin');
+    applyStyleBar('endIn', 'tin');
     out.both = edgeStyleFor('tz_a', 'tz_b');
     closeStyleBar();
     await pause(100);
@@ -17521,7 +17529,7 @@ async function main(){
   check('the T lies across the line', t.across >= 8, JSON.stringify(t));
   check('the line stops at the T', t.lineToBar <= 1.5, JSON.stringify(t));
   check('the legend names the T', t.legend);
-  check('pressing the lit T takes the end off', t.offAll.arrow === false && !t.offAll.teeOut, JSON.stringify(t.offAll));
+  check('choosing nothing for the end takes the T off', t.offAll.arrow === false && !t.offAll.teeOut, JSON.stringify(t.offAll));
   check('the arrow and the T take each other’s place', t.arrow.arrow !== false && !t.arrow.teeOut &&
         t.back.arrow !== false && t.back.teeOut, JSON.stringify([t.arrow, t.back]));
   check('the start can take a T as well', t.both.arrowIn && t.both.teeIn && t.teeIn, JSON.stringify(t.both));
@@ -17595,9 +17603,20 @@ async function main(){
     styleBarTarget = {kind:'node', id: out.id};
     syncStyleBar();
     out.rows = [...styleBar.querySelectorAll('.style-bar-group')].filter(r=> !r.hidden).map(r=> r.dataset.group);
-    { const rb = styleBar.querySelector('[data-group="border"]').getBoundingClientRect();
-      const rh = styleBar.querySelector('[data-group="hatch"]').getBoundingClientRect();
-      out.stacked = rh.top >= rb.bottom && Math.abs(rh.left - rb.left) < 0.5; }
+    /* The border and the hatching are menus: one face each, showing the
+       choice, and the list unfolding under it on a press. */
+    { const row = styleBar.querySelector('[data-group="hatch"]');
+      const face = row.querySelector('.style-bar-drop-face');
+      const list = row.querySelector('.style-bar-drop-list');
+      const shut = !list.getBoundingClientRect().height;
+      face.click();
+      const fr = face.getBoundingClientRect(), lr = list.getBoundingClientRect();
+      const opened = lr.height > 0 && lr.top >= fr.bottom;
+      list.querySelector('[data-value="vert"]').click();
+      await pause(100);
+      out.menu = {shut, opened, closed: !styleBar.querySelector('.style-bar-drop.open'),
+                  hatch: nodes.get(out.id).hatch, face: styleBar.querySelector('[data-group="hatch"] .style-bar-drop-face').textContent,
+                  faces: styleBar.querySelectorAll('.style-bar-group:not([hidden]) > .style-bar-drop-face').length}; }
     applyStyleBar('hatch', 'diag-l');
     applyStyleBar('border', 'dashed');
     await pause(100);
@@ -17627,7 +17646,9 @@ async function main(){
         a.look.fill === 'none' && +a.look.opacity === 0.5, JSON.stringify(a.look));
   check('the bar offers an array its border, hatching and colour, and no ground',
         ['border', 'hatch', 'arrayInk'].every(r=> a.rows.includes(r)) && !a.rows.includes('turn') && !a.rows.includes('cardBg'), a.rows.join(','));
-  check('on its bar the hatching stands under the border, not beside it', a.stacked, JSON.stringify(a.stacked));
+  check('on its bar the border and the hatching are menus that unfold, set and fold again',
+        a.menu.shut && a.menu.opened && a.menu.closed && a.menu.hatch === 'vert' && a.menu.face === '▥' && a.menu.faces === 2,
+        JSON.stringify(a.menu));
   eq('the hatching is the frame’s colour, half see-through', a.hatchInk, '#000000 0.5');
   check('a hatching and a border style are drawn and written down',
         a.hatch && a.dashed && /"hatch":"diag-l"/.test(a.savedLook) && /"border":"dashed"/.test(a.savedLook), JSON.stringify(a));
