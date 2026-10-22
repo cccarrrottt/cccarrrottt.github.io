@@ -9,6 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@500;700;800&family=Caveat:wght@500;600;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
 <!-- @@HEAD:END@@ -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The built page carries this inline (build.py, favicon_link). -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -41,10 +43,6 @@
     <button class="icon-btn" id="commentsToggle" title="Suggestions" style="display:none;">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
     </button>
-    <button class="icon-btn" id="textViewToggle" title="The chart as text — every entry, under the one it comes from"
-            aria-label="The chart as text" aria-expanded="false" aria-controls="textViewOverlay">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="12" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
-    </button>
     <button class="icon-btn" id="aboutToggle" title="About this chart">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
     </button>
@@ -63,7 +61,7 @@
   </div>
 
   <div class="main">
-    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="The chart — its entries are listed as text under the list button">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="The chart — its entries are listed as text under About this chart">
       <defs id="svgDefs"></defs>
       <g id="viewport"></g>
     </svg>
@@ -349,10 +347,16 @@
         </div>
         <div class="about-body">
           <p class="about-version" id="aboutVersion"></p>
+          <!-- The chart as text lives here rather than in the top bar (the
+               owner's ask, 22.10): it is a way of reading the chart, which
+               is what this panel is about, and the bar is for working on it. -->
+          <p class="about-actions"><button type="button" class="editor-btn" id="textViewToggle"
+               title="The chart as text — every entry, under the one it comes from"
+               aria-expanded="false" aria-controls="textViewOverlay"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="12" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg><span>The chart as text</span></button></p>
           <p>A continuity map of the Transformers <em>OG&nbsp;World</em> — the main G1 line, from Beast Wars through the cartoon, comics and toy-era spin-offs — redrawn from a hand-drawn original. Arrows trace direct lineage: an adaptation, a sequel, a continuation.</p>
           <p><b>Reading.</b> Drag to pan; scroll or pinch to zoom. Click an entry for its details. Tags and references are the two tabs at the left edge: a tag's dot hides or shows what wears it, and a small raised number in any text opens the reference it cites.</p>
           <p><b>Editing.</b> The round <b>+</b> in the corner adds an entry — point at it and pick a style. Drag from one entry's edge to another to connect them, and double-click any text to write it where it stands. <b>Shift</b> while dragging lines things up, <b>Ctrl</b> takes them off the grid. <b>Del</b> deletes; <b>Ctrl+Z</b> and <b>Ctrl+Y</b> undo and redo; <b>Ctrl+C</b>, <b>X</b> and <b>V</b> copy, cut and paste.</p>
-          <p><b>Saving.</b> Nothing is kept until <b>Save</b> (or <b>Ctrl+S</b>). The <b>File</b> button says where Save writes, and exports a self-contained copy of the page with the chart inside it.</p>
+          <p><b>Saving.</b> Nothing is kept until <b>Save</b> (or <b>Ctrl+S</b>). The <b>Export/Import</b> button exports a self-contained copy of the page with the chart inside it, its contents alone, or a picture of it.</p>
           <p>Only the owner can change the chart; everyone else gets a read-only view. This is a draft, and will have errors and omissions.</p>
           <div class="version-log" id="versionLog"></div>
         </div>
@@ -459,20 +463,17 @@
       </div>
     </div>
 
-    <div class="about-overlay" id="stickerOverlay">
-      <div class="about-card sticker-card">
-        <div class="detail-head" style="border-bottom:1px solid var(--line);">
-          <h2 class="head-type">Stickers</h2>
-          <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
-        </div>
-        <div class="about-body">
-          <div class="sticker-status editor-status" id="stickerStatus"></div>
-          <div class="sticker-add">
-            <button type="button" class="editor-btn primary" id="stickerUpload" title="Square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">Add stickers…</button>
-          </div>
-          <div class="sticker-grid" id="stickerGrid"></div>
-        </div>
+    <!-- The sticker library: a menu dropped from its button, like
+         Export/Import, rather than a window in the middle of the chart. +
+         adds; each tile's ✕ removes it, and Replace swaps its picture. -->
+    <div class="file-popover sticker-pop" id="stickerOverlay">
+      <div class="edge-popover-head">
+        <span>Stickers</span>
+        <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers" title="Add stickers: square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">+</button>
+        <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
       </div>
+      <div class="sticker-status editor-status" id="stickerStatus"></div>
+      <div class="sticker-grid" id="stickerGrid"></div>
     </div>
     <input type="file" id="stickerFile" accept="image/*" multiple style="display:none;">
 
@@ -548,23 +549,23 @@
          which is what keeps it independent of any one host. -->
     <div class="file-popover" id="filePopover">
       <div class="edge-popover-head">
-        <span>Import/Export</span>
+        <span>Export/Import</span>
         <button class="detail-close" aria-label="Close" id="fileClose">✕</button>
       </div>
       <div class="editor-status" id="fileStatus"></div>
-      <!-- Four tiles and a bar, as the owner drew it (22.10): the two
-           exports of the chart, the two pictures, and the way back in. The
-           JSON export, which came after the sketch, takes a row of its own
-           between the exports and the pictures.
-           What each one does is on its title, not in a paragraph under
-           them. -->
+      <!-- As the owner drew it (22.10, the second sketch): a row of five
+           file icons, one per thing the chart can be written out as, and
+           Import across the bottom. The icons are one family, a sheet with
+           its corner turned and a band naming the format, so the five read
+           as kinds of one thing; the band's colour is the only thing that
+           tells them apart at a glance. What each does is on its title. -->
       <div class="file-actions">
-        <button type="button" class="editor-btn primary file-tile" id="fileExport" title="The whole chart as one page: drawing, editor and contents. Opens anywhere, needs no server and no account.">Export page</button>
-        <button type="button" class="editor-btn file-tile" id="fileExportData" title="Just the entries, without the page around them: a few kilobytes instead of a few hundred.">Export contents</button>
-        <button type="button" class="editor-btn file-wide" id="fileExportJson" title="The same contents as JSON, for other programs: described by chart.schema.json beside the site, and Import reads it back.">Export JSON</button>
-        <button type="button" class="editor-btn file-tile file-pic" id="fileExportPng" title="Export a picture (PNG)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M3.5 17l5.5-6 4 4.5 2.5-2.5 5 4.5"/><circle cx="16" cy="9" r="1.6"/></svg><span>PNG</span></button>
-        <button type="button" class="editor-btn file-tile file-pic" id="fileExportSvg" title="Export a picture (SVG)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M3.5 17l5.5-6 4 4.5 2.5-2.5 5 4.5"/><circle cx="16" cy="9" r="1.6"/></svg><span>SVG</span></button>
-        <button type="button" class="editor-btn file-wide" id="fileImport" title="Open a page or a contents file exported from a chart">Import file</button>
+        <button type="button" class="editor-btn file-tile fmt-html" id="fileExport" title="Export the page: the whole chart as one HTML file, drawing, editor and contents. Opens anywhere, needs no server and no account." aria-label="Export the page"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M13 8.5l-2.5 2.6 2.5 2.6M19.5 8.5l2.5 2.6-2.5 2.6M17.2 7.8l-1.9 6.6"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">HTML</text></svg></button>
+        <button type="button" class="editor-btn file-tile fmt-js" id="fileExportData" title="Export the contents: the entries without the page around them, as the data.js the page is built from. A few kilobytes instead of a few hundred." aria-label="Export the contents"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11.5 8h6M11.5 11h10M11.5 14h10"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">JS</text></svg></button>
+        <button type="button" class="editor-btn file-tile fmt-json" id="fileExportJson" title="Export the contents as JSON, for other programs: chart.schema.json beside the site describes it, and Import reads it back." aria-label="Export the contents as JSON, for other programs"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11.5 8h6M11.5 11h10M11.5 14h10"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">JSON</text></svg></button>
+        <button type="button" class="editor-btn file-tile fmt-png" id="fileExportPng" title="Export a picture (PNG)" aria-label="Export a picture (PNG)"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11 14.5l3.2-3.6 2.4 2.6 1.6-1.5 3 2.5"/><circle class="fmt-dot" cx="19.2" cy="8.6" r="1.2"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">PNG</text></svg></button>
+        <button type="button" class="editor-btn file-tile fmt-svg" id="fileExportSvg" title="Export a picture (SVG)" aria-label="Export a picture (SVG)"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11 14.2c1.6-6 7.6-6.6 10.6-4.4"/><rect class="fmt-dot" x="10" y="13.2" width="2" height="2"/><rect class="fmt-dot" x="20.6" y="8.8" width="2" height="2"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">SVG</text></svg></button>
+        <button type="button" class="editor-btn file-wide" id="fileImport" title="Open a page, a contents file or a JSON file exported from a chart">Import file</button>
         <button type="button" class="editor-btn file-wide" id="fileForget" title="Forget the changes this browser keeps for this file">Discard changes saved here</button>
       </div>
     </div>

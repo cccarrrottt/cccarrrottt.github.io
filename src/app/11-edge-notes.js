@@ -86,9 +86,6 @@ const EDGE_NOTE_FRAME_W = 0.8;      // .edge-note-plate in the stylesheet
  * the line arrive at the card rather than stop beside it — the same thing
  * an entry's fill does for every connector meeting it. */
 const LEADER_DOT_R = 2.6;
-/* tan 15°: how far off upright a shelf's leader may lean and still be
-   taken for one meant square to it. */
-const SQUARE_LEAN = 0.27;
 function placePendingCallouts(from, to, pts){
   if(!pendingCallouts.size) return;
   let moved = false;
@@ -262,10 +259,16 @@ function drawLeaderLine(g, a, b, ink, line){
   if(DASH_PATTERNS[line]) attrs['stroke-dasharray'] = DASH_PATTERNS[line];
   el('line', attrs, g);
 }
-function drawCalloutLeaders(from, to, pts, paint){
+/* `pts` is the line as drawn, which is what the callouts stand on;
+   `route`, when the line is drawn through its route rather than along it
+   (a curve), is the route, which is what drawnRoutes has always kept —
+   the bend handles stand on its corners. The drawn line is kept beside it
+   as `line`, for whatever turns a click into a place on the line. */
+function drawCalloutLeaders(from, to, pts, paint, route){
   if(pts && pts.length > 1){
+    const copy = list=> list.map(q=> ({x:q.x, y:q.y}));
     drawnRoutes.set(calloutEdgeKey(from, to),
-                    {from, to, pts: pts.map(q=> ({x:q.x, y:q.y}))});
+                    {from, to, pts: copy(route || pts), line: copy(pts)});
   }
   placePendingCallouts(from, to, pts);
   const list = calloutsByEdge.get(calloutEdgeKey(from, to));
@@ -314,25 +317,12 @@ function drawCalloutLeaders(from, to, pts, paint){
         calloutOffsets.set(n.id, {dx: off.dx, dy: off.dy, setX: wx, setY: wy});
       }
     }
-    /* A drafting leader standing square to its shelf meets it in the
-       MIDDLE: a T, as the owner drew it, not an L off one end. So once
-       the place it marks lies within the shelf's width — the leader drops
-       straight onto it — the words are centred over (or under) that
-       place, and stay centred as the dot slides along. "Square" is
-       judged by eye rather than to the pixel: a leader leaning less than
-       SQUARE_LEAN off upright reads as a botched T, not as a slant, so it
-       is straightened too. Not while the card
-       is in the hand: it goes where it is carried, and is centred when it
-       is let go. */
-    const shelfY = m.y < n.y ? n.y : n.y + n.h;
-    const outside = Math.max(n.x - m.x, m.x - (n.x + n.w), 0);
-    if(n.leader.shelf && !busy && outside <= Math.abs(shelfY - m.y) * SQUARE_LEAN){
-      const wx = m.x - n.w/2;
-      if(Math.abs(wx - n.x) > 0.25){
-        placeCalloutCard(n, wx, n.y);
-        calloutOffsets.set(n.id, {dx: wx - m.x, dy: n.y - m.y, setX: wx, setY: n.y});
-      }
-    }
+    /* A drafting leader's words stay where they are put. They used to be
+       pulled square over the place they mark whenever the leader stood
+       within 15° of upright, so a shelf dropped near square jumped to it
+       and could not be set a little off (the owner's report, 22.10). A T
+       is still one key away: Shift snaps a callout's angle to eighths of
+       a turn, and straight up from its anchor centres the words on it. */
     const cx = n.x + n.w/2, cy = n.y + n.h/2;
     /* The card belongs to its connector, so the leader is painted in the
        connector's own stroke — a gradient included, which is a paint

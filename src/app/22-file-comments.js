@@ -463,6 +463,7 @@ document.getElementById('fileToggle').onclick = ()=>{
   const forget = document.getElementById('fileForget');
   forget.style.display = (!HOSTED && !ON_SITE && STORAGE_OK && readStoredChart()) ? '' : 'none';
   filePopover.classList.toggle('open', willOpen);
+  if(willOpen) placeUnderButton(filePopover, document.getElementById('fileToggle'));
 };
 document.getElementById('fileClose').onclick = ()=> filePopover.classList.remove('open');
 filePopover.addEventListener('click', ev=> ev.stopPropagation());

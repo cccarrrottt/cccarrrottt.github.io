@@ -351,9 +351,11 @@ function startEdgeNote(from, to, ev){
   }
   let at = 0.5;
   const rec = drawnRoutes.get(calloutEdgeKey(from, to));
-  if(ev && rec && rec.pts && rec.pts.length > 1){
+  // On the line as drawn, which is where the note will stand.
+  const line = rec && (rec.line || rec.pts);
+  if(ev && line && line.length > 1){
     const p = clientToWorld(ev.clientX, ev.clientY);
-    at = Math.max(0, Math.min(1, fractionNearest(rec.pts, p.x, p.y)));
+    at = Math.max(0, Math.min(1, fractionNearest(line, p.x, p.y)));
   }
   applyEdit(()=>{
     const i = EDGE_STYLES.findIndex(s=> s.from === from && s.to === to);

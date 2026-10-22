@@ -66,6 +66,7 @@ own and answers with an exit code.
 """
 import hashlib
 import re
+import urllib.parse
 import shutil
 import sys
 from datetime import datetime
@@ -352,11 +353,23 @@ def carry_data(data_js, source_text, label, partial=False, force=False):
 SHA_META = 'rhizome-data-sha'
 
 
+def favicon_link():
+    """The tab's icon, "R·P" (src/favicon.svg), written into the head.
+
+    Inline as a data: address rather than a file beside the page, so it
+    is the same wherever the page is opened (the site, a copy on disk, an
+    export) and is never one more request that can fail."""
+    svg = ' '.join(read(SRC / 'favicon.svg').split())
+    return ('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,'
+            + urllib.parse.quote(svg, safe=' =:/".-,') .replace('"', "'") + '">\n')
+
+
 def wrap(page, head_extra=''):
     """A page's content, inside the document a browser needs around it."""
     return ('<!doctype html>\n<html lang="en">\n<head>\n'
             '<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            + favicon_link()
             + head_extra +
             '</head>\n<body>\n'
             + page +

@@ -587,6 +587,16 @@ bioImageFile.addEventListener('change', async ()=>{
        declaration throws even through `typeof`. */
     const shapeSel = document.getElementById('editShapeInput');
     const roundTarget = !!shapeSel && shapeSel.value === 'ellipse';
+    /* An animated GIF is kept as it came, as a sticker is: a canvas keeps
+       only its first frame, which is why a GIF put in a portrait or a
+       picture stood still (the owner's report, 22.10). With nothing to
+       redraw there is nothing to crop either, so the cropper is not
+       offered; the frame shows the middle of it, as it does any picture. */
+    if(/gif/i.test(file.type)){
+      target.value = await stickerDataFromFile(file, null);
+      target.dispatchEvent(new Event('input', {bubbles:true}));
+      return;
+    }
     const crop = await openCropper(file, 'Choose the part of the picture to use',
                                    roundTarget ? 'circle' : 'square');
     if(crop === 'cancel') return;

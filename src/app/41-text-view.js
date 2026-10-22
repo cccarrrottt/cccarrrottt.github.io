@@ -168,7 +168,9 @@ function closeTextView(){
   textViewToggle.setAttribute('aria-expanded', 'false');
 }
 textViewToggle.onclick = ()=> textViewOverlay.classList.contains('open') ? closeTextView() : openTextView();
-document.getElementById('textViewClose').onclick = ()=>{ closeTextView(); textViewToggle.focus(); };
+/* Its button is inside About, which shut as the text opened, so the focus
+   goes back to About's own button in the bar: the way the reader came. */
+document.getElementById('textViewClose').onclick = ()=>{ closeTextView(); document.getElementById('aboutToggle').focus(); };
 textViewOverlay.addEventListener('click', e=>{
   if(e.target === textViewOverlay){ closeTextView(); return; }
   /* A name opens its entry on the chart, and the reader is taken to the

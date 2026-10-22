@@ -505,10 +505,10 @@
      it actually is, and leaves the scenery alone. */
   .node.selected > rect.local-sheet, .node.selected > path.local-sheet{filter:none;}
   .node.selected > rect.hub-echo{filter:none;}
-  /* An array (see 40-arrays.js) is held by a band along its frame, which
-     is a catcher and not a border, and its hatching is ground, not edge:
-     neither takes the selection's glow. */
-  .node > rect.array-hit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:move;}
+  /* An array (see 40-arrays.js) is held anywhere inside its frame and on
+     a band along it, which is a catcher and not a border, and its
+     hatching is ground, not edge: neither takes the selection's glow. */
+  .node > rect.array-hit{fill:transparent;stroke:transparent;stroke-width:16;pointer-events:all;cursor:move;}
   body.read-only .node > rect.array-hit{pointer-events:none;}
   .node.selected > rect.array-hit, .node.selected > .array-hatch{filter:none;}
   /* Half see-through, frame and hatching alike: an array is drawn round
@@ -970,7 +970,11 @@
     stroke-width:2.2;
   }
   .node-link{cursor:pointer;}
-  .node-link-bg{fill:var(--paper);stroke:var(--tab-ink,var(--accent));stroke-width:0.9;stroke-linejoin:round;}
+  /* A tab's outline is the entry's border carried on round it, so it is
+     drawn at the border's weight (1.6, as .node > rect and NODE_BORDER_W):
+     at 0.9 and 0.75 the link's tab and the language tabs read as thinner
+     things stuck onto the box (the owner's report, 22.10). */
+  .node-link-bg{fill:var(--paper);stroke:var(--tab-ink,var(--accent));stroke-width:1.6;stroke-linejoin:round;}
   .node-link-arrow{stroke:var(--tab-ink,var(--accent));stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round;}
   /* The site's icon takes the arrow's place once it has arrived; until
      then it is hidden (not undisplayed, which would stop it loading), so a slow or refused icon never leaves a hole. */
@@ -981,10 +985,10 @@
      is the border's colour whether it is lit or not. */
   .node-link:hover .node-link-bg{fill:color-mix(in srgb, var(--tab-ink,var(--accent)) 22%, var(--paper));}
   .lang-chip{cursor:pointer;}
-  .lang-chip-bg{fill:var(--paper);stroke:var(--tab-ink,var(--line));stroke-width:0.75;stroke-linejoin:round;}
+  .lang-chip-bg{fill:var(--paper);stroke:var(--tab-ink,var(--line));stroke-width:1.6;stroke-linejoin:round;}
   .lang-chip-label.emoji{font-family:var(--emoji);}
   .lang-chip-label{fill:var(--tab-ink,var(--ink-dim,var(--ink)));font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:600;pointer-events:none;user-select:none;}
-  .lang-chip:hover .lang-chip-bg{stroke-width:1.1;}
+  .lang-chip:hover .lang-chip-bg{stroke-width:2.2;}
   /* The tab being shown is the bigger one, washed in its ink. Its outline
      does not change: filled solid, the outline vanished into the fill and
      the tab read as a block of a different colour from the border it
@@ -1116,7 +1120,12 @@
   .side-tabs{
     --side-tab-len:44px;
     --side-tab-gap:8px;
-    position:absolute;top:14px;bottom:14px;left:0;
+    /* The column stops above the coordinates box in the corner, so a
+       drawer opened at the foot of it ends over the box instead of on it,
+       and the box never has to move out of the way (the owner's ask,
+       22.10: it used to slide right whenever any drawer opened). 52px is
+       the box's 16 from the bottom, its 24 of height, and 12 between. */
+    position:absolute;top:14px;bottom:52px;left:0;
     width:26px;
     z-index:30;
     /* The column is as tall as the canvas; only the tabs and the open
@@ -1842,14 +1851,12 @@
   .touch-menu button.danger{color:var(--accent);}
 
   .coord{
-    /* Clear of the tabs at the left edge, and of a drawer when one is open. */
+    /* Clear of the tabs at the left edge; the drawers end above it. */
     position:absolute;bottom:16px;left:36px;z-index:25;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;color:var(--ink-faint);
     background:var(--panel);border:1px solid var(--line);border-radius:4px;
     padding:5px 9px;box-shadow:var(--shadow);
-    transition:left 180ms ease;
   }
-  body.side-tab-open .coord{left:300px;}
   .coord{display:flex;align-items:center;gap:7px;}
   /* Sized from the length of its text (--coord-len, set by showCoord) and
      contained, so the numbers changing on every frame of a pan do not lay
@@ -1917,6 +1924,8 @@
      Each level is indented a little and marked with a rule, and the rule
      stops moving in past a few levels — a long line of sequels would
      otherwise walk off the right of a phone. */
+  .about-actions{margin:0 0 12px;}
+  .about-actions .editor-btn{display:inline-flex;align-items:center;gap:7px;margin:0;}
   .text-view-card{width:min(640px, 92vw);}
   .text-view-body .tv-count{color:var(--ink-faint);}
   .tv-list{list-style:none;margin:0;padding:0;}
@@ -2170,8 +2179,8 @@
 
   /* The file popover — export, import, and forgetting local work. */
   .file-popover{
-    position:absolute;top:12px;left:12px;z-index:96;
-    width:266px;
+    position:absolute;top:8px;left:12px;z-index:96;
+    width:max-content;max-width:calc(100vw - 16px);
     background:var(--panel);border:1px solid var(--line);border-radius:8px;
     box-shadow:var(--shadow);
     padding:9px 11px 11px;
@@ -2179,11 +2188,30 @@
   }
   .file-popover.open{display:flex;}
   .file-popover .editor-status{margin:0;}
-  .file-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .file-actions{display:grid;grid-template-columns:repeat(5, 46px);gap:7px;}
   .file-actions .editor-btn{width:100%;margin:0;}
-  .file-actions .file-tile{min-height:52px;line-height:1.3;white-space:normal;}
-  .file-actions .file-pic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;}
+  .file-actions .file-tile{
+    height:50px;padding:0;display:flex;align-items:center;justify-content:center;
+  }
+  .file-actions .file-tile:disabled .fmt-icon{opacity:0.4;}
   .file-actions .file-wide{grid-column:1 / -1;}
+  /* The file icons (index.html): one sheet for all five, and a band whose
+     colour is the format's. The colours are held a step quieter than the
+     programs' own, so the row sits in the page rather than on it. */
+  .fmt-icon{display:block;overflow:visible;}
+  .fmt-sheet{fill:var(--panel);stroke:var(--fmt);stroke-width:1.7;stroke-linejoin:round;}
+  .fmt-fold{fill:none;stroke:var(--fmt);stroke-width:1.7;stroke-linejoin:round;}
+  .fmt-glyph{fill:none;stroke:var(--fmt);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+  .fmt-dot{fill:var(--fmt);}
+  .fmt-band{fill:var(--fmt);}
+  .fmt-label{fill:#fff;font:700 6.4px 'IBM Plex Mono',monospace;letter-spacing:0.1px;}
+  .fmt-html{--fmt:#2b74b8;}
+  .fmt-js{--fmt:#b88a0c;}
+  .fmt-json{--fmt:#1f4a86;}
+  .fmt-png{--fmt:#7d7d34;}
+  .fmt-svg{--fmt:#8a55ad;}
+  /* Navy is the one that sinks into a dark panel. */
+  :root[data-theme="dark"] .fmt-json{--fmt:#4f7fc4;}
   body.read-only #fileForget{display:none;}
 
   /* The click menu for a free-standing picture or text block. Same floating
@@ -2283,12 +2311,20 @@
   .comment-empty{font-size:12px;color:var(--ink-faint);padding:12px 0;}
 
   /* Stickers ---------------------------------------------------------- */
-  .sticker-card{width:min(560px, 92vw);}
-  .sticker-add{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 6px;}
-  .sticker-status{margin-bottom:8px;}
+  /* A menu now, dropped from its button: as wide as four tiles, and the
+     tiles scroll inside it rather than the menu growing down the page. */
+  .sticker-pop{width:min(420px, calc(100vw - 16px));}
+  .sticker-plus{
+    flex:0 0 auto;width:22px;height:22px;padding:0;
+    border:1px solid var(--line);border-radius:5px;background:var(--panel);
+    color:var(--ink-dim);font:400 16px/1 'IBM Plex Sans',sans-serif;cursor:pointer;
+  }
+  .sticker-plus:hover{border-color:var(--accent);color:var(--accent);}
+  .sticker-status:not(.show){display:none;}
   .sticker-grid{
-    display:grid;grid-template-columns:repeat(auto-fill, minmax(92px, 1fr));
-    gap:10px;margin-top:10px;
+    display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
+    gap:10px;padding:6px 6px 2px;margin:0 -6px;
+    max-height:min(52vh, 420px);overflow-y:auto;overscroll-behavior:contain;
   }
   .sticker-cell{
     position:relative;
@@ -2309,7 +2345,7 @@
   }
   .sticker-del:hover{border-color:var(--accent);color:var(--accent);}
   .sticker-empty{font-size:12px;color:var(--ink-faint);padding:14px 0;}
-  body.read-only .sticker-add, body.read-only .sticker-cell-actions,
+  body.read-only .sticker-plus, body.read-only .sticker-cell-actions,
   body.read-only .sticker-del,
   body.read-only .sticker-picker-manage{display:none;}
 
@@ -3144,7 +3180,6 @@
        on the other side leaves room, and not chased across by a drawer,
        which on a phone covers the whole width anyway. */
     .coord{left:40px;bottom:12px;padding:6px 9px;}
-    body.side-tab-open .coord{left:40px;}
     .coord .coord-home{width:24px;height:24px;font-size:15px;}
     /* The ⌖ is 24 here: 47px besides the text, and 32 high. */
     .coord{width:calc(var(--coord-len, 7) * 1ch + 47px);height:32px;}

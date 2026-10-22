@@ -458,13 +458,28 @@ function closeToolbarMenus(keep){
     if(elm) elm.classList.remove('open');
   });
 }
+/* A menu the top bar opens drops from its own button, as a menu does,
+   rather than from a corner of the screen the eye then has to go and
+   find (the owner's ask, 22.10). It is placed once, as it opens: under
+   the button's left edge, pulled in from the right so it never runs off
+   a narrow window, and just below the bar, which is where its offset
+   parent starts. */
+function placeUnderButton(pop, btn){
+  if(!pop || !btn) return;
+  const host = pop.offsetParent || document.body;
+  const h = host.getBoundingClientRect(), b = btn.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const room = host.clientWidth - w - 8;
+  pop.style.left = Math.max(8, Math.min(b.left - h.left, room)) + 'px';
+  pop.style.top = Math.max(6, b.bottom - h.top + 6) + 'px';
+}
 const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
 function sideTabsOpen(){
   return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
 }
 /* Opening or shutting one drawer. The others are left exactly as they
    were — each has its own third of the edge, so none has to make way by
-   closing. The coordinates readout stands clear of whatever is open. */
+   closing. The coordinates box stays put: the column ends above it. */
 function setSideTab(panel, open){
   if(!panel) return;
   panel.classList.toggle('open', !!open);
