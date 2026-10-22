@@ -300,6 +300,7 @@ function applyLiveEdgeStyle(){
     // Set on the note itself, from its hover bar — carried through here.
     noteFrame: kept.noteFrame === false ? false : undefined,
     noteSquare: kept.noteSquare || undefined,
+    noteAlong: kept.noteAlong || undefined,
     color: paint.color,
     /* And the fact that it was CHOSEN, which is what makes it win over the
        colour of the border the connector was drawn from. It was computed

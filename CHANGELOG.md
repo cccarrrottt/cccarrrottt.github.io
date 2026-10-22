@@ -29,7 +29,17 @@ Releases before 0.9.0 were not numbered.
   not on the route it is drawn through.
 - A drafting callout's words stay where they are put; they were pulled
   square over the point they mark whenever the leader was near upright.
-- The browser tab shows R·P.
+- The browser tab shows R·P, the owner's own drawing of it.
+- A lineage of a merge routed straight leaves the bar where that says
+  something and crosses nothing: at an end of the bar it runs on a slant
+  to the end of the bar the others make; in the middle it runs straight
+  into the junction, unless that line would cross another lineage, when
+  it stays on the bar as before.
+- A connector's note can be written along its line, bending with it,
+  from a button on the note's bar. Above, on and below keep their
+  meaning, at the same distance all the way along; a line running right
+  to left is still written upright.
+- A T at the end of a connector stands 2.5 px off the border, not 1.
 - The file menu is called Import/Export and is drawn as the owner
   sketched it: Export page and Export contents side by side, the PNG and
   SVG pictures as two tiles with a picture on each, Import file across

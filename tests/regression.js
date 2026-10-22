@@ -3481,9 +3481,10 @@ async function main(){
     closeEdgePopover();
     await new Promise(r=> setTimeout(r, 200));
 
-    /* Lineages routed straight keep their bar (0.12.0, the owner's word:
-       the super-line stays and its segments may be straight). It used to
-       vanish, every line running to one point. */
+    /* Lineages routed straight (the owner's rule, 22.10): the two at the
+       ends of the bar leave it and run on a slant to the end of the bar
+       the others make, here the one lineage in the middle, which keeps
+       it. The merge keeps its junction and its arrow. */
     applyEdit(()=>{
       workingNodes.push(['sa','Alpha',null,null,null,null,{pos:[37000,-900], colors:['#c23b22']}]);
       workingNodes.push(['sb','Beta',null,null,null,null,{pos:[37300,-900], colors:['#1d7a5f']}]);
@@ -3497,10 +3498,11 @@ async function main(){
     out.straightMembers = document.querySelectorAll('.amalgam-member[data-to="sm"]').length;
     out.straightJoints = document.querySelectorAll('.amalgam-joint[data-to="sm"]').length;
     out.straightJunction = document.querySelectorAll('.amalgam-junction[data-to="sm"]').length;
-    /* Turn TWO of the three back to elbows and the bar comes back — all
-       three still have a place on it, so there are two seams — while the
-       one still routed straight runs to ITS OWN landing in a single line
-       rather than coming down onto it and turning. */
+    out.straightDirect = [...document.querySelectorAll('.amalgam-direct[data-to="sm"]')].map(p=> p.dataset.from).sort().join();
+    /* Turn TWO of the three back to elbows: the one still routed straight
+       is at the end of the bar, so it runs in a single line to the end of
+       the bar the other two make — its neighbour's landing — rather than
+       coming down onto a stretch of its own. */
     ['sa','sb'].forEach(f=>{
       EDGE_STYLES.find(x=> x.from===f && x.to==='sm').routing = 'orthogonal';
     });
@@ -3520,7 +3522,9 @@ async function main(){
        the far end of the stretch of bar it then owns. */
     const scNums = (scD.match(/-?[\d.]+/g) || []).map(Number);
     out.scLandX = scNums[2];
-    out.landsAtOwnPlace = Math.abs(scNums[2] - (sc.x + sc.w/2)) < 8;
+    const sbLand = amalgamBars.get('sm').landings.find(l=> l.from === 'sb').at;
+    out.landsAtBarEnd = Math.abs(scNums[2] - sbLand) < 0.5 && Math.abs(scNums[2] - (sc.x + sc.w/2)) > 8;
+    out.sbLand = sbLand;
 
     /* A note on a merged lineage stands on the far side from the entries
        feeding the merge, and never on the line it belongs to. */
@@ -3632,15 +3636,13 @@ async function main(){
   check('a redraw does not fade the connectors back in', r16.noFade);
   check('a note placed on a connector survives restyling it',
         r16.emptyLeaderKept);
-  check('lineages routed straight keep the bar, every one on its own stretch of it',
-        r16.straightMembers === 3 && r16.straightJoints === 2 && r16.straightJunction === 1,
-        JSON.stringify({m:r16.straightMembers, j:r16.straightJoints, b:r16.straightJunction}));
-  check('one elbowed lineage brings the bar back for all of them',
-        r16.mixedJoints === 2, String(r16.mixedJoints));
-  check('and a straight one runs to its own place on it, in one line',
-        r16.straightOneIsOneRun && r16.landsAtOwnPlace,
-        JSON.stringify({oneRun:r16.straightOneIsOneRun, ownPlace:r16.landsAtOwnPlace,
-                        land:r16.scLandX}));
+  check('straight lineages at the ends of a bar leave it for the bar between them',
+        r16.straightMembers === 3 && r16.straightDirect === 'sa,sc' && r16.straightJunction === 1,
+        JSON.stringify({m:r16.straightMembers, d:r16.straightDirect, b:r16.straightJunction}));
+  check('and a straight one at an end runs to the end of the others\' bar, in one line',
+        r16.straightOneIsOneRun && r16.landsAtBarEnd,
+        JSON.stringify({oneRun:r16.straightOneIsOneRun, barEnd:r16.landsAtBarEnd,
+                        land:r16.scLandX, sb:r16.sbLand}));
   check('a note on a merged lineage stands away from the entries feeding it',
         r16.noteAway, String(r16.noteAway));
   check('and never lies across the line it points at', r16.noteOffLine,
@@ -16330,11 +16332,24 @@ async function main(){
                         !!(workingNodes.find(t=> t[0] === 'mbM')[6].bar);
       out.handBarAt = JSON.stringify({at0, now: barAt()});
     }
-    // Every lineage straight, and the bar is still there.
-    ['mbA','mbB','mbC'].forEach(f=> EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true}));
+    /* Every lineage straight: the two at the ends run to the middle one,
+       which keeps the bar, and the merge still has its junction. */
+    /* Set on the style each lineage already has, where it has one:
+       edgeStyleFor reads the first, so a second pushed after it is never
+       seen — which is how this once made only the middle one straight. */
+    ['mbA','mbB','mbC'].forEach(f=>{
+      const had = EDGE_STYLES.find(x=> x.from === f && x.to === 'mbM');
+      if(had) had.routing = 'straight';
+      else EDGE_STYLES.push({from:f, to:'mbM', routing:'straight', dash:'solid', arrow:true});
+    });
     redrawEdges(); await wait(200);
     out.straightJoints = document.querySelectorAll('.amalgam-joint[data-to="mbM"]').length;
-    out.straightKeepsBar = !!hit() && out.straightJoints >= 1;
+    out.straightJoints = JSON.stringify({j: !!document.querySelector('.amalgam-junction[data-to="mbM"]'),
+      d: [...document.querySelectorAll('.amalgam-direct[data-to="mbM"]')].map(p=> p.dataset.from),
+      m: document.querySelectorAll('.amalgam-member[data-to="mbM"]').length});
+    out.straightKeepsBar = !!document.querySelector('.amalgam-junction[data-to="mbM"]') &&
+      document.querySelectorAll('.amalgam-direct[data-to="mbM"]').length === 2 &&
+      document.querySelectorAll('.amalgam-member[data-to="mbM"]').length === 3;
 
     applyEdit(()=>{
       workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
@@ -16371,7 +16386,7 @@ async function main(){
   check('the field on a connector\'s note keeps its frame on the plate', r.noteFrameOnPlate, r.noteFrame);
   check('a lineage given its side by hand still leaves the bar something to be carried from',
         r.handCarried, JSON.stringify({rest:r.handRest, at:r.handBarAt}));
-  check('straight lineages keep the bar', r.straightKeepsBar, String(r.straightJoints));
+  check('every lineage straight still makes a merge with a junction', r.straightKeepsBar, String(r.straightJoints));
   });
   await scenario("seen from far away: patches by tag, then by category", async () => {
   const r = await page.evaluate(async ()=>{
@@ -17589,7 +17604,7 @@ async function main(){
     return out;
   });
   check('a connector can end in a T instead of an arrow', t.tee && t.arrowheads === 0, JSON.stringify(t));
-  check('the T stands a pixel off the outer edge of the entry’s border', Math.abs(t.gap - 1) < 0.1, JSON.stringify(t));
+  check('the T stands TEE_GAP (2.5 px) off the outer edge of the entry’s border', Math.abs(t.gap - 2.5) < 0.1, JSON.stringify(t));
   check('the T lies across the line', t.across >= 8, JSON.stringify(t));
   check('the line stops at the T', t.lineToBar <= 1.5, JSON.stringify(t));
   check('the legend names the T', t.legend);
@@ -18043,12 +18058,16 @@ async function main(){
     await pause(150);
     const sw = sel=> parseFloat(getComputedStyle(document.querySelector(`.node[data-id="rc_a"] ${sel}`)).strokeWidth);
     out.tabs = {chip: sw('.lang-chip-bg'), link: sw('.node-link-bg'), border: NODE_BORDER_W};
-    /* The tab's icon is R·P, written into the page. */
+    /* The tab's icon is the owner's own R·P drawing (87 × 87), written
+       into the page — the PNG itself, not a redrawing of it. */
     const icon = document.querySelector('link[rel="icon"]');
     // Inline in the built page; beside it, as a file, in the sources.
-    const iconSvg = !icon ? '' : /^data:/.test(icon.href) ? decodeURIComponent(icon.href)
-      : await fetch(icon.href).then(r=> r.ok ? r.text() : '').catch(()=> '');
-    out.favicon = /<svg/.test(iconSvg) && /c23b22/.test(iconSvg);
+    const bytes = !icon ? new Uint8Array(0) : new Uint8Array(await fetch(icon.href)
+      .then(r=> r.ok ? r.arrayBuffer() : new ArrayBuffer(0)).catch(()=> new ArrayBuffer(0)));
+    const u32 = (o)=> ((bytes[o] << 24) | (bytes[o+1] << 16) | (bytes[o+2] << 8) | bytes[o+3]) >>> 0;
+    out.favicon = bytes.length > 24 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+                  u32(16) === 87 && u32(20) === 87;
+    out.faviconInline = /^data:image\/png;base64,/.test(icon ? icon.getAttribute('href') : '');
     flyToNode('rc_a'); await pause(150);
     const at = id=>{ const b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect(); return {x: b.left + b.width/2, y: b.top + b.height/2}; };
     out.a = at('rc_a'); out.b = at('rc_b');
@@ -18069,7 +18088,8 @@ async function main(){
   check('a GIF for a portrait or a picture is kept whole, with no cropper', r.portraitGif && r.cropperShut);
   check('language tabs and a link\'s tab are outlined at the border\'s weight',
         r.tabs.chip === r.tabs.border && r.tabs.link === r.tabs.border, JSON.stringify(r.tabs));
-  check('the tab\'s icon is R·P, inside the page', r.favicon);
+  check('the tab\'s icon is the owner\'s R·P drawing', r.favicon);
+  if(MODE !== 'src') check('and the built page carries it inside', r.faviconInline);
   /* A right click: the menu at the pointer over what was clicked. */
   await page.mouse.click(r.a.x, r.a.y, {button: 'right'});
   await wait(150);
@@ -18125,11 +18145,108 @@ async function main(){
     const pb = plate.getBBox();
     const dot = document.querySelector('.callout-leader[data-id="cn_c"] .leader-dot');
     const out = {note: off(pb.x + pb.width/2, pb.y + pb.height/2), dot: off(+dot.getAttribute('cx'), +dot.getAttribute('cy'))};
+    /* Written along the line (the owner's toggle, 22.10): one button on the
+       note's bar, the words on a path that keeps the side asked for at the
+       same distance all the way along, and no plate. */
+    applyEdit(()=> Object.assign(EDGE_STYLES.find(x=> x.from === 'cn_a' && x.to === 'cn_b'), {notePos:'above'}));
+    openStyleBar({kind:'note', from:'cn_a', to:'cn_b'});
+    const btn = document.querySelector('#styleBar [data-group="noteAlong"] button');
+    out.button = !!btn && !btn.closest('[data-group]').hidden;
+    if(btn) btn.click();
+    await new Promise(ok=> setTimeout(ok, 200));
+    out.stored = !!edgeStyleFor('cn_a', 'cn_b').noteAlong &&
+                 /noteAlong:true/.test(serializeEdgeStyles(EDGE_STYLES));
+    out.framesGreyed = !!document.querySelector('#styleBar [data-group="frame"] button:disabled');
+    closeStyleBar();
+    const g = document.querySelector('.edge-note[data-from="cn_a"][data-to="cn_b"]');
+    const tp = g && g.querySelector('textPath');
+    const along = g && g.querySelector('.edge-note-along-path');
+    out.alongDrawn = !!tp && tp.textContent === 'on the line' && !g.querySelector('.edge-note-plate');
+    if(along){
+      const L = along.getTotalLength(), ds = [];
+      for(let k = 1; k < 10; k++){ const q = along.getPointAtLength(L * k / 10); ds.push(off(q.x, q.y)); }
+      // A copy of the line half a size and three units off it.
+      const want = EDGE_NOTE_FS * 0.5 + 3;
+      out.alongOffset = ds;
+      out.alongEven = ds.every(d=> Math.abs(d - want) < 1.2);
+    }
+    /* And a line running right to left is written left to right. */
+    applyEdit(()=>{
+      workingNodes.push(['cn_d', 'Back', null, null, null, null, {pos:[X + 400, Y + 400]}]);
+      workingNodes.push(['cn_e', 'Here', 'cn_d', null, null, null, {pos:[X, Y + 600]}]);
+      EDGE_STYLES.push({from:'cn_d', to:'cn_e', routing:'curve', note:'backwards', noteAlong:true});
+    });
+    await new Promise(ok=> setTimeout(ok, 250));
+    const back = document.querySelector('.edge-note[data-from="cn_d"] .edge-note-along-path');
+    if(back){
+      const L = back.getTotalLength();
+      out.upright = back.getPointAtLength(0).x < back.getPointAtLength(L).x;
+    }
     applyEdit(()=>{ workingNodes = workingNodes.filter(e=> !/^cn_/.test(e[0])); refill(EDGE_STYLES, beforeStyles); });
     return out;
   });
   check('a note on a curve stands on the curve', r.note < 1.5, JSON.stringify(r));
   check('and so does a callout\'s dot', r.dot < 1.5, JSON.stringify(r));
+  check('a note can be written along its line, from its bar',
+        r.button && r.stored && r.alongDrawn && r.framesGreyed, JSON.stringify(r));
+  check('and keeps its side at one distance all along the curve', r.alongEven, JSON.stringify(r.alongOffset));
+  check('and a line running leftwards is still written upright', r.upright, String(r.upright));
+  });
+  await scenario("a straight lineage leaves the bar where it crosses nothing", async () => {
+  /* The owner's rule for a merge whose lineage is routed straight (22.10):
+     at an end of the bar it runs to the end of the bar the others make; in
+     the middle it runs into the junction bead unless that line would cross
+     another lineage, when it stays on the bar; standing over the junction
+     it already drops into it. Five lineages, one straight at a time. */
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const G = GRID, X = snapToGrid(33000), Y = snapToGrid(33000);
+    const ids = ['A','B','C','D','E'].map(c=> 'sl' + c);
+    const lift = [4, 1, 3, 0, 5];
+    const make = (straight, under)=>{
+      applyEdit(()=>{
+        workingNodes = workingNodes.filter(e=> !/^sl/.test(e[0]));
+        refill(EDGE_STYLES, EDGE_STYLES.filter(x=> !/^sl/.test(x.to)));
+        ids.forEach((id, i)=> workingNodes.push([id, 'Lineage ' + 'ABCDE'[i], null, null, null, null,
+          {pos:[X + G*14*i, Y + G*lift[i]]}]));
+        workingNodes.push(['slM', 'Amalgam', ids, null, null, 'amalgam', {pos:[X + G*under, Y + G*30]}]);
+        straight.forEach(i=> EDGE_STYLES.push({from: ids[i], to: 'slM', routing: 'straight'}));
+      });
+    };
+    const look = (id)=>{
+      const p = document.querySelector(`.amalgam-member[data-from="${id}"][data-to="slM"]`);
+      const nums = p ? (p.getAttribute('d').match(/-?[\d.]+/g) || []).map(Number) : [];
+      const j = document.querySelector('.amalgam-junction[data-to="slM"]');
+      const bar = amalgamBars.get('slM');
+      return {direct: !!(p && p.classList.contains('amalgam-direct')),
+              end: {x: nums[nums.length - 2], y: nums[nums.length - 1]},
+              junction: j ? {x: +j.getAttribute('cx'), y: +j.getAttribute('cy')} : null,
+              land: bar ? Object.fromEntries(bar.landings.map(l=> [l.from, l.at])) : {},
+              joints: [...document.querySelectorAll('.amalgam-joint[data-to="slM"]')]
+                        .map(c=> +(+c.getAttribute('cx')).toFixed(1))};
+    };
+    const out = {};
+    try{
+      // The amalgam under the middle lineage: the junction stands over C.
+      make([0], 26); await wait(250); out.edge = look('slA');
+      make([1], 26); await wait(250); out.middle = look('slB');
+      // The amalgam under D: B's line into the junction would cross C.
+      make([1], 40); await wait(250); out.crossing = look('slB');
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x)); refill(EDGE_STYLES, beforeStyles); });
+    }
+    return out;
+  });
+  const near = (a, b)=> a && b && Math.abs(a.x - b.x) < 0.6 && Math.abs(a.y - b.y) < 0.6;
+  check('a straight lineage at an end of the bar runs to the end of the others\' bar',
+        r.edge.direct && Math.abs(r.edge.end.x - r.edge.land.slB) < 0.6 &&
+        r.edge.joints.some(x=> Math.abs(x - r.edge.land.slB) < 0.6), JSON.stringify(r.edge));
+  check('one in the middle that crosses nothing runs into the junction',
+        r.middle.direct && near(r.middle.end, r.middle.junction), JSON.stringify(r.middle));
+  check('and one whose line would cross another lineage stays on the bar',
+        !r.crossing.direct && !near(r.crossing.end, r.crossing.junction), JSON.stringify(r.crossing));
   });
   await scenario("the chart as text", async () => {
   /* The same chart written out as a document (41-text-view.js), for a

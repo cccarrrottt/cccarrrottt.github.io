@@ -117,6 +117,8 @@ const STYLE_BAR_HATCH = [['none', '▢', 'No hatching'],
 const STYLE_BAR_NOTE_SIDE = [
   ['above', '↑', 'Above the line'], ['on', '≡', 'On the line, covering it'], ['below', '↓', 'Below the line']
 ];
+/* Level on a plate, or written along the line and bending with it. */
+const STYLE_BAR_NOTE_ALONG = [['along', '〰', 'Written along the line, bending with it']];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
 const STYLE_BAR_LINGER = 260;
@@ -169,6 +171,7 @@ const styleBar = (()=>{
   group('leader', STYLE_BAR_LEADER);
   group('leaderForm', STYLE_BAR_LEADER_FORM);
   group('noteSide', STYLE_BAR_NOTE_SIDE);
+  group('noteAlong', STYLE_BAR_NOTE_ALONG);
   /* A colour on the bar is a square, as every colour on the page is (see
      squareForHexInput); pressed, it opens the code to type. Blank is the
      paper. Typing is one step of undo however long it runs. */
@@ -388,7 +391,7 @@ function syncStyleBarRows(){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     rows.leader.hidden = rows.leaderForm.hidden = true;
     rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = true;
-    rows.noteSide.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
+    rows.noteSide.hidden = rows.noteAlong.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
     light(rows.stack, (n.z || 0) < 0 ? 'behind' : '');
     styleBar.hidden = false;
     positionStyleBar();
@@ -398,7 +401,7 @@ function syncStyleBarRows(){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     rows.leader.hidden = rows.leaderForm.hidden = true;
     rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = true;
-    rows.noteSide.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
+    rows.noteSide.hidden = rows.noteAlong.hidden = rows.noteBg.hidden = rows.cardBg.hidden = true;
     light(rows.decor, decorStyleOf(decorOn));
     styleBar.hidden = false;
     positionStyleBar();
@@ -406,7 +409,7 @@ function syncStyleBarRows(){
   }
   rows.leader.hidden = rows.leaderForm.hidden = !callout;
   rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = t.kind !== 'edge';
-  rows.noteSide.hidden = rows.noteBg.hidden = t.kind !== 'note';
+  rows.noteSide.hidden = rows.noteAlong.hidden = rows.noteBg.hidden = t.kind !== 'note';
   rows.cardBg.hidden = !(n && isCalloutNode(n) && !(n.leader && n.leader.shelf));
   const showHex = (row, v)=>{
     const input = row.querySelector('input');
@@ -479,11 +482,14 @@ function syncStyleBarRows(){
   } else {
     rows.border.hidden = true;
     rows.frame.hidden = false;
-    light(rows.frame, style.noteFrame === false ? '' : 'frame');
+    /* Words written along the line have no plate, so nothing to frame and
+       no corners: both are greyed while they are. */
+    light(rows.frame, style.noteFrame === false ? '' : 'frame', ()=> style.noteAlong);
     /* A note with its frame taken off has no corners left to choose: the
        button is greyed rather than left to look as if it did nothing. */
-    light(rows.corners, style.noteSquare ? '' : 'round', ()=> style.noteFrame === false);
+    light(rows.corners, style.noteSquare ? '' : 'round', ()=> style.noteFrame === false || style.noteAlong);
     light(rows.noteSide, style.notePos || 'above');
+    light(rows.noteAlong, style.noteAlong ? 'along' : '');
     showHex(rows.noteBg, style.noteBg);
   }
   if(n || t.kind === 'note'){
@@ -645,6 +651,8 @@ function applyStyleBar(group, value){
         if(o.noteFrame === false) delete o.noteFrame; else o.noteFrame = false;
       } else if(group === 'corners'){
         if(o.noteSquare) delete o.noteSquare; else o.noteSquare = true;
+      } else if(group === 'noteAlong'){
+        if(o.noteAlong) delete o.noteAlong; else o.noteAlong = true;
       }
     });
   }

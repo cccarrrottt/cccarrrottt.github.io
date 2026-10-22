@@ -1097,6 +1097,13 @@
     fill:var(--ink);text-anchor:middle;
     pointer-events:none;
   }
+  /* A note written along its line takes the pointer on its letters, and is
+     ringed in the paper (or its own ground) so a line or the grid under
+     it never runs through the words — what the plate does for a level one. */
+  .edge-note-text.edge-note-along{
+    pointer-events:visiblePainted;paint-order:stroke;
+    stroke:var(--paper);stroke-width:3px;stroke-linejoin:round;
+  }
   .edge-note.dim{opacity:0.08;}
   /* The arrowheads and an amalgam's beads are their own shapes in their
      own layer, so they need the same treatment the lines get — otherwise

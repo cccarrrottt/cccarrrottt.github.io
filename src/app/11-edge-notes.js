@@ -770,6 +770,15 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
    * setting and by sliding the plate along its line; the chart does not
    * second-guess it. */
   const g = el('g', {class:'edge-note', 'data-from':from, 'data-to':to}, arrowLayer);
+  /* Written ALONG the line instead, when the connector asks for it — the
+     words bending with every turn of the line (the owner's toggle, 22.10).
+     Only while nobody is writing in it: the field opens over a level
+     plate, as it does for every other note. */
+  if(styleNow.noteAlong && text && !writing){
+    wireNoteEditing(g, from, to, pts);
+    drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg);
+    return;
+  }
   /* The note is written ON the note. Double-click the plate and the field
      opens over it, in the note's own face and size — the same gesture, and
      the same field, that every other piece of text on this chart uses. The
@@ -868,4 +877,52 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
   }
 }
 
+/* A note written along its line.
+ *
+ * The words run on a copy of the line moved off it to the note's side, so
+ * "above" and "below" keep the meaning they have for a plate — the side
+ * picked at the point the note rides — and the copy keeps that side all
+ * the way along, round every bend. "On" writes on the line itself, over a
+ * band of the note's ground so the line does not run through the letters.
+ * A line running leftwards is turned round first, so the words never read
+ * upside down. Plain words only: a path carries one run of text, and
+ * marks, ruby and stickers have nowhere to go on it.
+ */
+let noteAlongSeq = 0;
+function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg){
+  const off = pos === 'on' ? 0 : (EDGE_NOTE_FS * 0.5 + 3) * (pos === 'below' ? -1 : 1);
+  // The side asked for, as a multiple of the line's own left normal.
+  const sign = (m.dy * px - m.dx * py) >= 0 ? 1 : -1;
+  const moved = pts.map((p, i)=>{
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const L = Math.hypot(dx, dy) || 1;
+    dx /= L; dy /= L;
+    // At a corner the two legs' normals are averaged; held to twice the
+    // offset so a sharp turn does not throw the copy far out.
+    let k = 1;
+    if(i > 0 && i < pts.length - 1){
+      const ax = p.x - a.x, ay = p.y - a.y, la = Math.hypot(ax, ay) || 1;
+      const cos = (ax / la) * dx + (ay / la) * dy;
+      k = Math.min(2, 1 / Math.max(0.5, cos));
+    }
+    return {x: p.x + dy * off * sign * k, y: p.y - dx * off * sign * k};
+  });
+  let total = 0;
+  for(let i = 1; i < moved.length; i++) total += Math.hypot(moved[i].x - moved[i-1].x, moved[i].y - moved[i-1].y);
+  let at = total * f;
+  const leftwards = m.dx < -1e-6 || (Math.abs(m.dx) <= 1e-6 && m.dy < 0);
+  const run = leftwards ? moved.slice().reverse() : moved;
+  if(leftwards) at = total - at;
+  const id = 'note-along-' + (++noteAlongSeq);
+  el('path', {id, class:'edge-note-along-path', fill:'none', stroke:'none',
+              d: run.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ')}, g);
+  const t = el('text', {class:'edge-note-text edge-note-along' + (pos === 'on' ? ' on-line' : '')}, g);
+  t.style.textAnchor = 'middle';
+  t.style.dominantBaseline = 'central';
+  if(paint) t.style.fill = paint;
+  if(bg) t.style.stroke = bg;
+  const tp = el('textPath', {href: '#' + id, startOffset: at.toFixed(2)}, t);
+  tp.textContent = stripMarkup(text).replace(/\s+/g, ' ').trim();
+}
 // The outward normal of the side a port sits on.
