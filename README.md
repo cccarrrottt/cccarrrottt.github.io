@@ -116,9 +116,14 @@ The build is verified to reproduce the previous single-file version byte for
 byte, so nothing about the published page changed when the sources were
 split.
 
-Fonts are the one exception the CSP allows: three families come from Google
-Fonts by `<link>`, each with a local fallback stack, so the page still reads
-correctly if those hosts are blocked. Everything else — icons as inline SVG,
+Fonts are the one exception the CSP allows: they come from Google Fonts by
+`<link>`, each with a local fallback stack, so the page still reads
+correctly if those hosts are blocked. The faces the page's own controls use
+are asked for without holding up the first drawing (the stylesheet loads as
+`media="print"` and switches itself on), and a face an entry can be set in —
+Merriweather, Space Grotesk, Orbitron, Caveat — is asked for only when an
+entry on the chart uses it (`askForFace`, `05-render-text.js`); when it
+lands the chart measures its words again, as it does for any late font. Everything else — icons as inline SVG,
 portraits and stickers as `data:` URIs — is inside the file.
 
 ## Build
@@ -246,6 +251,29 @@ read-only for everybody, the owner included.
 
 `worker/wrangler.toml` holds the rest: the repository, the branch, the owner
 logins and the site's address.
+
+### What the site counts, and what it is told
+
+**Visitors.** The site can count its visits with Cloudflare Web Analytics,
+which sets no cookie and keeps nothing in the reader's browser, so there is
+nothing to ask anyone's leave for. In Cloudflare: *Analytics & Logs → Web
+Analytics → Add a site*, the site's address, and take the token from the
+snippet it offers. In GitHub: *Settings → Secrets and variables → Actions →
+Variables*, a repository **variable** (not a secret: it is printed into every
+page) named `CF_WEB_ANALYTICS_TOKEN`. The next publish carries the counter;
+without the variable the site has none, and neither does a fork, a local
+build or an exported copy — it is written beside the preview tags, outside
+the page's markers.
+
+**Faults.** A fault a reader's browser meets on the site — an exception, or
+a promise nobody caught — is sent to the write service (`POST /report`),
+which writes it to the Worker's log: Cloudflare, the Worker, *Logs*
+(`[observability]` in `worker/wrangler.toml` keeps them). Each line is the
+message, the program file and the place in it, the stack, the version and
+the browser; never the session. A page sends at most five, each once. The
+program on the site is minified, so a place reads as line and column of
+`app.<hash>.js`; its source map is beside it, `app.<hash>.map`, and the
+stack still names the functions, which minification leaves as they are.
 
 ## Where the chart's contents actually live
 
@@ -707,7 +735,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 77 named scenarios, and they are independent of one
+The browser suite is 122 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

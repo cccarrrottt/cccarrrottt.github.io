@@ -8,6 +8,14 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The site loads faster: its program and stylesheet are minified (491 KB
+  gzipped became 200), and fonts no longer hold up the first drawing. A
+  face an entry can be set in is fetched only when an entry uses it.
+  On a cold load the chart is drawn in about half the time.
+- The site can count its visitors without cookies (Cloudflare Web
+  Analytics, once its token is set), and a fault a reader's browser meets
+  there is sent to the write service's log, so it is known without
+  anybody having to write in.
 - Export/Import (renamed from Import/Export) is a row of five file
   icons, HTML, JS, JSON, PNG and SVG, one family drawn in the page's own
   style, with Import file under them. It drops from its own button, as

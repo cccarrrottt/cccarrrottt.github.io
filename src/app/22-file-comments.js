@@ -637,16 +637,20 @@ function inUnicodeRange(range, cps){
   return false;
 }
 async function pictureFontCss(copy){
-  const link = document.querySelector('link[rel="stylesheet"][href*="fonts.googleapis.com"]');
-  if(!link) return '';
+  /* Every stylesheet the faces came from: the interface's, and one more
+     for each face an entry asked for (askForFace). */
+  const links = [...document.querySelectorAll('link[rel="stylesheet"][href*="fonts.googleapis.com"]')];
+  if(!links.length) return '';
   const used = pictureFaces(copy);
   if(!used.size) return '';
-  let css;
-  try{
-    const r = await fetch(link.href);
-    if(!r.ok) return '';
-    css = await r.text();
-  }catch(e){ return ''; }
+  let css = '';
+  for(const link of links){
+    try{
+      const r = await fetch(link.href);
+      if(r.ok) css += await r.text() + '\n';
+    }catch(e){}
+  }
+  if(!css) return '';
   const blocks = css.match(/@font-face\s*{[^}]*}/g) || [];
   const keep = [];
   for(const block of blocks){

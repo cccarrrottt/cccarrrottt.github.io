@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 89 named scenarios, and they do not depend on one another —
+The suite is 122 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -191,16 +191,35 @@ site") and `build_guard`:
 - **The site is that page with its program beside it.** `build.py` also
   writes `dist/site/` (`build_site`), which CI publishes: the same page,
   but with the program and stylesheet in `app.<hash>.js` and
-  `style.<hash>.css`, named by the sha-256 of their bytes. A Save changes
-  only the chart, so readers keep both and fetch ~15 KB instead of ~550.
+  `style.<hash>.css`, named by the sha-256 of their bytes, and minified
+  by esbuild (pinned in `package.json`; whitespace and syntax only, so
+  every name — and every stack trace — stays readable), with
+  `app.<hash>.map` beside the program. A build without esbuild writes
+  them unminified and says so; CI sets `RHIZOME_MINIFY=required`, so a
+  publish cannot. 491 KB gzipped became 200, and the first drawing on a
+  cold load 588 ms → 269 together with the fonts below. A Save changes
+  only the chart, so readers keep both and fetch ~15 KB instead of ~200.
   Their tags carry `data-inline`, and `readOwnSource` puts both back inside
   (`inlineSiteFiles`, `20-about.js`), so Export is still one file. The
   service worker keeps them cache-first, like pictures, and lets go of a
   pair once neither the newest page nor the one before it names them. The
   site's `<head>` also says what a link to it is (og/twitter tags, and
   `src/site/og-image.png`, drawn by `tools/og-image.js`). `build_guard`
-  checks that the site, with the files put back, is `nexus.html` byte for
-  byte but for the one seam between the chart's script and the program's.
+  checks that the site, with the files put back unminified, is
+  `nexus.html` byte for byte but for the one seam between the chart's
+  script and the program's, and that the files ARE the program and the
+  stylesheet minified — so an export from the site carries the minified
+  program, which the suite drives as it drives any other.
+- **Fonts do not hold up the first drawing.** The UI faces' stylesheet
+  loads as `media="print"` and switches itself on; an entry face
+  (`FONT_OPTIONS[].web`) is asked for the first time an entry is drawn in
+  it (`askForFace`), and `fontsLanded` measures again when it arrives.
+- **The site counts and reports, and only the site.** A Cloudflare Web
+  Analytics beacon, when CI passes `CF_WEB_ANALYTICS_TOKEN` (a repository
+  variable), outside the markers so no export carries it; and faults a
+  reader's browser meets go to `POST /report` (`reportFault`,
+  `01-store.js`), at most five a load, never with the session, which the
+  service writes to its log and nowhere else.
 - **No part may contain a closing script tag**, in a string or a comment:
   the program is inside a `<script>` in every build but the site's, and the
   parser ends it there. The build refuses it and names the part.

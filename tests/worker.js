@@ -527,6 +527,41 @@ function partsOf(text){
         r.status === 403 && /Issues permission/.test(body.error), r.status + ' ' + JSON.stringify(body));
   gh.issuesAllowed = true;
 
+  /* A fault a reader's browser met. Written to the log, as the page's
+     sendBeacon sends it: plain text, no session. */
+  const logged = [];
+  const consoleError = console.error;
+  console.error = (...a) => logged.push(a.join(' '));
+  const ghBefore = gh.refUpdates;
+  const fault = {kind: 'error', message: 'x is not defined', file: SITE + '/app.0123456789abcdef.js',
+                 line: 12, col: 34, stack: 'ReferenceError: x is not defined\n    at f', version: '0.15.0', ua: 'a browser',
+                 session: 'Bearer good-session'};
+  r = await call('/report', {method: 'POST', headers: {Origin: SITE, 'Content-Type': 'text/plain;charset=UTF-8'}, body: JSON.stringify(fault)});
+  console.error = consoleError;
+  const faultLine = logged.length === 1 ? JSON.parse(logged[0]) : null;
+  check('a fault from the site is taken, and nothing is answered but that', r.status === 204 && (await r.text()) === '', r.status);
+  check('it is written to the log as one line, with what went wrong and where',
+        !!faultLine && faultLine.report === 'page fault' && faultLine.message === fault.message && faultLine.file === fault.file
+        && faultLine.line === 12 && faultLine.col === 34 && faultLine.version === '0.15.0', logged.join('\n'));
+  check('and only the report\'s own fields — nothing a sender adds rides along', !!faultLine && !('session' in faultLine), logged.join('\n'));
+  check('and no one else is asked anything', gh.refUpdates === ghBefore);
+  logged.length = 0;
+  console.error = (...a) => logged.push(a.join(' '));
+  r = await call('/report', {method: 'POST', headers: {Origin: 'https://evil.example'}, body: JSON.stringify(fault)});
+  const fromElsewhere = r.status;
+  r = await call('/report', {method: 'POST', body: JSON.stringify(fault)});
+  const fromNowhere = r.status;
+  r = await call('/report', {method: 'POST', headers: {Origin: SITE}, body: JSON.stringify({...fault, stack: 'x'.repeat(9000)})});
+  const tooLarge = r.status;
+  r = await call('/report', {method: 'POST', headers: {Origin: SITE}, body: JSON.stringify({kind: 'error', message: 'm'.repeat(5000), line: 'twelve'})});
+  console.error = consoleError;
+  check('a report from another site is refused', fromElsewhere === 403, fromElsewhere);
+  check('and one that says no site at all', fromNowhere === 403, fromNowhere);
+  check('a report past a few kilobytes is refused', tooLarge === 413, tooLarge);
+  const cut = logged.length === 1 ? JSON.parse(logged[0]) : null;
+  check('and what is written is cut to length, and a line that is not a number is none',
+        r.status === 204 && !!cut && cut.message.length === 500 && cut.line === 0, logged.join('\n'));
+
   /* The configuration. The three secrets live in Cloudflare; written into
      wrangler.toml they would be public, and would collide with the real
      ones. It happened once, with placeholder values. */
