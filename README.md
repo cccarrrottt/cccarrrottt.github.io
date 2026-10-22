@@ -23,11 +23,15 @@ src/
                files" below; the order is APP_PARTS in build.py
   site/        published beside the page on the site only: the manifest, the
                icons and the service worker that make it an app a phone keeps
-               — see "On the home screen, with no signal" below
+               — see "On the home screen, with no signal" below — and
+               chart.schema.json, the chart's contents as JSON (what
+               "Export the contents as JSON" writes and Import reads)
 build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
                    they look like; see the file for why there are only three
-tools/lint.py  lints the ASSEMBLED program and reports per part
+tools/lint.py  lints the ASSEMBLED program and reports per part, and asks
+               tools/tdz.js whether start-up reads a const before its part
+               has run
 tools/data_check.py
                is the chart in the repository the chart that is live? see
                "Where the chart's contents actually live" below
@@ -178,12 +182,15 @@ and the one place a write can go is the write service in `worker/`, which:
 - commits with that person's own GitHub token, so GitHub refuses the write
   unless the account can push to the repository *and* the app is installed on
   it with Contents write — nothing on the page can change either answer;
-- refuses a save made on top of anything but the `data.js` currently in the
-  repository. The page carries the git id of the file it was built from
-  (`DATA_SHA`, written in by `build.py`), so a page that is behind — a second
-  tab, or this one reloaded before the site caught up — cannot write an older
-  chart over a newer one. The owner's page says so when it opens rather than
-  when they press Save.
+- never writes an older chart over a newer one. The page carries the git id
+  of the file it was built from (`DATA_SHA`, written in by `build.py`), and a
+  save made on top of anything but the `data.js` currently in the
+  repository — a second device, or a phone's kept Save sent days later — is
+  merged with what the repository got in between: what only one side
+  changed is taken from that side, one entry (one line of `data.js`) at a
+  time, and only an entry both changed differently is refused, by name
+  (`mergeRegions`). The page then takes the merged chart. A page that is
+  behind when it opens says so then, rather than when Save is pressed.
 
 Anywhere other than the site's address — a disk, somebody else's host, the
 test server — the page is its holder's own copy and saves into their browser,

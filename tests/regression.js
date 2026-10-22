@@ -17866,7 +17866,8 @@ async function main(){
   const owners = JSON.parse(r.owners), full = JSON.parse(r.full);
   const okOwners = validate(owners), errsOwners = validate.errors;
   const okFull = validate(full), errsFull = validate.errors;
-  check('the chart as JSON is what the schema describes', okOwners, JSON.stringify(errsOwners && errsOwners.slice(0, 3)));
+  check('the chart as JSON is what the schema describes', okOwners,
+        JSON.stringify(errsOwners && errsOwners.slice(0, 3).map(e => [e.dataPath, e.message, JSON.stringify(e.dataPath.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => o && o[k], owners))])));
   check('and so is one with every kind of thing a chart holds', okFull, JSON.stringify(errsFull && errsFull.slice(0, 3)));
   check('it names its schema and its form, at the top', full.$schema === 'https://cccarrrottt.github.io/chart.schema.json' &&
         full.format === 2 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
@@ -17982,6 +17983,13 @@ async function main(){
       out.afterUndo = [bgOf('hx_a', 'hx_b'), bgOf('hx_a', 'hx_c')];
       field.blur();
       closeStyleBar && closeStyleBar();
+      // A note started on a plain connector is written with the connector's defaults.
+      applyEdit(()=>{ for(let k = EDGE_STYLES.length - 1; k >= 0; k--) if(EDGE_STYLES[k].from === 'hx_a' && EDGE_STYLES[k].to === 'hx_b') EDGE_STYLES.splice(k, 1); });
+      startEdgeNote('hx_a', 'hx_b');
+      const raw = EDGE_STYLES.find(st=> st.from === 'hx_a' && st.to === 'hx_b');
+      raw.note = 'A remark';
+      out.plainNote = serializeEdgeStyles(EDGE_STYLES).split('\n').find(l=> l.includes("from:'hx_a', to:'hx_b'"));
+      try{ closeNodeEditor(true); }catch(e){}
     } finally {
       console.warn = warn;
       applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
@@ -17997,6 +18005,8 @@ async function main(){
   check('a position that is not a number is no position', r.posDropped);
   check('a note quoting a region\'s marker is written without one, and reads back as typed',
         r.markers === 1 && r.partsClean && r.quoteBack, JSON.stringify({markers: r.markers, clean: r.partsClean, back: r.quoteBack}));
+  check('a note started on a plain connector keeps the connector\'s line and arrow when written',
+        !!r.plainNote && /routing:'orthogonal', dash:'solid', arrow:true/.test(r.plainNote) && !/undefined|arrow:null/.test(r.plainNote), r.plainNote);
   check('a note\'s ground typed into, then another note\'s, is two steps of undo, not one',
         r.afterUndo[0] === '#ffeebb' && r.afterUndo[1] === null, JSON.stringify(r.afterUndo));
   });

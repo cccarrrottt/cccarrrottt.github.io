@@ -8,6 +8,30 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A Save made on an older chart — from a second device, or kept on a
+  phone with no signal and sent later — is merged with what the
+  repository got in between instead of refused. Only an entry both saves
+  changed differently stops it, and the page names that entry; the page
+  then shows the merged chart.
+- The chart's contents can be exported as plain JSON, one entry to a
+  line, and imported back. `chart.schema.json`, published beside the
+  site, describes the file.
+- A chart with a coloured tag, or with an entry whose picture comes from a
+  web address, did not open: the page threw while building it. Both read
+  a value of a later part of the program; `tools/lint.py` now asks
+  `tools/tdz.js` for every such read start-up can reach, and found these
+  two.
+- A note added to a plain connector took the connector's arrow away at
+  the next opening: the connector was written down with its line and
+  arrow left blank, which reads back as none. The schema check found it.
+- Fixed: a note quoting a region's marker (`@@EDIT:…`) could not be
+  saved; the view was shared by every chart in one browser; the site's
+  worker answered every address on the site with the chart; switching
+  notes with a ground's field focused put both in one step of undo; two
+  entries under one id were half-merged; a bend or position that is not a
+  number sent a line off the chart. The write service counts a body's
+  bytes instead of trusting its header, and a failed sign-in shows a page.
+
 - An array has no tab: it is taken hold of either side of its frame, the
   line itself being its ports. It has no ground either: its colour is its
   frame's and its hatching's, black unless one is chosen, and both are
