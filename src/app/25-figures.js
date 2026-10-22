@@ -341,6 +341,8 @@ function applyRichCommand(surface, kind, arg, restyle){
     const sel = window.getSelection && window.getSelection();
     if(!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
+    // Only words in this field: the selection may be anywhere on the page.
+    if(range.collapsed || !surface.contains(range.commonAncestorContainer)) return;
     const frag = range.extractContents();
     // Strip any face already on the selection, then wrap it in the new one.
     const strip = (node)=>{
@@ -432,6 +434,7 @@ function applyRichCommand(surface, kind, arg, restyle){
     const sel = window.getSelection && window.getSelection();
     if(!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
+    if(range.collapsed || !surface.contains(range.commonAncestorContainer)) return;
     // Re-emit the selected content with every colour carrier unwrapped.
     const frag = range.extractContents();
     const strip = (node)=>{
@@ -585,7 +588,7 @@ function applyRichCommand(surface, kind, arg, restyle){
 function toolbarHex(btn){
   const bar = btn.closest('.mini-toolbar');
   const box = bar && bar.querySelector('.tb-hex');
-  return box ? box.value.trim() : null;
+  return box ? hexFieldValue(box.value) : null;
 }
 document.querySelectorAll('.mini-toolbar button').forEach(btn=>{
   btn.addEventListener('mousedown', ev=> ev.preventDefault());  // keep the selection alive
@@ -624,6 +627,67 @@ document.querySelectorAll('.mini-toolbar button').forEach(btn=>{
  * is a square in front of a field that stays in the page, because the
  * field is what the rest of the program reads and writes — and keeps
  * doing so, untouched, with the square only deciding when it is seen. */
+/* The # of a colour code stays put (the owner's ask, 22.10).
+ *
+   A code pasted over a selection that took the # with it — or typed after
+   a Backspace one too many — was "c23b22", which is not a colour, and the
+   change was quietly not taken. So every colour field keeps its # at the
+   front: it cannot be deleted, a pasted code with or without one comes
+   out with exactly one, and a field holding nothing but the # means what
+   an empty one always meant. Done on the way in, before the field's own
+   listeners read the value, for every field the page has or will have. */
+const HEX_FIELD = '.hex-box, .tb-hex';
+function hexFieldValue(v){ return v.trim() === '#' ? '' : v.trim(); }
+// What each field held when it was entered: one left as empty as it came
+// changed nothing, and must not say it did.
+const hexFieldEnteredEmpty = new WeakSet();
+document.addEventListener('focusin', ev=>{
+  const f = ev.target;
+  if(!f || !f.matches || !f.matches(HEX_FIELD)) return;
+  if(hexFieldValue(f.value)) hexFieldEnteredEmpty.delete(f);
+  else { hexFieldEnteredEmpty.add(f); f.value = '#'; }
+}, true);
+document.addEventListener('input', ev=>{
+  const f = ev.target;
+  if(!f || !f.matches || !f.matches(HEX_FIELD)) return;
+  // Only while somebody is typing in it: a field emptied as it is left
+  // (below), or written by the program, is taken as it is.
+  if(document.activeElement !== f) return;
+  hexFieldEnteredEmpty.delete(f);
+  const v = f.value, at = f.selectionStart == null ? v.length : f.selectionStart;
+  const want = '#' + v.replace(/[#\s]/g, '');
+  if(v === want) return;
+  // The caret stays after the same characters it was after.
+  const kept = v.slice(0, at).replace(/[#\s]/g, '').length;
+  f.value = want;
+  try{ f.setSelectionRange(kept + 1, kept + 1); }catch(e){}
+}, true);
+document.addEventListener('keydown', ev=>{
+  const f = ev.target;
+  if(!f || !f.matches || !f.matches(HEX_FIELD)) return;
+  const a = f.selectionStart, b = f.selectionEnd;
+  if(a !== b) return;
+  if((ev.key === 'Backspace' && a <= 1) || (ev.key === 'Delete' && a === 0)) ev.preventDefault();
+}, true);
+/* A paste goes in without its # and its spaces. The fields stop at nine
+   characters, and the browser cuts a paste down to the room that is left
+   BEFORE anything above sees it: "#c23b22ff" pasted after the kept # was
+   one character too long and lost its last digit. */
+document.addEventListener('paste', ev=>{
+  const f = ev.target;
+  if(!f || !f.matches || !f.matches(HEX_FIELD) || !ev.clipboardData) return;
+  const text = ev.clipboardData.getData('text').replace(/[#\s]/g, '');
+  ev.preventDefault();
+  f.setRangeText(text, f.selectionStart, f.selectionEnd, 'end');
+  f.dispatchEvent(new Event('input', {bubbles: true}));
+}, true);
+document.addEventListener('focusout', ev=>{
+  const f = ev.target;
+  if(f && f.matches && f.matches(HEX_FIELD) && f.value.trim() === '#'){
+    f.value = '';
+    if(!hexFieldEnteredEmpty.has(f)) f.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+}, true);
 function openHexBox(anchor, o){
   if(!anchor || !anchor.isConnected) return null;
   const box = document.createElement('input');
@@ -646,7 +710,7 @@ function openHexBox(anchor, o){
     if(done) return;
     done = true;
     if(openHexBox.current && openHexBox.current.box === box) openHexBox.current = null;
-    const v = box.value.trim();
+    const v = hexFieldValue(box.value);
     if(box.isConnected) box.replaceWith(anchor);
     if(keep && (v === '' || HEX_RE.test(v))) o.onCommit(v || null);
     else if(o.onCancel) o.onCancel();
@@ -683,7 +747,7 @@ function squareForHexInput(input, o){
   input.before(sq);
   input.classList.add('hex-box', 'hex-shut');
   const paint = ()=>{
-    const v = input.value.trim(), ok = HEX_RE.test(v);
+    const v = hexFieldValue(input.value), ok = HEX_RE.test(v);
     const fb = o.fallback ? o.fallback() : null;
     sq.style.background = ok ? v : (fb || '');
     // Dashed only when there is no colour at all: an inherited one is shown,
@@ -712,7 +776,7 @@ function squareForHexInput(input, o){
     if(!isOpen()) return;
     if(openHexBox.current && openHexBox.current.box === input) openHexBox.current = null;
     // Kept only when it is a colour, or empty; anything else is put back.
-    const v = input.value.trim();
+    const v = hexFieldValue(input.value);
     if(keep && v !== '' && !HEX_RE.test(v)) keep = false;
     if(!keep && was !== null && input.value !== was){
       input.value = was;
@@ -893,7 +957,7 @@ function wireSwatchStrip(inputId, stripId, inherited){
 }
 const paintEditSwatches = wireSwatchStrip('editColorsInput', 'editColorsSwatches', ()=>{
   const n = selectedId && nodes.get(selectedId);
-  const v = document.getElementById('editColorsInput').value.trim().toLowerCase();
+  const v = hexFieldValue(document.getElementById('editColorsInput').value).toLowerCase();
   return !!n && !(n.ownColors && n.ownColors.length) && v === drawnColorText(n).toLowerCase();
 });
 const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
@@ -906,13 +970,13 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
   const reset = document.getElementById('editBgReset');
   if(field && reset){
     const sync = ()=>{
-      reset.disabled = !field.value.trim();
+      reset.disabled = !hexFieldValue(field.value);
       reset.title = reset.disabled ? 'This entry is already on the paper'
                                    : 'Back to the paper';
     };
     reset.addEventListener('click', ev=>{
       ev.stopPropagation();
-      if(!field.value.trim()) return;
+      if(!hexFieldValue(field.value)) return;
       field.value = '';
       if(paintEditBgSwatches) paintEditBgSwatches();
       field.dispatchEvent(new Event('input', {bubbles:true}));
@@ -939,7 +1003,7 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
   const field = document.getElementById('editColorsInput');
   let restoreTimer = null;
   const restoreIfEmpty = ()=>{
-    if(field.value.trim() !== '') return;
+    if(hexFieldValue(field.value) !== '') return;
     const n = selectedId && nodes.get(selectedId);
     field.value = (n && n.color) || DEFAULT_NODE_COLOR;
     if(paintEditSwatches) paintEditSwatches();
@@ -947,7 +1011,7 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
   };
   field.addEventListener('input', ()=>{
     clearTimeout(restoreTimer);
-    if(field.value.trim() === '') restoreTimer = setTimeout(restoreIfEmpty, 700);
+    if(hexFieldValue(field.value) === '') restoreTimer = setTimeout(restoreIfEmpty, 700);
   });
   field.addEventListener('blur', ()=>{ clearTimeout(restoreTimer); restoreIfEmpty(); });
 }
@@ -959,7 +1023,7 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
 const DEFAULT_TEXT_COLOR = '#20242b';
 document.querySelectorAll('.tb-hex[data-hex-for]').forEach(box=>{
   const paint = ()=>{
-    const v = box.value.trim();
+    const v = hexFieldValue(box.value);
     const ok = HEX_RE.test(v);
     box.classList.toggle('bad', !ok);
     // Empty draws an empty swatch, the same as an unset border colour does,
@@ -973,14 +1037,14 @@ document.querySelectorAll('.tb-hex[data-hex-for]').forEach(box=>{
      box is briefly empty during that gesture. */
   let restoreTimer = null;
   const restoreIfEmpty = ()=>{
-    if(box.value.trim() !== '') return;
+    if(hexFieldValue(box.value) !== '') return;
     box.value = DEFAULT_TEXT_COLOR;
     paint();
   };
   box.addEventListener('input', ()=>{
     paint();
     clearTimeout(restoreTimer);
-    if(box.value.trim() === '') restoreTimer = setTimeout(restoreIfEmpty, 700);
+    if(hexFieldValue(box.value) === '') restoreTimer = setTimeout(restoreIfEmpty, 700);
   });
   box.addEventListener('blur', ()=>{ clearTimeout(restoreTimer); restoreIfEmpty();
     /* The wash goes with the trip. Leaving it painted after the caret has
@@ -993,7 +1057,7 @@ document.querySelectorAll('.tb-hex[data-hex-for]').forEach(box=>{
      is often typed AFTER choosing the words it is for. The surface's own
      selection is remembered on the way in and restored on the way out. */
   box.addEventListener('focus', ()=> rememberSurfaceSelection(box));
-  if(!box.value.trim()) box.value = DEFAULT_TEXT_COLOR;
+  if(!hexFieldValue(box.value)) box.value = DEFAULT_TEXT_COLOR;
   paint();
   /* Shut behind its square like every colour on the page. A click puts
      the square's colour on the chosen words; a double click opens its code
@@ -1003,7 +1067,7 @@ document.querySelectorAll('.tb-hex[data-hex-for]').forEach(box=>{
     title: 'the colour of the chosen words',
     /* The ink the words have when nobody coloured them is a default like
        any other, and wears the same dashed edge. */
-    isDefault: ()=> box.value.trim().toLowerCase() === String(DEFAULT_TEXT_COLOR).toLowerCase(),
+    isDefault: ()=> hexFieldValue(box.value).toLowerCase() === String(DEFAULT_TEXT_COLOR).toLowerCase(),
     onPress: ()=> rememberSurfaceSelection(box),
     onClick: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); },
     onEnter: v=>{ if(HEX_RE.test(v)) applyHexFromBox(box, v); }
@@ -1179,9 +1243,4 @@ setRichEnter('detailNoteInput', ()=>{
   if(!rec) return;
   rec.surface.addEventListener('input', ()=> queueLabelPreview());
 });
-// The drawer's Label surface used to drive the entry form's commit from
-// here, because a rich surface writes through to a hidden textarea and a
-// textarea written to by script fires no input event of its own. There is
-// no Label surface any more: the words are committed by the field that
-// takes them, which is commitNodeEditorText.
 

@@ -9,7 +9,7 @@
    the leader is drawn from the point to wherever the pointer is.
 
    It is the same vocabulary the connectors already use, deliberately.
-   Shift snaps — there, to the quarters of the line; here, to eighths of a
+   Shift snaps — there, to the twentieths of the line; here, to eighths of a
    turn about the anchor, which is what makes a row of notes point the same
    way as each other. Ctrl comes off the grid, so a leader can be any
    length rather than a whole number of steps. Nothing new to learn: the
@@ -247,7 +247,10 @@ document.getElementById('styleClose').onclick = ()=> closeEdgePopover();
    entries, another connector, empty ground — puts it away. */
 const MENU_SURFACES = ['#stickerPicker', '#refPicker', '.ask-overlay', '.crop-overlay',
   '.detail', '.side-tabs', '.file-popover', '.about-overlay',
-  '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar', '.touch-menu'].join(',');
+  '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar', '.touch-menu',
+  /* The connector's bar stays up beside its panel (see the style bar's
+     mousedown), and a press on it is work on the same connector. */
+  '#styleBar'].join(',');
 function inPopoverSatellite(target){
   return !!(target && target.closest && target.closest(MENU_SURFACES));
 }

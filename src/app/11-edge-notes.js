@@ -259,6 +259,46 @@ function drawLeaderLine(g, a, b, ink, line){
   if(DASH_PATTERNS[line]) attrs['stroke-dasharray'] = DASH_PATTERNS[line];
   el('line', attrs, g);
 }
+/* The colour a connector's gradient (makeEdgeGradient) has at a point:
+   its stops, read off the gradient itself, at the point's share of the
+   way along the gradient's axis. Null for a paint that is not a sweep. */
+function sweepColourAt(paint, p){
+  const id = /^url\(#(edgegrad-\d+)\)$/.exec(paint || '');
+  const grad = id && document.getElementById(id[1]);
+  if(!grad) return null;
+  const x1 = +grad.getAttribute('x1'), y1 = +grad.getAttribute('y1');
+  const x2 = +grad.getAttribute('x2'), y2 = +grad.getAttribute('y2');
+  const L2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  const t = L2 ? Math.max(0, Math.min(1, ((p.x - x1) * (x2 - x1) + (p.y - y1) * (y2 - y1)) / L2)) : 0;
+  const stops = [...grad.querySelectorAll('stop')].map(s=> ({
+    at: parseFloat(s.getAttribute('offset')) / 100, c: s.getAttribute('stop-color')}));
+  if(!stops.length) return null;
+  const rgb = h=>{ const v = (h || '').replace('#', ''); const f = v.length === 3 ? v.replace(/./g, '$&$&') : v;
+                   return [0, 2, 4].map(i=> parseInt(f.substr(i, 2), 16) || 0); };
+  let k = 0;
+  while(k < stops.length - 2 && t > stops[k + 1].at) k++;
+  const a = stops[k], b = stops[Math.min(k + 1, stops.length - 1)];
+  const u = b.at > a.at ? Math.max(0, Math.min(1, (t - a.at) / (b.at - a.at))) : 0;
+  // Only a hex pair can be mixed by hand; anything else is the nearer stop.
+  if(!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(a.c || '') || !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(b.c || ''))
+    return u < 0.5 ? a.c : b.c;
+  const ca = rgb(a.c), cb = rgb(b.c);
+  return '#' + ca.map((v, i)=> Math.round(v + (cb[i] - v) * u).toString(16).padStart(2, '0')).join('');
+}
+/* A callout with no colour of its own is drawn in calloutInheritedColor
+   before its connector exists; once the leader's colour is known the card
+   takes that instead, so the two are one colour however the connector is
+   painted. Only what was drawn in the inherited colour changes. */
+function recolourCalloutCard(n, ink){
+  const was = calloutInheritedColor(n);
+  if(!was || !ink || was === ink) return;
+  const g = qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
+  if(!g) return;
+  g.querySelectorAll('[stroke], [fill]').forEach(e=>{
+    if(e.getAttribute('stroke') === was) e.setAttribute('stroke', ink);
+    if(e.getAttribute('fill') === was) e.setAttribute('fill', ink);
+  });
+}
 /* `pts` is the line as drawn, which is what the callouts stand on;
    `route`, when the line is drawn through its route rather than along it
    (a curve), is the route, which is what drawnRoutes has always kept —
@@ -328,7 +368,13 @@ function drawCalloutLeaders(from, to, pts, paint, route){
        connector's own stroke — a gradient included, which is a paint
        server reference and works as a stroke. A callout with a colour of
        its own overrules that: it was chosen. */
-    const ink = (n.colors && n.colors.length) ? n.colors[0] : (paint || 'var(--line)');
+    /* …and where the connector runs through two colours, in the one it
+       has at the anchor: the leader is a few units of that sweep, and the
+       card at its far end took the colour of the connector's START, so the
+       remark and its leader were two colours (the owner's report, 22.10). */
+    const own = !!(n.colors && n.colors.length);
+    const ink = own ? n.colors[0] : (sweepColourAt(paint, m) || paint || 'var(--line)');
+    if(!own) recolourCalloutCard(n, ink);
     /* A drafting leader, as on an engineering drawing: no card, the words
        standing on a shelf as wide as they are, and the leader running from
        the place it points at to the NEAR end of the shelf — or, where the
@@ -558,6 +604,7 @@ window.addEventListener('mousemove', ev=>{
   redrawEdges();
   applyVisibility();
   if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
+  followStyleBar();
   paintMultiSelection();
 });
 window.addEventListener('mouseup', ()=>{
@@ -668,6 +715,7 @@ window.addEventListener('mousemove', ev=>{
   if(ev.shiftKey) paintConnectorSnaps(st.pts, st.at);
   redrawEdges();
   applyVisibility();
+  followStyleBar();
 });
 window.addEventListener('mouseup', ()=>{
   const st = noteDrag;
@@ -776,7 +824,7 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
      plate, as it does for every other note. */
   if(styleNow.noteAlong && text && !writing){
     wireNoteEditing(g, from, to, pts);
-    drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg);
+    drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, styleNow);
     return;
   }
   /* The note is written ON the note. Double-click the plate and the field
@@ -889,24 +937,46 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
  * marks, ruby and stickers have nowhere to go on it.
  */
 let noteAlongSeq = 0;
-function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg){
-  const off = pos === 'on' ? 0 : (EDGE_NOTE_FS * 0.5 + 3) * (pos === 'below' ? -1 : 1);
+/* How round the path the words run on takes a corner. A square elbow
+   folded every letter that reached it onto its neighbours (the owner's
+   report, 22.10); round, a word turns the corner one letter at a time. */
+const NOTE_ALONG_TURN = EDGE_NOTE_FS * 3.2;
+function noteAlongFillet(pts){
+  if(pts.length < 3) return pts.slice();
+  const out = [pts[0]];
+  for(let i = 1; i < pts.length - 1; i++){
+    const a = pts[i-1], p = pts[i], b = pts[i+1];
+    const la = Math.hypot(p.x - a.x, p.y - a.y), lb = Math.hypot(b.x - p.x, b.y - p.y);
+    if(!la || !lb){ out.push(p); continue; }
+    const ux = (p.x - a.x) / la, uy = (p.y - a.y) / la, vx = (b.x - p.x) / lb, vy = (b.y - p.y) / lb;
+    const turn = Math.acos(Math.max(-1, Math.min(1, ux*vx + uy*vy)));
+    if(turn < 0.05){ out.push(p); continue; }
+    // As round as the legs allow: never past the middle of either.
+    const cut = Math.min(NOTE_ALONG_TURN * Math.tan(turn / 2), la / 2, lb / 2);
+    const s0 = {x: p.x - ux*cut, y: p.y - uy*cut}, s1 = {x: p.x + vx*cut, y: p.y + vy*cut};
+    // A quadratic through the corner, sampled finely enough to read as an arc.
+    for(let k = 0; k <= 8; k++){
+      const t = k / 8, u = 1 - t;
+      out.push({x: u*u*s0.x + 2*u*t*p.x + t*t*s1.x, y: u*u*s0.y + 2*u*t*p.y + t*t*s1.y});
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
+  /* Clear of the line by half the type and three units — and of the wave's
+     crest too, on a wavy connector, whose letters sat in its ripples. */
+  const reach = EDGE_NOTE_FS * 0.5 + 3 + (style && style.sinusoid ? EDGE_WAVE_PEAK + 1 : 0);
+  const off = pos === 'on' ? 0 : reach * (pos === 'below' ? -1 : 1);
   // The side asked for, as a multiple of the line's own left normal.
   const sign = (m.dy * px - m.dx * py) >= 0 ? 1 : -1;
-  const moved = pts.map((p, i)=>{
-    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+  const line = noteAlongFillet(pts);
+  const moved = line.map((p, i)=>{
+    const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)];
     let dx = b.x - a.x, dy = b.y - a.y;
     const L = Math.hypot(dx, dy) || 1;
     dx /= L; dy /= L;
-    // At a corner the two legs' normals are averaged; held to twice the
-    // offset so a sharp turn does not throw the copy far out.
-    let k = 1;
-    if(i > 0 && i < pts.length - 1){
-      const ax = p.x - a.x, ay = p.y - a.y, la = Math.hypot(ax, ay) || 1;
-      const cos = (ax / la) * dx + (ay / la) * dy;
-      k = Math.min(2, 1 / Math.max(0.5, cos));
-    }
-    return {x: p.x + dy * off * sign * k, y: p.y - dx * off * sign * k};
+    return {x: p.x + dy * off * sign, y: p.y - dx * off * sign};
   });
   let total = 0;
   for(let i = 1; i < moved.length; i++) total += Math.hypot(moved[i].x - moved[i-1].x, moved[i].y - moved[i-1].y);
@@ -922,7 +992,14 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg){
   t.style.dominantBaseline = 'central';
   if(paint) t.style.fill = paint;
   if(bg) t.style.stroke = bg;
-  const tp = el('textPath', {href: '#' + id, startOffset: at.toFixed(2)}, t);
+  const tp = el('textPath', {href: '#' + id}, t);
   tp.textContent = stripMarkup(text).replace(/\s+/g, ' ').trim();
+  /* Held inside the line: a note slid near an end ran its words off it,
+     and a path drops the letters it has no room for. */
+  let half = 0;
+  try{ half = t.getComputedTextLength() / 2; }catch(e){}
+  if(half * 2 >= total) at = total / 2;
+  else at = Math.max(half, Math.min(total - half, at));
+  tp.setAttribute('startOffset', at.toFixed(2));
 }
 // The outward normal of the side a port sits on.

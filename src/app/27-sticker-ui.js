@@ -449,6 +449,7 @@ function addFontButton(bar){
     const key = sel.value;
     const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
     if(!surface || !key || key === '__mixed__'){ syncToolbarFace(bar); return; }
+    selectAllUnlessChosen(surface);
     applyRichCommand(surface, key === '__clear__' ? 'unfont' : 'font', key);
     syncToolbarFace(bar);
   });
@@ -467,12 +468,30 @@ function addFontButton(bar){
     const v = size.value;
     const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
     if(!surface || !v || v === '__mixed__'){ syncToolbarFace(bar); return; }
+    selectAllUnlessChosen(surface);
     applyRichCommand(surface, v === '__clear__' ? 'unsize' : 'size', v);
     syncToolbarFace(bar);
   });
   bar.appendChild(size);
 }
 
+/* With no words chosen, a face or a size is for the whole text — as both
+   pickers' titles say, and as what they SHOW already assumes (see
+   runsOfSelection). The commands work on the selection, and a bare caret
+   gave them nothing to work on: the choice was quietly not made. */
+function selectAllUnlessChosen(surface){
+  const sel = window.getSelection && window.getSelection();
+  if(!sel) return;
+  if(sel.rangeCount){
+    const r = sel.getRangeAt(0);
+    if(!r.collapsed && surface.contains(r.commonAncestorContainer)) return;
+  }
+  surface.focus({preventScroll:true});
+  const all = document.createRange();
+  all.selectNodeContents(surface);
+  sel.removeAllRanges();
+  sel.addRange(all);
+}
 /* What the two pickers SHOW: the face and the size the text is actually
    set in.
  *

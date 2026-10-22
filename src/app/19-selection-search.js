@@ -553,9 +553,13 @@ searchInput.addEventListener('input', ()=>{
     /* The colour goes in escaped, like everything else here. It comes from
        the chart's data rather than from anything typed in this box, and a
        file brought in from elsewhere is not obliged to have put a real
-       colour there at all. */
+       colour there at all.
+       The chip for an entry's own text is `sr-main`, not `main`: that is
+       the name of the chart's own frame, which every menu over the chart
+       measures itself from, and the chip came first in the page — once a
+       search had shown one, the bars and panels were placed from a span. */
     const chip = hit.chip == null ? '' :
-      `<span class="sr-tab${hit.tab === null ? ' main' : ''}" title="${hit.tab === null ? 'The main text' : escapeHtml('The \u201c' + hit.chip + '\u201d text')}">${escapeHtml(hit.chip)}</span>`;
+      `<span class="sr-tab${hit.tab === null ? ' sr-main' : ''}" title="${hit.tab === null ? 'The main text' : escapeHtml('The \u201c' + hit.chip + '\u201d text')}">${escapeHtml(hit.chip)}</span>`;
     row.innerHTML = `<div class="dot" style="background:${escapeHtml(n.color || '')}"></div>${chip}<div>${inlineToHtml(hit.text)}</div><div class="cl">${tagsLabel}</div>`;
     row.addEventListener('click', ()=>{
       openEntryOn(n.id, hit.tab);

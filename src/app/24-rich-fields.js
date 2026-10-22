@@ -88,7 +88,7 @@ function sizeOfEl(el){
 function colorOfEl(el){
   const raw = (el.style && el.style.color) || (el.tagName==='FONT' ? el.getAttribute('color') : '');
   if(!raw) return null;
-  if(/^#[0-9a-fA-F]{3,8}$/.test(raw)) return raw;
+  if(/^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(raw)) return raw;
   return rgbToHex(raw);
 }
 /* A rule under a run or through it, as the editor holds it. The style key
@@ -407,7 +407,7 @@ function makeRichField(textarea){
     if(ev.inputType !== 'insertText' || typeof ev.data !== 'string' || !ev.data) return;
     if(!insertIntoReading(surface, ev.data)) return;
     ev.preventDefault();
-    textarea.value = richHtmlToMarkup(surface);
+    // The surface's own input listener above writes the textarea.
     surface.dispatchEvent(new Event('input', {bubbles:true}));
   });
   /* Enter finishes; Shift+Enter is the line break.
@@ -426,11 +426,11 @@ function makeRichField(textarea){
   surface.addEventListener('keydown', ev=>{
     if(ev.key !== 'Enter' || ev.isComposing) return;
     ev.preventDefault();
-    if(ev.shiftKey){ document.execCommand('insertLineBreak'); textarea.value = richHtmlToMarkup(surface); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
+    if(ev.shiftKey){ document.execCommand('insertLineBreak'); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
     // Whatever is in the surface reaches the textarea BEFORE the field is
-    // asked to settle, so a field that settles from `.value` never loses
+    // asked to settle (the input listener above writes it, first of all the
+    // field's listeners), so a field that settles from `.value` never loses
     // the last thing typed into it.
-    textarea.value = richHtmlToMarkup(surface);
     surface.dispatchEvent(new Event('input', {bubbles:true}));
     const done = richEnterActions.get(textarea.id);
     surface.blur();

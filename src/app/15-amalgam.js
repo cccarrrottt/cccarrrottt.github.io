@@ -1323,7 +1323,7 @@ const swapParentsBtn = (()=>{
     const ids = swappableParents();
     if(ids) swapParents(ids);
   });
-  const host = document.querySelector('.main');
+  const host = document.querySelector('.app > .main');
   if(host) host.appendChild(b);
   return b;
 })();
@@ -1334,7 +1334,7 @@ function positionSwapButton(){
     return;
   }
   const [a, b] = ids.map(id=> nodes.get(id));
-  const host = document.querySelector('.main').getBoundingClientRect();
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
   const sr = svg.getBoundingClientRect();
   const top = Math.min(a.y, b.y);
   const cx = ((a.x + a.w/2) + (b.x + b.w/2)) / 2;
@@ -1506,6 +1506,7 @@ function beginBarDrag(ev, id){
   const b = nodes.get(id);
   const rec = amalgamBars.get(id);
   amalgamBarDrag = {id, spec, had: !!(b && b.bar), x0: ev.clientX, y0: ev.clientY,
+                    grab: clientToWorld(ev.clientX, ev.clientY),
                     moved: false, before: null, lead: spec.lead,
                     cross0: rec ? rec.cross : null};
 }
@@ -1572,7 +1573,9 @@ window.addEventListener('mousemove', ev=>{
     document.body.classList.add('bar-carrying');
   }
   // Along the merged arrow's axis only: the bar is laid across `k`.
-  const along = (st.spec.k === 'y' ? dy : dx) / vs;
+  // On the chart, not the screen — see the wheel in 18-canvas-gestures.
+  const hand = clientToWorld(ev.clientX, ev.clientY);
+  const along = st.spec.k === 'y' ? hand.y - st.grab.y : hand.x - st.grab.x;
   const step = dragIsFree(ev) ? Math.round(along) : snapToGrid(along);
   st.lead = Math.max(AMALGAM_LEAD_MIN, st.spec.lead + (st.spec.after ? step : -step));
   /* Asked for with Shift, as an entry's and a corner's are (see the

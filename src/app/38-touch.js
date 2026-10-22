@@ -134,7 +134,7 @@ const touchMenu = (()=>{
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
-  const host = document.querySelector('.main');
+  const host = document.querySelector('.app > .main');
   if(host) host.appendChild(m);
   return m;
 })();
@@ -151,7 +151,7 @@ function openTouchMenu(x, y, kind, byMouse){
   const arr = touchMenu.querySelector('[data-act="array"]');
   if(arr && !arr.hidden) arr.hidden = multiSelection.size < 2;
   touchMenu.hidden = false;
-  const host = document.querySelector('.main').getBoundingClientRect();
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
   const w = touchMenu.offsetWidth, h = touchMenu.offsetHeight;
   if(byMouse){
     /* From a right click it opens where menus open under a mouse: its

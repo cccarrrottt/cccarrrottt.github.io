@@ -315,9 +315,6 @@ function commitNodeEdit(){
   if(dropped) setEditStatus('ok', dropped === 1
     ? 'One connector belonged to a border that is gone, and went with it.'
     : `${dropped} connectors belonged to borders that are gone, and went with them.`);
-  // The commit consumed the preview; arm a fresh one so the next keystroke
-  // still draws itself on the entry.
-  if(detailEditForm.style.display === 'block' && nodes.has(id)) beginLabelPreview(id);
 }
 
 // Like applyEdit, but without its own undo push — the session already
@@ -344,7 +341,7 @@ function commitEntry(mutate){
 function serializeEdgeStyles(list){
   if(!list.length) return 'const EDGE_STYLES = [];';
   return 'const EDGE_STYLES = [\n' + list.map(s=>
-    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing || DEFAULT_EDGE_STYLE.routing)}, dash:${jsStr(s.dash || DEFAULT_EDGE_STYLE.dash)}, arrow:${jsVal(s.arrow === undefined ? DEFAULT_EDGE_STYLE.arrow : s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.teeOut ? `, teeOut:true` : ''}${s.teeIn ? `, teeIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${(s.bends && s.bends.length && s.bendSides) ? `, bendSides:${jsVal(s.bendSides)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare ? `, noteSquare:true` : ''}${s.note && s.noteAlong ? `, noteAlong:true` : ''}},`
+    `  {from:${jsStr(s.from)}, to:${jsStr(s.to)}, routing:${jsStr(s.routing || DEFAULT_EDGE_STYLE.routing)}, dash:${jsStr(s.dash || DEFAULT_EDGE_STYLE.dash)}, arrow:${jsVal(s.arrow === undefined ? DEFAULT_EDGE_STYLE.arrow : s.arrow)}${s.arrowIn ? `, arrowIn:true` : ''}${s.teeOut ? `, teeOut:true` : ''}${s.teeIn ? `, teeIn:true` : ''}${s.sinusoid ? `, sinusoid:true` : ''}${s.note ? `, note:${jsStr(s.note)}` : ''}${s.note && s.notePos && s.notePos !== 'above' ? `, notePos:${jsStr(s.notePos)}` : ''}${s.note && typeof s.noteAt === 'number' && s.noteAt !== 0.5 ? `, noteAt:${+s.noteAt.toFixed(4)}` : ''}${s.note && validSnap(s.noteSnap) ? `, noteSnap:${jsStr(s.noteSnap)}` : ''}${s.noteBg ? `, noteBg:${jsStr(s.noteBg)}` : ''}${(s.bends && s.bends.length) ? `, bends:${jsVal(s.bends)}` : ''}${(s.bends && s.bends.length && s.bendSides) ? `, bendSides:${jsVal(s.bendSides)}` : ''}${s.color ? `, color:${jsStr(s.color)}` : ''}${s.color && s.colorFixed ? `, colorFixed:true` : ''}${s.gradient ? `, gradient:${jsVal(s.gradient)}` : ''}${s.fromSide ? `, fromSide:${jsStr(s.fromSide)}` : ''}${s.toSide ? `, toSide:${jsStr(s.toSide)}` : ''}${s.fromRing ? `, fromRing:${s.fromRing}` : ''}${s.toRing ? `, toRing:${s.toRing}` : ''}${s.square === false ? `, square:false` : s.square === true ? `, square:true` : ''}${s.note && s.noteFrame === false ? `, noteFrame:false` : ''}${s.note && s.noteSquare === false ? `, noteSquare:false` : s.note && s.noteSquare === true ? `, noteSquare:true` : ''}${s.note && s.noteAlong ? `, noteAlong:true` : ''}},`
   ).join('\n') + '\n];';
 }
 
@@ -512,7 +509,8 @@ const styleColorRow = document.getElementById('styleColorRow');
 // Colours are typed as hex rather than picked from a swatch, so an exact
 // value can be pasted in and read back out. HEX_RE is in 01-store.js.
 function readHex(input){
-  const v = input.value.trim();
+  // A field holding only its # is an empty one (see HEX_FIELD).
+  const v = hexFieldValue(input.value);
   const ok = HEX_RE.test(v);
   input.classList.toggle('bad', v !== '' && !ok);
   return ok ? v : null;
@@ -556,7 +554,7 @@ function setEdgeStyleOverride(from, to, style){
 function positionEdgePopover(evt){
   // edgePopover's nearest positioned ancestor is .main (not .app — .main is
   // itself position:relative), so its left/top are relative to .main.
-  const host = document.querySelector('.main').getBoundingClientRect();
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
   const rect = edgePopover.getBoundingClientRect();
   const margin = 10;
   let x = 16, y = 16;

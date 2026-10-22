@@ -8,9 +8,9 @@
    That also means it pans and zooms with the chart instead of floating
    over it at a fixed size.
 
-   The card is read-only: a bio's text is its label, edited in the node's
-   own settings form like every other entry's, so there is one place to
-   change it rather than two that could drift apart.
+   A bio's text is its label, so the card is where it is written: a double
+   click opens the in-node field on the card itself (see the dblclick
+   below), and there is one place to change it.
    ------------------------------------------------------------------ */
 const bioCardLayer = el('g', {id:'bioCardLayer'}, viewport);
 // Written here, read by the regression suite, which measures the card by it
@@ -178,8 +178,7 @@ function drawOneBioCard(n, already){
    * change what it says. Every other piece of text on the chart opens for
    * editing on a double click, and this one asked you to work out that the
    * words belonged to the circle beside it and to double-click that
-   * instead. Same gesture, same destination: the entry's own Label, with
-   * the cursor in it. */
+   * instead. Same gesture, same destination: the field, on the card. */
   g.addEventListener('dblclick', (ev)=>{
     ev.stopPropagation(); ev.preventDefault();
     if(document.body.classList.contains('read-only')) return;
@@ -303,9 +302,6 @@ function drawOneBioCard(n, already){
   renderNodeText(txt, n.label, y + h/2 - (block.mid || 0), x + w/2 - (block.midX || 0),
                  maxChars, lineH, fontScale, {fontSize, family:fontFamily}, fit);
 
-  // No editing controls on the card itself: a bio's text is edited in the
-  // node's own settings form like every other entry's label, so there is
-  // one place to change it rather than two that could disagree.
   /* A card that was already on the drawing is put back at full strength in
      this same turn, before the browser has resolved a style for the new
      element — so there is no earlier value to animate from and no
@@ -314,9 +310,6 @@ function drawOneBioCard(n, already){
   else requestAnimationFrame(()=> g.classList.add('shown'));
 }
 
-// The card lives inside the viewport group, so it pans and zooms with the
-// chart by itself — there is nothing to re-anchor.
-function positionBioCard(){}
 /* Whether hovering this portrait should pop its card open.
  *
  * Two cases where it should not. A portrait asked to KEEP its card open
@@ -373,15 +366,6 @@ function closeBioCard(){
   drawBioCard();
 }
 
-/* ---------------------------------------------------------------------
-   Portrait picker, shared by both forms.
-
-   A chosen file is embedded as a data: URI rather than linked, so the
-   portrait keeps working for every viewer instead of depending on a host
-   that may disappear — but a full-size photo would bloat the page, so it
-   is drawn onto a canvas at BIO_IMAGE_MAX first. A URL typed by hand is
-   passed through untouched.
-   ------------------------------------------------------------------ */
 /* ---------------------------------------------------------------------
    Choosing which part of a picture to use.
  *
@@ -543,6 +527,15 @@ document.addEventListener('keydown', ev=>{
   }
 }, true);
 
+/* ---------------------------------------------------------------------
+   The picture picker, for a portrait, a picture element and a card.
+
+   A chosen file is embedded as a data: URI rather than linked, so the
+   portrait keeps working for every viewer instead of depending on a host
+   that may disappear — but a full-size photo would bloat the page, so it
+   is drawn onto a canvas at BIO_IMAGE_MAX first. A URL typed by hand is
+   passed through untouched.
+   ------------------------------------------------------------------ */
 const BIO_IMAGE_MAX = 240;
 const bioImageFile = document.getElementById('bioImageFile');
 let bioImageTargetInput = null;

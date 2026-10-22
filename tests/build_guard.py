@@ -95,7 +95,8 @@ def strip_region(text, name):
 
 
 def shrink_nodes(text, keep=0):
-    """A NODES region with all but `keep` entries gone — a truncated save."""
+    """A NODES region with all but `keep` entries gone — a truncated save.
+    A negative `keep` takes that many off the end instead."""
     m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/\n)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
                   text, re.S)
     assert m, 'fixture: no NODES region in the built page'
@@ -151,9 +152,11 @@ def main():
     check('a region that lost most of its entries stops the build too',
           r.returncode != 0, r.stdout + r.stderr)
 
-    # 5. A region that lost only a few entries is an ordinary edit.
+    # 5. A region that lost only a few entries is an ordinary edit. Three
+    #    off the end, whatever the chart's size: a fixed twelve kept was an
+    #    ordinary edit of a fifteen-entry chart and most of a forty-entry one.
     tmp = sandbox()
-    (tmp / 'live.html').write_text(shrink_nodes(live, keep=12), encoding='utf-8')
+    (tmp / 'live.html').write_text(shrink_nodes(live, keep=-3), encoding='utf-8')
     r = run(tmp, '--pull', 'live.html')
     check('an ordinary deletion is not treated as damage',
           r.returncode == 0, r.stdout + r.stderr)

@@ -17,7 +17,7 @@ const freeMenuFontSize = document.getElementById('freeMenuFontSize');
 let freeMenuId = null;
 
 function positionFreeMenu(evt, n){
-  const host = document.querySelector('.main').getBoundingClientRect();
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
   const rect = freeMenu.getBoundingClientRect();
   const margin = 10;
   let x = 16, y = 16;
@@ -299,7 +299,7 @@ function applyLiveEdgeStyle(){
     noteBg: kept.noteBg || undefined,
     // Set on the note itself, from its hover bar — carried through here.
     noteFrame: kept.noteFrame === false ? false : undefined,
-    noteSquare: kept.noteSquare || undefined,
+    noteSquare: kept.noteSquare === false ? false : undefined,
     noteAlong: kept.noteAlong || undefined,
     color: paint.color,
     /* And the fact that it was CHOSEN, which is what makes it win over the
@@ -408,10 +408,10 @@ squareForHexInput(styleColor2Input, {title: 'where the gradient ends',
  * Instead the connector itself is the control — move along it and a ghost
  * card follows, click to keep it.
  *
- * Holding Shift restricts the offer to the ends, the quarters and the
- * middle. Those are the places a leader note usually wants to be, and they
- * are exactly the places freehand pointing is worst at hitting: a value
- * that is nearly 0.5 looks like a mistake, where 0.5 looks deliberate.
+ * Holding Shift restricts the offer to a set of places (below). Those are
+ * the places a leader note usually wants to be, and they are exactly the
+ * places freehand pointing is worst at hitting: a value that is nearly 0.5
+ * looks like a mistake, where 0.5 looks deliberate.
  */
 /* Where Shift offers to put a callout's anchor.
  *
@@ -447,16 +447,7 @@ const SNAP_LEG_MIN = GRID * 4;   // a run-out from a port is not a leg worth lab
 function connectorSnaps(pts){
   const out = LEADER_SNAPS.map(f=> ({f, kind: Math.abs(f - 0.5) < 1e-9 ? 'mid' : 'step'}));
   if(!pts || pts.length < 2) return out;
-  const legs = [];
-  let total = 0;
-  for(let i = 1; i < pts.length; i++){
-    const L = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
-    const horiz = Math.abs(pts[i].y - pts[i-1].y) < 0.5;
-    const last = legs[legs.length - 1];
-    if(last && L > 0 && last.horiz === horiz) last.len += L;
-    else if(L > 0) legs.push({start: total, len: L, horiz});
-    total += L;
-  }
+  const {legs, total} = routeLegs(pts);
   if(!total) return out;
   legs.forEach(leg=>{
     if(leg.len < SNAP_LEG_MIN) return;

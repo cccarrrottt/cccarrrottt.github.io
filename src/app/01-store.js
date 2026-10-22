@@ -244,7 +244,7 @@ const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, 
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
                              fromRing: 0, toRing: 0, gradient: null, square: true,
-                             noteFrame: true, noteSquare: false, noteAlong: false };
+                             noteFrame: true, noteSquare: true, noteAlong: false };
 function edgeStyleFor(from, to){
   const o = EDGE_STYLES.find(s=>s.from===from && s.to===to);
   if(!o) return DEFAULT_EDGE_STYLE;
@@ -326,7 +326,11 @@ function edgeStyleFor(from, to){
        connector's — the line's corners are the line's, and a remark on it
        chooses how it is written down. */
     noteFrame: o.noteFrame !== false,
-    noteSquare: !!o.noteSquare,
+    /* Square unless rounded (the owner's ask, 22.10), as a connector's
+       elbows and an entry's corners already were: only the rounding is
+       stored, as noteSquare:false, and a plate saved square with
+       noteSquare:true is read the same way it always was. */
+    noteSquare: o.noteSquare !== false,
     // Written along the line, bending with it, rather than level on a plate.
     noteAlong: !!o.noteAlong,
     // Two hex colours to sweep between along the connector, or null.

@@ -2195,18 +2195,21 @@
   }
   .file-popover.open{display:flex;}
   .file-popover .editor-status{margin:0;}
-  .file-actions{display:grid;grid-template-columns:repeat(5, 46px);gap:7px;}
+  /* A little smaller than they were (the owner's ask, 22.10). */
+  .file-actions{display:grid;grid-template-columns:repeat(5, 40px);gap:6px;}
   .file-actions .editor-btn{width:100%;margin:0;}
   .file-actions .file-tile{
-    height:50px;padding:0;display:flex;align-items:center;justify-content:center;
+    height:42px;padding:0;display:flex;align-items:center;justify-content:center;
   }
   .file-actions .file-tile:disabled .fmt-icon{opacity:0.4;}
   .file-actions .file-wide{grid-column:1 / -1;}
   /* The file icons (index.html): one sheet for all five, and a band whose
      colour is the format's. The colours are held a step quieter than the
      programs' own, so the row sits in the page rather than on it. */
-  .fmt-icon{display:block;overflow:visible;}
-  .fmt-sheet{fill:var(--panel);stroke:var(--fmt);stroke-width:1.7;stroke-linejoin:round;}
+  .fmt-icon{display:block;overflow:visible;width:28px;height:28px;}
+  /* The sheet is an outline on the button's own ground, not a white page
+     laid on it (the owner's ask, 22.10). */
+  .fmt-sheet{fill:none;stroke:var(--fmt);stroke-width:1.7;stroke-linejoin:round;}
   .fmt-fold{fill:none;stroke:var(--fmt);stroke-width:1.7;stroke-linejoin:round;}
   .fmt-glyph{fill:none;stroke:var(--fmt);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
   .fmt-dot{fill:var(--fmt);}

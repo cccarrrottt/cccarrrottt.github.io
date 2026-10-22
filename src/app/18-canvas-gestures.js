@@ -206,9 +206,6 @@ function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
   markViewMoving();
   syncAlignGrid();
-  // The bio card is an HTML overlay in screen space, so it has to be
-  // re-anchored whenever the drawing moves under it.
-  positionBioCard();
   positionSwapButton();
   // Far enough out, the entries give way to patches; see syncLod.
   syncLod();
@@ -441,6 +438,31 @@ window.addEventListener('mouseup', e=>{
   dragging=false; dragStart=null; svg.classList.remove('grabbing');
 });
 
+/* A press on the chart settles whatever field was being typed in.
+ *
+   The chart takes its presses for itself — a pan, a lasso, a carry — and
+   keeps the browser's default off them, which is also what moves the
+   focus: so a press on the paper left a half-typed name, a colour code in
+   its box, a note in the panel all still open, and a later keystroke went
+   on into them (the owner's report, 22.10). Taking the focus away is what
+   every one of those fields already treats as "done". The fields laid
+   over the chart (the in-entry field) settle themselves; see
+   30-node-editor.
+ *
+   Only on the paper, as asked. A press on a THING is left alone: settling
+   the field redraws the chart, the thing pressed is replaced between the
+   press and the release, and the click it was the start of then lands on
+   the canvas and lets go of everything (see keyboardOnChart, which is how
+   the keys already find their way back to the drawing). */
+svg.addEventListener('pointerdown', ev=>{
+  const t = ev.target;
+  if(t && t.closest && t.closest('[data-id], [data-from], [data-to]')) return;
+  const a = document.activeElement;
+  if(!a || a === document.body || svg.contains(a)) return;
+  if(a.closest && a.closest('#nodeEditor')) return;
+  if(a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) a.blur();
+}, true);
+
 svg.addEventListener('wheel', e=>{
   e.preventDefault();
   const rect = svg.getBoundingClientRect();
@@ -450,7 +472,28 @@ svg.addEventListener('wheel', e=>{
   const wx = (mx - vx)/vs, wy=(my-vy)/vs;
   vx = mx - wx*newScale; vy = my - wy*newScale;
   vs = newScale;
+  /* A pan in progress holds the view it began from, and its next move
+     put that view back — undoing the zoom about the pointer and throwing
+     the chart sideways. Its origin moves with the zoom instead; where the
+     press began (the click test on release) stays where it was. */
+  if(dragging && dragStart){
+    dragStart.vx = vx - (e.clientX - dragStart.x);
+    dragStart.vy = vy - (e.clientY - dragStart.y);
+  }
   applyTransform();
+  /* A wheel turned while something is being carried.
+   *
+     Every carry places what it holds from the point of the chart under the
+     pointer, and zooming moves the chart under a pointer that has not
+     moved — so the carry is asked again, as if the pointer had moved, and
+     the entry, corner or bar stays under the hand at the new scale. It used
+     to wait for the next mousemove, and that one measured its distance in
+     screen pixels divided by the NEW scale: whatever had been carried
+     jumped by the difference the moment the hand moved again. */
+  if(e.buttons & 1){
+    window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:e.clientX, clientY:e.clientY,
+      buttons:e.buttons, shiftKey:e.shiftKey, ctrlKey:e.ctrlKey, metaKey:e.metaKey, altKey:e.altKey}));
+  }
 },{passive:false});
 
 /* Touch — one finger as the mouse, two as pan and zoom — is in
@@ -680,6 +723,9 @@ function beginNodeDrag(ev, n, g){
   nodeDragState = {
     node: n, g,
     startClientX: ev.clientX, startClientY: ev.clientY,
+    // The chart point taken hold of — see the wheel, which may rescale
+    // the chart under the hand in the middle of the carry.
+    grabX: grabAt.x, grabY: grabAt.y,
     grabDX: (n.x + n.w/2) - grabAt.x,
     grabDY: (n.y + n.h/2) - grabAt.y,
     originX: n.x, originY: n.y,
@@ -830,7 +876,12 @@ window.addEventListener('mousemove', e=>{
     return;
   }
   const free = dragIsFree(e);
-  const rawX = st.originX + dxScreen/vs, rawY = st.originY + dyScreen/vs;
+  /* Measured on the chart, not on the screen: the point under the hand
+     now, against the point taken hold of. A screen distance divided by
+     the scale is the same thing only while the scale and the view stay
+     as they were, and a wheel turned mid-carry changes both. */
+  const hand = clientToWorld(e.clientX, e.clientY);
+  const rawX = st.originX + (hand.x - st.grabX), rawY = st.originY + (hand.y - st.grabY);
   const placedX = free ? Math.round(rawX)
     : e.shiftKey ? snapToGrid(rawX)
     : st.originX + snapToGrid(rawX - st.originX);
@@ -945,6 +996,7 @@ function queueDragRedraw(st){
          const n = m.node;
          return n && ((m.id === bioCardNodeId) || ((n.shape || '') === 'ellipse' && n.bioCard));
        })) drawBioCard();
+    followStyleBar();
     if(st){ st.redrawEnd = performance.now(); st.redrawCost = st.redrawEnd - began; }
   });
 }
@@ -1078,14 +1130,17 @@ function beginNodeResize(ev, n, g, corner){
     growShift: n.growShift || 0,
     growShiftX: n.growShiftX || 0,
     originX: n.x, originY: n.y,
-    originW: n.w, originH: n.h, moved: false
+    originW: n.w, originH: n.h, moved: false,
+    // On the chart, as an entry's carry is — see the wheel.
+    grab: clientToWorld(ev.clientX, ev.clientY)
   };
 }
 window.addEventListener('mousemove', e=>{
   if(!nodeResizeState) return;
   const st = nodeResizeState;
-  const dx = (e.clientX - st.startClientX)/vs, dy = (e.clientY - st.startClientY)/vs;
-  if(!st.moved && Math.hypot(dx*vs, dy*vs) < DRAG_THRESHOLD) return;
+  if(!st.moved && Math.hypot(e.clientX - st.startClientX, e.clientY - st.startClientY) < DRAG_THRESHOLD) return;
+  const hand = clientToWorld(e.clientX, e.clientY);
+  const dx = hand.x - st.grab.x, dy = hand.y - st.grab.y;
   st.moved = true;
   const c = st.corner;
   /* The floor is the smallest box an entry ever settles to by itself:
@@ -1144,6 +1199,7 @@ window.addEventListener('mousemove', e=>{
   applyVisibility();
   if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
   paintMultiSelection();
+  followStyleBar();
   /* A portrait's card is anchored beside its circle and sized in step with
      it, so it has to be redrawn as the circle is dragged bigger. Without
      this it sat at the old radius until the mouse came up and then jumped
@@ -1216,6 +1272,7 @@ window.addEventListener('mousemove', e=>{
   applyVisibility();
   if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
   paintMultiSelection();
+  followStyleBar();
 });
 window.addEventListener('mouseup', ()=>{
   const st = cardImgResizeState;
@@ -1285,6 +1342,7 @@ window.addEventListener('mousemove', e=>{
   let deg = st.start + (now - st.grab);
   if(e.shiftKey) deg = Math.round(deg / ROT_SNAP) * ROT_SNAP;
   st.at = applyNodeRotation(st.node, st.g, deg);
+  followStyleBar();
 });
 window.addEventListener('mouseup', ()=>{
   const st = nodeRotateState;
