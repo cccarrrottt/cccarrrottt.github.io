@@ -39,7 +39,7 @@
 const NODES = [
   {id:'uprising', label:'{{#cc22cc|{{u:solid|Beast Wars: }}}}{{u:solid|[[Upris|{{z:20|readin}}g]]ing}}{{s:images}}{{u:solid|фыву}}', parent:['uprising-copy', 'asdasd-1-copy'], pos:[-60.02, -21.79], colors:['#20242b'], square:true},
   {id:'uprising-copy', label:'Beast Wars: Uprising', parent:'uprising', pos:[292.98, 62.71], colors:['#20242b'], border:'dashdot'},
-  {id:'asdasd', label:'asda{{u:double|sdи}}', note:'{{m:nagahurt}}', pos:[-196.67, 88.54], colors:['#20242b', '#c2c'], tags:['local multiverse', 'fan-fiction', 'multiversal hub'], border:'wavy', size:[50.35, 20.14]},
+  {id:'asdasd', label:'asda{{u:double|sdи}}', note:'{{m:nagahurt}}', pos:[-196.67, 88.55], colors:['#20242b', '#c2c'], tags:['local multiverse', 'fan-fiction', 'multiversal hub'], border:'wavy', size:[50.35, 20.14]},
   {id:'asdasd-copy', label:'asdasd', parent:'asdasd', pos:[-122.41, 82.22], colors:['#20242b'], border:'dashdot'},
   {id:'beast-wars-uprising-copy', label:'Beast Wars: Uprising', pos:[-242, 297.28], tags:['fan-fiction'], colors:['#20242b'], square:true},
   {id:'beast-wars-uprising-copy-2', label:'Beast Wars: Uprising', pos:[-111.02, 297.21], colors:['#22cc'], square:true, link:'https://cccarrrottt.github.io/#entry=beast-wars-uprising-copy-3'},
@@ -49,10 +49,10 @@ const NODES = [
   {id:'beast-wars-uprising-copy-6', label:'Beast Wars: Uprising', pos:[305.98, 297.28], colors:['#cccc'], square:true},
   {id:'beast-wars-uprising-copy-7', label:'Beast Wars: Uprising', parent:'beast-wars-uprising-copy', pos:[-424.54, 297.21], colors:['#20242b'], square:true},
   {id:'callout', label:'year 1914dhdhd', shape:'callout', pos:[406.39, 140.44], leader:{from:'asdasd-copy', to:'uprising-copy', at:0.9999}},
-  {id:'callout-2', label:'sdafsdf', shape:'callout', pos:[-129.94, 365.45], leader:{from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', at:0.6565, line:'dashed', shelf:true}},
+  {id:'callout-2', label:'sdafsdf', shape:'callout', pos:[-128.28, 319.3], leader:{from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', at:0.6565, line:'dashed', shelf:true}},
   {id:'asdasd-1-copy', label:'Dghdhx', colors:['#20242b'], pos:[-6.09, 83.58], border:'double'},
   {id:'asdasd-1-copy-2', label:'a', colors:['#20242b'], pos:[53.4, 197.07], tags:['local multiverse'], square:true},
-  {id:'node', label:'asdsa', shape:'ellipse', pos:[-211.02, -11.79], colors:['#20242b'], image:'media/92b3bf9c2b95e89aed4ae87a3465e997bbc02d80181a0f349142722d5573fdaa.jpg', tags:['unreleased']},
+  {id:'node', label:'asdsa', shape:'ellipse', pos:[-211.02, -11.79], colors:['#20242b'], image:'media/bad8aa8b4beebd4fcc4f408a73a108030482920fd3ce9b6305f2b1fd66acdc61.png', tags:['unreleased']},
   {id:'node-2', label:'фыв', shape:'textbox', pos:[34.31, 183.69], rot:340},
   {id:'node-3', label:'Прчоао', pos:[-287.93, 106.73]},
   {id:'node-4', label:'Човьлы', parent:'node-3', pos:[-348.4, 106.73]},
@@ -70,10 +70,11 @@ const NODES = [
   {id:'xzzcxzxc-copy', label:'xzzcxzxc', shape:'amalgam', pos:[-1017.46, 267.76]},
   {id:'node-9', label:'TNSDM', pos:[-317.06, 499.46]},
   {id:'node-10', label:'SDWaY!', pos:[-379.64, 499.46]},
-  {id:'node-11', label:'', shape:'image', pos:[-257.72, -7.99], size:[30.21, 30.21]},
+  {id:'node-11', label:'', shape:'image', pos:[-298, 2.08], size:[30.21, 30.21], image:'media/3cde6e7cda5ca991ff7f3eeaab93f014626c14eff343e37bacbdb835eb59c132.png'},
   {id:'node-copy-8', label:'Човьлы', pos:[-569.89, -17.22], colors:['#20242b'], card:true},
   {id:'node-12', label:'SD', pos:[-336.69, 527.91]},
   {id:'array', label:'', shape:'array', members:['node-9', 'node-10', 'node-12'], bg:['#c2c'], hatch:'diag-r', border:'dotted'},
+  {id:'callout-3', label:'', shape:'callout', pos:[142, 77], leader:{from:'asdasd-copy', to:'beast-wars-uprising-copy-4', at:0.4546205290939717}},
 ];
 /* @@EDIT:NODES:END@@ */
 
@@ -126,7 +127,7 @@ const MEDIA = [
    set up before the entries that will use it exist. */
 /* @@EDIT:TAGCATS:START@@ */
 const TAG_CATS = [
-  {name:'__ungrouped__', tags:['unreleased']},
+  {name:'__ungrouped__', tags:['unreleased', 'fan-fiction']},
 ];
 /* @@EDIT:TAGCATS:END@@ */
 
@@ -156,7 +157,7 @@ const REFS = [
 const EDGE_STYLES = [
   {from:'uprising', to:'uprising-copy', routing:'orthogonal', dash:'solid', arrow:true, note:'гнгн', fromSide:'top', toSide:'top', square:true, noteSquare:true},
   {from:'uprising-copy', to:'uprising', routing:'curve', dash:'solid', arrow:true, bends:[[251.21, -9.9]], fromSide:'left', toSide:'right'},
-  {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, color:'#c2c', colorFixed:true, fromSide:'bottom', toSide:'top', square:true},
+  {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, color:'#c2c', colorFixed:true, fromSide:'bottom', toSide:'top'},
   {from:'beast-wars-uprising-copy-2', to:'beast-wars-uprising-copy-5', routing:'straight', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top', square:true},
   {from:'beast-wars-uprising-copy-3', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
   {from:'beast-wars-uprising-copy-4', to:'beast-wars-uprising-copy-5', routing:'straight', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top', square:true},
@@ -170,6 +171,6 @@ const EDGE_STYLES = [
   {from:'node-copy', to:'node-8', routing:'orthogonal', dash:'solid', arrow:true, sinusoid:true, fromSide:'right', toSide:'right'},
   {from:'node-copy-2', to:'node-8', routing:'orthogonal', dash:'double', arrow:true, fromSide:'right', toSide:'right'},
   {from:'node-copy-3', to:'node-8', routing:'orthogonal', dash:'dotted', arrow:true, fromSide:'right', toSide:'bottom'},
-  {from:'asdasd-copy', to:'beast-wars-uprising-copy-4', routing:'curve', dash:'solid', arrow:true, sinusoid:true, bends:[[-137.91, 133.83]], bendSides:['left', 'top'], gradient:['#2c2', '#22c'], fromSide:'left', toSide:'top', square:true},
+  {from:'asdasd-copy', to:'beast-wars-uprising-copy-4', routing:'curve', dash:'solid', arrow:true, note:'фывфы', noteAt:0.524, gradient:['#2c2', '#22c'], fromSide:'left', toSide:'top', square:true},
 ];
 /* @@EDIT:EDGESTYLES:END@@ */
