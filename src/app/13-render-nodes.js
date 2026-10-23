@@ -243,6 +243,14 @@ svg.addEventListener('pointerover', ev=>{
   nodeUnderPointer = g ? g.dataset.id : null;
   if(g) nodeControlsOn(g.dataset.id);
 });
+/* The drawing the site was published with (tools/prerender.js), shown
+   while the program was still on its way. It goes the moment this draws
+   its own — in the same task, so no frame shows neither, and none shows
+   both. */
+function dropPrerendered(){
+  const pre = document.getElementById('prerendered');
+  if(pre) pre.remove();
+}
 function renderNodes(opts){
 /* `arraysOnly` draws the arrays again and nothing else: a drag moves the
    entries themselves by a transform, and only the frames round them have
@@ -252,6 +260,7 @@ const arraysOnly = !!(opts && opts.arraysOnly);
 if(arraysOnly){
   nodeDefs.querySelectorAll('[data-array-def]').forEach(d=> d.remove());
 } else {
+  dropPrerendered();
   nodeControlsWanted.clear();
   while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
   while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);

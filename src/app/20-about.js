@@ -486,9 +486,23 @@ async function readOwnSource(){
    Only tags marked data-inline, and only names with no path in them: the
    build writes exactly that, and nothing else in a page is fetched here. */
 const SITE_FILE_RE = /<script src="([\w.-]+\.js)" data-inline><\/script>|<link rel="stylesheet" href="([\w.-]+\.css)" data-inline>/g;
+/* The site's page also carries a drawing of the chart for the moment
+   before the program arrives (tools/prerender.js). A copy is a program
+   with its chart, and draws it itself, so the drawing does not go with it.
+   The markers are put together at run time rather than written out: this
+   line sits in a script in every other build, where an opening comment
+   changes how the parser reads the rest of it — and a sum of two strings
+   is folded back into one by the minifier, so the bracket is a character
+   code. */
+const PRERENDER_MARKS = ['!--rhizome:prerendered--', '!--/rhizome:prerendered--'].map(m=> String.fromCharCode(60) + m + '>');
+function withoutPrerendered(src){
+  const [begin, end] = PRERENDER_MARKS;
+  return src.split(begin).map((piece, i)=> i ? piece.slice(piece.indexOf(end) + end.length) : piece).join('');
+}
 async function inlineSiteFiles(src){
+  if(!src.match(SITE_FILE_RE)) return src;
+  src = withoutPrerendered(src);
   const found = [...src.matchAll(SITE_FILE_RE)];
-  if(!found.length) return src;
   const texts = await Promise.all(found.map(async m=>{
     const name = m[1] || m[2];
     const res = await fetch(new URL(name, location.href));

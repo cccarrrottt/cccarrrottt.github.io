@@ -17054,6 +17054,87 @@ async function main(){
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
   });
+  await scenario("the site's first drawing, before the program", async () => {
+  if(MODE === 'src'){
+    check('the drawing is put in the site\'s page, so there is nothing to check from src', true);
+    return;
+  }
+  /* tools/prerender.js draws the chart once when the site is published and
+     writes it into the page, so a reader sees it before the program has
+     arrived. What has to hold: the drawing is the chart, it stands where
+     the program will put its own, the program takes it away as it draws
+     (nothing left behind, no id twice), and nothing made from the page —
+     an export — carries it. */
+  const {withSnapshot, drawingOf} = require(path.join(ROOT, 'tools', 'prerender.js'));
+  const SITE_DIR = path.join(DIR, 'site');
+  const built = fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8');
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  const silence = async p => { await p.route('https://fonts.googleapis.com/**', quiet); await p.route('https://fonts.gstatic.com/**', quiet); };
+  const snap = await drawingOf(browser, SITE_DIR, {route: silence});
+  const html = withSnapshot(built, snap);
+  const TYPES = {'.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png'};
+  const srv = http.createServer((q, r) => {
+    const rel = q.url.split('?')[0].replace(/^\/+/, '');
+    if(!rel || rel === 'index.html'){ r.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'}); return r.end(html); }
+    const file = rel.startsWith('media/') ? path.join(DIR, rel) : path.join(SITE_DIR, rel);
+    fs.readFile(file, (e, b) => { if(e){ r.writeHead(404); return r.end(); } r.writeHead(200, {'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream'}); r.end(b); });
+  });
+  await new Promise(res => srv.listen(0, '127.0.0.1', res));
+  const at = `http://127.0.0.1:${srv.address().port}/`;
+  const look = async (opts) => {
+    const c = await browser.newContext({viewport: opts.viewport || {width: 1500, height: 950}, serviceWorkers: 'block'});
+    const p = await c.newPage();
+    await silence(p);
+    const errs = [];
+    p.on('pageerror', e => errs.push(e.message));
+    if(opts.view) await p.addInitScript(v => { try{ localStorage.setItem('rhizome.view:' + (location.pathname + location.search || 'default'), JSON.stringify(v)); }catch(e){} }, opts.view);
+    if(opts.noProgram) await p.route(/app\.[0-9a-f]+\.js$/, r => r.abort());
+    await p.goto(at, {waitUntil: 'load'});
+    if(!opts.noProgram) await p.waitForFunction(() => typeof rebuildChart === 'function');
+    await p.waitForTimeout(300);
+    const out = await p.evaluate(() => {
+      const pre = document.getElementById('prerendered');
+      const ids = [...document.querySelectorAll('[id]')].map(e => e.id);
+      return {pre: !!pre,
+              preNodes: pre ? pre.querySelectorAll('.node').length : 0,
+              preView: pre ? document.getElementById('prerenderedView').getAttribute('transform') : null,
+              view: document.getElementById('viewport').getAttribute('transform'),
+              liveNodes: document.querySelectorAll('#viewport .node').length,
+              stat: document.getElementById('statNodes').textContent,
+              twice: ids.filter((id, i) => ids.indexOf(id) !== i).slice(0, 5)};
+    });
+    out.errs = errs;
+    if(!opts.noProgram){
+      out.exportClean = await p.evaluate(async () => {
+        const src = await readOwnSource();
+        return !src.includes('<g id="prerendered"') && !src.includes('rhizome:prerendered--' + '>') &&
+               !src.includes('prerenderedView\').setAttribute') && src.includes('@@EDIT:NODES:START@@');
+      });
+    }
+    await c.close();
+    return out;
+  };
+  try{
+    const before = await look({noProgram: true});
+    const after = await look({});
+    const viewed = {x: 120, y: -40, s: 0.5};
+    const beforeV = await look({noProgram: true, view: viewed, viewport: {width: 390, height: 844}});
+    const afterV = await look({view: viewed, viewport: {width: 390, height: 844}});
+    check('with no program yet, the page shows the chart',
+          before.pre && before.preNodes > 0 && before.preNodes === after.liveNodes && before.stat === after.stat,
+          JSON.stringify({drawn: before.preNodes, live: after.liveNodes, stat: [before.stat, after.stat]}));
+    check('the drawing stands where the program then draws, on the first visit and on a kept view',
+          before.preView === after.view && beforeV.preView === afterV.view && beforeV.preView !== before.preView,
+          JSON.stringify({first: [before.preView, after.view], kept: [beforeV.preView, afterV.view]}));
+    check('the program takes the drawing away as it draws, with no id left twice and nothing thrown',
+          !after.pre && after.liveNodes > 0 && !after.twice.length && !after.errs.length && !before.errs.length,
+          JSON.stringify({pre: after.pre, twice: after.twice, errs: after.errs.concat(before.errs).slice(0, 2)}));
+    check('a copy exported from the site carries no drawing', after.exportClean === true);
+    check('the drawing asks for no pictures, which would hold the program up', !/<image[^>]*href=/.test(snap.view + snap.defs));
+  } finally {
+    srv.close();
+  }
+  });
   await scenario("the router asks only the boxes a leg can cross", async () => {
   /* scorePath and pathClearParts look the boxes up by the band of x or y a
      leg stands in (obstaclesNear) instead of walking every one. The same
