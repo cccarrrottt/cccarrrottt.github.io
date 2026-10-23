@@ -342,6 +342,27 @@ const VERSION_LOG = [
     'A tighter wave on the wavy connector style, with shorter quiet stretches at its corners.'
   ]}
 ];
+/* On the published site the log is not in the program. It is most of a
+   tenth of it, and the part almost nobody opens About for, so build_site
+   (build.py) lifts it into a file beside the program and leaves its name
+   here, and the history is fetched the first time it is unfolded. Every
+   other copy — the single page, an export, the artifact — carries it as
+   written; an export from the site has it put back (inlineSiteFiles). */
+const VERSION_LOG_FILE_RE = /"(versions\.[0-9a-f]{16}\.js)"/;
+let versionLogLoaded = Array.isArray(VERSION_LOG) ? VERSION_LOG : null;
+async function versionLogText(name){
+  const res = await fetch(new URL(name, location.href));
+  if(!res.ok) throw new Error('could not fetch ' + name + ' (' + res.status + ').');
+  return res.text();
+}
+function versionEntriesHtml(list){
+  return list.map(r=>
+    `<div class="version-entry"><div class="version-head">` +
+    `<b>${escapeHtml(r.v)}</b>${r.title ? ' — ' + escapeHtml(r.title) : ''}` +
+    `<span class="version-date">${escapeHtml(r.date)}</span></div>` +
+    `<ul>${r.notes.map(t=> `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>`
+  ).join('') + '<p class="version-foot">Releases before 0.9.0 were not numbered.</p>';
+}
 function renderVersionInfo(){
   const line = document.getElementById('aboutVersion');
   if(line) line.textContent = `${APP_NAME} · version ${APP_VERSION}`;
@@ -349,13 +370,24 @@ function renderVersionInfo(){
   if(!log) return;
   /* Folded away: the history is longer than everything else in the card
      put together, and it is the part almost nobody opens About for. */
-  log.innerHTML = '<details><summary>Version history</summary>' + VERSION_LOG.map(r=>
-    `<div class="version-entry"><div class="version-head">` +
-    `<b>${escapeHtml(r.v)}</b>${r.title ? ' — ' + escapeHtml(r.title) : ''}` +
-    `<span class="version-date">${escapeHtml(r.date)}</span></div>` +
-    `<ul>${r.notes.map(t=> `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>`
-  ).join('') +
-  '<p class="version-foot">Releases before 0.9.0 were not numbered.</p></details>';
+  log.innerHTML = '<details><summary>Version history</summary><div class="version-list">' +
+    (versionLogLoaded ? versionEntriesHtml(versionLogLoaded) : '') + '</div></details>';
+  if(versionLogLoaded) return;
+  const details = log.querySelector('details'), list = log.querySelector('.version-list');
+  details.addEventListener('toggle', async ()=>{
+    if(!details.open || versionLogLoaded || list.dataset.asked) return;
+    list.dataset.asked = '1';
+    list.innerHTML = '<p class="version-foot">Loading…</p>';
+    try{
+      /* The file is the log exactly as written in the source — a literal,
+         not JSON — and it is this site's own file, named by its bytes. */
+      versionLogLoaded = Function('"use strict"; return (' + await versionLogText(VERSION_LOG) + ');')();
+      list.innerHTML = versionEntriesHtml(versionLogLoaded);
+    } catch(e){
+      delete list.dataset.asked;
+      list.innerHTML = '<p class="version-foot">The history could not be fetched. Fold it and try again.</p>';
+    }
+  });
 }
 /* ---------------------------------------------------------------------
    A comment, read at full size.
@@ -509,6 +541,15 @@ async function inlineSiteFiles(src){
     if(!res.ok) throw new Error('could not fetch ' + name + ' (' + res.status + ').');
     return res.text();
   }));
+  /* The program on the site names its version log rather than holding it
+     (see renderVersionInfo); a copy holds it, as the program it was cut
+     from did. */
+  for(let i = 0; i < found.length; i++){
+    const named = found[i][1] && texts[i].match(VERSION_LOG_FILE_RE);
+    if(!named) continue;
+    const log = await versionLogText(named[1]);
+    texts[i] = texts[i].slice(0, named.index) + '(' + log + ')' + texts[i].slice(named.index + named[0].length);
+  }
   let out = '', at = 0;
   found.forEach((m, i)=>{
     /* A replacement string would read `$&` and `$1` inside the program as

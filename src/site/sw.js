@@ -53,7 +53,7 @@ self.addEventListener('fetch', ev => {
     return;
   }
   if(req.mode === 'navigate') return;
-  if(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/.test(url.pathname) || HASHED.test(url.pathname)){
+  if(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/.test(url.pathname) || HASHED.test(url.pathname) || VERSIONS.test(url.pathname)){
     ev.respondWith(aPicture(req));
     return;
   }
@@ -83,6 +83,12 @@ function aPicture(req){
    ask for it again. The page it replaces is spared because it may be the
    one on screen — shown from here while the network was slow — and still
    about to ask for its own. */
+/* The version log, which the program fetches the first time the history
+   in About is unfolded (build.py, lift_version_log). Named by its bytes
+   too, and kept the same way once it has been read, so the history opens
+   with no signal after it has opened once. It is not let go with the
+   program: a release changes it, and releases are few. */
+const VERSIONS = /\/versions\.[0-9a-f]{16}\.js$/;
 const HASHED = /\/(?:app|style)\.[0-9a-f]{16}\.(?:js|css)$/;
 const namedIn = text => [...String(text || '').matchAll(/(?:src|href)="((?:app|style)\.[0-9a-f]{16}\.(?:js|css))" data-inline/g)]
   .map(m => new URL(m[1], PAGE).href);

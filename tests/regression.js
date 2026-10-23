@@ -17129,6 +17129,24 @@ async function main(){
         return !src.includes('<g id="prerendered"') && !src.includes('rhizome:prerendered--' + '>') &&
                !src.includes('prerenderedView\').setAttribute') && src.includes('@@EDIT:NODES:START@@');
       });
+      /* The version log is a file beside the program on the site, fetched
+         when the history is unfolded; a copy holds it again, as a program
+         that still parses. */
+      out.history = await p.evaluate(async () => {
+        const wait = ms => new Promise(r => setTimeout(r, ms));
+        const named = typeof VERSION_LOG === 'string' ? VERSION_LOG : null;
+        const d = document.querySelector('#versionLog details');
+        const folded = d ? d.querySelectorAll('.version-entry').length : -1;
+        if(d) d.open = true;
+        for(let i = 0; i < 40 && d && !d.querySelector('.version-entry'); i++) await wait(50);
+        const heads = d ? [...d.querySelectorAll('.version-head b')].map(b => b.textContent) : [];
+        const src = await readOwnSource();
+        const program = [...src.matchAll(/<script>\n?([\s\S]*?)<\/script>/g)].map(m => m[1]).find(t => t.includes('const APP_VERSION')) || '';
+        let parses = false;
+        try{ new Function(program); parses = true; }catch(e){}
+        return {named, folded, heads, copyNames: VERSION_LOG_FILE_RE.test(src),
+                copyHolds: src.includes("{v:'" + APP_VERSION + "'"), parses};
+      });
     }
     await c.close();
     return out;
@@ -17149,6 +17167,13 @@ async function main(){
           !after.pre && after.liveNodes > 0 && !after.twice.length && !after.errs.length && !before.errs.length,
           JSON.stringify({pre: after.pre, twice: after.twice, errs: after.errs.concat(before.errs).slice(0, 2)}));
     check('a copy exported from the site carries no drawing', after.exportClean === true);
+    const logHere = await page.evaluate(() => VERSION_LOG.map(r => r.v));
+    const h = after.history || {};
+    check('the site\'s program names its version log instead of holding it, and unfolding the history fetches it',
+          /^versions\.[0-9a-f]{16}\.js$/.test(h.named || '') && h.folded === 0 &&
+          JSON.stringify(h.heads) === JSON.stringify(logHere), JSON.stringify({named: h.named, folded: h.folded, heads: (h.heads || []).slice(0, 3)}));
+    check('and a copy exported from the site holds the log again, in a program that parses',
+          h.copyHolds && !h.copyNames && h.parses, JSON.stringify({holds: h.copyHolds, names: h.copyNames, parses: h.parses}));
     check('the drawing asks for no pictures, which would hold the program up', !/<image[^>]*href=/.test(snap.view + snap.defs));
   } finally {
     srv.close();
