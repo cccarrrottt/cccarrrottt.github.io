@@ -16,7 +16,7 @@
  * change made to anything in it. An array may hold another array, which
  * is drawn behind it and fitted first.
  *
- * Function declarations only: this part runs last, and the model asks
+ * Function declarations only: this part runs late, and the model asks
  * these questions while part 02 is still being run. A constant declared
  * here would not exist yet.
    ------------------------------------------------------------------ */

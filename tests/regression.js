@@ -12709,7 +12709,14 @@ async function main(){
       const line = document.querySelector('#edgeLayer path.edge.struct[data-from="sqA"][data-to="sqB"]');
       out.edgeSquare = !!line && !/Q/.test(line.getAttribute('d'));
       const plate = ()=> document.querySelector('.edge-note[data-from="sqA"] .edge-note-plate');
-      out.plateOwn = !!plate() && +plate().getAttribute('rx') > 0;
+      /* A note's plate is square by default too (since 22.10), so the
+         connector is rounded for a moment: what is checked is that the
+         connector's own corners do not decide the plate's. */
+      applyEdit(()=>{ EDGE_STYLES.find(x=> x.from === 'sqA' && x.to === 'sqB').square = false; });
+      await wait(150);
+      out.plateOwn = !!plate() && +plate().getAttribute('rx') === 0;
+      applyEdit(()=>{ EDGE_STYLES.find(x=> x.from === 'sqA' && x.to === 'sqB').square = true; });
+      await wait(150);
       out.calloutOwn = rx('sqK').length > 0 && rx('sqK').every(v=> v > 0);
       /* Square is the default since 0.12.0, so what the file carries is
          the exception: a rounded connector writes square:false, one that
@@ -12740,14 +12747,17 @@ async function main(){
       press('corners', 'round');
       await wait(150);
       out.calloutSquares = rx('sqK').length > 0 && rx('sqK').every(v=> v === 0) &&
-        !edgeStyleFor('sqA', 'sqB').noteSquare;
+        !('noteSquare' in (EDGE_STYLES.find(x=> x.from === 'sqA' && x.to === 'sqB') || {}));
+      // A note's plate is square until it is rounded (the owner's ask, 22.10).
+      out.noteSquareByDefault = !!plate() && +plate().getAttribute('rx') === 0;
       // And a note chooses its frame and its corners.
       openStyleBar({kind:'note', from:'sqA', to:'sqB'});
       out.noteBar = bar.querySelector('[data-group="border"]').hidden &&
         !bar.querySelector('[data-group="frame"]').hidden;
       /* Corners first: with the frame off there are none to choose, and
-         the buttons are greyed (the owner's rule) — the square ones are
-         kept for when the frame comes back. */
+         the buttons are greyed (the owner's rule) — the rounded ones are
+         kept for when the frame comes back. Square is the default, so the
+         press rounds it, and only that is written down. */
       press('corners', 'round');
       // The frame is one button, lit while there is one: pressed, it goes.
       out.frameOneButton = bar.querySelectorAll('[data-group="frame"] button').length === 1 &&
@@ -12755,9 +12765,9 @@ async function main(){
       press('frame', 'frame');
       await wait(150);
       out.noteBare = out.frameOneButton && !!plate() && plate().classList.contains('bare') && !plate().style.stroke &&
-        +plate().getAttribute('rx') === 0 &&
+        +plate().getAttribute('rx') > 0 &&
         /noteFrame:false/.test(serializeEdgeStyles(EDGE_STYLES)) &&
-        /noteSquare:true/.test(serializeEdgeStyles(EDGE_STYLES));
+        /noteSquare:false/.test(serializeEdgeStyles(EDGE_STYLES));
       // A portrait's corners are its card's.
       applyEdit(()=> workingNodes.push(['sqP', 'Portrait', null, null, null, 'ellipse',
                                         {pos:[X + 500, Y], square:true}]));
@@ -12864,7 +12874,8 @@ async function main(){
   check('and greys the choice while the border is wavy', rW.panelGreys);
   check('a callout squares its own corners, whatever its connector has', rW.calloutSquares);
   check('a note’s bar offers a frame and corners instead', rW.noteBar);
-  check('and a note can go bare and square, and is saved so', rW.noteBare);
+  check('a note\'s plate is square until it is rounded', rW.noteSquareByDefault);
+  check('and a note can go bare and rounded, and is saved so', rW.noteBare);
   check('a portrait’s corners square its card', rW.bioSquare);
   check('and the bar offers them there, and the ripple', rW.bioOffered);
   check('the merge’s bar moves in whole grid steps or not at all', rW.barWhole, rW.barSteps);
@@ -14946,21 +14957,23 @@ async function main(){
       out.leaderDashed = !!l && l.getAttribute('stroke-dasharray') === DASH_PATTERNS.dashed;
       const conn = document.querySelector('#edgeLayer path.edge[data-from="llA"][data-to="llB"]');
       out.connectorUntouched = !!conn && !conn.getAttribute('stroke-dasharray');
-      /* Pointing at the LINE opens the bar on it, with the line's looks
-         and nothing of the card's. */
+      /* Pointing at the LINE opens the bar on it — the callout's one bar,
+         the line's looks and the card's together (the owner's ask, 22.10). */
       const hitLine = document.querySelector('#leaderHitLayer .leader-line-hit[data-id="llK"]');
       if(hitLine) hitLine.dispatchEvent(new MouseEvent('mouseover', {bubbles:true}));
       await wait(50);
       const row = document.querySelector('#styleBar .style-bar-group[data-group="leader"]');
       const border = document.querySelector('#styleBar .style-bar-group[data-group="border"]');
-      out.leaderRowShown = !!hitLine && !!row && !row.hidden && border.hidden &&
+      out.leaderRowShown = !!hitLine && !!row && !row.hidden && !border.hidden &&
         !!styleBarTarget && styleBarTarget.kind === 'leader';
       row.querySelector('[data-value="sinusoid"]').click();
       await wait(400);
       const kept = entryOpts(workingEntry('llK').entry).leader;
       out.leaderWavy = kept.line === 'sinusoid' && !!document.querySelector('.callout-leader[data-id="llK"] .leader-wavy');
       openStyleBar({kind:'node', id:'llK'});
-      out.leaderRowOnlyOnCallouts = document.querySelector('#styleBar .style-bar-group[data-group="leader"]').hidden;
+      // …and the card's bar is that same bar.
+      out.leaderRowOnlyOnCallouts = !document.querySelector('#styleBar .style-bar-group[data-group="leader"]').hidden &&
+        !document.querySelector('#styleBar .style-bar-group[data-group="border"]').hidden;
       openStyleBar({kind:'leader', id:'llK'});
       document.querySelector('#styleBar .style-bar-group[data-group="leader"] [data-value="solid"]').click();
       await wait(400);
@@ -15158,7 +15171,7 @@ async function main(){
         rR.jointsDim, rR.jointsAt);
   check('parents in a column merge across an upright bar, with no lineage hooking past it',
         rR.columnUpright, rR.columnAt);
-  check('a callout\'s leader wears its own line, chosen on the line itself and not on the card',
+  check('a callout\'s leader wears its own line, chosen on the callout\'s one bar, from the line or the card',
         rR.leaderDashed && rR.connectorUntouched && rR.leaderRowShown && rR.leaderWavy &&
         rR.leaderRowOnlyOnCallouts && rR.leaderSolidIsAbsence,
         JSON.stringify({dashed:rR.leaderDashed, conn:rR.connectorUntouched, row:rR.leaderRowShown,
@@ -17467,7 +17480,7 @@ async function main(){
     box.value = 'langprobe main';
     box.dispatchEvent(new Event('input'));
     const main = document.querySelector('#searchResults .row .sr-tab');
-    out.mainChip = main && main.classList.contains('main');
+    out.mainChip = main && main.classList.contains('sr-main');
     document.getElementById('searchResults').classList.remove('show');
     // A link carries the entry and the tab it shows, and opens on both.
     out.link = entryLink('lq_one');
@@ -18247,6 +18260,355 @@ async function main(){
         r.middle.direct && near(r.middle.end, r.middle.junction), JSON.stringify(r.middle));
   check('and one whose line would cross another lineage stays on the bar',
         !r.crossing.direct && !near(r.crossing.end, r.crossing.junction), JSON.stringify(r.crossing));
+  });
+  await scenario("the evening of 22.10: a zoom mid-carry, bars that follow, a field that settles", async () => {
+  const at = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const X = snapToGrid(37000), Y = snapToGrid(37000);
+    applyEdit(()=>{
+      workingNodes.push(['ev_a', 'Carried', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['ev_b', 'Joined', 'ev_a', null, null, null, {pos:[X + 400, Y]}]);
+    });
+    await wait(200);
+    flyToNode('ev_a'); await wait(300);
+    const r = document.querySelector('.node[data-id="ev_a"]').getBoundingClientRect();
+    return {x: r.left + r.width/2, y: r.top + r.height/2};
+  });
+  /* Carried, then the wheel turned mid-carry: the entry stays under the
+     hand at the new scale, and the next movement does not jump it. */
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.mouse.move(at.x + 40, at.y + 20, {steps: 4});
+  await page.waitForTimeout(120);
+  await page.mouse.wheel(0, -300);
+  await page.waitForTimeout(150);
+  await page.mouse.move(at.x + 44, at.y + 22, {steps: 2});
+  await page.waitForTimeout(150);
+  const zoomed = await page.evaluate(()=>{
+    const n = nodes.get('ev_a');
+    const r = document.querySelector('.node[data-id="ev_a"]').getBoundingClientRect();
+    return {vs, grid: GRID, centre: {x: r.left + r.width/2, y: r.top + r.height/2}, w: n.w};
+  });
+  await page.mouse.up();
+  // Out of the way, so the real pointer leaving an entry closes no bar below.
+  await page.mouse.move(5, 940);
+  await page.waitForTimeout(400);
+  // Within a grid step of the hand, at the new scale.
+  const off = Math.hypot(zoomed.centre.x - (at.x + 44), zoomed.centre.y - (at.y + 22));
+  check('an entry carried while the wheel turns stays under the hand', zoomed.vs > 1.05 && off <= zoomed.grid * zoomed.vs + 2,
+        JSON.stringify({off, zoomed}));
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const out = {};
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    try{
+      /* The bar on an entry follows it when it is carried. */
+      /* Straight to the middle, with no flight: a bar against the edge of
+         the window is held there and could not show it moving. */
+      { const n = nodes.get('ev_a'); centreViewOn(n.x + n.w/2, n.y + n.h/2, 1); }
+      await wait(100);
+      openStyleBar({kind:'node', id:'ev_a'});
+      const b0 = styleBar.getBoundingClientRect();
+      const g = document.querySelector('.node[data-id="ev_a"]');
+      const nr = g.getBoundingClientRect();
+      g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:nr.left + 5, clientY:nr.top + 5}));
+      for(let k = 1; k <= 6; k++){
+        window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:nr.left + 5 + k*12, clientY:nr.top + 5 + k*6}));
+        await wait(30);
+      }
+      await wait(120);
+      const b1 = styleBar.getBoundingClientRect();
+      const moved = document.querySelector('.node[data-id="ev_a"]').getBoundingClientRect().left - nr.left;
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+      await wait(200);
+      out.barFollows = !styleBar.hidden && moved > 40 && Math.abs((b1.left - b0.left) - moved) < 2;
+      out.barAt = [b0.left, b1.left, moved];
+      closeStyleBar();
+      /* A press on a connector keeps its bar up beside its panel. */
+      const hit = document.querySelector('.edge-hit[data-from="ev_a"][data-to="ev_b"]');
+      const hr = hit.getBoundingClientRect();
+      const px = hr.left + hr.width/2, py = hr.top + hr.height/2;
+      hit.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, clientX:px, clientY:py}));
+      await wait(50);
+      hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:px, clientY:py}));
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, clientX:px, clientY:py}));
+      hit.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:px, clientY:py}));
+      await wait(300);
+      out.edgeBarStays = !styleBar.hidden && styleBarTarget && styleBarTarget.kind === 'edge' &&
+                         edgePopover.classList.contains('open');
+      closeEdgePopover(); closeStyleBar();
+      /* A press on the paper settles a field being typed in. */
+      const search = document.getElementById('searchInput');
+      search.focus();
+      svg.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, cancelable:true, clientX:400, clientY:700}));
+      out.paperSettles = document.activeElement !== search;
+      /* A colour code keeps its #. */
+      const box = document.createElement('input');
+      box.className = 'hex-box';
+      document.body.appendChild(box);
+      box.focus();
+      out.hashOnFocus = box.value === '#';
+      box.value = 'c23b22'; box.setSelectionRange(6, 6);
+      box.dispatchEvent(new InputEvent('input', {bubbles:true}));
+      out.hashPasted = box.value === '#c23b22';
+      box.setSelectionRange(1, 1);
+      const bs = new KeyboardEvent('keydown', {key:'Backspace', bubbles:true, cancelable:true});
+      box.dispatchEvent(bs);
+      out.hashKept = bs.defaultPrevented;
+      box.value = '#'; box.blur();
+      out.hashAloneIsEmpty = box.value === '';
+      box.remove();
+      /* The file tiles are smaller, and their sheets carry no ground. */
+      const tile = document.querySelector('#fileExport');
+      document.getElementById('filePopover').classList.add('open');
+      out.tileW = Math.round(tile.getBoundingClientRect().width);
+      out.sheetBare = getComputedStyle(tile.querySelector('.fmt-sheet')).fill === 'none';
+      document.getElementById('filePopover').classList.remove('open');
+    } finally {
+      applyEdit(()=>{ workingNodes = workingNodes.filter(e=> !/^ev_/.test(e[0])); refill(EDGE_STYLES, beforeStyles); });
+    }
+    return out;
+  });
+  check('a bar on an entry follows it while it is carried', r.barFollows, JSON.stringify(r.barAt));
+  check('a press on a connector keeps its bar up beside its panel', r.edgeBarStays);
+  check('a press on the paper settles a field being typed in', r.paperSettles);
+  check('a colour code keeps its #: put in on focus, kept on paste and Backspace, empty alone',
+        r.hashOnFocus && r.hashPasted && r.hashKept && r.hashAloneIsEmpty, JSON.stringify(r));
+  check('the file tiles are 40 px and their sheets are bare', r.tileW === 40 && r.sheetBare, JSON.stringify(r));
+  const q = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const out = {};
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const X = 38000, Y = 38000;
+    try{
+      applyEdit(()=>{
+        workingNodes.push(['ev_c', 'Green', null, null, null, null, {pos:[X, Y], colors:['#2f9a4a']}]);
+        workingNodes.push(['ev_d', 'Blue', 'ev_c', null, null, null, {pos:[X + 400, Y + 300], colors:['#2b54c8']}]);
+        workingNodes.push(['ev_k', 'a remark', null, null, null, 'callout', {pos:[X + 120, Y + 360], leader:{from:'ev_c', to:'ev_d', at:0.7}}]);
+        EDGE_STYLES.push({from:'ev_c', to:'ev_d', routing:'orthogonal', gradient:['#2f9a4a', '#2b54c8'],
+                          note:'a long note that goes round the corner', noteAlong:true, noteAt:0.98});
+      });
+      await wait(300);
+      /* A callout on a connector that runs through two colours is drawn
+         in the one its leader has — the colour at its anchor. */
+      const lead = document.querySelector('.callout-leader[data-id="ev_k"] .leader-line');
+      const frame = document.querySelector('.node[data-id="ev_k"] rect[stroke]');
+      out.leader = lead && lead.getAttribute('stroke');
+      out.frame = frame && frame.getAttribute('stroke');
+      out.cardMatches = !!out.leader && /^#/.test(out.leader) && out.leader === out.frame &&
+                        out.leader !== '#2f9a4a' && out.leader !== '#2b54c8';
+      /* Words along a square-elbowed line turn its corners round, and a
+         note slid to an end keeps all its words on the line. */
+      const tp = document.querySelector('.edge-note[data-from="ev_c"] textPath');
+      const path = document.querySelector('.edge-note[data-from="ev_c"] .edge-note-along-path');
+      const t = tp && tp.closest('text');
+      if(path && t){
+        const total = path.getTotalLength(), half = t.getComputedTextLength() / 2;
+        const so = +tp.getAttribute('startOffset');
+        out.alongHeld = so >= half - 0.5 && so <= total - half + 0.5;
+        // Rounded: no two neighbouring steps of the path turn by 90°.
+        const d = path.getAttribute('d').match(/-?[\d.]+/g).map(Number);
+        let sharp = 0;
+        for(let i = 2; i + 3 < d.length; i += 2){
+          const ax = d[i] - d[i-2], ay = d[i+1] - d[i-1], bx = d[i+2] - d[i], by = d[i+3] - d[i+1];
+          const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+          if(la > 0.01 && lb > 0.01 && Math.abs((ax*bx + ay*by) / (la*lb)) < 0.5) sharp++;
+        }
+        out.alongRound = sharp === 0;
+        out.sharp = sharp;
+      }
+      /* A press on the words being written in stays in the field. */
+      openNodeEditor('ev_c'); await wait(200);
+      const g = document.querySelector('.node[data-id="ev_c"]');
+      const gr = g.getBoundingClientRect();
+      const press = new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:gr.left + 2, clientY:gr.bottom - 2});
+      g.dispatchEvent(press);
+      g.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:gr.left + 2, clientY:gr.bottom - 2}));
+      await wait(250);
+      out.editorKept = !!nodeEditorTarget && nodeEditorTarget.id === 'ev_c';
+      /* …but its grips are not its words: a corner still resizes it. */
+      nodeControlsOn('ev_c');
+      const grip = document.querySelector('.node[data-id="ev_c"] .node-resize-se .node-resize-hit');
+      const w0 = nodes.get('ev_c').w;
+      if(grip){
+        const b = grip.getBoundingClientRect();
+        const sx = b.x + b.width/2, sy = b.y + b.height/2;
+        grip.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
+        for(let k = 1; k <= 4; k++){
+          window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:sx + k*15, clientY:sy + k*10}));
+          await wait(30);
+        }
+        window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+        await wait(250);
+      }
+      out.gripWorks = !!grip && nodes.get('ev_c').w > w0 + 20;
+      closeNodeEditor(true);
+    } finally {
+      applyEdit(()=>{ workingNodes = workingNodes.filter(e=> !/^ev_/.test(e[0])); refill(EDGE_STYLES, beforeStyles); });
+    }
+    return out;
+  });
+  check('a callout on a two-colour connector is drawn in its leader\'s colour', q.cardMatches, JSON.stringify(q));
+  check('words along a square-elbowed line turn its corners round', q.alongRound, JSON.stringify(q));
+  check('and a note slid to an end keeps all its words on the line', q.alongHeld, JSON.stringify(q));
+  check('a press on the words being written in stays in the field', q.editorKept, JSON.stringify(q));
+  check('and a corner of the entry being written in still resizes it', q.gripWorks, JSON.stringify(q));
+  });
+  await scenario("code 1 of 22.10: a wheel mid-pan, a pasted code, a copy that keeps its look", async () => {
+  /* A wheel turned while the paper is being dragged: the point under the
+     hand stays under it, rather than the view jumping back to where the
+     drag began at the old scale. */
+  const startAt = await page.evaluate(async ()=>{
+    flyToNode(nodes.keys().next().value);
+    await new Promise(ok=> setTimeout(ok, 300));
+    return {vx, vy, vs};
+  });
+  // A spot on the paper with nothing on it.
+  const spot = await page.evaluate(()=>{
+    for(let y = 820; y > 200; y -= 40) for(let x = 1200; x > 300; x -= 40){
+      const t = document.elementFromPoint(x, y);
+      if(t === svg || (t && t.id === 'bgLayer') || (t && t.closest && t.closest('#gridLayer, .grid-bg'))) return {x, y};
+    }
+    return {x: 700, y: 500};
+  });
+  await page.mouse.move(spot.x, spot.y);
+  await page.mouse.down();
+  await page.mouse.move(spot.x + 30, spot.y + 15, {steps: 3});
+  await page.waitForTimeout(80);
+  const worldBefore = await page.evaluate(([x, y])=>({x: (x - svg.getBoundingClientRect().left - vx) / vs, y: (y - svg.getBoundingClientRect().top - vy) / vs}), [spot.x + 30, spot.y + 15]);
+  await page.mouse.wheel(0, -300);
+  await page.waitForTimeout(150);
+  await page.mouse.move(spot.x + 34, spot.y + 17, {steps: 2});
+  await page.waitForTimeout(100);
+  const pan = await page.evaluate(([x, y])=>({vs, x: (x - svg.getBoundingClientRect().left - vx) / vs, y: (y - svg.getBoundingClientRect().top - vy) / vs}), [spot.x + 34, spot.y + 17]);
+  await page.mouse.up();
+  await page.mouse.move(5, 940);
+  const drift = Math.hypot(pan.x - worldBefore.x, pan.y - worldBefore.y) * pan.vs;
+  check('a wheel turned mid-pan keeps the paper under the hand', pan.vs > startAt.vs * 1.05 && drift < 12,
+        JSON.stringify({drift, pan, worldBefore, startAt}));
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const out = {};
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const X = snapToGrid(39000), Y = snapToGrid(39000);
+    const beforeTagColors = SETTINGS.tagColors;
+    try{
+      applyEdit(()=>{
+        workingNodes.push(['k1_a', 'Kept look', null, null, null, null,
+                           {pos:[X, Y], bg:'#fff3c4', border:'dashed', tags:['k1tag']}]);
+        workingNodes.push(['k1_b', 'Tabbed', 'k1_a', null, null, null,
+                           {pos:[X + 400, Y], multiLang:true, langTabs:[{tag:'JP', text:'元'}]}]);
+        workingNodes.push(['k1_c', 'Doomed', null, null, null, null, {pos:[X, Y + 300]}]);
+        SETTINGS.tagColors = Object.assign({}, SETTINGS.tagColors, {k1tag:'#2b54c8'});
+      });
+      await wait(200);
+      /* A search's chip for an entry's own text is not taken for the
+         chart's frame, which every bar and panel is placed from. */
+      const search0 = document.getElementById('searchInput');
+      search0.value = 'tabbed';
+      search0.dispatchEvent(new Event('input', {bubbles:true}));
+      out.chipShown = !!document.querySelector('#searchResults .sr-tab');
+      out.oneFrame = document.querySelectorAll('.main').length === 1;
+      search0.value = '';
+      search0.dispatchEvent(new Event('input', {bubbles:true}));
+      /* A press on an entry leaves a field being typed in alone: the
+         blur would commit and redraw, and the press would land on paper. */
+      const search = document.getElementById('searchInput');
+      search.focus();
+      const g = document.querySelector('.node[data-id="k1_a"]');
+      g.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, cancelable:true, clientX:10, clientY:10}));
+      out.entryKeepsField = document.activeElement === search;
+      search.blur();
+      /* A pasted code with its # and an alpha keeps every digit. */
+      const box = document.createElement('input');
+      box.className = 'hex-box'; box.maxLength = 9;
+      document.body.appendChild(box);
+      let edits = 0;
+      box.addEventListener('input', ()=> edits++);
+      box.focus();
+      box.setSelectionRange(1, 1);
+      const dt = new DataTransfer();
+      dt.setData('text/plain', '#c23b22ff');
+      box.dispatchEvent(new ClipboardEvent('paste', {clipboardData: dt, bubbles:true, cancelable:true}));
+      out.pasted = box.value;
+      box.value = ''; box.blur();
+      /* A field entered empty and left empty has changed nothing. */
+      edits = 0;
+      box.focus(); box.blur();
+      out.emptyEdits = edits;
+      box.remove();
+      /* A copy keeps the look that was chosen, and not its tags' colour. */
+      const clip = clipOfNode(nodes.get('k1_a'));
+      out.clipBg = clip.opts.bg; out.clipBorder = clip.opts.border;
+      out.clipColours = clip.opts.colors || null;
+      out.clipPos = clip.opts.pos || null;
+      /* Rolling back a preview of a tab puts the tab's words back. */
+      const input = document.createElement('input');
+      beginLabelPreview('k1_b', input, 0);
+      input.value = 'typed';
+      renderLabelPreview();
+      out.previewed = nodes.get('k1_b').langTabs[0].text;
+      endLabelPreview(false);
+      out.rolledBack = nodes.get('k1_b').langTabs[0].text;
+      out.labelKept = nodes.get('k1_b').label;
+      /* With nothing chosen, a face is for the whole text. */
+      const ed = document.createElement('div');
+      ed.contentEditable = 'true'; ed.textContent = 'all of it';
+      document.body.appendChild(ed);
+      ed.focus();
+      const sel = getSelection(), caret = document.createRange();
+      caret.setStart(ed.firstChild, 3); caret.collapse(true);
+      sel.removeAllRanges(); sel.addRange(caret);
+      selectAllUnlessChosen(ed);
+      out.wholeChosen = sel.toString() === 'all of it';
+      ed.remove();
+      /* One entry deleted is one step of undo. */
+      out.deleted = deleteNode('k1_c') !== false && !nodes.has('k1_c');
+      // The stack is capped, so its length says nothing once it is full:
+      // one undo bringing the entry back is what one step means.
+      undoLastEdit();
+      out.oneStep = nodes.has('k1_c');
+      out.missing = deleteNode('k1_nothing') === false;
+      /* A press on a connector's bar keeps the connector's panel open,
+         and the bar stays while the hand goes over to that panel. */
+      flyToNode('k1_a'); await wait(250);
+      const hit = document.querySelector('.edge-hit[data-from="k1_a"][data-to="k1_b"]');
+      const hr = hit.getBoundingClientRect();
+      const px = hr.left + hr.width/2, py = hr.top + hr.height/2;
+      hit.dispatchEvent(new MouseEvent('mouseover', {bubbles:true, clientX:px, clientY:py}));
+      await wait(50);
+      hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:px, clientY:py}));
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, clientX:px, clientY:py}));
+      hit.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, button:0, clientX:px, clientY:py}));
+      await wait(250);
+      hit.dispatchEvent(new MouseEvent('mouseout', {bubbles:true, relatedTarget: edgePopover, clientX:px, clientY:py}));
+      await wait(500);
+      out.barWhileToPanel = !styleBar.hidden && styleBarTarget && styleBarTarget.kind === 'edge';
+      const sb = styleBar.getBoundingClientRect();
+      out.panelWasOpen = edgePopover.classList.contains('open');
+      const press = {bubbles:true, cancelable:true, button:0, clientX:sb.left + 4, clientY:sb.top + 4};
+      styleBar.dispatchEvent(new MouseEvent('mousedown', press));
+      styleBar.dispatchEvent(new MouseEvent('click', press));
+      await wait(100);
+      out.panelKept = edgePopover.classList.contains('open');
+      closeEdgePopover(); closeStyleBar();
+    } finally {
+      SETTINGS.tagColors = beforeTagColors;
+      applyEdit(()=>{ workingNodes = workingNodes.filter(e=> !/^k1_/.test(e[0])); refill(EDGE_STYLES, beforeStyles); });
+    }
+    return out;
+  });
+  check('a search\'s chip is not taken for the chart\'s frame', r.chipShown && r.oneFrame, JSON.stringify(r));
+  check('a press on an entry leaves a field being typed in alone', r.entryKeepsField, JSON.stringify(r));
+  eq('a pasted colour code with its # keeps every digit', r.pasted, '#c23b22ff');
+  eq('a colour field entered empty and left empty changes nothing', r.emptyEdits, 0);
+  check('a copy keeps its ground and border, and not its tags\' colour or its place',
+        r.clipBg === '#fff3c4' && r.clipBorder === 'dashed' && !r.clipColours && !r.clipPos, JSON.stringify(r));
+  check('rolling back a tab\'s preview puts the tab\'s words back', r.previewed === 'typed' && r.rolledBack === '元' && r.labelKept === 'Tabbed', JSON.stringify(r));
+  check('with nothing chosen, a face or a size is for the whole text', r.wholeChosen);
+  check('one entry deleted is one step of undo, and a missing one is refused', r.deleted && r.oneStep && r.missing, JSON.stringify(r));
+  check('a connector\'s bar stays while the hand goes to its panel', r.barWhileToPanel, JSON.stringify(r));
+  check('a press on a connector\'s bar keeps its panel open', r.panelWasOpen && r.panelKept, JSON.stringify(r));
   });
   await scenario("the chart as text", async () => {
   /* The same chart written out as a document (41-text-view.js), for a

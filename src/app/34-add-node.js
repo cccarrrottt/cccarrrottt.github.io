@@ -145,47 +145,29 @@ function uniqueId(base, existingIds){
 // Snapshots the selected node's own content and styling — everything except
 // its identity and its connections — into the cross-reload clipboard.
 // Everything worth carrying about one entry, without its position.
+/* Everything the entry HAS — its stored options, read from the chart's own
+ * record, not from the drawn entry.
+ *
+   It used to be a list of fields picked off the drawn entry, and a list is
+   what goes stale: a background, a border style, a portrait's card, a
+   card's middle line, a callout's shelf and its snap were none of them on
+   it, so a copy came back plainer than what was copied. And the drawn
+   entry carries colours it only wears — its tags' — which the list copied
+   as colours of its own, so the copy stopped following its tags. The
+   record says exactly what was chosen, and only that. */
 function clipOfNode(n){
-  const opts = {};
-  if(n.link) opts.link = n.link;
-  if(n.colors && n.colors.length) opts.colors = n.colors;
-  if(n.tags && n.tags.length) opts.tags = n.tags;
-  if(n.font) opts.font = n.font;
-  if(typeof n.fontSize === 'number') opts.fontSize = n.fontSize;
-  if(n.image) opts.image = n.image;
-  if(n.size) opts.size = [n.size.w, n.size.h];
-  if(n.multiLang) opts.multiLang = true;
-  if(n.langTabs && n.langTabs.length) opts.langTabs = n.langTabs;
-  /* Card layout, rotation and stacking travel with the copy too.
-   *
-     They were the three that did not, so a card came back as a plain box,
-     a caption turned to thirty degrees came back level, and anything sent
-     behind the chart came back in front of it. A copy is supposed to be
-     the same thing again. */
-  if(n.card) opts.card = true;
-  // Rounded is the one that is recorded; square is the default.
-  if(n.square === false) opts.square = false;
-  /* A copied callout keeps pointing at the same place: it is a comment
-     ABOUT that connector, and a copy of it is a second remark on the same
-     thing rather than a card pointing at nothing. */
-  if(n.leader){
-    opts.leader = {from: n.leader.from, to: n.leader.to, at: n.leader.at};
-    if(n.leader.line) opts.leader.line = n.leader.line;
-  }
-  if(typeof n.rot === 'number' && n.rot) opts.rot = n.rot;
-  if(typeof n.z === 'number' && n.z) opts.z = n.z;
-  /* An array carries its members' names, to be pointed at their copies on
-     the way back in, and no size: it is as big as they are. */
-  if(isArrayNode(n)){
-    delete opts.size;
-    opts.members = (n.members || []).slice();
-    if(n.hatch) opts.hatch = n.hatch;
-  }
+  const found = workingEntry(n.id);
+  let opts = {};
+  try{ opts = found ? JSON.parse(JSON.stringify(entryOpts(found.entry))) : {}; }catch(e){ opts = {}; }
+  // Where it stood is carried beside it (x, y), not as its own place.
+  delete opts.pos;
+  // An array is as big as what it holds.
+  if(isArrayNode(n)) delete opts.size;
   return {
     id: n.id,
-    label: n.label,
-    note: n.note || null,
-    shape: n.shape || null,
+    label: found ? (found.entry[1] || '') : n.label,
+    note: (found ? found.entry[4] : n.note) || null,
+    shape: (found ? found.entry[5] : n.shape) || null,
     opts,
     // Where it sat, so a group of entries keeps its own arrangement when
     // it is put down somewhere else.
@@ -384,7 +366,7 @@ function emptySpotNearCentre(shapeVal){
   if(best) return {x: best.x, y: round2(best.y + dy)};
   return {x: ox, y: round2(oy + dy)};
 }
-// Is this chart position inside the part of the canvas on show?
+// Where a paste lands: the middle of what is on show, clear of what is there.
 function viewCentreSpot(shapeVal){
   const rect = visibleCanvasRect();
   const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : 120;

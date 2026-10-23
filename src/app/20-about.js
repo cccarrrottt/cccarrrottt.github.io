@@ -562,16 +562,16 @@ function patchRegion(src, name, newText){
 }
 /* The chart as data, and as a document.
 
-   Everything that can be edited lives in four marked regions of this
-   file. `chartData` is that same content as plain values, which is what
+   Everything that can be edited lives in the marked regions of this
+   file (REGION_NAMES). `chartData` is that same content as plain values, which is what
    the standalone backend stores; `writeChart` is the other direction —
-   the four regions rendered back into a copy of the page. */
+   the regions rendered back into a copy of the page. */
 function chartData(){
   return {v:1, nodes: workingNodes, edgeStyles: EDGE_STYLES,
           stickers: STICKERS, media: MEDIA, comments: COMMENTS,
           tagCats: TAG_CATS, refs: REFS, settings: SETTINGS};
 }
-/* The seven regions and what each one is written as. One list, so a
+/* The regions and what each one is written as. One list, so a
    region cannot be added to the document and forgotten by the writer —
    the same reasoning as SAVED_REGIONS, which must stay in step with it. */
 const REGION_NAMES = ['NODES','EDGESTYLES','STICKERS','MEDIA','COMMENTS','TAGCATS','REFS','SETTINGS'];

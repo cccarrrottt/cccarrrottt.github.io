@@ -506,7 +506,7 @@ buildSideTabs();
     squareForHexInput(box, {title: 'the colour every [n] mark is drawn in',
                             isDefault: ()=> refColor().toLowerCase() === DEFAULT_REF_COLOR});
     const commit = ()=>{
-      const v = box.value.trim();
+      const v = hexFieldValue(box.value);
       const ok = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);
       box.classList.toggle('bad', !ok);
       if(!ok) return;
