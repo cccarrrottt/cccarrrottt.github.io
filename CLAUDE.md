@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 124 named scenarios, and they do not depend on one another —
+The suite is 126 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -378,13 +378,60 @@ the line they stand on (`routedNear`), because only collinear segments within
 every route — is identical. The suite draws a 200-entry chart both ways and
 compares every route ("the router asks only the lines a segment can share").
 A full `redrawEdges` at 600 entries went from 566 ms to 233 ms, at 200 from
-77 to 45. The obstacle half (`segIntersectsRect` over every box) is still a
-walk; it is a smaller share and the next thing to measure.
+77 to 45.
+
+The obstacle half has its index too (`obstaclesNear`, `06-edge-geometry.js`):
+a leg is level or upright, so only boxes standing across its one coordinate
+can be crossed, and boxes are filed by band of x and of y, sorted along the
+other axis. And a band of routed segments turned out to hold most of a
+column's connectors, so it is cut along its length into chunks too. Both
+keep the score identical ("the router asks only the boxes a leg can
+cross"). Moving one entry on a 600-entry chain, `tools/bench-edit.js`:
+
+| | before | after |
+| --- | ---: | ---: |
+| the move | 440 ms | 120 ms |
+| of which `routeEdge` | 333 ms | 20 ms |
 
 - **A two-phase render — measure everything, then build the DOM — was the
   other half of this and is not worth doing.** Its whole gain was collapsing
   those forced layouts into one, and measurement is now 1–2% of a rebuild.
   It would be invasive surgery on 1123 lines for something already spent.
+
+### What is left of an edit is the browser laying out the new drawing
+
+Measured October 23 on the same chain: of ~100 ms an edit costs at 600
+entries, ~55 ms is style and layout of the SVG every redraw builds afresh,
+nearly all of it the entries' TEXT. A profile files it under
+`buildSideTabs`, whose own work is 3 ms: it reads `scrollTop`, and that is
+where the browser lays out what `renderNodes` just built. Moving the read
+does not help — the layout happens before the next paint wherever it is
+asked for. Only drawing fewer new elements would, which means keeping an
+unchanged entry's DOM between redraws; its listeners close over the `n` of
+the pass that drew them, so that is a change to how they find their entry
+first.
+
+### What a reader waits for before the chart is drawn
+
+The site's page carries a drawing of the chart, made when it is published
+(`tools/prerender.js`, in the Pages job, on the runner's own Chrome). The
+program takes it away in the task that draws its own (`dropPrerendered`),
+so no frame shows neither, and an export leaves it out. Slow 4G (1.6 Mbit,
+150 ms), CPU ×4, 390×844:
+
+| | before | with the drawing |
+| --- | ---: | ---: |
+| the chart on screen | ~2.5 s | ~0.6 s |
+| the program running | ~2.7 s | ~2.8 s |
+
+Two things were measured here and are not worth doing:
+
+- **Preloading the pictures** from the head. They share the line with the
+  program and it arrived a second later; the pictures finished no sooner.
+  The drawing leaves them out for the same reason.
+- **Batching `inkBoxOf`'s reads** on the owner's chart (twelve forced
+  layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
+  what an edge note measures by a sub-pixel.
 
 ### What one edit costs, and the routes it no longer recomputes
 

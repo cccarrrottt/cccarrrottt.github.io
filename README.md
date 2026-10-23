@@ -162,7 +162,11 @@ On `main`, and only after everything above is green, `dist/site/` is
 published to GitHub Pages: `dist/nexus.html` with its program and stylesheet
 kept beside it, each named by the hash of its bytes. A Save changes only the
 chart, so a reader's browser keeps those two and fetches about 15 KB rather
-than 550; Export puts them back inside, so a copy is still one file. The site is
+than 550; Export puts them back inside, so a copy is still one file. Before
+it is published, `tools/prerender.js` draws the chart once into the page, so a
+reader sees it before the program has arrived — on a slow phone at about 0.6 s
+rather than 2.5 — and the program takes that drawing away as it draws its
+own; an export leaves it out. The site is
 <https://cccarrrottt.github.io>, which is what naming the repository after
 the account buys: a page served at the bare address rather than under a path.
 The source of that site must stay **GitHub Actions** (Settings → Pages →
@@ -735,7 +739,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 124 named scenarios, and they are independent of one
+The browser suite is 126 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
