@@ -78,7 +78,8 @@ function paintSelectionHighlight(id, opts){
     document.body.classList.remove('multi-picked');
     auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
     fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
-    qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
+    // …and a callout picked before it lets its leader go.
+    qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); p.classList.remove('focused'); });
     paintBioCardDim();
     syncTagLiveliness();
     return;
@@ -186,6 +187,8 @@ function paintSelectionHighlight(id, opts){
     const lit = related.has(g.dataset.id);
     g.classList.toggle('lit', lit);
     g.classList.toggle('dim', !lit);
+    // A picked callout's leader is part of it, and glows with it.
+    g.classList.toggle('focused', g.dataset.id === id && !edgesOnly);
   });
   // A picked array lights the lines between the entries it holds.
   const held = isArrayNode(n) ? arrayMembersDeep(n) : null;
@@ -420,7 +423,7 @@ function deselect(){
     g.classList.toggle('picked', g.dataset.id === decorPick);
   });
   fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
-  qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
+  qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); p.classList.remove('focused'); });
   paintBioCardDim();
   syncTagLiveliness();
   document.getElementById('detail').classList.remove('open');
@@ -892,6 +895,23 @@ function rebuildChart(){
   else drawBioCard();
   paintSuggestionMarks();
   textViewChanged();
+  dropOrphanFloaters();
+}
+/* Whatever floats over the chart for one thing goes when that thing does.
+   Each of these used to be shut by the one path that deleted — the Delete
+   key closed the connector's popover and nothing else — so an entry taken
+   away while its style bar stood over it left the bar there until the next
+   click (the owner's report, 23.10), and undoing the entry's arrival, a
+   cut or an import did the same to the menus as well. Asked here, after
+   every redraw, it no longer matters which way the thing went. The bar is
+   put back over what it stands for as well, which may have moved. */
+function dropOrphanFloaters(){
+  const edgeGone = (t)=> !t || !nodes.has(t.from) || !nodes.has(t.to);
+  if(styleBarTarget) syncStyleBar();
+  if(currentEdgeStyleTarget && edgeGone(currentEdgeStyleTarget)) closeEdgePopover();
+  if(freeMenuId && !nodes.has(freeMenuId)) closeFreeMenu();
+  const t = nodeEditorTarget;
+  if(t && (t.kind === 'note' ? edgeGone(t) : !nodes.has(t.id))) closeNodeEditor(false);
 }
 
 /* The add button is positioned against whatever part of the canvas the

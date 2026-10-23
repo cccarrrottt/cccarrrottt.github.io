@@ -319,8 +319,8 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
           class: 'sticker-glyph', preserveAspectRatio: 'xMidYMid meet'
         }, holder);
         shareTextClip(textEl, img);
-        img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', src);
-        img.setAttribute('href', src);
+        const rec = stickerMap.get(w.key);
+        wearPicture(img, src, rec && rec.anim);
       } else if(holder){
         // A sticker whose picture is gone leaves a quiet placeholder
         // rather than a hole in the sentence.

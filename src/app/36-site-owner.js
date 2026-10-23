@@ -153,10 +153,31 @@ function takeMergedChart(parts, uris){
   savedParts = snapshotParts();
 }
 
+/* The way in is GitHub's own mark, and the way out a door in the
+   accent's red, with the account's picture beside it (the owner's ask,
+   23.10) — a word in capitals on each was the widest thing in the bar on
+   a phone, and took a row of its own. The picture is GitHub's for the
+   login, asked of github.com directly; one that does not come is simply
+   not shown. */
+const SIGN_OUT_DOOR_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M13 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21H13"/><path d="M13 3l5 1.6v14.8L13 21z" fill="currentColor" fill-opacity="0.18"/>' +
+  '<circle cx="15.2" cy="12.4" r="0.9" fill="currentColor" stroke="none"/></svg>';
+const ownerAvatar = document.getElementById('ownerAvatar');
+if(ownerAvatar) ownerAvatar.addEventListener('error', ()=>{ ownerAvatar.hidden = true; });
 function updateOwnerBtn(){
   if(!ownerBtn) return;
   ownerBtn.hidden = !(ON_SITE && SITE_API);
-  ownerBtn.textContent = (siteOwner || siteReader) ? 'Sign out' : 'Sign in';
+  const who = siteOwner || siteReader;
+  ownerBtn.innerHTML = who ? SIGN_OUT_DOOR_SVG : GITHUB_MARK_SVG;
+  ownerBtn.setAttribute('aria-label', who ? 'Sign out' : 'Sign in');
+  ownerBtn.classList.toggle('signed-in', !!who);
+  if(ownerAvatar){
+    const src = who && who !== 'owner' ? `https://github.com/${encodeURIComponent(who)}.png?size=64` : '';
+    if(src && ownerAvatar.getAttribute('src') !== src) ownerAvatar.src = src;
+    ownerAvatar.hidden = ownerBtn.hidden || !src;
+    ownerAvatar.title = who ? `Signed in as ${who}` : '';
+  }
   ownerBtn.title = siteOwner
     ? `Signed in as ${siteOwner}. Sign out to see the chart as readers do.`
     : siteReader
@@ -416,6 +437,9 @@ if(ownerBtn) ownerBtn.onclick = ()=>{ if(siteOwner || siteReader) siteSignOut();
 /* The redirect path hands the session back in the fragment, which never
    reaches any server. It is taken out of the address at once, so it is not
    left in the history or in a link somebody copies. */
+/* Drawn everywhere, hidden off the site: the button is the GitHub mark
+   from the start, not an empty box waiting to be told what it is. */
+updateOwnerBtn();
 if(ON_SITE){
   const m = /(?:^#|&)rhizome-session=([^&]+)/.exec(location.hash || '');
   if(m){

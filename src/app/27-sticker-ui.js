@@ -50,12 +50,13 @@ function uniqueStickerKey(base){
   return k + '-' + i;
 }
 
-// Reads one chosen file into something storable: a GIF as-is (so it keeps
-// moving), anything else squared off and shrunk.
-function stickerDataFromFile(file, crop){
-  if(/gif/i.test(file.type)){
+// Reads one chosen file into something storable: a moving picture as-is
+// (so it keeps moving), anything else squared off and shrunk.
+function stickerDataFromFile(file, crop, moving){
+  if(moving === undefined) moving = /gif/i.test(file.type);
+  if(moving){
     if(file.size > STICKER_GIF_LIMIT){
-      return Promise.reject(new Error(`"${file.name}" is ${Math.round(file.size/1024)} KB — a GIF has to stay under ${Math.round(STICKER_GIF_LIMIT/1024)} KB, because the whole picture is stored inside the chart.`));
+      return Promise.reject(new Error(`"${file.name}" is ${Math.round(file.size/1024)} KB — a moving picture has to stay under ${Math.round(STICKER_GIF_LIMIT/1024)} KB, because the whole picture is stored inside the chart.`));
     }
     return new Promise((resolve, reject)=>{
       const reader = new FileReader();
@@ -105,17 +106,19 @@ stickerFile.addEventListener('change', async ()=>{
   const added = [], failed = [];
   for(const f of files){
     try{
-      /* A GIF is stored whole so it keeps moving — a canvas would flatten
-         it to its first frame — so there is nothing to crop and asking
+      /* A GIF — or an animated WebP or PNG — is stored whole so it keeps
+         moving — a canvas would flatten it to its first frame — so there
+         is nothing to crop and asking
          would only offer a choice that could not be honoured. */
       let crop = null;
-      if(!/gif/i.test(f.type)){
+      const moving = await fileMoves(f);
+      if(!moving){
         crop = await openCropper(f, files.length > 1
           ? `Choose the part to use — ${f.name}`
           : 'Choose the part of the picture to use');
         if(crop === 'cancel') continue;
       }
-      added.push({file:f, src: await stickerDataFromFile(f, crop)});
+      added.push({file:f, src: await stickerDataFromFile(f, crop, moving)});
     }
     catch(err){ failed.push(err.message); }
   }
@@ -171,6 +174,30 @@ function renderStickerLibrary(){
       });
     };
     actions.append(replace);
+    /* A sticker that moves can be asked to stand still, or to move only
+       while the pointer is on what it is written in — the three answers
+       the style bar gives a picture an entry wears, pressed round in turn
+       here, since a cell has room for one button. */
+    if(pictureMoves(s.src)){
+      const modes = STYLE_BAR_ANIM;
+      const now = modes.find(m=> m[0] === (s.anim || 'play'));
+      const anim = document.createElement('button');
+      anim.className = 'editor-btn sticker-anim'; anim.type = 'button';
+      anim.dataset.value = now[0];
+      anim.innerHTML = now[1];
+      anim.title = now[2] + ' — press for ' + modes[(modes.indexOf(now) + 1) % modes.length][2].toLowerCase();
+      anim.setAttribute('aria-label', now[2]);
+      anim.disabled = readOnlyView;
+      anim.onclick = ()=>{
+        const next = modes[(modes.indexOf(now) + 1) % modes.length][0];
+        applyStickerEdit(()=>{
+          const rec = STICKERS.find(x=> x.key === s.key);
+          if(!rec) return;
+          if(pictureAnimOf(next)) rec.anim = next; else delete rec.anim;
+        });
+      };
+      actions.append(anim);
+    }
     cell.append(img, actions, del);
     stickerGrid.appendChild(cell);
   });

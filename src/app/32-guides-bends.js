@@ -295,7 +295,8 @@ function paintEdgePick(){
   qEdges('.edge-picked').forEach(p=> p.classList.remove('edge-picked'));
   if(!t) return;
   const sel = `[data-from="${CSS.escape(t.from)}"][data-to="${CSS.escape(t.to)}"]`;
-  qEdges(`.edge${sel}:not(.dbl-inner), .edge-arrow${sel}`).forEach(p=> p.classList.add('edge-picked'));
+  // Its note too: the note is the connector's words.
+  qEdges(`.edge${sel}:not(.dbl-inner), .edge-arrow${sel}, .edge-note${sel}`).forEach(p=> p.classList.add('edge-picked'));
 }
 /* What a dragged bend may line itself up with: the OTHER connectors.
  *

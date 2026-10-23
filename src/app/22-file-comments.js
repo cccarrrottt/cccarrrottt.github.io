@@ -857,7 +857,13 @@ const commentList = document.getElementById('commentList');
 const commentMsgEl = document.getElementById('commentStatusMsg');
 const suggestAbout = document.getElementById('suggestAbout');
 const suggestSignInBtn = document.getElementById('suggestSignIn');
-const suggestSwitchBtn = document.getElementById('suggestSwitch');
+/* GitHub's own mark, for whatever goes to GitHub: the sign-in in the bar
+   (36-site-owner) and a suggestion's way to its issue, with the arrow a
+   link off the page wears. */
+const GITHUB_MARK_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">' +
+  '<path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+const GITHUB_OUT_SVG = '<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5h5v5M9.5 2.5L3 9"/></svg>';
 const suggestSubmitBtn = document.getElementById('commentSubmit');
 const detailSuggest = document.getElementById('detailSuggest');
 const COMMENT_KINDS = ['correction','addition','deletion'];
@@ -897,7 +903,6 @@ function paintSuggestForm(){
   }
   const signed = suggestSignedIn();
   suggestSignInBtn.hidden = signed;
-  if(suggestSwitchBtn) suggestSwitchBtn.hidden = !signed;
   suggestSubmitBtn.hidden = !signed;
   suggestSubmitBtn.disabled = suggestBusy;
   commentKind.disabled = commentText.disabled = !signed;
@@ -1047,17 +1052,23 @@ function renderSuggestions(empty){
     if(/^https:\/\/github\.com\//.test(c.url || '')){
       const link = document.createElement('a');
       link.href = c.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
-      link.className = 'editor-btn'; link.textContent = 'On GitHub';
+      link.className = 'editor-btn suggest-gh'; link.innerHTML = GITHUB_MARK_SVG + GITHUB_OUT_SVG;
+      link.title = 'Open it on GitHub'; link.setAttribute('aria-label', 'On GitHub');
       actions.appendChild(link);
     }
+    /* Done is a green round tick, Decline a red square cross (the
+       owner's ask, 23.10): two words of the same weight were read as two
+       of a kind, and the one the owner presses most was no easier to find. */
     if(siteOwner){
       const done = document.createElement('button');
-      done.type = 'button'; done.className = 'editor-btn';
-      done.textContent = 'Done'; done.title = 'Close it as done';
+      done.type = 'button'; done.className = 'suggest-done';
+      done.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3.4 8.4l3 3 6.2-6.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      done.title = 'Done: close it as done'; done.setAttribute('aria-label', 'Done');
       done.onclick = ()=> resolveSuggestion(c, 'completed', done);
       const no = document.createElement('button');
-      no.type = 'button'; no.className = 'editor-btn';
-      no.textContent = 'Decline'; no.title = 'Close it as not planned';
+      no.type = 'button'; no.className = 'suggest-decline';
+      no.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+      no.title = 'Decline: close it as not planned'; no.setAttribute('aria-label', 'Decline');
       no.onclick = ()=> resolveSuggestion(c, 'not_planned', no);
       actions.append(done, no);
     }
@@ -1124,15 +1135,6 @@ suggestSubmitBtn.onclick = async ()=>{
   setCommentMsg('ok', 'Posted. Thank you — the owner has been told.');
 };
 suggestSignInBtn.onclick = ()=> siteSignIn('reader');
-/* Whoever is signed in on this page stays signed in until they leave —
-   the owner included — so a second account has to be asked for: the
-   page lets go of the one it has, and GitHub is asked to offer a choice
-   of account rather than quietly use the one the browser is signed in to. */
-if(suggestSwitchBtn) suggestSwitchBtn.onclick = ()=>{
-  siteSignOut();
-  paintSuggestForm();
-  siteSignIn('reader');
-};
 
 /* A small mark on every entry with something open about it, so the owner
    sees where the suggestions are without opening the list. Drawn into a

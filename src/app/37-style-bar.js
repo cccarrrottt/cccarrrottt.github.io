@@ -103,7 +103,7 @@ const STYLE_BAR_END_OUT = [['none', 'No', 'Nothing at the end'],
    over). A toggle stays a button, since it has nothing to unfold. */
 const STYLE_BAR_MENUS = {
   border: 'Border', hatch: 'Hatching', decor: 'Scenery', edgeLine: 'Line',
-  leader: 'Leader line', endIn: 'The start', endOut: 'The end'
+  leader: 'Leader line', endIn: 'The start', endOut: 'The end', anim: 'How the picture moves'
 };
 /* Which side of its line a note rides. */
 /* An array's ground may be hatched as well as coloured — see
@@ -124,6 +124,15 @@ const STYLE_BAR_NOTE_ALONG = [['along',
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" ' +
   'stroke-width="1.9" stroke-linecap="butt" stroke-linejoin="miter"><path d="M1.6 11.2C4.6 7.4 9.2 6.6 14 9.2"/>' +
   '<path d="M11.6 5.4L14.2 9.4L9.8 10.6"/></svg>', 'Written along the line, bending with it']];
+/* How a moving picture moves (see wearPicture): one menu of the three,
+   drawn, since a font's ▶ and ⏸ come out as coloured emoji on a phone. */
+const STYLE_BAR_ANIM = [
+  ['play', '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">' +
+   '<path d="M4.5 2.8v10.4L13 8z"/></svg>', 'Moving'],
+  ['still', '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">' +
+   '<rect x="3.6" y="3" width="3" height="10"/><rect x="9.4" y="3" width="3" height="10"/></svg>', 'Still: its first frame'],
+  ['hover', '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">' +
+   '<path d="M3 1.6v11.2l2.9-2.7 1.9 4.3 1.9-.8-1.9-4.2h4z"/></svg>', 'Moving only while the pointer is on it']];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
 const STYLE_BAR_LINGER = 260;
@@ -178,6 +187,7 @@ const styleBar = (()=>{
   group('leaderForm', STYLE_BAR_LEADER_FORM);
   group('noteSide', STYLE_BAR_NOTE_SIDE);
   group('noteAlong', STYLE_BAR_NOTE_ALONG);
+  group('anim', STYLE_BAR_ANIM);
   /* A colour on the bar is a square, as every colour on the page is (see
      squareForHexInput); pressed, it opens the code to type. Blank is the
      paper. Typing is one step of undo however long it runs. */
@@ -376,7 +386,9 @@ function syncStyleBarRows(){
   const n = styleBarNode();
   const style = t && (t.kind === 'note' || t.kind === 'edge') ? edgeStyleFor(t.from, t.to) : null;
   const callout = n && isCalloutNode(n) && n.leader ? n : null;
-  if(!t || (t.kind === 'node' && !styleBarWants(n)) || (t.kind === 'note' && !style.note) ||
+  if(!t || (t.kind === 'node' && !styleBarWants(n)) ||
+     ((t.kind === 'note' || t.kind === 'edge') && !(nodes.has(t.from) && nodes.has(t.to))) ||
+     (t.kind === 'note' && !style.note) ||
      (t.kind === 'decor' && !nodes.get(t.id)) ||
      (t.kind === 'leader' && !(callout && callout.leader))){
     closeStyleBar();
@@ -400,6 +412,10 @@ function syncStyleBarRows(){
     });
   };
   const isArr = isArrayNode(n);
+  /* Offered only on an entry wearing a picture that moves; a still one
+     has nothing to stop. */
+  rows.anim.hidden = !(n && !decorOn && t.kind === 'node' && n.image && pictureMoves(n.image));
+  if(!rows.anim.hidden) light(rows.anim, n.anim || 'play');
   rows.hatch.hidden = rows.arrayInk.hidden = !isArr;
   rows.link.hidden = !isArr || HOSTED;
   // An array is as big as what it holds and stands the way that does.
@@ -562,7 +578,11 @@ function positionStyleBar(){
     const g = document.querySelector(`.edge-note[data-from="${CSS.escape(t.from)}"]` +
                                      `[data-to="${CSS.escape(t.to)}"]`);
     if(!g){ closeStyleBar(); return; }
-    const r = g.getBoundingClientRect();
+    /* Over the WORDS. A note written along its line holds, beside them, an
+       unseen copy of the whole line for them to run on, and the group's
+       box is that line's: the bar stood off at its far corner, nowhere
+       near the note (the owner's report, 23.10). */
+    const r = (g.querySelector('text.edge-note-along') || g).getBoundingClientRect();
     left = r.left - host.left;
     top = r.top - host.top;
     bottom = r.bottom - host.top;
@@ -630,6 +650,9 @@ function applyStyleBar(group, value){
         if(opts.square === false) delete opts.square; else opts.square = false;
       } else if(group === 'hatch'){
         if(value === 'none') delete opts.hatch; else opts.hatch = value;
+      } else if(group === 'anim'){
+        // Moving is the absence of the field, as a picture arrives.
+        if(pictureAnimOf(value)) opts.anim = value; else delete opts.anim;
       } else if(group === 'leader'){
         if(!opts.leader) return;
         // Solid is the absence of the field, as everywhere else.
