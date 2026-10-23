@@ -107,7 +107,8 @@ def strip_region(text, name):
 
 
 def shrink_nodes(text, keep=0):
-    """A NODES region with all but `keep` entries gone — a truncated save."""
+    """A NODES region with all but `keep` entries gone — a truncated save.
+    A negative `keep` takes that many off the end instead."""
     m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/\n)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
                   text, re.S)
     assert m, 'fixture: no NODES region in the built page'
@@ -163,13 +164,11 @@ def main():
     check('a region that lost most of its entries stops the build too',
           r.returncode != 0, r.stdout + r.stderr)
 
-    # 5. A region that lost only a few entries is an ordinary edit. "A few"
-    #    is counted from the chart this checkout holds: it was a fixed twelve
-    #    kept, which was most of the chart at fifteen entries and stopped
-    #    being so once Saves on the site had taken it past twenty-four.
+    # 5. A region that lost only a few entries is an ordinary edit. Three
+    #    off the end, whatever the chart's size: a fixed twelve kept was an
+    #    ordinary edit of a fifteen-entry chart and most of a forty-entry one.
     tmp = sandbox()
-    total = len(re.findall(r'^\s*[\[{]', live.split('@@EDIT:NODES:START@@')[1].split('@@EDIT:NODES:END@@')[0], re.M))
-    (tmp / 'live.html').write_text(shrink_nodes(live, keep=max(1, total - 3)), encoding='utf-8')
+    (tmp / 'live.html').write_text(shrink_nodes(live, keep=-3), encoding='utf-8')
     r = run(tmp, '--pull', 'live.html')
     check('an ordinary deletion is not treated as damage',
           r.returncode == 0, r.stdout + r.stderr)
@@ -524,15 +523,14 @@ def main():
 
     # CLAUDE.md and README say how many scenarios the browser suite has,
     # and both had drifted (89 and 77, against 121) because nothing read
-    # them back. The suite answers the question itself with --list, so the
-    # number in prose is checked against that answer rather than trusted.
-    r = subprocess.run(['node', str(ROOT / 'tests' / 'regression.js'), '--list'],
-                       capture_output=True, text=True)
-    m = re.search(r'^(\d+) scenarios$', r.stdout, re.M)
-    if not m:
-        check('the suite says how many scenarios it has', False, r.stdout + r.stderr)
+    # them back. The number is counted from the suite's own source rather
+    # than asked of it: --list sets up the page before it names anything,
+    # and this job has no browser to set it up with.
+    suite = (ROOT / 'tests' / 'regression.js').read_text(encoding='utf-8')
+    n = len(re.findall(r'^\s*await scenario\(', suite, re.M))
+    if not n:
+        check('the suite says how many scenarios it has', False, 'no scenario( calls found')
     else:
-        n = int(m.group(1))
         for doc in ('CLAUDE.md', 'README.md'):
             said = re.findall(r'(\d+) named scenarios', (ROOT / doc).read_text(encoding='utf-8'))
             check(f'{doc} says the suite has the {n} scenarios it has',

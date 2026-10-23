@@ -94,6 +94,11 @@ function validateEdgeStyles(val){
    Pretty-printer for NODES — turns the working entries back into the JS
    source the region is written in.
    ------------------------------------------------------------------ */
+/* What an entry's border is drawn in, as the colours field writes it:
+   its own colours, its tags', or the default ink. */
+function drawnColorText(n){
+  return (n.colors && n.colors.length) ? n.colors.join(', ') : (n.color || DEFAULT_NODE_COLOR);
+}
 // Newlines have to be escaped, not emitted raw: a JavaScript string
 // literal cannot span lines, and both labels and suggestions can contain
 // them. U+2028/2029 are line terminators to a JS parser too.
@@ -112,11 +117,6 @@ function validateEdgeStyles(val){
  * and no sequence of characters a reader can type can close the element
  * any more. (This comment cannot contain the tag it is about, for exactly
  * the reason it describes.) */
-/* What an entry's border is drawn in, as the colours field writes it:
-   its own colours, its tags', or the default ink. */
-function drawnColorText(n){
-  return (n.colors && n.colors.length) ? n.colors.join(', ') : (n.color || DEFAULT_NODE_COLOR);
-}
 function jsStr(s){
   return "'" + String(s)
     .replace(/\\/g,'\\\\')
@@ -334,18 +334,6 @@ function populateFontOptions(selectEl){
   });
 }
 
-/* ---------------------------------------------------------------------
-   Font family/size appear in two toolbars per form — above the Label box
-   and above the language-tabs box — because you shouldn't have to scroll
-   back up to change the typeface of the text you're currently editing.
-   There is still only ONE font per node, so the second pair are mirrors:
-   editing either writes to both, and the save logic keeps reading the
-   primary pair alone and never has to know the mirrors exist.
-   ------------------------------------------------------------------ */
-/* Two helpers kept a control and its copy in step, and a third filled the
-   copy in when a form was populated. The copies were the hidden font and
-   size pair beside the Label box; both they and the box are gone, and
-   nothing else on this page has a control that exists twice. */
 function parseTagsField(raw){
   return raw.trim() ? raw.split(',').map(s=>s.trim()).filter(Boolean) : [];
 }
@@ -563,7 +551,6 @@ detailEditToggle.onclick = (ev)=>{
     detailEditToggle.classList.add('active');
     showNoteBlock(false);
     clearEditStatus();
-    beginLabelPreview(selectedId);
     beginNodeEditSession();
   } else {
     closeEditForm();
@@ -677,7 +664,13 @@ function endLabelPreview(commit){
   if(labelPreviewFrame){ cancelAnimationFrame(labelPreviewFrame); labelPreviewFrame = 0; }
   if(commit) return;
   const n = nodes.get(prev.id);
-  if(n && n.label !== prev.original){
+  // Put back into the text the preview was painting: a tab's, or the label.
+  const tab = prev.tab !== null && prev.tab !== undefined && n && n.langTabs ? n.langTabs[prev.tab] : null;
+  if(tab && tab.text !== prev.original){
+    tab.text = prev.original;
+    renderNodes(); redrawEdges(); applyVisibility(); paintMultiSelection();
+    drawBioCard();
+  } else if(!tab && n && n.label !== prev.original){
     n.label = prev.original;
     renderNodes(); redrawEdges(); applyVisibility(); paintMultiSelection();
     drawBioCard();

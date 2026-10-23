@@ -122,7 +122,7 @@ function positionNodeEditor(){
   if(!box){ closeNodeEditor(true); return; }
   const rec = richFields.get('nodeEditorText');
   if(!rec) return;
-  const host = document.querySelector('.main').getBoundingClientRect();
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
   const r = svg.getBoundingClientRect();
   const left = (r.left - host.left) + box.x*vs + vx;
   const top  = (r.top  - host.top ) + box.y*vs + vy;
@@ -627,10 +627,39 @@ if(window.visualViewport) window.visualViewport.addEventListener('resize', ()=>{
  * landed in a field that was no longer open. The names are the ones the
  * pickers actually wear. */
 const NODE_EDITOR_SATELLITES = '#nodeEditor, .sticker-picker, #stickerPicker, #refPicker, #mediaPicker, .mini-toolbar';
+/* …and a press on the thing being written in is writing in it. The field
+   is laid over the entry's words but not over every pixel of the entry —
+   it is aligned to the ink — so a press on the words a hair off the field
+   reached the entry: the field was committed and closed, and the entry's
+   own click opened its panel (the owner's report, 22.10). The press goes
+   back to the field instead, and the click it ends in goes nowhere.
+   Its grips are not its words: a corner, the turn handle or a connector
+   strip is work on the entry's shape, and goes on as it always did. */
+function pressIsOnEditedThing(t){
+  const e = nodeEditorTarget;
+  if(!e || !t || !t.closest) return false;
+  if(t.closest('.node-controls')) return false;
+  if(e.kind === 'entry') return !!t.closest(`.node[data-id="${cssEscape(e.id)}"], .bio-card-g[data-id="${cssEscape(e.id)}"]`);
+  if(e.kind === 'note') return !!t.closest(`.edge-note[data-from="${cssEscape(e.from)}"][data-to="${cssEscape(e.to)}"]`);
+  return false;
+}
 document.addEventListener('mousedown', ev=>{
   if(!nodeEditorTarget) return;
   const t = ev.target;
   if(t && t.closest && t.closest(NODE_EDITOR_SATELLITES)) return;
+  if(pressIsOnEditedThing(t)){
+    ev.preventDefault();
+    ev.stopPropagation();
+    const surface = document.querySelector('#nodeEditor .rich-surface') || nodeEditorText;
+    if(surface && surface.focus) surface.focus();
+    const swallow = (c)=>{ c.stopPropagation(); c.preventDefault(); };
+    window.addEventListener('click', swallow, {capture: true, once: true});
+    window.addEventListener('dblclick', swallow, {capture: true, once: true});
+    // A press that ends in no click must not leave the swallow waiting.
+    setTimeout(()=>{ window.removeEventListener('click', swallow, true);
+                     window.removeEventListener('dblclick', swallow, true); }, 600);
+    return;
+  }
   closeNodeEditor(true);
 }, true);
 

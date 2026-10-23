@@ -172,6 +172,38 @@ Releases before 0.9.0 were not numbered.
   site shows every picture it has shown before.
 - A link from one entry to another keeps the arrow in its tab. It wore
   the chart's own site icon, the same grey square on every such link.
+- The file tiles in Export/Import are smaller, and their icons have no
+  white ground.
+- Turning the wheel while carrying an entry, a merge's bar or a corner
+  no longer throws it off the hand: what is carried stays under the
+  pointer at the new scale. The same goes for panning: the paper under
+  the hand stays there instead of the view jumping.
+- Words along a line turn its corners round, slide to its ends without
+  falling off, and follow a wave; the button for it shows an arc with an
+  arrow. A new callout has square corners.
+- The style bar and a connector's panel follow what they are open on
+  while it is carried.
+- A callout's frame takes the colour of its connector at the point its
+  leader starts from, and the callout's bar and its leader's are one.
+- A press on a connector keeps its style bar up beside its panel, a press
+  on that bar no longer closes the panel, and the bar stays while the hand
+  moves over to the panel.
+- A press on empty paper settles the text or the colour being typed; a
+  press on an entry leaves the field alone.
+- A press on the words in an entry's own field stays in the field
+  instead of opening the entry's menu.
+- A colour code keeps its #: it cannot be deleted, a pasted code loses
+  its own # rather than a digit, and a field left empty changes nothing.
+- A face or a size picked with nothing selected is for the whole text,
+  as the pickers say; it did nothing.
+- Copy and paste keep everything an entry was given (its ground, border,
+  a card's middle line, a callout's shelf), and no longer turn its tags'
+  colours into colours of its own.
+- Cancelling a change to a language tab's words puts the tab's words
+  back; it put back the label.
+- After a search that found an entry with language tabs, the style bar,
+  a connector's panel, the in-entry field and the menus were placed from
+  the search's own chip instead of the chart, and stood in the corner.
 
 ## 0.15.0 — "In one frame" (2026-10-21)
 

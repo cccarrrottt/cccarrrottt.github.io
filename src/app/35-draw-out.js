@@ -219,27 +219,8 @@ function deleteNodes(ids){
   return true;
 }
 
+// One entry is a set of one: the same edit, the same undo step.
 function deleteNode(nodeId){
-  closePopoverIfTouching([nodeId]);
   if(workingIndex(nodeId) === -1){ setEditStatus('err', 'That node could not be found.'); return false; }
-  applyEdit(()=>{
-    workingNodes.forEach((it,idx)=>{
-      if(it[0]===nodeId) return;
-      const parents = resolveExplicitParents(it);
-      if(!parents.includes(nodeId)) return;
-      const remaining = parents.filter(p=>p!==nodeId);
-      const out = [];
-      for(let k=0;k<7;k++) out[k] = (k<it.length ? it[k] : undefined);
-      out[2] = remaining.length===0 ? undefined : (remaining.length===1 ? remaining[0] : remaining);
-      workingNodes[idx] = out;
-      recentreAfterLoss({entry: out, index: idx}, remaining);
-    });
-    workingNodes.splice(workingIndex(nodeId), 1);
-    for(let k=EDGE_STYLES.length-1;k>=0;k--){
-      if(EDGE_STYLES[k].from===nodeId || EDGE_STYLES[k].to===nodeId) EDGE_STYLES.splice(k,1);
-    }
-    pruneArrayMembers([nodeId]);
-  });
-  deselect();
-  return true;
+  return deleteNodes([nodeId]);
 }

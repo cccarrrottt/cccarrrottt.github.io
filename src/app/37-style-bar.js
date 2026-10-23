@@ -118,7 +118,12 @@ const STYLE_BAR_NOTE_SIDE = [
   ['above', '↑', 'Above the line'], ['on', '≡', 'On the line, covering it'], ['below', '↓', 'Below the line']
 ];
 /* Level on a plate, or written along the line and bending with it. */
-const STYLE_BAR_NOTE_ALONG = [['along', '〰', 'Written along the line, bending with it']];
+/* Its face is the owner's sketch: a line arching over and ending in an
+   arrow — drawn, since no character in the bar's font is that shape. */
+const STYLE_BAR_NOTE_ALONG = [['along',
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.9" stroke-linecap="butt" stroke-linejoin="miter"><path d="M1.6 11.2C4.6 7.4 9.2 6.6 14 9.2"/>' +
+  '<path d="M11.6 5.4L14.2 9.4L9.8 10.6"/></svg>', 'Written along the line, bending with it']];
 /* How long the bar waits, once the pointer has left, before it goes —
    long enough to cross the gap between the thing and the bar. */
 const STYLE_BAR_LINGER = 260;
@@ -151,7 +156,8 @@ const styleBar = (()=>{
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.value = value;
-      b.textContent = glyph;
+      if(glyph.startsWith('<svg')) b.innerHTML = glyph;
+      else b.textContent = glyph;
       b.title = title;
       into.appendChild(b);
     });
@@ -197,7 +203,7 @@ const styleBar = (()=>{
     input.addEventListener('keydown', ev=> ev.stopPropagation());
     input.addEventListener('input', ()=>{
       if(!styleBarTarget || readOnlyView) return;
-      const v = input.value.trim();
+      const v = hexFieldValue(input.value);
       if(v && !readHex(input)) return;
       input.classList.remove('bad');
       /* One step per thing typed into, not per spell of focus: the bar
@@ -278,7 +284,7 @@ const styleBar = (()=>{
     }
     applyStyleBar(row.dataset.group, b.dataset.value);
   });
-  const host = document.querySelector('.main');
+  const host = document.querySelector('.app > .main');
   if(host) host.appendChild(bar);
   return bar;
 })();
@@ -289,8 +295,12 @@ const styleBar = (()=>{
 let styleBarTarget = null;
 let styleBarTimer = null;
 
+/* A callout's leader is part of the callout: the bar on its line is the
+   same bar as on its card, with the card's looks and the line's together
+   (the owner's ask, 22.10). It is only placed over the line instead. */
 function styleBarNode(){
-  return styleBarTarget && styleBarTarget.kind === 'node' ? nodes.get(styleBarTarget.id) : null;
+  const t = styleBarTarget;
+  return t && (t.kind === 'node' || t.kind === 'leader') ? nodes.get(t.id) : null;
 }
 function styleBarDecorNode(){
   return styleBarTarget && styleBarTarget.kind === 'decor' ? nodes.get(styleBarTarget.id) : null;
@@ -316,8 +326,19 @@ function openStyleBar(target){
   const t = styleBarTarget;
   if(target.kind === 'edge' && t && t.kind === 'edge' && t.from === target.from && t.to === target.to &&
      !styleBar.hidden) return;
+  /* A line's bar is placed where the pointer met the line — kept as a
+     point on the chart, so it can follow the line when what it joins is
+     carried (see followStyleBar). */
+  if(target.kind === 'edge' && typeof target.x === 'number') target.at = clientToWorld(target.x, target.y);
   styleBarTarget = target;
   syncStyleBar();
+}
+/* The bar follows what it stands on while that is carried, resized or
+   turned (the owner's report, 22.10): it stayed where it had come up, over
+   empty chart, while its entry went elsewhere. Called from the gestures,
+   never while the page is starting. */
+function followStyleBar(){
+  if(styleBarTarget && !styleBar.hidden) positionStyleBar();
 }
 function letStyleBarGo(){
   clearTimeout(styleBarTimer);
@@ -354,7 +375,7 @@ function syncStyleBarRows(){
   const t = styleBarTarget;
   const n = styleBarNode();
   const style = t && (t.kind === 'note' || t.kind === 'edge') ? edgeStyleFor(t.from, t.to) : null;
-  const callout = t && t.kind === 'leader' ? nodes.get(t.id) : null;
+  const callout = n && isCalloutNode(n) && n.leader ? n : null;
   if(!t || (t.kind === 'node' && !styleBarWants(n)) || (t.kind === 'note' && !style.note) ||
      (t.kind === 'decor' && !nodes.get(t.id)) ||
      (t.kind === 'leader' && !(callout && callout.leader))){
@@ -447,12 +468,8 @@ function syncStyleBarRows(){
     return;
   }
   if(callout){
-    rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     light(rows.leader, callout.leader.line || 'solid');
     light(rows.leaderForm, callout.leader.shelf ? 'shelf' : '');
-    styleBar.hidden = false;
-    positionStyleBar();
-    return;
   }
   rows.corners.hidden = false;
   if(n){
@@ -505,7 +522,7 @@ function syncStyleBarRows(){
 function positionStyleBar(){
   const t = styleBarTarget;
   if(!t || styleBar.hidden) return;
-  const host = document.querySelector('.main').getBoundingClientRect();
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
   let left, top, bottom;
   if(t.kind === 'node' || t.kind === 'decor'){
     const n = nodes.get(t.id);
@@ -528,9 +545,11 @@ function positionStyleBar(){
        just inside the corner instead, so the two never share a place. */
     if(styleBarFree(n)) left += (out + 3) * vs;
   } else if(t.kind === 'edge'){
-    left = t.x - host.left - 18;
-    top = t.y - host.top - 14;
-    bottom = t.y - host.top + 14;
+    const sr = svg.getBoundingClientRect();
+    const cx = t.at ? sr.left + t.at.x * vs + vx : t.x, cy = t.at ? sr.top + t.at.y * vs + vy : t.y;
+    left = cx - host.left - 18;
+    top = cy - host.top - 14;
+    bottom = cy - host.top + 14;
   } else if(t.kind === 'leader'){
     const line = document.querySelector(`.callout-leader[data-id="${CSS.escape(t.id)}"] .leader-line`);
     if(!line){ closeStyleBar(); return; }
@@ -650,7 +669,8 @@ function applyStyleBar(group, value){
         // A toggle: framed is the absence of the flag.
         if(o.noteFrame === false) delete o.noteFrame; else o.noteFrame = false;
       } else if(group === 'corners'){
-        if(o.noteSquare) delete o.noteSquare; else o.noteSquare = true;
+        // Square is the default, so only the rounding is written down.
+        if(o.noteSquare === false) delete o.noteSquare; else o.noteSquare = false;
       } else if(group === 'noteAlong'){
         if(o.noteAlong) delete o.noteAlong; else o.noteAlong = true;
       }
@@ -702,12 +722,28 @@ function applyStyleBar(group, value){
        line. */
     if(to && to.closest && styleBarTarget && styleBarTarget.kind === 'edge' &&
        (to.closest('#bendLayer') || to.closest('.edge-hit'))) return;
+    /* …and a line whose panel is open keeps its bar while the hand goes
+       to the panel: the two are used together (see the mousedown below). */
+    if(styleBarTarget && styleBarTarget.kind === 'edge' && edgeIsPicked(styleBarTarget.from, styleBarTarget.to)) return;
     letStyleBarGo();
   };
   svg.addEventListener('mouseover', over);
   svg.addEventListener('mouseout', out);
   /* Anything that moves the chart under the bar takes it away, rather
      than leaving it standing over a place the thing has left. */
-  svg.addEventListener('mousedown', ()=> closeStyleBar());
+  /* …except a press on the very thing the bar stands on. A click on a
+     connector opens its panel, and the bar went away to make room for it
+     (the owner's report, 22.10): the two are for different things — the
+     panel for the route and paint, the bar for the line's looks — and
+     both are wanted while the connector is being worked on. */
+  svg.addEventListener('mousedown', (ev)=>{
+    const t = styleBarTarget;
+    const on = ev.target && ev.target.closest && t && !styleBar.hidden && (
+      (t.kind === 'edge' && ev.target.closest(`.edge-hit[data-from="${CSS.escape(t.from)}"][data-to="${CSS.escape(t.to)}"]`)) ||
+      (t.kind === 'note' && ev.target.closest(`.edge-note[data-from="${CSS.escape(t.from)}"][data-to="${CSS.escape(t.to)}"]`)) ||
+      (t.kind === 'leader' && ev.target.closest(`.leader-line-hit[data-id="${CSS.escape(t.id)}"]`)) ||
+      ((t.kind === 'node' || t.kind === 'decor') && ev.target.closest(`[data-id="${CSS.escape(t.id)}"]`)));
+    if(!on) closeStyleBar();
+  });
   svg.addEventListener('wheel', ()=> closeStyleBar(), {passive: true});
 }
