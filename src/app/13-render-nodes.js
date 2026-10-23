@@ -243,6 +243,107 @@ svg.addEventListener('pointerover', ev=>{
   nodeUnderPointer = g ? g.dataset.id : null;
   if(g) nodeControlsOn(g.dataset.id);
 });
+/* The drawing the site was published with (tools/prerender.js), shown
+   while the program was still on its way. It goes the moment this draws
+   its own — in the same task, so no frame shows neither, and none shows
+   both. */
+function dropPrerendered(){
+  const pre = document.getElementById('prerendered');
+  if(pre) pre.remove();
+}
+/* An entry drawn exactly as it was last time keeps the drawing it had.
+ *
+ * Every pass draws every entry, and every entry it draws is new to the
+ * browser, which has to style it and lay its text out again before the
+ * next paint: on a 600-entry chart that was over half of what an edit
+ * cost, for an edit that changed one entry. So each entry is still drawn
+ * — everything that drawing works out about the entry is worked out as
+ * before — but then its drawing is compared, as markup, with the one it
+ * had; where nothing differs, the new one is thrown away before the
+ * browser has looked at it and the old one, already laid out, stays.
+ *
+ * Compared as markup rather than by what went into it: what goes into an
+ * entry's drawing is spread across the whole program, and the markup is
+ * the one thing that cannot leave anything out. The ids a drawing gives
+ * its own gradients and clips are counted afresh every pass, so they are
+ * compared by where they are used, not by their numbers. */
+var drawnEntries = new Map();      // id -> {sig, pieces, attrs, ids}
+var wantedBeforePass = new Map();
+const ENTRY_LAYERS = ()=> [nodeDefs, nodeLayer, backLayer, frontLayer, fanLayer, auraLayer];
+function drawingSig(pieces){
+  /* The grips and strips an entry builds when the pointer first reaches it
+     (nodeControlsOn) are not part of its drawing: read as the empty group
+     they are drawn as. */
+  /* …and which layer a piece is in is part of it: an entry sent behind
+     the connectors is the same markup in another place. */
+  const layers = ENTRY_LAYERS();
+  let text = pieces.map(p=>{
+    const c = p.querySelector(':scope > .node-controls');
+    return layers.indexOf(p.parentNode) + ':' +
+      (c && c.firstChild ? p.outerHTML.replace(c.outerHTML, '<g class="node-controls"></g>') : p.outerHTML);
+  }).join('\u0002');
+  const ids = [];
+  pieces.forEach(p=>{
+    if(p.id) ids.push(p.id);
+    p.querySelectorAll('[id]').forEach(e=> ids.push(e.id));
+  });
+  ids.sort((a, b)=> b.length - a.length)
+     .forEach((id, i)=>{ text = text.split(id).join('\u0001' + i + '\u0001'); });
+  return text;
+}
+function drawOrKeep(n, kept, draw){
+  const old = kept.get(n.id);
+  const layers = ENTRY_LAYERS();
+  const marks = layers.map(L=> L.lastChild);
+  /* Only a drawing nothing has touched since. Its own attributes go back
+     to how they were drawn — being picked, hovered or carried is put on
+     again after every pass — and if anything inside it was changed as
+     well, it is drawn afresh like any other. */
+  const intact = old && old.pieces.every(p=> p.isConnected) && (()=>{
+    old.pieces.forEach((p, i)=> ['class', 'style', 'transform'].forEach((a, k)=>{
+      const v = old.attrs[i][k];
+      if(v === null){ if(p.hasAttribute(a)) p.removeAttribute(a); }
+      else if(p.getAttribute(a) !== v) p.setAttribute(a, v);
+    }));
+    return drawingSig(old.pieces) === old.sig;
+  })();
+  /* The old drawing is out of sight of anything that looks an entry up by
+     its id while the new one is drawn — renamed, not unnamed, so the
+     attribute keeps its place and the markup stays what it was. */
+  if(old) old.pieces.forEach((p, i)=>{ if(old.ids[i] !== null) p.setAttribute('data-id', '\u0000'); });
+  draw(n);
+  if(old) old.pieces.forEach((p, i)=>{ if(old.ids[i] !== null) p.setAttribute('data-id', old.ids[i]); });
+  const pieces = [];
+  layers.forEach((L, i)=>{
+    for(let e = marks[i] ? marks[i].nextSibling : L.firstChild; e; e = e.nextSibling) pieces.push(e);
+  });
+  const sig = drawingSig(pieces);
+  if(intact && old.sig === sig){
+    pieces.forEach(p=> p.remove());
+    nodeControlsWanted.delete(n.id);
+    if(wantedBeforePass.has(n.id)) nodeControlsWanted.set(n.id, wantedBeforePass.get(n.id));
+    drawnEntries.set(n.id, old);
+    return;
+  }
+  drawnEntries.set(n.id, {sig, pieces,
+    ids: pieces.map(p=> p.getAttribute('data-id')),
+    attrs: pieces.map(p=> [p.getAttribute('class'), p.getAttribute('style'), p.getAttribute('transform')])});
+}
+/* Everything in the entries' layers that no entry now owns goes, and what
+   is left is put in the order this pass drew it. The new drawings were
+   appended after the kept ones, so it is they that move, before the
+   browser has laid them out; a kept one moves only if the order of the
+   entries themselves changed. */
+function settleEntryLayers(){
+  const owned = new Map(ENTRY_LAYERS().map(L=> [L, []]));
+  drawnEntries.forEach(rec=> rec.pieces.forEach(p=>{ const list = owned.get(p.parentNode); if(list) list.push(p); }));
+  owned.forEach((list, L)=>{
+    const keep = new Set(list);
+    for(let e = L.firstChild; e;){ const next = e.nextSibling; if(!keep.has(e)) L.removeChild(e); e = next; }
+    let cur = L.firstChild;
+    list.forEach(p=>{ if(p === cur) cur = cur.nextSibling; else L.insertBefore(p, cur); });
+  });
+}
 function renderNodes(opts){
 /* `arraysOnly` draws the arrays again and nothing else: a drag moves the
    entries themselves by a transform, and only the frames round them have
@@ -252,13 +353,11 @@ const arraysOnly = !!(opts && opts.arraysOnly);
 if(arraysOnly){
   nodeDefs.querySelectorAll('[data-array-def]').forEach(d=> d.remove());
 } else {
+  dropPrerendered();
+  /* What the last pass drew stays where it is until this one has drawn
+     the same entries again and compared (see drawOrKeep). */
+  wantedBeforePass = new Map(nodeControlsWanted);
   nodeControlsWanted.clear();
-  while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
-  while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
-  while(backLayer.firstChild) backLayer.removeChild(backLayer.firstChild);
-  while(frontLayer.firstChild) frontLayer.removeChild(frontLayer.firstChild);
-  while(fanLayer.firstChild) fanLayer.removeChild(fanLayer.firstChild);
-  while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
 }
 while(arrayLayer.firstChild) arrayLayer.removeChild(arrayLayer.firstChild);
 /* Drawn in stacking order rather than in the order the entries happen to be
@@ -267,6 +366,10 @@ while(arrayLayer.firstChild) arrayLayer.removeChild(arrayLayer.firstChild);
    under the arrows — that's what makes a backdrop image work as a backdrop
    rather than as a lid over the whole chart. */
 const drawOne = (n)=>{
+  /* The entry as the chart has it NOW, for whatever answers a press later.
+     A drawing may outlive the pass that drew it (drawOrKeep), and the `n`
+     it was drawn from with it; the model is rebuilt every pass. */
+  const liveN = ()=> nodes.get(n.id) || n;
   const shape = n.shape || 'rect';
   const isBio = shape==='ellipse';
   const isImage = shape==='image';
@@ -1159,7 +1262,7 @@ const drawOne = (n)=>{
         const grip = el('g', {class:'card-img-grip card-img-grip-' + key,
                               transform:`translate(${gx.toFixed(2)},${gyy.toFixed(2)})`}, g);
         el('rect', {x:-4.5, y:-4.5, width:9, height:9, rx:1.5, class:'card-img-grip-mark'}, grip);
-        grip.addEventListener('mousedown', ev=> beginCardImageResize(ev, n));
+        grip.addEventListener('mousedown', ev=> beginCardImageResize(ev, liveN()));
         grip.addEventListener('click', ev=> ev.stopPropagation());
         el('title', {}, grip).textContent =
           'Drag to resize the picture; hold Shift to keep its proportions';
@@ -1511,6 +1614,7 @@ const drawOne = (n)=>{
      the chips and the link badge. */
   const controls = el('g', {class:'node-controls'}, g);
   nodeControlsWanted.set(n.id, ()=>{
+    const n = liveN();
     /* An array has no size to set: it is as big as what it holds. */
     if(!isArray){
       const CORNERS = [
@@ -1547,7 +1651,7 @@ const drawOne = (n)=>{
         el('circle', {cx:0, cy:0, r:RESIZE_DOT_HIT, class:'node-resize-hit'}, grip);
         el('circle', {cx:0, cy:0, r:RESIZE_DOT_R, class:'node-resize-mark'}, grip);
         el('title',{},grip).textContent = 'Drag to resize; double-click to fit the text again';
-        grip.addEventListener('mousedown', ev=> beginNodeResize(ev, n, g, c));
+        grip.addEventListener('mousedown', ev=> beginNodeResize(ev, liveN(), g, c));
         grip.addEventListener('click', ev=> ev.stopPropagation());
         grip.addEventListener('dblclick', ev=>{
           ev.stopPropagation();
@@ -1589,7 +1693,7 @@ const drawOne = (n)=>{
         el('path', {d:'M0.4,1.0 L-3.0,-0.5 L0.8,-2.7 Z', class:'node-rotate-head'}, mark);
         el('title',{},rot).textContent =
           'Drag to turn either way; hold Shift for eighths of a turn; double-click to put it back level';
-        rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, n, g));
+        rot.addEventListener('mousedown', ev=> beginNodeRotate(ev, liveN(), g));
         rot.addEventListener('click', ev=> ev.stopPropagation());
         rot.addEventListener('dblclick', ev=>{
           ev.stopPropagation(); ev.preventDefault();
@@ -1668,7 +1772,7 @@ const drawOne = (n)=>{
         el('title',{},hg).textContent = ringColors.length > 1
           ? `Drag from this ${side} edge (${ringColor}) to connect`
           : `Drag from the ${side} edge to connect`;
-        hg.addEventListener('mousedown', ev=> beginConnectorDrag(ev, n, side, ring, ringColor));
+        hg.addEventListener('mousedown', ev=> beginConnectorDrag(ev, liveN(), side, ring, ringColor));
         hg.addEventListener('click', ev=> ev.stopPropagation());
       });
     });
@@ -1748,7 +1852,7 @@ const drawOne = (n)=>{
   g.addEventListener('mouseleave', ()=>{
     if(hoverLivelyId === n.id){ hoverLivelyId = null; syncTagLiveliness(); }
   });
-  g.addEventListener('mousedown', ev=> beginNodeDrag(ev, n, g));
+  g.addEventListener('mousedown', ev=> beginNodeDrag(ev, liveN(), g));
   g.addEventListener('click',(ev)=>{
     ev.stopPropagation();
     // A drag that actually moved the node ends with a click event too —
@@ -1825,9 +1929,9 @@ const drawOne = (n)=>{
     /* A card's picture is its own thing to edit. A double click on the
        picture band opens the picture — its corners, to be pulled — rather
        than dropping a text cursor into a band that has no text in it. */
-    if(isCard && cardImageEditable(n)){
+    if(isCard && cardImageEditable(liveN())){
       const at = clientToWorld(ev.clientX, ev.clientY);
-      if(overCardPicture(n, at.x, at.y)){
+      if(overCardPicture(liveN(), at.x, at.y)){
         selectNode(n.id, {quiet:true});
         paintMultiSelection();
         openCardImageEdit(n.id);
@@ -1892,8 +1996,11 @@ const drawOne = (n)=>{
   g.addEventListener('mouseleave',()=>g.classList.remove('hover'));
 };
 if(!arraysOnly){
+  const kept = drawnEntries;
+  drawnEntries = new Map();
   [...nodes.values()].filter(n=> !isArrayNode(n))
-    .sort((a,b)=> (a.z||0) - (b.z||0)).forEach(drawOne);
+    .sort((a,b)=> (a.z||0) - (b.z||0)).forEach(n=> drawOrKeep(n, kept, drawOne));
+  settleEntryLayers();
 }
 /* The arrays last, once every entry in them has its size, and innermost
    first, so an array round an array fits round a box that is there. */

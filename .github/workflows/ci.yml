@@ -206,6 +206,20 @@ jobs:
           CF_WEB_ANALYTICS_TOKEN: ${{ vars.CF_WEB_ANALYTICS_TOKEN }}
         run: python3 build.py
 
+      # The chart drawn once into the site's page, so a reader sees it before
+      # the program has arrived (tools/prerender.js). It drives the Chrome
+      # the runner already has, so nothing is downloaded but the library; and
+      # it never fails the publish — a page without the drawing is only
+      # slower to show.
+      - name: Draw the chart into the page
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: |
+          v=$(node -p "require('./package.json').devDependencies.playwright")
+          npm install --no-audit --no-fund --no-save --prefix "$RUNNER_TEMP/pw" "playwright@$v" \
+            && NODE_PATH="$RUNNER_TEMP/pw/node_modules" node tools/prerender.js \
+            || echo "prerender: skipped, the page is published as built"
+
       # The build's site: the page, with its program and stylesheet beside
       # it in files named by their hash, so a Save does not make every
       # reader download them again (build_site in build.py). On this address

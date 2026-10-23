@@ -249,9 +249,11 @@ function pathClearParts(pts, midObstacles, endObstacles){
     const a = pts[i], b = pts[i+1];
     const isEnd = (i === 0 || i === pts.length-2);
     const rects = isEnd ? endObstacles : midObstacles;
-    for(const rect of rects){
-      if(segIntersectsRect(a.x,a.y,b.x,b.y,rect)) return false;
-    }
+    let hit = false;
+    obstaclesNear(rects, a.x, a.y, b.x, b.y, rect=>{
+      if(segIntersectsRect(a.x,a.y,b.x,b.y,rect)){ hit = true; return false; }
+    });
+    if(hit) return false;
   }
   return true;
 }

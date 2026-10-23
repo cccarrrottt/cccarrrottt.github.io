@@ -17033,7 +17033,8 @@ async function main(){
   });
   await scenario("the router asks only the lines a segment can share", async () => {
   /* scorePath looks the routed segments up by the line they stand on
-     (routedNear) instead of walking all of them. Routing is order-sensitive
+     and the stretch of it they cover (routedNear) instead of walking all of
+     them. Routing is order-sensitive
      and every connector steers round the ones before it, so the only
      acceptable answer is the same picture: every route on a crowded chart
      drawn both ways, compared point for point. */
@@ -17071,6 +17072,133 @@ async function main(){
     return {routes: keys.length, differ: differ.length, first: differ[0] ? [differ[0], filed[differ[0]], walked[differ[0]]] : null};
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
+  });
+  await scenario("the site's first drawing, before the program", async () => {
+  if(MODE === 'src'){
+    check('the drawing is put in the site\'s page, so there is nothing to check from src', true);
+    return;
+  }
+  /* tools/prerender.js draws the chart once when the site is published and
+     writes it into the page, so a reader sees it before the program has
+     arrived. What has to hold: the drawing is the chart, it stands where
+     the program will put its own, the program takes it away as it draws
+     (nothing left behind, no id twice), and nothing made from the page —
+     an export — carries it. */
+  const {withSnapshot, drawingOf} = require(path.join(ROOT, 'tools', 'prerender.js'));
+  const SITE_DIR = path.join(DIR, 'site');
+  const built = fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8');
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  const silence = async p => { await p.route('https://fonts.googleapis.com/**', quiet); await p.route('https://fonts.gstatic.com/**', quiet); };
+  const snap = await drawingOf(browser, SITE_DIR, {route: silence});
+  const html = withSnapshot(built, snap);
+  const TYPES = {'.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png'};
+  const srv = http.createServer((q, r) => {
+    const rel = q.url.split('?')[0].replace(/^\/+/, '');
+    if(!rel || rel === 'index.html'){ r.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'}); return r.end(html); }
+    const file = rel.startsWith('media/') ? path.join(DIR, rel) : path.join(SITE_DIR, rel);
+    fs.readFile(file, (e, b) => { if(e){ r.writeHead(404); return r.end(); } r.writeHead(200, {'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream'}); r.end(b); });
+  });
+  await new Promise(res => srv.listen(0, '127.0.0.1', res));
+  const at = `http://127.0.0.1:${srv.address().port}/`;
+  const look = async (opts) => {
+    const c = await browser.newContext({viewport: opts.viewport || {width: 1500, height: 950}, serviceWorkers: 'block'});
+    const p = await c.newPage();
+    await silence(p);
+    const errs = [];
+    p.on('pageerror', e => errs.push(e.message));
+    if(opts.view) await p.addInitScript(v => { try{ localStorage.setItem('rhizome.view:' + (location.pathname + location.search || 'default'), JSON.stringify(v)); }catch(e){} }, opts.view);
+    if(opts.noProgram) await p.route(/app\.[0-9a-f]+\.js$/, r => r.abort());
+    await p.goto(at, {waitUntil: 'load'});
+    if(!opts.noProgram) await p.waitForFunction(() => typeof rebuildChart === 'function');
+    await p.waitForTimeout(300);
+    const out = await p.evaluate(() => {
+      const pre = document.getElementById('prerendered');
+      const ids = [...document.querySelectorAll('[id]')].map(e => e.id);
+      return {pre: !!pre,
+              preNodes: pre ? pre.querySelectorAll('.node').length : 0,
+              preView: pre ? document.getElementById('prerenderedView').getAttribute('transform') : null,
+              view: document.getElementById('viewport').getAttribute('transform'),
+              liveNodes: document.querySelectorAll('#viewport .node').length,
+              stat: document.getElementById('statNodes').textContent,
+              twice: ids.filter((id, i) => ids.indexOf(id) !== i).slice(0, 5)};
+    });
+    out.errs = errs;
+    if(!opts.noProgram){
+      out.exportClean = await p.evaluate(async () => {
+        const src = await readOwnSource();
+        return !src.includes('<g id="prerendered"') && !src.includes('rhizome:prerendered--' + '>') &&
+               !src.includes('prerenderedView\').setAttribute') && src.includes('@@EDIT:NODES:START@@');
+      });
+    }
+    await c.close();
+    return out;
+  };
+  try{
+    const before = await look({noProgram: true});
+    const after = await look({});
+    const viewed = {x: 120, y: -40, s: 0.5};
+    const beforeV = await look({noProgram: true, view: viewed, viewport: {width: 390, height: 844}});
+    const afterV = await look({view: viewed, viewport: {width: 390, height: 844}});
+    check('with no program yet, the page shows the chart',
+          before.pre && before.preNodes > 0 && before.preNodes === after.liveNodes && before.stat === after.stat,
+          JSON.stringify({drawn: before.preNodes, live: after.liveNodes, stat: [before.stat, after.stat]}));
+    check('the drawing stands where the program then draws, on the first visit and on a kept view',
+          before.preView === after.view && beforeV.preView === afterV.view && beforeV.preView !== before.preView,
+          JSON.stringify({first: [before.preView, after.view], kept: [beforeV.preView, afterV.view]}));
+    check('the program takes the drawing away as it draws, with no id left twice and nothing thrown',
+          !after.pre && after.liveNodes > 0 && !after.twice.length && !after.errs.length && !before.errs.length,
+          JSON.stringify({pre: after.pre, twice: after.twice, errs: after.errs.concat(before.errs).slice(0, 2)}));
+    check('a copy exported from the site carries no drawing', after.exportClean === true);
+    check('the drawing asks for no pictures, which would hold the program up', !/<image[^>]*href=/.test(snap.view + snap.defs));
+  } finally {
+    srv.close();
+  }
+  });
+  await scenario("the router asks only the boxes a leg can cross", async () => {
+  /* scorePath and pathClearParts look the boxes up by the band of x or y a
+     leg stands in (obstaclesNear) instead of walking every one. The same
+     answer is the only acceptable one, so a crowded chart — boxes of every
+     size, a few tall and wide ones among them, some exactly on a band's
+     edge — is routed both ways and compared point for point, and a move
+     is routed both ways after it. */
+  const eq = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const snap = ()=>{ const m = {}; drawnRoutes.forEach((r, k)=>{ m[k] = JSON.stringify((r.pts || []).map(q=> [+q.x.toFixed(3), +q.y.toFixed(3)])); }); return m; };
+    const walking = function(rects, x1, y1, x2, y2, visit){ for(const r of rects) if(visit(r) === false) return; };
+    const bothWays = ()=>{
+      redrawEdges();
+      const banded = snap();
+      const keep = window.obstaclesNear;
+      window.obstaclesNear = walking;
+      routeLast = null;
+      try{ redrawEdges(); } finally { window.obstaclesNear = keep; }
+      const walked = snap();
+      routeLast = null;
+      const keys = Object.keys(walked);
+      return {routes: keys.length, differ: keys.filter(k=> banded[k] !== walked[k])};
+    };
+    let seed = 11; const rnd = ()=> (seed = (seed*16807) % 2147483647) / 2147483647;
+    const M = 220, cols = Math.ceil(Math.sqrt(M));
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      for(let i = 0; i < M; i++){
+        const big = i % 37 === 5;
+        workingNodes.push(['ob' + i, (big ? 'A wide entry with a long label\n'.repeat(1 + i % 4) : 'Entry ') + i,
+          i > 0 ? 'ob' + Math.max(0, i - 1 - Math.floor(rnd()*cols*1.5)) : null, null, null, null,
+          {pos:[i % 9 === 0 ? (i % cols)*128 : (i % cols)*170 + (rnd()-0.5)*60,
+                i % 11 === 0 ? Math.floor(i / cols)*128 : Math.floor(i / cols)*95 + (rnd()-0.5)*40]}]);
+      }
+    });
+    const out = {first: bothWays()};
+    applyEdit(()=>{ workingNodes[40][6] = Object.assign({}, workingNodes[40][6], {pos:[333, 777]}); });
+    out.moved = bothWays();
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    return out;
+  });
+  check('every route comes out the same with the boxes filed by band',
+        eq.first.routes >= 219 && !eq.first.differ.length && eq.moved.routes >= 219 && !eq.moved.differ.length,
+        JSON.stringify({first: eq.first.routes, moved: eq.moved.routes, differ: eq.first.differ.slice(0, 3).concat(eq.moved.differ.slice(0, 3))}));
   });
   await scenario("entries written with their fields named", async () => {
   /* The file writes an entry as a record, {id, label, parent, …}, and the
@@ -17185,6 +17313,52 @@ async function main(){
   check('while a new name, more rings, a move and a new style do route again',
         r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
         JSON.stringify(r.calls));
+  });
+  await scenario("an edit redraws only the entries it changed", async () => {
+  /* Every entry is still drawn each pass, and one whose drawing comes out
+     as it was keeps the drawing it had (drawOrKeep). Two claims, checked:
+     an edit to one entry leaves every other entry's drawing the very same
+     element, and what is kept is, entry by entry, the markup a pass that
+     keeps nothing would draw. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const out = {kept: {}, same: {}};
+    try{
+      applyEdit(()=>{ workingNodes.length = 0;
+        for(let i = 0; i < 60; i++) workingNodes.push(['dk' + i, 'Entry ' + i, i ? 'dk' + Math.floor((i - 1) / 2) : null, null,
+          i % 5 === 0 ? 'A note' : null, i % 11 === 0 ? 'ellipse' : null,
+          {pos:[(i % 8)*170, Math.floor(i / 8)*110], colors: i % 7 === 0 ? ['#cc2222', '#2222cc'] : undefined,
+           border: i % 9 === 0 ? 'wavy' : undefined, tags: i % 6 === 0 ? ['probe'] : undefined}]);
+      });
+      const opt = id=> { const it = workingNodes.find(x=> x[0] === id); it[6] = Object.assign({}, it[6]); return it[6]; };
+      const EDITS = {
+        recolour: ['dk20', ()=> { opt('dk20').colors = ['#22aa22']; }],
+        rename: ['dk23', ()=> { workingNodes.find(x=> x[0] === 'dk23')[1] = 'Entry 2x'; }],
+        move: ['dk25', ()=> { opt('dk25').pos = [2000, 2000]; }],
+        tag: ['dk27', ()=> { opt('dk27').tags = ['other']; }]
+      };
+      const drawn = ()=> new Map([...document.querySelectorAll('#nodeLayer .node[data-id]')].map(g=> [g.dataset.id, g]));
+      for(const [k, [id, edit]] of Object.entries(EDITS)){
+        const was = drawn();
+        applyEdit(edit);
+        await new Promise(res=> setTimeout(res, 50));
+        const now = drawn();
+        out.kept[k] = {others: [...now].filter(([x, g])=> x !== id && g !== was.get(x)).length,
+                       changed: now.get(id) !== was.get(id), total: now.size};
+        const warm = new Map([...drawnEntries].map(([x, rec])=> [x, drawingSig(rec.pieces)]));
+        drawnEntries = new Map(); renderNodes();
+        const cold = new Map([...drawnEntries].map(([x, rec])=> [x, rec.sig]));
+        out.same[k] = cold.size === warm.size && cold.size >= 60 && [...cold].every(([x, s])=> warm.get(x) === s);
+      }
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x)); });
+    }
+    return out;
+  });
+  check('an edit to one entry keeps every other entry\'s drawing, and draws that one anew',
+        Object.values(r.kept).every(k=> k.others === 0 && k.changed && k.total >= 60), JSON.stringify(r.kept));
+  check('what is kept is, entry by entry, what a pass that keeps nothing draws',
+        Object.values(r.same).every(Boolean), JSON.stringify(r.same));
   });
   await scenario("an entry's controls are built when something reaches them", async () => {
   /* The grips, the turning handle and the connector strips are built the

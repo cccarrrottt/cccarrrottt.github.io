@@ -404,6 +404,14 @@
    * a portrait's card opened its settings. `clip` clips without ever
    * becoming scrollable. */
   .main{position:relative;flex:1 1 auto;overflow:clip;}
+  /* Its size is the window's less the top bar, never its contents'. Said
+   * so (size containment), a change of text in the top bar — the counts
+   * an edit rewrites, the Save button's word — no longer has the browser
+   * ask whether the chart's box moved, which it answered by laying out
+   * every word on the chart again: a third of an edit on a 600-entry
+   * chart. Only size: layout containment would make this the box that
+   * fixed menus are placed in. */
+  .app > .main{contain:size;}
   /* The DRAWING is a drawing, not a page of prose: a double-click on an
      entry or on empty ground should not select anything, because there is
      nothing on the canvas to copy — the chart's own copy works on the
