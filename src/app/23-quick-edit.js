@@ -262,7 +262,7 @@ if(editMediumInput){
    picture and a bare line of text — none of them has anything to divide
    into bands, so the switch is taken away rather than left there to do
    nothing. */
-const CARD_CAPABLE = new Set(['rect','amalgam']);
+const CARD_CAPABLE = new Set(['rect']);
 /* Whether the entry was on card layout when the form was opened, kept
    apart from the checkbox.
  *
@@ -284,10 +284,11 @@ function setTextColorControls(target, on){
     .forEach(elm=>{ elm.hidden = !on; });
 }
 function syncTextColorVisibility(){
-  /* An amalgam paints its own text and offers no say in it: it wears the
-     gradient of the lineages that merged into it — the same reason it has
-     no border colour field either. A hand-set colour there is a second,
-     contradictory answer to a question the merge has already settled.
+  /* A merge's entry, in its lineages' colours, paints its own text and
+     offers no say in it: it wears the gradient of the lineages that merged
+     into it, and a hand-set colour there is a second, contradictory answer
+     to a question the merge has already settled. Given a border colour of
+     its own it is an ordinary entry again, words and all.
    *
      A mirror reality used to be the other case, since its fill was its
      border and its ink was picked for contrast against that. It is not an
@@ -295,19 +296,21 @@ function syncTextColorVisibility(){
      have — so the colour control stays and readableOn steps in only where
      the ink would actually be lost. */
   const shape = editShapeInput.value || 'rect';
-  const on = shape !== 'amalgam';
+  const n = selectedId ? nodes.get(selectedId) : null;
+  const on = !(n && mergePainted(n) && mergeShapeOk(shape));
   /* The in-node field is on this list now that it is the only place an
-     entry's words are typed — an amalgam offers no say in its ink there
+     entry's words are typed — a merge offers no say in its ink there
      either. The language rows' own toolbar used to be on it as well, and
      went with the toolbar. */
   ['nodeEditorText', 'detailNoteInput'].forEach(t=> setTextColorControls(t, on));
 }
-/* An amalgam has no border colour of its own to set: it wears the colours
-   of the lineages that merged into it, and a field offering a second
-   answer to that question could only ever disagree with the bar. */
+/* Every entry has a border colour to set. An amalgam had none — it wore
+   its lineages' colours — and a merge's entry still does until it is given
+   one, which is the one thing the owner asked to change when the merge
+   stopped being a kind of entry (23.10). */
 function syncColorFieldVisibility(){
   const field = document.getElementById('editColorsField');
-  if(field) field.hidden = (editShapeInput.value || 'rect') === 'amalgam';
+  if(field) field.hidden = false;
 }
 const editMultiLangCheck = document.getElementById('editMultiLangCheck');
 const editLangTabsField = document.getElementById('editLangTabsField');

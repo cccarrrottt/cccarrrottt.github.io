@@ -1019,7 +1019,12 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   });
   let total = 0;
   for(let i = 1; i < moved.length; i++) total += Math.hypot(moved[i].x - moved[i-1].x, moved[i].y - moved[i-1].y);
-  let at = total * f;
+  /* Where along the copy the words stand: level with the point the note
+     rides on the line itself, not the same fraction of the copy. The copy
+     above a bend is shorter than the one below it, so a fraction of each
+     put the words somewhere else along the line every time the side was
+     changed (the owner's report, 23.10). */
+  let at = alongNearest(moved, alongPoint(pts, f));
   const leftwards = m.dx < -1e-6 || (Math.abs(m.dx) <= 1e-6 && m.dy < 0);
   const run = leftwards ? moved.slice().reverse() : moved;
   if(leftwards) at = total - at;
@@ -1052,5 +1057,73 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   else at = Math.max(half, Math.min(total - half, at));
   ring.tp.setAttribute('startOffset', at.toFixed(2));
   ink.tp.setAttribute('startOffset', at.toFixed(2));
+  /* Framed, when asked: a band of the note's ground round the words with
+     the connector's ink at its edges, bending as they do — the plate's
+     frame, laid along the line. Two strokes of one stretch of the copy,
+     the wider in ink under the narrower in ground; square or round at
+     its ends and turns as the plate's corners are. */
+  if(style && style.noteAlongFrame && half > 0){
+    const pad = TEXT_GAP + EDGE_NOTE_FRAME_W + 1;
+    const piece = alongSlice(run, at - half - pad, at + half + pad);
+    if(piece.length > 1){
+      const d = piece.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ');
+      const band = EDGE_NOTE_FS * 1.2 + TEXT_GAP * 2;
+      const round = style.noteSquare === false;
+      const look = {fill:'none', 'stroke-linecap': round ? 'round' : 'butt',
+                    'stroke-linejoin': round ? 'round' : 'miter'};
+      const edge = el('path', Object.assign({class:'edge-note-along-frame', d,
+                                             'stroke-width': (band + EDGE_NOTE_FRAME_W * 2).toFixed(2)}, look));
+      const ground = el('path', Object.assign({class:'edge-note-along-ground', d,
+                                               'stroke-width': band.toFixed(2)}, look));
+      if(paint) edge.style.stroke = paint;
+      if(bg) ground.style.stroke = bg;
+      g.insertBefore(ground, ring.t);
+      g.insertBefore(edge, ground);
+    }
+  }
+}
+/* The point a fraction of the way along a line, by length. */
+function alongPoint(pts, f){
+  let total = 0;
+  for(let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+  let left = total * Math.max(0, Math.min(1, f));
+  for(let i = 1; i < pts.length; i++){
+    const L = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+    if(left <= L && L > 0){
+      const t = left / L;
+      return {x: pts[i-1].x + (pts[i].x - pts[i-1].x) * t, y: pts[i-1].y + (pts[i].y - pts[i-1].y) * t};
+    }
+    left -= L;
+  }
+  return pts[pts.length - 1];
+}
+/* How far along a line the point of it nearest to a given one lies. */
+function alongNearest(pts, q){
+  let best = Infinity, bestAt = 0, run = 0;
+  for(let i = 1; i < pts.length; i++){
+    const a = pts[i-1], b = pts[i];
+    const dx = b.x - a.x, dy = b.y - a.y, L2 = dx*dx + dy*dy, L = Math.sqrt(L2);
+    const t = L2 ? Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / L2)) : 0;
+    const d = Math.hypot(a.x + dx*t - q.x, a.y + dy*t - q.y);
+    if(d < best - 1e-9){ best = d; bestAt = run + L * t; }
+    run += L;
+  }
+  return bestAt;
+}
+/* The stretch of a line between two lengths along it, as points. */
+function alongSlice(pts, s0, s1){
+  const out = [];
+  let run = 0;
+  for(let i = 1; i < pts.length; i++){
+    const a = pts[i-1], b = pts[i];
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    const at = (s)=> ({x: a.x + (b.x - a.x) * (s - run) / (L || 1), y: a.y + (b.y - a.y) * (s - run) / (L || 1)});
+    if(run + L >= s0 && run <= s1){
+      if(!out.length) out.push(at(Math.max(s0, run)));
+      if(run + L <= s1) out.push(b); else { out.push(at(s1)); break; }
+    }
+    run += L;
+  }
+  return out;
 }
 // The outward normal of the side a port sits on.

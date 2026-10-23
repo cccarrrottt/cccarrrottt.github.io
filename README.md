@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.15.0** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.16.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -596,14 +596,26 @@ The first Tab reaches a link that opens the list.
 
 ## A merge's bar
 
-A bar is the lineages': `opts.bar = {k, after, lead}` on the amalgam says
+A merge is not an entry of its own kind. Two or more connectors into one
+entry are merged from the connector's menu (press and hold, or a right
+click: Merge / Unmerge), and the entry they meet in takes `opts.merge` —
+`true` for every lineage it has or is given later, or the list of the ones
+merged (`mergeMembersOf`, `isMergeNode`, `02-model.js`). Its border wears
+the lineages' colours as a gradient unless it is given colours of its own.
+Each stretch is a connector with its own line, paint, gradient and ends;
+its end at the bar is `barEnd` ('out' or 'tout'). A chart that still has
+the old 'amalgam' entries opens with them as merges (`migrateAmalgams`,
+form 3).
+
+A bar is the lineages': `opts.bar = {k, after, lead}` on the merge says
 which axis it is laid across, which side of the lineages, and how far beyond
 them. It is written the first time anything of the merge is carried
-(`fixAmalgamBars`) and after that the amalgam carried about moves only the
+(`fixAmalgamBars`) and after that the entry carried about moves only the
 merged arrow. Until then `amalgamGeometry` works the place out as before. A
 click on the bar picks it out and it is carried along the arrow
 (`beginBarDrag`). The merged arrow's style is the `EDGE_STYLES` entry
-`{from:'', to:<amalgam>}` (`isMergedArrow`).
+`{from:'', to:<entry>}` (`isMergedArrow`); its colour, gradient and both
+ends are its own, and left alone it carries every lineage's colour.
 
 ## On a phone
 
@@ -740,7 +752,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 128 named scenarios, and they are independent of one
+The browser suite is 130 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

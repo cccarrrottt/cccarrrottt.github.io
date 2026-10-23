@@ -387,7 +387,10 @@ const drawOne = (n)=>{
   const isArray = shape==='array';
   const isHub = !isFreeShape(shape) && !isBio && !isArray && nodeHasTag(n, HUB_TAG);
   const isLocal = !isFreeShape(shape) && !isBio && !isArray && nodeHasTag(n, LOCAL_TAG);
-  const isAmalgam = shape==='amalgam';
+  /* A merge's entry, wearing its lineages' colours (see mergePainted). It
+     is an ordinary box in every other way: the amalgam archetype it used
+     to be is gone. */
+  const isAmalgam = mergePainted(n);
   /* A comment card. Drawn by the default branch — a rounded box, one ring
      per colour — so its ports, its edge handles and everything a connector
      does with it are literally the same code. Only the stylesheet knows it
@@ -860,9 +863,9 @@ const drawOne = (n)=>{
 
   // Border: one ring per color in n.colors (an entry with more than one
   // manually-assigned color), or a single outline in the node's resolved
-  // color — except for 'mirror' (fill = border color) and 'amalgam'
-  // (gradient border), which always draw as a single outline regardless
-  // of shape archetype.
+  // color — except for 'mirror' (fill = border color) and a merge left to
+  // its lineages' colours (gradient border), which always draw as a single
+  // outline regardless of shape archetype.
   /* A hub and a local multiverse each have a second visual layer of their
      own — the echo rings, the stack behind — and a second and third border
      colour on top of that would be unreadable, so they take exactly one
@@ -1299,7 +1302,7 @@ const drawOne = (n)=>{
        grab it without it drawing a box you didn't ask for. */
     el('rect', {x:n.x, y:n.y, width:n.w, height:h, rx:cornerR, class:'textbox-frame'}, g);
     if(n.colors && n.colors.length) textFill = n.colors[0];
-  } else if(shape==='amalgam'){
+  } else if(isAmalgam){
     const paint = paintColors.length>1 ? makeGradient(paintColors, false, nodeDefs) : paintColors[0];
     // fill is set via inline style, not the plain attribute, because the
     // .node rect{fill:var(--panel)} stylesheet rule otherwise wins over it

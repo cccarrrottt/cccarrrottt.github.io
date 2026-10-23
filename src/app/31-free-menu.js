@@ -178,23 +178,16 @@ function openEdgeStylePopover(from, to, evt){
   edgeStyleLabelEl.textContent = (a ? stripMarkup(a.label) : from === '' ? 'Merge' : from) + ' → ' + (b ? stripMarkup(b.label) : to);
   edgeStyleLabelEl.title = edgeStyleLabelEl.textContent;
   styleRoutingSel.value = style.routing;
-  /* A lineage feeding an amalgam runs into the shared bar: its colour
-     names which lineage it is, and the bar decides where it runs. */
+  /* A lineage feeding a merge runs into the shared bar, and the bar
+     decides where it runs; everything else about it — its paint, a
+     gradient among them, its ends, its line — is its own, as on any
+     connector. */
   const mergedEdge = isMergePart(from, to);
   const mergedOut = isMergedArrow(from, to);
-  /* And it cannot be painted with a gradient. Its colour is what says
-     WHICH lineage this stretch of the bar belongs to — a sweep between two
-     colours says it belongs to two, which is the one thing the bar exists
-     to tell apart. The button is greyed rather than hidden, like the
-     route button beside the path, so the row still explains itself. */
   const gradBtn = styleGradientBtn;
   if(gradBtn){
-    gradBtn.disabled = mergedEdge;
-    gradBtn.title = mergedOut
-      ? 'Set by the amalgam: the merged arrow carries every lineage\u2019s colour'
-      : mergedEdge
-      ? 'Not on a merged lineage: its colour names which lineage it is'
-      : 'Gradient along the connector';
+    gradBtn.disabled = false;
+    gradBtn.title = 'Gradient along the connector';
   }
   /* And it is not bent by hand either, so ⟳ beside the path is greyed —
      the handles on the line are already gone (see drawBendHandles). Only
@@ -209,15 +202,12 @@ function openEdgeStylePopover(from, to, evt){
         : 'Route it again — take every bend set by hand out';
     }
   }
-  /* The merged arrow's paint is every lineage's colour, and it is not a
-     connector anybody drew, so it cannot be deleted on its own either
-     (see deleteOpenConnector): it goes when the merge does. The row is
-     taken away rather than greyed — there is nothing in it it could ever
-     offer. */
-  document.getElementById('styleFillRow').hidden = mergedOut;
-  if(mergedEdge && style.gradient){
-    // Data can carry one even though the control cannot set it.
-    style = Object.assign({}, style, {gradient: null, color: style.color || style.gradient[0]});
+  /* The merged arrow is painted like any connector; left to the default
+     it carries every lineage's colour (see drawMergedArrow), which is what
+     the natural colour of the row stands for here. */
+  if(mergedOut){
+    const cs = amalgamInheritedColors(b);
+    if(cs && cs.length) currentEdgeNaturalColor = cs[0];
   }
   stylePaintMode.value = style.gradient ? 'gradient' : (style.color ? 'solid' : 'default');
   styleColorInput.value = (style.gradient ? style.gradient[0] : style.color) || currentEdgeNaturalColor;
@@ -286,6 +276,7 @@ function applyLiveEdgeStyle(){
     dash: kept.dash, sinusoid: kept.sinusoid || undefined,
     arrow: kept.arrow, arrowIn: kept.arrowIn || undefined,
     teeOut: kept.teeOut || undefined, teeIn: kept.teeIn || undefined,
+    barEnd: kept.barEnd || undefined,
     square: kept.square ? undefined : false,
     note: noteFromForm(),
     notePos: noteFromForm() ? (kept.notePos || 'above') : undefined,
@@ -301,6 +292,7 @@ function applyLiveEdgeStyle(){
     noteFrame: kept.noteFrame === false ? false : undefined,
     noteSquare: kept.noteSquare === false ? false : undefined,
     noteAlong: kept.noteAlong || undefined,
+    noteAlongFrame: kept.noteAlongFrame || undefined,
     color: paint.color,
     /* And the fact that it was CHOSEN, which is what makes it win over the
        colour of the border the connector was drawn from. It was computed

@@ -280,7 +280,7 @@ function keyMarksInUse(){
   nodes.forEach(n=>{
     const shape = n.shape || 'rect';
     if(shape === 'ellipse') has.add('shape:bio');
-    else if(shape === 'amalgam') has.add('shape:amalgam');
+    else if(isMergeNode(n)) has.add('shape:amalgam');
     else if(shape === 'callout') has.add('shape:callout');
     else if(shape === 'image') has.add('shape:image');
     else if(shape === 'textbox') has.add('shape:textbox');

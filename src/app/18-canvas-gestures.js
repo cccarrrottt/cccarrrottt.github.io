@@ -619,10 +619,9 @@ function amalgamBarClamp(st, offX, offY){
    * inside out by crossing the line in one frame. */
   st.members.forEach(m=>{
     const p = m.node;
-    if(!p || (p.shape||'') === 'amalgam') return;
+    if(!p || isMergeNode(p)) return;
     nodes.forEach(b=>{
-      if((b.shape||'') !== 'amalgam') return;
-      if(!(b.parents || []).includes(p.id)) return;
+      if(!isMergeNode(b) || !mergeMembersOf(b).includes(p.id)) return;
       // A merge being carried along with its lineage keeps its own shape.
       if(st.members.some(o=> o.id === b.id)) return;
       const bar = amalgamBars.get(b.id);
@@ -1091,6 +1090,30 @@ function saveNodePositions(list, before){
    ------------------------------------------------------------------ */
 let connectorDragState = null;
 const rubberBand = el('path', {class:'connector-rubber', style:'display:none;'}, viewport);
+/* A cross at the pointer over an entry the connector may not end on — so
+   the refusal is seen while aiming rather than learned from a release that
+   did nothing (the owner's list of 23.10). Sized against the zoom, so it
+   is the same few pixels however far out the chart is. */
+const connectorRefusedMark = (()=>{
+  const g = el('g', {class:'connector-refused', style:'display:none;'}, viewport);
+  el('circle', {cx:0, cy:0, r:7}, g);
+  el('path', {d:'M-3.2,-3.2L3.2,3.2M3.2,-3.2L-3.2,3.2'}, g);
+  return g;
+})();
+/* Why a connector from one entry may not end on another, or null when it
+   may. An entry in an array may not be joined to the array — the frame is
+   drawn round it, and a line from inside the frame to the frame says
+   nothing the frame does not — nor an array to what it holds; and two
+   entries already joined are not joined twice. */
+function connectRefusal(fromId, toId){
+  const from = nodes.get(fromId), to = nodes.get(toId);
+  if(!from || !to) return 'That entry could not be found.';
+  if(fromId === toId) return 'itself';
+  if((to.parents || []).includes(fromId)) return 'Those entries are already connected.';
+  if(isArrayNode(to) && arrayMembersDeep(to).has(fromId)) return 'An entry in an array is not connected to the array.';
+  if(isArrayNode(from) && arrayMembersDeep(from).has(toId)) return 'An array is not connected to what it holds.';
+  return null;
+}
 
 // Pointer position in world (pre-transform) coordinates.
 function clientToWorld(clientX, clientY){
@@ -1457,10 +1480,20 @@ window.addEventListener('mousemove', e=>{
   const hit = connectorDropTarget(e.clientX, e.clientY);
   qNodes('.node.connect-target').forEach(g=>g.classList.remove('connect-target'));
   qNodes('.node-handle.drop-target').forEach(h=>h.classList.remove('drop-target'));
-  if(hit && hit.node.id !== st.from.id){
+  /* Back on the entry it came from, it is refused too — but only once it
+     has been away: at the start the pointer is on that entry's own port,
+     and a cross there would answer a question nobody had asked yet. */
+  if(!hit || hit.node.id !== st.from.id) st.away = true;
+  const refused = !hit ? null
+    : hit.node.id === st.from.id ? (st.away ? 'itself' : null)
+    : connectRefusal(st.from.id, hit.node.id);
+  if(hit && !refused && hit.node.id !== st.from.id){
     hit.g.classList.add('connect-target');
     if(hit.handle) hit.handle.classList.add('drop-target');
   }
+  connectorRefusedMark.style.display = refused ? '' : 'none';
+  if(refused) connectorRefusedMark.setAttribute('transform',
+    `translate(${w.x.toFixed(2)},${w.y.toFixed(2)}) scale(${(1 / vs).toFixed(4)})`);
 });
 
 window.addEventListener('mouseup', e=>{
@@ -1470,11 +1503,14 @@ window.addEventListener('mouseup', e=>{
   svg.classList.remove('connector-dragging');
   rubberBand.style.display = 'none';
   rubberBand.removeAttribute('d');
+  connectorRefusedMark.style.display = 'none';
   qNodes('.node.connect-target').forEach(g=>g.classList.remove('connect-target'));
   qNodes('.node-handle.drop-target').forEach(h=>h.classList.remove('drop-target'));
   const hit = connectorDropTarget(e.clientX, e.clientY);
   if(!hit) return;                                   // released on empty canvas
   if(hit.node.id === st.from.id) return;             // released back on itself
+  const refused = connectRefusal(st.from.id, hit.node.id);
+  if(refused){ flashStatus(refused); return; }
   connectNodes(st.from.id, hit.node.id, {
     fromSide: st.fromSide, toSide: hit.side,
     fromRing: st.fromRing, toRing: hit.ring,

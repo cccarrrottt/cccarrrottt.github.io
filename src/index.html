@@ -65,7 +65,23 @@
     <div class="view-badge" title="You are viewing this chart; only its owner can change it">View only</div>
     <img class="owner-avatar" id="ownerAvatar" hidden alt="">
     <button class="owner-btn" id="ownerBtn" hidden aria-label="Sign in" title="Sign in with GitHub: anyone may suggest a change, and the owner edits."></button>
-    <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
+    <div class="topbar-end">
+      <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
+      <!-- Under the counts, small: undo and redo, which a phone has no keys
+           for, and the guides Shift gives a mouse. Cut, copy, paste and
+           delete are on the menu a long press or a right click brings up;
+           see 38-touch.js. -->
+      <div class="topbar-tools">
+        <div class="touch-tools" id="touchTools" role="group" aria-label="Undo and redo">
+          <button type="button" data-act="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5 2.5 6.5l3 3"/><path d="M2.8 6.5h6.7a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+          <button type="button" data-act="redo" title="Redo (Ctrl+Y)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.2 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
+        </div>
+        <button type="button" class="guide-toggle" id="guideToggle" aria-pressed="false"
+                title="Guides: line up whatever is carried, as Shift does" aria-label="Guides">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
+        </button>
+      </div>
+    </div>
   </div>
 
   <div class="main">
@@ -251,7 +267,6 @@
             <select id="editShapeInput">
               <option value="rect">Default (rectangle)</option>
               <option value="ellipse">Character (portrait circle)</option>
-              <option value="amalgam">Amalgam reality (gradient border &amp; text)</option>
                   <optgroup label="Free-standing elements — no connections">
                 <option value="image">Image</option>
                 <option value="textbox">Text field</option>
@@ -312,19 +327,6 @@
     <!-- Making an entry: one round button in the corner. Pointed at, the
          styles stand up above it; picking one puts that entry on the
          nearest clear ground to the middle of the view. -->
-    <!-- Guides for a finger, which has no Shift to hold. Shown only once the
-         page has been touched; see 38-touch.js. -->
-    <button type="button" class="guide-toggle" id="guideToggle" aria-pressed="false"
-            title="Guides: line up whatever is carried, as Shift does">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
-    </button>
-    <!-- And Ctrl+Z / Ctrl+Y, which a phone has not got: one button in two
-         halves, under the guides button. Cut, copy, paste and delete are on
-         the menu a long press on the selection brings up; see 38-touch.js. -->
-    <div class="touch-tools" id="touchTools" role="group" aria-label="Undo and redo">
-      <button type="button" data-act="undo" title="Undo (Ctrl+Z)">↶</button>
-      <button type="button" data-act="redo" title="Redo (Ctrl+Y)">↷</button>
-    </div>
     <div class="add-fab" id="addFab">
       <div class="add-fab-styles" id="addFabStyles" role="menu"></div>
       <button type="button" class="add-fab-btn" id="addFabBtn" aria-haspopup="menu"

@@ -55,8 +55,7 @@ function isAmalgamMember(from, to){ return amalgamMemberKeys.has(edgePairKey(fro
    the page alike. */
 function isMergedArrow(from, to){
   if(from !== '') return false;
-  const b = nodes.get(to);
-  return !!b && (b.shape || '') === 'amalgam';
+  return isMergeNode(nodes.get(to));
 }
 /* Either piece of a merge: the arrow, or a lineage running into it. What
    both share is that the merge decides where they run and what they end
@@ -74,7 +73,7 @@ function portRingColor(node, ring){
    they lie along its bar. Falls back to whatever the entry itself carries
    while it has fewer than two lineages and is not yet a merge at all. */
 function amalgamInheritedColors(n){
-  const parents = (n.parents || []).map(id=> nodes.get(id)).filter(Boolean);
+  const parents = mergeMembersOf(n).map(id=> nodes.get(id)).filter(Boolean);
   if(parents.length < 2) return (n.colors && n.colors.length) ? n.colors : [n.color];
   return parents
     .slice()
@@ -83,6 +82,9 @@ function amalgamInheritedColors(n){
 }
 function amalgamMemberColor(e){
   const style = edgeStyleFor(e.from, e.to);
+  /* A lineage painted as a gradient brings the colour it ARRIVES in: that
+     is the end that runs along the bar and into the merge. */
+  if(style.gradient && style.gradient.length) return style.gradient[style.gradient.length - 1];
   if(style.colorFixed && style.color) return style.color;
   // The ring the connector was pulled from is the lineage it represents,
   // so a two-coloured parent contributes the colour of that ring — the
@@ -870,8 +872,13 @@ function drawAmalgam(list, ports){
        somewhere it does not. */
     const onEnd = (i === 0 || i === n-1);
     const bar = Math.abs(inward - o) > 0.5 ? barPt(inward) : null;
-    const joined = (bar && onEnd) ? pts.concat([bar]) : pts;
-    let d = style.sinusoid ? wavyPath(joined) : roundedPath(joined, edgeCornerR(style));
+    /* Its own ends, as any connector has (the owner's ask, 23.10): an
+       arrowhead or a T where it leaves its entry, cut back from the line
+       as everywhere else, and one where it meets the bar. */
+    const cutIn = mergeMemberCutIn(style, p1, e.from);
+    const ptsD = (cutIn && !style.sinusoid) ? trimForHeads(pts, true, false, p1, null, cutIn) : pts;
+    const joined = (bar && onEnd) ? ptsD.concat([bar]) : ptsD;
+    let d = style.sinusoid ? wavyPath(joined, cutIn) : roundedPath(joined, edgeCornerR(style));
     /* A wavy lineage waves along its stretch of the bar too. The stretch
        is its own run, started afresh at the landing, so the T stays a T:
        the upright arrives at the bar and the ripple sets off along it,
@@ -893,11 +900,17 @@ function drawAmalgam(list, ports){
        line — the very bug the anchor was changed to fix, still there for
        every lineage that was not at one end of the bar. */
     const notePts = bar ? pts.concat([bar]) : pts;
-    const attrs = {class:'edge struct amalgam-member', d, stroke: color,
+    // A gradient runs the length of the lineage, bar stretch and all.
+    const paint = style.gradient ? makeEdgeGradient(style.gradient, notePts) : color;
+    const attrs = {class:'edge struct amalgam-member', d, stroke: paint,
                    'data-from':e.from, 'data-to':e.to};
-    if(dash) attrs['stroke-dasharray'] = dash;
+    if(dash){
+      attrs['stroke-dasharray'] = dash;
+      if(cutIn) attrs['stroke-dashoffset'] = cutIn.toFixed(2);
+    }
     edgePath(attrs, style, edgeLayer);
-    drawRingCap(pts[0], color, dash, e.from, e.to, isDoubleDash(style), d);
+    drawRingCap(pts[0], paint, dash, e.from, e.to, isDoubleDash(style), d);
+    drawMergeMemberEnds(e, style, pts, p1, land, paint);
     /* The note is anchored on the line the reader actually sees, bar leg
        and all. It used to be anchored on the routed part alone, so a point
        picked halfway along a merged lineage landed halfway along a shorter
@@ -980,13 +993,21 @@ function drawAmalgam(list, ports){
       ? barPt(landings[allMembers.indexOf(e) === 0 ? 0 : n - 1])
       : dimple;
     const pts = [start, end];
-    const d = style.sinusoid ? wavyPath(pts)
-                             : `M${start.x.toFixed(2)},${start.y.toFixed(2)} L${end.x.toFixed(2)},${end.y.toFixed(2)}`;
-    const attrs = {class:'edge struct amalgam-member amalgam-direct', d, stroke: color,
+    const p1 = ports.get(e).p1;
+    const cutIn = mergeMemberCutIn(style, p1, e.from);
+    const s0 = cutIn && !style.sinusoid ? arrowTrimmed(end, start, cutIn) : start;
+    const d = style.sinusoid ? wavyPath(pts, cutIn)
+                             : `M${s0.x.toFixed(2)},${s0.y.toFixed(2)} L${end.x.toFixed(2)},${end.y.toFixed(2)}`;
+    const paint = style.gradient ? makeEdgeGradient(style.gradient, pts) : color;
+    const attrs = {class:'edge struct amalgam-member amalgam-direct', d, stroke: paint,
                    'data-from':e.from, 'data-to':e.to};
-    if(dash) attrs['stroke-dasharray'] = dash;
+    if(dash){
+      attrs['stroke-dasharray'] = dash;
+      if(cutIn) attrs['stroke-dashoffset'] = cutIn.toFixed(2);
+    }
     edgePath(attrs, style, edgeLayer);
-    drawRingCap(ports.get(e).p1, color, dash, e.from, e.to, isDoubleDash(style), d);
+    drawRingCap(p1, paint, dash, e.from, e.to, isDoubleDash(style), d);
+    drawMergeMemberEnds(e, style, pts, p1, end, paint);
     drawEdgeNote(style.note, pts, style.notePos, e.from, e.to, style.noteAt, color, style.noteBg);
     drawCalloutLeaders(e.from, e.to, pts, color);
     edgeHit(d, e.from, e.to);
@@ -1099,6 +1120,9 @@ function drawAmalgam(list, ports){
                   r, fill:paint, 'data-from':'', 'data-to':b.id, 'data-pair': from + '\u0000' + to}, edgeLayer);
   });
 
+  /* The merged arrow given an end of its own at the bar marks the joint
+     itself, and a bead laid over it would hide it. */
+  if(edgeStyleFor('', b.id).arrowIn) return;
   const beadR = AMALGAM_BEAD_R;
   const beadPaint = makeEdgeGradient(colors, [
     {x: dimple.x - ux*beadR, y: dimple.y - uy*beadR},
@@ -1107,6 +1131,35 @@ function drawAmalgam(list, ports){
   beadGround(dimple, beadR);
   el('circle', {class:'amalgam-bead amalgam-junction', cx:dimple.x.toFixed(2), cy:dimple.y.toFixed(2),
                 r:beadR, fill:beadPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
+}
+/* How much of a lineage's start its own end gives up: an arrowhead's or a
+   T's worth, as on any connector (see redrawEdges), or nothing. */
+function mergeMemberCutIn(style, port, fromId){
+  if(!style.arrowIn) return 0;
+  return style.teeIn ? TEE_CUT + teeBack(port, fromId) : headCut(port);
+}
+/* A lineage's two ends: the one at its entry, which is an ordinary end,
+   and the one at the bar — barEnd, an arrowhead or a T pointing into the
+   bar along the way the lineage arrives. A T at the bar stands its gap
+   off the bar, the way a T at an entry stands off the border. */
+function drawMergeMemberEnds(e, style, pts, port, land, paint){
+  if(style.arrowIn && pts.length >= 2 && port){
+    const tip = portTip(Object.assign({}, port, {x: pts[0].x, y: pts[0].y}));
+    if(style.teeIn) drawTeeHead(arrowLayer, tip.x, tip.y, startAngleDeg(pts), paint, e.from, e.to,
+                                teeBack(port, e.from));
+    else drawArrowHead(arrowLayerFor(port.ring, port), tip.x, tip.y, startAngleDeg(pts), paint,
+                       e.from, e.to, port.wavy ? e.from : null, port.ring || 0);
+  }
+  if(style.barEnd && pts.length >= 2){
+    /* The way it arrives: from the last point of its route that is not the
+       landing itself. */
+    let k = pts.length - 1;
+    while(k > 0 && Math.hypot(pts[k].x - land.x, pts[k].y - land.y) < 0.5) k--;
+    const from = pts[k];
+    const ang = Math.atan2(land.y - from.y, land.x - from.x) * 180 / Math.PI;
+    if(style.barEnd === 'tout') drawTeeHead(arrowLayer, land.x, land.y, ang, paint, e.from, e.to, 0);
+    else drawArrowHead(arrowLayer, land.x, land.y, ang, paint, e.from, e.to);
+  }
 }
 /* The merged arrow, in whatever look it has been given.
  *
@@ -1122,30 +1175,54 @@ function drawMergedArrow(b, stem, colors, ring){
   const os = edgeStyleFor('', b.id);
   const head = stem.port;
   const route = os.routing === 'straight' ? [stem.pts[0], stem.pts[stem.pts.length - 1]] : stem.pts;
-  const paint = makeEdgeGradient(colors, route);
+  /* Every lineage's colour unless it has been given its own: a colour or a
+     gradient set on it, as on any connector (the owner's ask, 23.10). */
+  const paint = os.gradient ? makeEdgeGradient(os.gradient, route)
+    : (os.colorFixed && os.color) ? os.color
+    : makeEdgeGradient(colors, route);
+  const ink = os.gradient ? os.gradient[0] : (os.colorFixed && os.color) ? os.color : colors[0];
+  /* Its ends are its own too: an arrowhead into the entry by default, a T,
+     or nothing; and at the bar, where it starts, an arrowhead or a T
+     pointing back at the bar, or nothing as it always was. */
+  const headOut = os.arrow !== false, teeOut = headOut && os.teeOut;
+  const cutOut = !headOut ? 0 : teeOut ? TEE_CUT + teeBack(head, b.id) : ARROW_TRIM;
+  const cutIn = !os.arrowIn ? 0 : os.teeIn ? TEE_CUT : ARROW_TRIM;
   let d, from;
   if(os.sinusoid){
-    d = wavyPath(route, 0, ARROW_TRIM, false, edgeCornerR(os));
+    d = wavyPath(route, cutIn, cutOut, false, edgeCornerR(os));
     from = route[route.length - 2];
   } else if(os.routing === 'curve' && route.length > 2){
-    const cut = cutAlong(curveThrough(route, CURVE_STEP, {end: true}), 0, ARROW_TRIM);
+    const cut = cutAlong(curveThrough(route, CURVE_STEP, {start: cutIn > 0, end: cutOut > 0}), cutIn, cutOut);
     d = polylinePath(cut);
     from = cut[cut.length - 2] || route[route.length - 2];
   } else {
     from = route[route.length - 2];
-    const tip = arrowTrimmed(from, {x: head.x, y: head.y});
-    const shaft = route.slice(0, -1).concat([tip]);
+    const tip = arrowTrimmed(from, {x: head.x, y: head.y}, cutOut);
+    const start = cutIn ? arrowTrimmed(route[1], route[0], cutIn) : route[0];
+    const shaft = [start].concat(route.slice(1, -1)).concat([tip]);
     d = shaft.length > 2 ? roundedPath(shaft, edgeCornerR(os))
       : `M${shaft[0].x.toFixed(2)},${shaft[0].y.toFixed(2)} L${tip.x.toFixed(2)},${tip.y.toFixed(2)}`;
   }
   const dash = DASH_PATTERNS[os.dash];
   const attrs = {class:'edge struct amalgam-out', d, stroke: paint, 'data-from':'', 'data-to':b.id};
-  if(dash) attrs['stroke-dasharray'] = dash;
+  if(dash){
+    attrs['stroke-dasharray'] = dash;
+    if(cutIn) attrs['stroke-dashoffset'] = cutIn.toFixed(2);
+  }
   edgePath(attrs, os, edgeLayer);
   drawRingCap(head, paint, dash, '', b.id, isDoubleDash(os), d);
-  drawAmalgamArrow(head, from.x, from.y, ring, paint, b.id);
-  drawEdgeNote(os.note, route, os.notePos, '', b.id, os.noteAt, colors[0], os.noteBg);
-  drawCalloutLeaders('', b.id, route, colors[0]);
+  if(teeOut){
+    const tip = portTip(head);
+    drawTeeHead(arrowLayer, tip.x, tip.y, Math.atan2(head.y - from.y, head.x - from.x) * 180/Math.PI,
+                paint, '', b.id, teeBack(head, b.id));
+  } else if(headOut) drawAmalgamArrow(head, from.x, from.y, ring, paint, b.id);
+  if(os.arrowIn){
+    const at = route[0];
+    if(os.teeIn) drawTeeHead(arrowLayer, at.x, at.y, startAngleDeg(route), paint, '', b.id, 0);
+    else drawArrowHead(arrowLayer, at.x, at.y, startAngleDeg(route), paint, '', b.id);
+  }
+  drawEdgeNote(os.note, route, os.notePos, '', b.id, os.noteAt, ink, os.noteBg);
+  drawCalloutLeaders('', b.id, route, ink);
   edgeHit(d, '', b.id);
 }
 /* A disc of paper under a bead, the bead's own size.
@@ -1174,8 +1251,7 @@ redrawEdges();
 function amalgamsFedBy(id){
   const out = [];
   nodes.forEach(b=>{
-    if((b.shape || '') !== 'amalgam') return;
-    if(!(b.parents || []).includes(id)) return;
+    if(!isMergeNode(b) || !mergeMembersOf(b).includes(id)) return;
     if(amalgamBars.get(b.id)) out.push(b);
   });
   return out;
@@ -1224,7 +1300,7 @@ function barTargetsFor(st){
   if(!n) return [];
   const out = [];
   const own = amalgamBars.get(m.id);
-  if(own && (n.shape || '') === 'amalgam'){
+  if(own && isMergeNode(n)){
     out.push({bar: own, places: barPlacesFor(own, null, true), portOff: 0});
   }
   amalgamsFedBy(m.id).forEach(b=>{
@@ -1479,8 +1555,8 @@ function fixAmalgamBars(ids){
   const carried = new Set(ids);
   const fixed = [];
   nodes.forEach(b=>{
-    if((b.shape || '') !== 'amalgam' || b.bar) return;
-    if(!carried.has(b.id) && !(b.parents || []).some(p=> carried.has(p))) return;
+    if(!isMergeNode(b) || b.bar) return;
+    if(!carried.has(b.id) && !mergeMembersOf(b).some(p=> carried.has(p))) return;
     const spec = barSpecFor(b.id);
     if(!spec) return;
     b.bar = spec;

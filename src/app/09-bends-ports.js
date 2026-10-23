@@ -726,8 +726,8 @@ function resolvePorts(edgesList, sideOverrides){
 
 // Reality-archetype rendering helpers. 'mirror' fills the box with its own
 // border color, so the label needs a contrast-checked text color instead of
-// the fixed ink color; 'amalgam' paints the border/text with a gradient
-// built from the node's colors (falls back to a flat color with <2 colors).
+// the fixed ink color; a merge (mergePainted) paints the border/text with a
+// gradient built from its lineages' colors.
 const svgDefs = document.getElementById('svgDefs');
 // svgDefs itself holds only what is made once. What the connectors make
 // each time they are drawn — their gradients, the clips that cut a head

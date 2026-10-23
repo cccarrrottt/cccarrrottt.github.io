@@ -16,7 +16,6 @@
 const NODE_STYLE_PICKS = [
   {value:'rect',    label:'Default',       hint:'An ordinary entry: a box with its name in it.'},
   {value:'ellipse', label:'Character',     hint:'A portrait circle, with its words on a card beside it.'},
-  {value:'amalgam', label:'Amalgam',       hint:'A reality made of others: its lineages merge into one bar and one arrow.'},
   {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
   {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}
   /* Array stood here too, greyed until two entries were picked. It is not
@@ -42,12 +41,6 @@ function nodeStyleIcon(kind){
     add('circle', {cx:20, cy:15, r:10, class:'nsi-box'});
     add('circle', {cx:20, cy:12, r:3.1, class:'nsi-mark'});
     add('path', {d:'M14.4,22.6 a5.6,5 0 0 1 11.2,0', class:'nsi-mark'});
-  } else if(kind === 'amalgam'){
-    // Two lineages coming down onto one bar, and one arrow out of it.
-    add('path', {d:'M11,3 V7 H29 V3', class:'nsi-line'});
-    add('path', {d:'M20,7 V12', class:'nsi-line'});
-    add('path', {d:'M17,10 L20,13.4 L23,10 Z', class:'nsi-fill'});
-    box(14, 12);
   } else if(kind === 'textbox'){
     box(8, 14);
     add('path', {d:'M15,12 H25 M20,12 V19', class:'nsi-mark'});
@@ -272,6 +265,13 @@ function pasteClipboardNode(){
       if(parents.includes(f)) return;
       parents.push(f);
       entry[2] = parents.length === 1 ? parents[0] : parents;
+    });
+    /* And a merge that names its lineages names the copies, as an array
+       does its members; one left naming fewer than two is no merge. */
+    workingNodes.forEach(entry=>{
+      if(!made.includes(entry[0]) || !entry[6] || !Array.isArray(entry[6].merge)) return;
+      const ms = entry[6].merge.map(id=> idMap.get(id)).filter(Boolean);
+      if(ms.length >= 2) entry[6].merge = ms; else delete entry[6].merge;
     });
   });
   // Each paste starts from where the group was PUT, so a run of them walks

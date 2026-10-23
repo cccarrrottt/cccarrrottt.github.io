@@ -418,7 +418,7 @@ async function main(){
   await scenario("node creation, every archetype", async () => {
   const shapes = await page.evaluate(async () => {
     const out = {};
-    for(const shape of ['rect','ellipse','amalgam','image','textbox']){
+    for(const shape of ['rect','ellipse','image','textbox']){
       const id = 'probe_' + shape;
       applyEdit(() => { workingNodes.push([id, 'Probe ' + shape, null, null, null, shape, {pos:[900, 200]}]); });
       await new Promise(r => setTimeout(r, 60));
@@ -1041,7 +1041,7 @@ async function main(){
       workingNodes.push(['bd_a','A',null,null,null,null,{pos:[-300,-200],colors:['#c23b22']}]);
       workingNodes.push(['bd_b','B',null,null,null,null,{pos:[-60,-200],colors:['#2f6fb5']}]);
       workingNodes.push(['bd_c','C',null,null,null,null,{pos:[180,-200],colors:['#3fae4a']}]);
-      workingNodes.push(['bd_am','Amalgam',['bd_a','bd_b','bd_c'],null,null,'amalgam',{pos:[-60,60]}]);
+      workingNodes.push(['bd_am','Amalgam',['bd_a','bd_b','bd_c'],null,null,null,{merge:true, pos:[-60,60]}]);
     });
     await new Promise(r=> setTimeout(r, 700));
     // The JUNCTION's bead — the joints between neighbouring stretches now
@@ -1338,7 +1338,7 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['sa_l','L',null,null,null,null,{pos:[-150,-160]}]);
       workingNodes.push(['sa_r','R',null,null,null,null,{pos:[130,-190]}]);
-      workingNodes.push(['sa_c','C',['sa_l','sa_r'],null,null,'amalgam',{pos:[-110,140]}]);
+      workingNodes.push(['sa_c','C',['sa_l','sa_r'],null,null,null,{merge:true, pos:[-110,140]}]);
     });
     await new Promise(r=> setTimeout(r, 700));
     const bead = document.querySelector('.amalgam-bead[data-to="sa_c"]');
@@ -1602,7 +1602,7 @@ async function main(){
     // An amalgam dragged far from its lineages: the bar must span where they
     // are, and the arrow must leave from a point ON it.
     applyEdit(()=>{
-      workingNodes.push(['fa_am','AM',['fa_p1','fa_p2'],null,null,'amalgam',{pos:[4000,-260]}]);
+      workingNodes.push(['fa_am','AM',['fa_p1','fa_p2'],null,null,null,{merge:true, pos:[4000,-260]}]);
       workingNodes.push(['fa_p1','P1',null,null,null,null,{pos:[4030,120]}]);
       workingNodes.push(['fa_p2','P2',null,null,null,null,{pos:[4290,120]}]);
     });
@@ -1690,7 +1690,9 @@ async function main(){
 
     // An amalgam takes one ring of ports whatever its colours.
     applyEdit(()=>{
-      workingNodes.push(['pa','AM',null,null,null,'amalgam',{pos:[5000,600],colors:['#c23b22','#2f6fb5']}]);
+      workingNodes.push(['pp','P',null,null,null,null,{pos:[4800,300],colors:['#c23b22']}]);
+      workingNodes.push(['pq','Q',null,null,null,null,{pos:[5200,300],colors:['#2f6fb5']}]);
+      workingNodes.push(['pa','AM',['pp','pq'],null,null,null,{merge:true, pos:[5000,600]}]);
       workingNodes.push(['pb','PL',null,null,null,null,{pos:[5300,600],colors:['#c23b22','#2f6fb5']}]);
     });
     rebuildChart();
@@ -1829,13 +1831,19 @@ async function main(){
     openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 250));
     out.plainHex = getComputedStyle(document.querySelector('[data-hex-square-for="nodeEditorText"]')).display;
-    document.getElementById('editShapeInput').value = 'amalgam';
-    document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
+    document.getElementById('detailEditToggle').click();
+    await new Promise(r=> setTimeout(r, 200));
+    applyEdit(()=>{
+      workingNodes.push(['mhP','P',null,null,null,null,{pos:[9000,300]}]);
+      workingNodes.push(['mhQ','Q',null,null,null,null,{pos:[9300,300]}]);
+      workingNodes.push(['mhM','M',['mhP','mhQ'],null,null,null,{merge:true, pos:[9150,600]}]);
+    });
+    rebuildChart(); await new Promise(r=> setTimeout(r, 300));
+    selectedId = 'mhM';
+    document.getElementById('detailEditToggle').click();
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 250));
     out.mirrorHex = getComputedStyle(document.querySelector('[data-hex-square-for="nodeEditorText"]')).display;
-    document.getElementById('editShapeInput').value = 'rect';
-    document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
-    await new Promise(r=> setTimeout(r, 250));
     document.getElementById('detailEditToggle').click();
 
     // The settings form no longer carries its own Delete/Close.
@@ -1899,7 +1907,7 @@ async function main(){
       workingNodes.push(['dt','Target','dr',null,null,null,{pos:[7600,-200]}]);
       workingNodes.push(['ap','Left',null,null,null,null,{pos:[7000,600],colors:['#c23b22']}]);
       workingNodes.push(['aq','Right',null,null,null,null,{pos:[7400,600],colors:['#2f6fb5']}]);
-      workingNodes.push(['ax','Merged',['ap','aq'],null,null,'amalgam',{pos:[7200,900],colors:['#c23b22','#2f6fb5']}]);
+      workingNodes.push(['ax','Merged',['ap','aq'],null,null,null,{merge:true, pos:[7200,900]}]);
     });
     rebuildChart();
     await new Promise(r=> setTimeout(r, 500));
@@ -2350,8 +2358,8 @@ async function main(){
          with the entry and takes over any joint it lands on, so an entry
          parked exactly on a seam is the one arrangement where a joint is
          legitimately absent. */
-      workingNodes.push(['jm','M',['j0','j1','j2'],null,null,'amalgam',
-                         {pos:[10450,940],colors:['#c23b22','#2f6fb5','#1d7a5f']}]);
+      workingNodes.push(['jm','M',['j0','j1','j2'],null,null,null,
+                         {merge:true, pos:[10450,940],colors:['#c23b22','#2f6fb5','#1d7a5f']}]);
     });
     rebuildChart(); await new Promise(r=> setTimeout(r, 480));
     const joints = [...document.querySelectorAll('.amalgam-joint[data-to="jm"]')];
@@ -2453,8 +2461,8 @@ async function main(){
       workingNodes.push(['cp0','P',null,null,null,null,{pos:[12000,200],colors:['#c23b22','#2f6fb5']}]);
       workingNodes.push(['cp1','C','cp0',null,null,null,{pos:[12000,420],colors:['#1d7a5f']}]);
       workingNodes.push(['cq','Q',null,null,null,null,{pos:[12400,200],colors:['#7a3fa0']}]);
-      workingNodes.push(['cam','A',['cp0','cq'],null,null,'amalgam',
-                         {pos:[12200,620],colors:['#c23b22','#7a3fa0']}]);
+      workingNodes.push(['cam','A',['cp0','cq'],null,null,null,
+                         {merge:true, pos:[12200,620]}]);
       const t0 = workingNodes.find(t=> t[0]==='ms0'); t0[6].tags = ['probe-a','probe-b'];
       const t1 = workingNodes.find(t=> t[0]==='ms1'); t1[6].tags = ['probe-b'];
     });
@@ -2569,8 +2577,8 @@ async function main(){
         {pos:[14000 + i*200, -400], colors:[['#c23b22','#2f6fb5','#1d7a5f','#7a3fa0'][i]]}]));
       // Deliberately at ONE END of its own bar, so every landing lies to
       // the same side of the entry's centre.
-      workingNodes.push(['bsm','M',['bs0','bs1','bs2','bs3'],null,null,'amalgam',
-        {pos:[14600,-40], colors:['#c23b22','#2f6fb5','#1d7a5f','#7a3fa0']}]);
+      workingNodes.push(['bsm','M',['bs0','bs1','bs2','bs3'],null,null,null,
+        {merge:true, pos:[14600,-40], colors:['#c23b22','#2f6fb5','#1d7a5f','#7a3fa0']}]);
     });
     rebuildChart(); await new Promise(r=> setTimeout(r, 520));
     const ds = [...document.querySelectorAll('.amalgam-member[data-to="bsm"]')].map(x=> x.getAttribute('d'));
@@ -2646,7 +2654,7 @@ async function main(){
       workingNodes.push(['gp1','P1',null,null,null,null,{pos:[16300,200],colors:['#2f6fb5']}]);
       workingNodes.push(['gp2','P2',null,null,null,null,{pos:[16900,200],colors:['#1d7a5f']}]);
       // No colours of its own: it has to take them from its lineages.
-      workingNodes.push(['gam','M',['gp0','gp1','gp2'],null,null,'amalgam',{pos:[16200,620]}]);
+      workingNodes.push(['gam','M',['gp0','gp1','gp2'],null,null,null,{merge:true, pos:[16200,620]}]);
     });
     rebuildChart();
     await new Promise(r=> setTimeout(r, 520));
@@ -2681,20 +2689,20 @@ async function main(){
     const gid = /url\(#(.+)\)/.exec(amStroke);
     out.amalStops = gid ? [...document.getElementById(gid[1]).querySelectorAll('stop')]
       .map(x=> x.getAttribute('stop-color')) : null;
-    // …and offers no border-colour field to contradict them.
+    /* …but its border colour can now be set by hand: the field is there,
+       and a colour written into it is worn instead of the gradient. */
     selectedId = 'gam';
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 300));
     out.colourFieldOnAmalgam = getComputedStyle(document.getElementById('editColorsField')).display;
-    document.getElementById('editShapeInput').value = 'rect';
-    document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
-    await new Promise(r=> setTimeout(r, 280));
-    out.colourFieldOnPlain = getComputedStyle(document.getElementById('editColorsField')).display;
-    document.getElementById('editShapeInput').value = 'amalgam';
-    document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
-    await new Promise(r=> setTimeout(r, 280));
     document.getElementById('detailEditToggle').click();
-    await new Promise(r=> setTimeout(r, 320));
+    await new Promise(r=> setTimeout(r, 200));
+    applyEdit(()=>{ const f = workingEntry('gam'); const o = entryOpts(f.entry); o.colors = ['#7a3fb0']; putEntry(f.index, f.entry, o); });
+    rebuildChart(); await new Promise(r=> setTimeout(r, 320));
+    out.ownStroke = document.querySelector('[data-id="gam"] > rect[stroke]').getAttribute('stroke');
+    out.stillMerged = document.querySelectorAll('.amalgam-out[data-to="gam"]').length;
+    applyEdit(()=>{ const f = workingEntry('gam'); const o = entryOpts(f.entry); delete o.colors; putEntry(f.index, f.entry, o); });
+    rebuildChart(); await new Promise(r=> setTimeout(r, 320));
 
     /* The bar hands over AT the landings: a colour runs from where its
        lineage joins to where the next one does, not from midpoint to
@@ -2734,7 +2742,7 @@ async function main(){
     openEdgeStylePopover('gp0', 'gam', new MouseEvent('click'));
     await new Promise(r=> setTimeout(r, 260));
     const gb = document.getElementById('styleGradient');
-    out.gradOnMember = !!gb && gb.disabled;
+    out.gradOnMember = !!gb && !gb.disabled;
     closeEdgePopover();
     applyEdit(()=>{ workingNodes.push(['gq','Q','gp0',null,null,null,{pos:[17400,620]}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 350));
@@ -2759,14 +2767,14 @@ async function main(){
   check('an amalgam with no colours of its own wears its lineages’',
         JSON.stringify(r13.amalStops) === JSON.stringify(['#c23b22','#2f6fb5','#1d7a5f']),
         JSON.stringify(r13.amalStops));
-  check('and offers no border-colour field to contradict them',
-        r13.colourFieldOnAmalgam === 'none' && r13.colourFieldOnPlain !== 'none',
-        JSON.stringify({amalgam:r13.colourFieldOnAmalgam, plain:r13.colourFieldOnPlain}));
+  check('and its border colour can be set by hand, still merging',
+        r13.colourFieldOnAmalgam !== 'none' && r13.ownStroke === '#7a3fb0' && r13.stillMerged === 1,
+        JSON.stringify({field:r13.colourFieldOnAmalgam, stroke:r13.ownStroke, merged:r13.stillMerged}));
   check('the bar changes colour where a lineage joins, not halfway between',
         r13.seamsOnLandings && r13.seamCount >= 1, JSON.stringify(r13.seamCount));
   check('a note on a merged lineage lands where it was pinned',
         r13.anchorOff !== undefined && r13.anchorOff < 2, String(r13.anchorOff));
-  check('a merged lineage cannot be given a gradient, an ordinary one can',
+  check('a merged lineage can be given a gradient, like an ordinary one',
         r13.gradOnMember && r13.gradOnPlain,
         JSON.stringify({member:r13.gradOnMember, plain:r13.gradOnPlain}));
 
@@ -2828,14 +2836,14 @@ async function main(){
       workingNodes.push(['ty','alpha beta',null,null,null,null,{pos:[20000,-600]}]);
       [0,1,2,3].forEach(i=> workingNodes.push(['tp'+i,'P'+i,null,null,null,null,
         {pos:[20000 + i*220, 0], colors:[['#c23b22','#2f6fb5','#1d7a5f','#7a3fa0'][i]]}]));
-      workingNodes.push(['tam','M',['tp0','tp1','tp2','tp3'],null,null,'amalgam',{pos:[20320,400]}]);
+      workingNodes.push(['tam','M',['tp0','tp1','tp2','tp3'],null,null,null,{merge:true, pos:[20320,400]}]);
       // Lineages stacked down the LEFT, so the bar runs vertically.
       [0,1,2].forEach(i=> workingNodes.push(['lp'+i,'L'+i,null,null,null,null,
         {pos:[21200, -200 + i*180], colors:[['#c23b22','#2f6fb5','#1d7a5f'][i]]}]));
       // Off the middle: the junction bead travels with the entry and takes
       // over any joint it lands on, so an entry parked exactly on a seam is
       // the one arrangement where a joint is legitimately absent.
-      workingNodes.push(['lam','LM',['lp0','lp1','lp2'],null,null,'amalgam',{pos:[21700,120]}]);
+      workingNodes.push(['lam','LM',['lp0','lp1','lp2'],null,null,null,{merge:true, pos:[21700,120]}]);
     });
     rebuildChart();
     await new Promise(r=> setTimeout(r, 560));
@@ -3212,7 +3220,7 @@ async function main(){
       workingNodes.length = 0;
       [0,5,10,15,20].forEach((dx,i)=> workingNodes.push(['tc'+i,'P'+i,undefined,undefined,undefined,
         undefined,{pos:[300+dx, 0], colors:[['#c23b22','#2f6fb5','#1d7a5f','#7a3fa0','#e08a1e'][i]]}]));
-      workingNodes.push(['tcm','M',[0,1,2,3,4].map(i=>'tc'+i),undefined,undefined,'amalgam',{pos:[300,340]}]);
+      workingNodes.push(['tcm','M',[0,1,2,3,4].map(i=>'tc'+i),undefined,undefined,null,{merge:true, pos:[300,340]}]);
     });
     rebuildChart(); await new Promise(r=> setTimeout(r, 480));
     const boxes = [...document.querySelectorAll('.amalgam-member[data-to="tcm"]')].map(x=> x.getBBox());
@@ -3343,7 +3351,7 @@ async function main(){
       workingNodes.length = 0;
       workingNodes.push(['ap','P0',null,null,null,null,{pos:[0,0],colors:['#c23b22']}]);
       workingNodes.push(['aq','P1',null,null,null,null,{pos:[400,0],colors:['#2f6fb5']}]);
-      workingNodes.push(['ax','M',['ap','aq'],null,null,'amalgam',{pos:[200,340]}]);
+      workingNodes.push(['ax','M',['ap','aq'],null,null,null,{merge:true, pos:[200,340]}]);
     });
     // A connector drawn out of a border records the RING, not its colour.
     refill(EDGE_STYLES, [{from:'ap', to:'ax', fromRing:0, fromSide:'bottom', color:'#c23b22'}]);
@@ -3380,7 +3388,7 @@ async function main(){
       workingNodes.length = 0;
       workingNodes.push(['bp','Q0',null,null,null,null,{pos:[0,0]}]);
       workingNodes.push(['bq','Q1',null,null,null,null,{pos:[200,0]}]);
-      workingNodes.push(['bx','FAR',null,null,null,'amalgam',{pos:[3000,2400]}]);
+      workingNodes.push(['bx','FAR',null,null,null,null,{merge:true, pos:[3000,2400]}]);
     });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
     connectNodes('bp','bx'); await new Promise(r=> setTimeout(r, 260));
@@ -3522,7 +3530,7 @@ async function main(){
       workingNodes.push(['sb','Beta',null,null,null,null,{pos:[37300,-900], colors:['#1d7a5f']}]);
       workingNodes.push(['sc','Gamma',null,null,null,null,{pos:[37600,-900], colors:['#2f6fb5']}]);
       // Off the middle, for the same reason as 'lam' above.
-      workingNodes.push(['sm','Merge',['sa','sb','sc'],null,null,'amalgam',{pos:[37450,-640]}]);
+      workingNodes.push(['sm','Merge',['sa','sb','sc'],null,null,null,{merge:true, pos:[37450,-640]}]);
       ['sa','sb','sc'].forEach(f=> EDGE_STYLES.push({from:f, to:'sm', routing:'straight'}));
     });
     rebuildChart(); redrawEdges();
@@ -3854,7 +3862,7 @@ async function main(){
     applyEdit(()=>{
       ['n0','n1','n2'].forEach((id,i)=> workingNodes.push([id,'P'+i,null,null,null,null,
         {pos:[43000 + i*260, -1000], colors:[['#c23b22','#1d7a5f','#2f6fb5'][i]]}]));
-      workingNodes.push(['nm','M',['n0','n1','n2'],null,null,'amalgam',{pos:[43260,-600]}]);
+      workingNodes.push(['nm','M',['n0','n1','n2'],null,null,null,{merge:true, pos:[43260,-600]}]);
       // A callout on each lineage of a merge, placed where the reader put it.
       ['n0','n1','n2'].forEach((f,i)=> workingNodes.push(['nc'+i, 'note '+i, null, null, null,
         'callout', {pos:[[42600,-1000],[43260,-380],[43900,-1000]][i],
@@ -4912,7 +4920,7 @@ async function main(){
       workingNodes.push(['xb','B','xh',null,null,null,{pos:[69000,-1360]}]);
       workingNodes.push(['xc','C','xh',null,null,null,{pos:[69400,-1260]}]);
       workingNodes.push(['xq','Q',null,null,null,null,{pos:[70500,-1220]}]);
-      workingNodes.push(['xm','M',['xh','xq'],null,null,'amalgam',{pos:[70200,-1020]}]);
+      workingNodes.push(['xm','M',['xh','xq'],null,null,null,{merge:true, pos:[70200,-1020]}]);
       workingNodes.push(['xp','Pocket',null,null,null,null,{border:'wavy', pos:[71200,-1400]}]);
       workingNodes.push(['xpc','PC','xp',null,null,null,{pos:[71200,-1200]}]);
     });
@@ -5430,7 +5438,7 @@ async function main(){
       workingNodes.push(['evP','Parent',null,null,null,null,{pos:[86000,-1700]}]);
       workingNodes.push(['evQ','Other',null,null,null,null,{pos:[86400,-1700]}]);
       workingNodes.push(['evC','Child','evP',null,null,null,{pos:[85700,-1450]}]);
-      workingNodes.push(['evM','M',['evP','evQ'],null,null,'amalgam',{pos:[86200,-1300]}]);
+      workingNodes.push(['evM','M',['evP','evQ'],null,null,null,{merge:true, pos:[86200,-1300]}]);
     });
     refill(EDGE_STYLES, [{from:'evP', to:'evC', fromSide:'bottom', toSide:'top'}]);
     rebuildChart(); await wait(700);
@@ -5645,7 +5653,7 @@ async function main(){
       workingNodes.push(['apA','A parent with a long label',null,null,null,null,{pos:[92000,-1900]}]);
       workingNodes.push(['apB','Other parent',null,null,null,null,{pos:[92300,-1900]}]);
       workingNodes.push(['apC','Child','apA',null,null,null,{pos:[91600,-1650]}]);
-      workingNodes.push(['apM','M',['apA','apB'],null,null,'amalgam',{pos:[92150,-1550]}]);
+      workingNodes.push(['apM','M',['apA','apB'],null,null,null,{merge:true, pos:[92150,-1550]}]);
     });
     // Rounded so the turns can be counted; square is the default.
     refill(EDGE_STYLES, [{from:'apA', to:'apC', fromSide:'bottom', toSide:'right', arrow:true, square:false},
@@ -6812,7 +6820,7 @@ async function main(){
       workingNodes.push(['q1','One',null,null,null,null,{pos:[-320,0]}]);
       workingNodes.push(['q2','Two',null,null,null,null,{pos:[-140,0]}]);
       workingNodes.push(['q3','Three',null,null,null,null,{pos:[40,0]}]);
-      workingNodes.push(['qm','Merge',['q1','q2','q3'],null,null,'amalgam',{pos:[-140,280]}]);
+      workingNodes.push(['qm','Merge',['q1','q2','q3'],null,null,null,{merge:true, pos:[-140,280]}]);
     });
     await wait(750);
     const drops = ()=> [...document.querySelectorAll('#edgeLayer path.edge')]
@@ -7491,7 +7499,7 @@ async function main(){
       for(let i = 0; i < 5; i++)
         workingNodes.push(['sp'+i, 'Parent ' + i, null, null, null, null, {pos:[-400 + i*160, -200]}]);
       workingNodes.push(['sam','Merge', ['sp0','sp1','sp2','sp3','sp4'],
-                         null, null, 'amalgam', {pos:[-100, 200]}]);
+                         null, null, null, {merge:true, pos:[-100, 200]}]);
       workingNodes.push(['sco','', null, null, null, 'callout',
                          {pos:[-560,-40], leader:{from:'sp0', to:'sam', at:0.4}}]);
     });
@@ -7696,7 +7704,7 @@ async function main(){
       for(let i = 0; i < 5; i++)
         workingNodes.push(['tp'+i, 'Parent ' + i, null, null, null, null, {pos:[-400 + i*160, -200]}]);
       workingNodes.push(['tam','Merge', ['tp0','tp1','tp2','tp3','tp4'],
-                         null, null, 'amalgam', {pos:[-100, 200]}]);
+                         null, null, null, {merge:true, pos:[-100, 200]}]);
       workingNodes.push(['tco','', null, null, null, 'callout',
                          {pos:[-560,-40], leader:{from:'tp0', to:'tam', at:0.4}}]);
     });
@@ -8071,7 +8079,7 @@ async function main(){
       workingNodes.length = 0; EDGE_STYLES.length = 0;
       for(let i = 0; i < 3; i++)
         workingNodes.push(['qp'+i, 'Parent ' + i, null, null, null, null, {pos:[-300 + i*200, -260]}]);
-      workingNodes.push(['qam','Merge', ['qp0','qp1','qp2'], null, null, 'amalgam', {pos:[-60,180]}]);
+      workingNodes.push(['qam','Merge', ['qp0','qp1','qp2'], null, null, null, {merge:true, pos:[-60,180]}]);
       workingNodes.push(['qco','Card', null, null, null, 'callout',
                          {pos:[-260,20], leader:{from:'qp0', to:'qam', at:0.5}}]);
     });
@@ -8207,8 +8215,8 @@ async function main(){
                          {pos:[-460,60], bg:['#e8d5ff'], bioCard:true}]);
       workingNodes.push(['sm1','A', null, null, null, null, {pos:[-260,120]}]);
       workingNodes.push(['sm2','B', null, null, null, null, {pos:[-80,120]}]);
-      workingNodes.push(['sAm','Merge', ['sm1','sm2'], null, null, 'amalgam',
-                         {pos:[-180,280], bg:['#fff3d6']}]);
+      workingNodes.push(['sAm','Merge', ['sm1','sm2'], null, null, null,
+                         {merge:true, pos:[-180,280], bg:['#fff3d6']}]);
       workingNodes.push(['sCo','Card', null, null, null, 'callout', {pos:[200,180], bg:['#ffe8e8']}]);
     });
     await wait(1000);
@@ -8365,7 +8373,7 @@ async function main(){
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
   check('the + picks an archetype by its picture',
-        r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
+        r39.pickCount === 4 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
@@ -8527,7 +8535,7 @@ async function main(){
          bar with the entry and takes over any joint it lands on, so an
          entry parked on a landing is the one arrangement where a joint is
          legitimately absent whatever the colours are. */
-      workingNodes.push(['bdM','Merge',['bdA','bdB','bdC'],null,null,'amalgam',{pos:[40,80]}]);
+      workingNodes.push(['bdM','Merge',['bdA','bdB','bdC'],null,null,null,{merge:true, pos:[40,80]}]);
     });
     await wait(900);
     /* Every seam on the bar is marked, whatever the colours meeting there:
@@ -9618,8 +9626,8 @@ async function main(){
       for(let i = 0; i < 3; i++){
         workingNodes.push(['s64p'+i, 'P'+i, null,null,null,null, {pos:[53000+i*220, -9600]}]);
       }
-      workingNodes.push(['s64m','Merged',['s64p0','s64p1','s64p2'],null,null,'amalgam',
-                         {pos:[53250,-9200]}]);
+      workingNodes.push(['s64m','Merged',['s64p0','s64p1','s64p2'],null,null,null,
+                         {merge:true, pos:[53250,-9200]}]);
     });
     rebuildChart(); await wait(400);
     flyToNode('s64m'); await wait(500);
@@ -9822,8 +9830,8 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['s65p', 'P', null,null,null,null, {pos:[60000,-14300]}]);
       workingNodes.push(['s65q', 'Q', null,null,null,null, {pos:[60200,-14300]}]);
-      workingNodes.push(['s65m', 'M', ['s65p','s65q'], null, null, 'amalgam',
-                         {pos:[60100,-13800]}]);
+      workingNodes.push(['s65m', 'M', ['s65p','s65q'], null, null, null,
+                         {merge:true, pos:[60100,-13800]}]);
     });
     rebuildChart(); await wait(400);
     {
@@ -10272,7 +10280,7 @@ async function main(){
       workingNodes.push(['amP1','P1',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['amP2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
       workingNodes.push(['amP3','P3',null,null,null,null,{pos:[X + 400, Y]}]);
-      workingNodes.push(['amM','Merge',['amP1','amP2','amP3'],null,null,'amalgam',{pos:[X + 200, Y + 200]}]);
+      workingNodes.push(['amM','Merge',['amP1','amP2','amP3'],null,null,null,{merge:true, pos:[X + 200, Y + 200]}]);
     });
     await wait(700);
     {
@@ -10617,7 +10625,8 @@ async function main(){
       : 'media/' + sha256(Buffer.from(b64, 'base64')) + '.' + EXT[mime.toLowerCase()]);
   /* …and for the settings of a chart written before entries were records,
      which gain the number of the form they are now written in. */
-  const formed = (n, t) => n === 'SETTINGS' && !/\bformat:/.test(t) ? t.replace('const SETTINGS = {', 'const SETTINGS = {format: 2, ') : t;
+  const formed = (n, t) => n !== 'SETTINGS' ? t : /\bformat:/.test(t) ? t.replace(/\bformat: \d+/, 'format: 3')
+                                                 : t.replace('const SETTINGS = {', 'const SETTINGS = {format: 3, ');
   const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
     .filter(n => first.parts[n] !== formed(n, lifted(regionOf(html, n)))) : ['everything'];
   check('what it sends for an untouched region is that region, byte for byte, but for its pictures', same.length === 0, same.join(', '));
@@ -11382,7 +11391,7 @@ async function main(){
       workingNodes.push(['sw1','P1',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['sw2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
       workingNodes.push(['sw3','P3',null,null,null,null,{pos:[X + 400, Y]}]);
-      workingNodes.push(['swM','Merge',['sw1','sw2','sw3'],null,null,'amalgam',{pos:[X + 200, Y + 200]}]);
+      workingNodes.push(['swM','Merge',['sw1','sw2','sw3'],null,null,null,{merge:true, pos:[X + 200, Y + 200]}]);
     });
     await wait(600);
     {
@@ -11577,7 +11586,7 @@ async function main(){
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       workingNodes.push(['cb1','P1',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['cb2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
-      workingNodes.push(['cbM','Merge',['cb1','cb2'],null,null,'amalgam',{pos:[X + 260, Y + 200]}]);
+      workingNodes.push(['cbM','Merge',['cb1','cb2'],null,null,null,{merge:true, pos:[X + 260, Y + 200]}]);
     });
     await wait(500);
     {
@@ -11776,7 +11785,7 @@ async function main(){
       workingNodes.push(['kmP','P one',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['kmQ','P two',null,null,null,null,{pos:[X + 220, Y]}]);
       workingNodes.push(['kmR','P three',null,null,null,null,{pos:[X + 440, Y]}]);
-      workingNodes.push(['kmM','Merge',['kmP','kmQ','kmR'],null,null,'amalgam',{pos:[X + 220, Y + 300]}]);
+      workingNodes.push(['kmM','Merge',['kmP','kmQ','kmR'],null,null,null,{merge:true, pos:[X + 220, Y + 300]}]);
     });
     await wait(500);
 
@@ -12706,8 +12715,8 @@ async function main(){
       for(let i = 0; i < 3; i++)
         workingNodes.push(['mp' + i, 'Parent ' + i, null, null, null, null,
                            {pos:[X - 200 + i * 200, Y]}]);
-      workingNodes.push(['mam', 'Merge', ['mp0','mp1','mp2'], null, null, 'amalgam',
-                         {pos:[X, Y + 420]}]);
+      workingNodes.push(['mam', 'Merge', ['mp0','mp1','mp2'], null, null, null,
+                         {merge:true, pos:[X, Y + 420]}]);
     });
     await wait(900);
     {
@@ -12925,7 +12934,7 @@ async function main(){
             workingNodes.push(['bp' + i, 'Beast Wars: Uprising', null, null, null, null,
                                {pos:[X + i * 150, Y]}]);
           workingNodes.push(['bm', 'Beast Wars: Uprising', ['bp0','bp1','bp2','bp3'],
-                             null, null, 'amalgam', {pos:[X + 220, Y + 150 - k * 10]}]);
+                             null, null, null, {merge:true, pos:[X + 220, Y + 150 - k * 10]}]);
         });
         const n = nodes.get('bm'), bar = amalgamBars.get('bm');
         bars.push({entry: n.y, bar: bar.cross, gap: n.y - bar.cross});
@@ -12948,7 +12957,7 @@ async function main(){
           workingNodes.push(['mw' + i, 'Parent ' + i, i === 0 ? 'mx' : i === 2 ? 'mw1' : null,
                              null, null, null, {pos:[X + i * 150, Y]}]);
         workingNodes.push(['mm', 'Merge of every one', ['mw0','mw1','mw2','mw3'], null, null,
-                           'amalgam', {pos:[X + 200, Y + 160]}]);
+                           null, {merge:true, pos:[X + 200, Y + 160]}]);
         // A bend set by hand on a connector the merge carries whole.
         refill(EDGE_STYLES, [{from:'mw1', to:'mw2', bends:[[X + 285, Y + 110]]}]);
       });
@@ -13965,7 +13974,7 @@ async function main(){
       out.fabShutAtRest = !shown() && turned() === 'none';
       document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
-      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 4 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
@@ -14222,7 +14231,7 @@ async function main(){
          and a picture — which turns freely, by a handle of its own. */
       out.turnOnlyEntries = !quarterTurnable({shape:'textbox'}) && !quarterTurnable({shape:'image'}) &&
         quarterTurnable({shape:'ellipse'}) && quarterTurnable({card:true}) && quarterTurnable({shape:null}) &&
-        quarterTurnable({shape:'amalgam'}) && quarterTurnable({shape:'callout'});
+        quarterTurnable({shape:'callout'});
       /* …by a button in the style bar, not by a handle on the entry. */
       out.turnHandle = !document.querySelector('.node .node-turn') &&
         !document.querySelector('.node[data-id="bq5"] .node-rotate');
@@ -14596,7 +14605,7 @@ async function main(){
     applyEdit(()=>{
       workingNodes.push(['hmA', 'фыфывфывфыв', null, null, null, null, {pos: at(0, 1200)}]);
       workingNodes.push(['hmB', 'фячсячс', null, null, null, null, {pos: at(G, 1200 + G*18)}]);
-      workingNodes.push(['hmT', 'фывфыв', ['hmA','hmB'], null, null, 'amalgam', {pos: at(G*34, 1200 + G*9)}]);
+      workingNodes.push(['hmT', 'фывфыв', ['hmA','hmB'], null, null, null, {merge:true, pos: at(G*34, 1200 + G*9)}]);
       EDGE_STYLES.push({from:'hmA', to:'hmT', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom'});
       EDGE_STYLES.push({from:'hmB', to:'hmT', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'top'});
     });
@@ -14874,7 +14883,7 @@ async function main(){
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       ['A','B','C','D'].forEach((k, i)=>
         workingNodes.push(['wm' + k, 'P ' + k, null, null, null, null, {pos:[X + i*230, Y]}]));
-      workingNodes.push(['wmM','Merge',['wmA','wmB','wmC','wmD'],null,null,'amalgam',{pos:[X + 260, Y + 320]}]);
+      workingNodes.push(['wmM','Merge',['wmA','wmB','wmC','wmD'],null,null,null,{merge:true, pos:[X + 260, Y + 320]}]);
     });
     await wait(500);
     const memberD = (f)=>{
@@ -15023,8 +15032,8 @@ async function main(){
       workingNodes.push(['rmA','One',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['rmB','Two',null,null,null,null,{pos:[snapToGrid(X + 200), Y]}]);
       workingNodes.push(['rmC','Three',null,null,null,null,{pos:[snapToGrid(X + 600), Y]}]);
-      workingNodes.push(['rmM','Merge',['rmA','rmB'],null,null,'amalgam',
-                         {pos:[snapToGrid(X + 100), snapToGrid(Y + 150)]}]);
+      workingNodes.push(['rmM','Merge',['rmA','rmB'],null,null,null,
+                         {merge:true, pos:[snapToGrid(X + 100), snapToGrid(Y + 150)]}]);
     });
     await wait(400);
     connectNodes('rmC', 'rmM');
@@ -15045,8 +15054,8 @@ async function main(){
       ['A','B','C','D'].forEach((k, i)=>
         workingNodes.push(['ccP' + k, 'P ' + k, null, null, null, null,
                            {pos:[X, snapToGrid(Y + i*120)]}]));
-      workingNodes.push(['ccM','Merge',['ccPA','ccPB','ccPC','ccPD'],null,null,'amalgam',
-                         {pos:[snapToGrid(X + 100), snapToGrid(Y + 170)]}]);
+      workingNodes.push(['ccM','Merge',['ccPA','ccPB','ccPC','ccPD'],null,null,null,
+                         {merge:true, pos:[snapToGrid(X + 100), snapToGrid(Y + 170)]}]);
     });
     await wait(500);
     {
@@ -15217,8 +15226,8 @@ async function main(){
       workingNodes.push(['rdA','One',null,null,null,null,{pos:[X, Y]}]);
       workingNodes.push(['rdB','Two',null,null,null,null,{pos:[snapToGrid(X + 200), Y]}]);
       workingNodes.push(['rdC','Three',null,null,null,null,{pos:[snapToGrid(X + 600), Y]}]);
-      workingNodes.push(['rdM','Merge',['rdA','rdB','rdC'],null,null,'amalgam',
-                         {pos:[snapToGrid(X + 300), snapToGrid(Y + 150)]}]);
+      workingNodes.push(['rdM','Merge',['rdA','rdB','rdC'],null,null,null,
+                         {merge:true, pos:[snapToGrid(X + 300), snapToGrid(Y + 150)]}]);
     });
     await wait(400);
     {
@@ -15555,7 +15564,8 @@ async function main(){
     // Shown once the page has been touched, which it now has.
     const visible = await pp.evaluate(()=>{
       const b = document.getElementById('guideToggle'), r = b.getBoundingClientRect();
-      return getComputedStyle(b).display !== 'none' && r.width >= 36 && r.right <= innerWidth;
+      return getComputedStyle(b).display !== 'none' && r.width >= 30 && r.right <= innerWidth &&
+             !!b.closest('.topbar');
     });
     await pp.tap('#guideToggle');
     await wait(150);
@@ -16031,7 +16041,7 @@ async function main(){
       applyEdit(()=>{
         workingNodes = beforeNodes.slice(); refill(EDGE_STYLES, beforeStyles);
         c.parents.forEach(([dx, dy], i)=> workingNodes.push([ids[i], 'Parent ' + i, null, null, null, null, {pos:[X + dx, Y + dy]}]));
-        workingNodes.push(['mqA', 'Amalgam', ids, null, null, 'amalgam', {pos:[X + c.am[0], Y + c.am[1]]}]);
+        workingNodes.push(['mqA', 'Amalgam', ids, null, null, null, {merge:true, pos:[X + c.am[0], Y + c.am[1]]}]);
       });
       await wait(250);
       const boxes = [...ids, 'mqA'].map(id=> nodes.get(id));
@@ -16336,7 +16346,7 @@ async function main(){
       workingNodes.push(['mbA','One',null,null,null,null,{pos:[X, Y + 400]}]);
       workingNodes.push(['mbB','Two',null,null,null,null,{pos:[X + 260, Y + 400]}]);
       workingNodes.push(['mbC','Three',null,null,null,null,{pos:[X + 520, Y + 400]}]);
-      workingNodes.push(['mbM','Merge',['mbA','mbB','mbC'],null,null,'amalgam',{pos:[X + 260, Y + 600], border:'wavy'}]);
+      workingNodes.push(['mbM','Merge',['mbA','mbB','mbC'],null,null,null,{merge:true, pos:[X + 260, Y + 600], border:'wavy'}]);
     });
     await wait(400);
     vs = 1.2; vx = 600 - (X + 300) * vs; vy = 300 - (Y + 450) * vs; applyTransform();
@@ -16350,7 +16360,7 @@ async function main(){
     openEdgeStylePopover('', 'mbM', {clientX:500, clientY:400, stopPropagation(){}});
     await wait(200);
     out.outGlows = !!document.querySelector('.amalgam-out.edge-picked[data-to="mbM"]') &&
-                   document.getElementById('styleFillRow').hidden &&
+                   !document.getElementById('styleFillRow').hidden &&
                    deleteOpenConnector() === false;
     closeEdgePopover(); await wait(150);
 
@@ -16518,7 +16528,7 @@ async function main(){
   check('the legend takes rows of the author\'s own, and readers do not see it',
         r.legendOwnRow && r.legendHiddenForReader, JSON.stringify({own:r.legendOwnRow, hidden:r.legendHiddenForReader}));
   check('an amalgam may ripple', r.amalgamRipples);
-  check('the merged arrow can be pointed at, styled and lit, but not repainted or deleted',
+  check('the merged arrow can be pointed at, styled, repainted and lit, but not deleted',
         r.outHit && r.outDashed && r.outGlows, JSON.stringify({hit:r.outHit, dash:r.outDashed, glow:r.outGlows}));
   check('a click picks out the bar', r.barFocused);
   check('a picked bar glows as a picked connector does, along the bar only', r.barLitAsPicked, r.barGlow);
@@ -16845,7 +16855,7 @@ async function main(){
       workingNodes.push(['p1','One',null,null,null,null,{pos:[0,0], colors:['#4444dd']}]);
       workingNodes.push(['p2','Two',null,null,null,null,{pos:[0,120], colors:['#cccc33']}]);
       workingNodes.push(['p3','Three',null,null,null,null,{pos:[0,240], colors:['#dd33cc']}]);
-      workingNodes.push(['m','Merged',['p1','p2','p3'],null,null,'amalgam',{pos:[300,153]}]);
+      workingNodes.push(['m','Merged',['p1','p2','p3'],null,null,null,{merge:true, pos:[300,153]}]);
     });
     await wait(400);
     window.amalgamStem = orig;
@@ -17213,7 +17223,7 @@ async function main(){
       applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
         workingNodes.push(['fa', 'First\nline', null, null, 'A note', null, {pos:[0, 0], tags:['x'], colors:['#cc2222']}]);
         workingNodes.push(['fb', 'Second', 'fa', 'via', null, 'callout', {pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}}]);
-        workingNodes.push(['fc', 'Third', ['fa', 'fb'], null, null, 'amalgam']);
+        workingNodes.push(['fc', 'Third', ['fa', 'fb'], null, null, null, {merge:true}]);
         workingNodes.push(['fd', 'Fourth']);
       });
       const text = serializeNodes(workingNodes);
@@ -17224,12 +17234,12 @@ async function main(){
       out.trips = workingNodes.filter(it=> norm(entryOfRecord(recordOfEntry(it))) !== norm(it)).map(it=> [norm(it), norm(entryOfRecord(recordOfEntry(it)))]);
       out.named = out.lines[1] === "  {id:'fb', label:'Second', parent:'fa', edgeLabel:'via', shape:'callout', pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}},";
       const file = chartDataOnly();
-      out.settingsSay = /const SETTINGS = \{format: 2,/.test(file);
+      out.settingsSay = /const SETTINGS = \{format: 3,/.test(file);
       // Read back as this file, as the list form older pages wrote, and from a newer page.
       const listForm = file.replace(/(@@EDIT:NODES:START@@ \*\/\n)[\s\S]*?(\n\/\* @@EDIT:NODES:END)/,
         (m0, a, b)=> a + 'const NODES = [\n' + workingNodes.map(it=> '  ' + JSON.stringify(it.slice(0, 7)) + ',').join('\n') + '\n];' + b)
-        .replace('{format: 2, ', '{');
-      const newer = file.replace('{format: 2,', '{format: 3,');
+        .replace('{format: 3, ', '{');
+      const newer = file.replace('{format: 3,', '{format: 4,');
       const wanted = JSON.stringify(workingNodes.map(norm));
       applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
       importChartFromText(file);
@@ -17277,7 +17287,7 @@ async function main(){
           i > 0 ? 'rm' + Math.max(0, i - 1 - Math.floor(rnd()*cols)) : null, null, null, null,
           {pos:[(i % cols)*170 + (rnd()-0.5)*40, Math.floor(i / cols)*110 + (rnd()-0.5)*30],
            colors: i % 7 === 0 ? ['#cc2222', '#2222cc'] : undefined, border: i % 9 === 0 ? 'wavy' : undefined}]);
-        workingNodes.push(['rmA', 'Merge', ['rm3', 'rm12'], null, null, 'amalgam', {pos:[600, 1000]}]);
+        workingNodes.push(['rmA', 'Merge', ['rm3', 'rm12'], null, null, null, {merge:true, pos:[600, 1000]}]);
         EDGE_STYLES.push({from:'rm1', to:'rm2', routing:'curve', dash:'dashed', arrow:true});
         EDGE_STYLES.push({from:'rm4', to:'rm5', routing:'straight', dash:'double', arrow:true});
       });
@@ -18474,7 +18484,8 @@ async function main(){
     await new Promise(ok=> setTimeout(ok, 200));
     out.stored = !!edgeStyleFor('cn_a', 'cn_b').noteAlong &&
                  /noteAlong:true/.test(serializeEdgeStyles(EDGE_STYLES));
-    out.framesGreyed = !!document.querySelector('#styleBar [data-group="frame"] button:disabled');
+    // Its frame is offered there too, now that a band can frame it (0.16.0).
+    out.framesGreyed = !document.querySelector('#styleBar [data-group="frame"] button:disabled');
     closeStyleBar();
     const g = document.querySelector('.edge-note[data-from="cn_a"][data-to="cn_b"]');
     const tp = g && g.querySelector('textPath');
@@ -18505,7 +18516,7 @@ async function main(){
   });
   check('a note on a curve stands on the curve', r.note < 1.5, JSON.stringify(r));
   check('and so does a callout\'s dot', r.dot < 1.5, JSON.stringify(r));
-  check('a note can be written along its line, from its bar',
+  check('a note can be written along its line, from its bar, and may still be framed',
         r.button && r.stored && r.alongDrawn && r.framesGreyed, JSON.stringify(r));
   check('and keeps its side at one distance all along the curve', r.alongEven, JSON.stringify(r.alongOffset));
   check('and a line running leftwards is still written upright', r.upright, String(r.upright));
@@ -18529,7 +18540,7 @@ async function main(){
         refill(EDGE_STYLES, EDGE_STYLES.filter(x=> !/^sl/.test(x.to)));
         ids.forEach((id, i)=> workingNodes.push([id, 'Lineage ' + 'ABCDE'[i], null, null, null, null,
           {pos:[X + G*14*i, Y + G*lift[i]]}]));
-        workingNodes.push(['slM', 'Amalgam', ids, null, null, 'amalgam', {pos:[X + G*under, Y + G*30]}]);
+        workingNodes.push(['slM', 'Amalgam', ids, null, null, null, {merge:true, pos:[X + G*under, Y + G*30]}]);
         straight.forEach(i=> EDGE_STYLES.push({from: ids[i], to: 'slM', routing: 'straight'}));
       });
     };
@@ -19036,7 +19047,7 @@ async function main(){
           {pos:[4000, 3000], tags:['x'], colors:['#cc2222'], bg:['#ffffff'], border:'dashed', square:true,
            langTabs:[{tag:'JP', text:'あ'}], multiLang:true, link:'https://example.com'}]);
         workingNodes.push(['js_b', 'B', 'js_a', null, null, 'callout', {pos:[4300, 3000], leader:{from:'js_a', to:'js_c', at:0.25, line:'dashed'}}]);
-        workingNodes.push(['js_c', 'C', ['js_a', 'js_b'], null, null, 'amalgam', {bar:{k:'x', lead:40}}]);
+        workingNodes.push(['js_c', 'C', ['js_a', 'js_b'], null, null, null, {merge:true, bar:{k:'x', lead:40}}]);
         workingNodes.push(['js_d', 'Frame', null, null, null, 'array', {members:['js_a', 'js_b'], hatch:'vert'}]);
         EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true,
                           note:'on it', notePos:'on', noteAt:0.3, bends:[[4100, 2950]], bendSides:['right', 'left'],
@@ -19070,7 +19081,7 @@ async function main(){
         JSON.stringify(errsOwners && errsOwners.slice(0, 3).map(e => [e.dataPath, e.message, JSON.stringify(e.dataPath.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => o && o[k], owners))])));
   check('and so is one with every kind of thing a chart holds', okFull, JSON.stringify(errsFull && errsFull.slice(0, 3)));
   check('it names its schema and its form, at the top', full.$schema === 'https://cccarrrottt.github.io/chart.schema.json' &&
-        full.format === 2 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
+        full.format === 3 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
   check('one entry to a line, so two exports compare line by line', r.oneToALine);
   check('Import reads it back to the same chart', r.back, JSON.stringify(r.diff));
   check('a JSON chart from a newer page is refused', /newer version/.test(r.newer), r.newer);
@@ -19306,14 +19317,27 @@ async function main(){
       fileMoves(new File([bytes(STILL_PNG)], 'b.png', {type:'image/png'}))])).join();
     out.keptWhole = (await stickerDataFromFile(new File([bytes(WEBP)], 'a.webp', {type:'image/webp'}), null, true)) === WEBP;
 
-    /* The bar offers the three ways on a picture that moves, and not on
-       one that cannot. */
-    const anim = ()=> styleBar.querySelector('[data-group="anim"]');
-    openStyleBar({kind:'node', id:'tw_s'}); await wait(50);
+    /* The three ways are a player's buttons, over the picture while the
+       pointer is on it — not a row of the style bar — and only on a
+       picture that moves. */
+    const anim = ()=> document.getElementById('picturePlayer');
+    const pointAt = (id)=>{
+      const im = document.querySelector('.node[data-id="' + id + '"] > image');
+      const rr = im.getBoundingClientRect();
+      const x = rr.left + rr.width / 2, y = rr.top + rr.height / 2;
+      const target = document.elementFromPoint(x, y) || im;
+      target.dispatchEvent(new PointerEvent('pointermove', {bubbles:true, clientX:x, clientY:y}));
+      return rr;
+    };
+    pointAt('tw_s'); await wait(50);
     out.stillOffered = !anim().hidden;
-    closeStyleBar();
-    openStyleBar({kind:'node', id:'tw_i'}); await wait(50);
-    out.offered = !anim().hidden && !styleBar.hidden;
+    out.notInBar = !styleBar.querySelector('[data-group="anim"]');
+    const box = pointAt('tw_i'); await wait(50);
+    out.offered = !anim().hidden;
+    const pr = anim().getBoundingClientRect();
+    // Centred on the picture's foot, inside it.
+    out.overPicture = Math.abs((pr.left + pr.right) / 2 - (box.left + box.right) / 2) < 1.5 &&
+                      pr.bottom <= box.bottom + 0.5 && pr.bottom > box.top;
     out.playLit = !!anim().querySelector('button.on[data-value="play"]');
     out.values = [...anim().querySelectorAll('button[data-value]')].map(b=> b.dataset.value).join();
     const href = ()=> document.querySelector('.node[data-id="tw_i"] > image').getAttribute('href');
@@ -19323,6 +19347,7 @@ async function main(){
     const rec = workingEntry('tw_i');
     out.stored = rec && entryOpts(rec.entry).anim === 'still' && nodes.get('tw_i').anim === 'still';
     out.stillDrawn = /^data:image\/png/.test(href() || '');
+    out.stillLit = !!anim().querySelector('button.on[data-value="still"]');
     anim().querySelector('button[data-value="hover"]').click();
     await wait(300);
     out.hoverStill = /^data:image\/png/.test(href() || '');
@@ -19334,6 +19359,13 @@ async function main(){
     anim().querySelector('button[data-value="play"]').click();
     await wait(200);
     out.backToPlay = href() === GIF && !('anim' in entryOpts(workingEntry('tw_i').entry));
+    document.body.dispatchEvent(new PointerEvent('pointermove', {bubbles:true, clientX:2, clientY:2}));
+    await wait(400);
+    out.playerGoes = anim().hidden;
+    markReadOnly(false); await wait(150);
+    pointAt('tw_i'); await wait(50);
+    out.readerNoPlayer = anim().hidden || getComputedStyle(anim()).display === 'none';
+    markEditable(); await wait(200);
     closeStyleBar();
 
     /* A sticker moves, stands still or moves on hover too — chosen in its
@@ -19404,12 +19436,17 @@ async function main(){
         r.moves === 'true,true,true,false,false', r.moves);
   check('…a chosen file is asked the same, and one that moves is kept byte for byte',
         r.fileMoves === 'true,true,false' && r.keptWhole, r.fileMoves + ' ' + r.keptWhole);
-  check('the bar offers moving, still and on hover for a picture that moves, and nothing for one that cannot',
-        r.offered && !r.stillOffered && r.values === 'play,still,hover' && r.playLit && r.playing, JSON.stringify([r.offered, r.stillOffered, r.values, r.playLit, r.playing]));
-  check('…still is written on the entry and draws the first frame', r.stored && r.stillDrawn, JSON.stringify([r.stored, r.stillDrawn]));
+  check('a picture that moves shows a player over itself under the pointer — moving, still, on hover — and one that cannot shows none',
+        r.offered && r.overPicture && !r.stillOffered && r.values === 'play,still,hover' && r.playLit && r.playing,
+        JSON.stringify([r.offered, r.overPicture, r.stillOffered, r.values, r.playLit, r.playing]));
+  check('…and the style bar has no row for it any more', r.notInBar);
+  check('…still is written on the entry, draws the first frame and lights its button',
+        r.stored && r.stillDrawn && r.stillLit, JSON.stringify([r.stored, r.stillDrawn, r.stillLit]));
   check('…on hover it stands still until the pointer is on it, and stops when it leaves',
         r.hoverStill && r.hoverPlays && r.hoverStops, JSON.stringify([r.hoverStill, r.hoverPlays, r.hoverStops]));
   check('…and moving again is the absence of the field', r.backToPlay, String(r.backToPlay));
+  check('…the player goes when the pointer leaves the picture, and a reader is never shown it',
+        r.playerGoes && r.readerNoPlayer, JSON.stringify([r.playerGoes, r.readerNoPlayer]));
   check('a sticker that moves is offered the same in its cell, written on its record and drawn still',
         r.cellOffers && r.stickerStored && r.stickerStill, JSON.stringify([r.cellOffers, r.stickerStored, r.stickerStill]));
   check('…a sticker from a file keeps a way of moving it knows, and drops one it does not',
@@ -19420,6 +19457,275 @@ async function main(){
   check('a portrait is called a Character', r.named.split(' | ').every(x=> /^Character\b/.test(x)) && !/bio/i.test(r.named), r.named);
   check('the app\'s icons are pictures of the R·P, and the old drawn one is gone',
         r.icons && !/svg/.test(r.icons) && /icon-192\.png/.test(r.icons) && !r.swSvg, JSON.stringify({icons: r.icons, sw: r.swSvg}));
+  });
+  await scenario("a merge is made of connectors, not of an entry of its own", async () => {
+  /* There is no amalgam entry any more: two connectors into one entry are
+     merged from the connector's own menu, the entry they meet in becomes
+     the merge, and every stretch of it is a connector with ends and paint
+     of its own. A chart that still has the old kind opens as the new. */
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 52000, Y = 52000;
+    try{
+      /* The old kind: an 'amalgam' entry, with the colours the old editor
+         used to store for it, opens as a box that merges. */
+      const old = [['ol_a','A',null,null,null,null,{}], ['ol_b','B',null,null,null,null,{}],
+                   ['ol_m','M',['ol_a','ol_b'],null,null,'amalgam',{colors:['#111111','#222222']}],
+                   ['ol_s','Solo','ol_a',null,null,'amalgam',{colors:['#333333']}]];
+      migrateAmalgams(old);
+      out.migrated = old[2][5] === null && old[2][6].merge === true && !('colors' in old[2][6]) &&
+                     old[3][5] === null && old[3][6].merge === true && old[3][6].colors[0] === '#333333';
+      out.shapeGone = ![...document.querySelectorAll('#editShapeInput option')].some(o=> o.value === 'amalgam');
+
+      applyEdit(()=>{
+        workingNodes.push(['mg_a','A',null,null,null,null,{pos:[X, Y], colors:['#c23b22']}]);
+        workingNodes.push(['mg_b','B',null,null,null,null,{pos:[X + 300, Y], colors:['#2f6fb5']}]);
+        workingNodes.push(['mg_c','C',null,null,null,null,{pos:[X + 600, Y], colors:['#1d7a5f']}]);
+        workingNodes.push(['mg_m','M',['mg_a','mg_b','mg_c'],null,null,null,{pos:[X + 300, Y + 300]}]);
+      });
+      await wait(300);
+      out.notYet = !isMergeNode(nodes.get('mg_m')) && mergeOffersFor('mg_a','mg_m').merge;
+      /* Merged from the connector's menu, as a press-and-hold or a right
+         click on it opens it. */
+      openEdgeStylePopover('mg_a', 'mg_m', {clientX:400, clientY:300, stopPropagation(){}});
+      openTouchMenu(400, 300, 'edge', true);
+      const btn = [...touchMenu.querySelectorAll('button')].find(b=> b.dataset.act === 'merge' || /Merge/.test(b.textContent));
+      out.menuOffers = !!btn && !btn.hidden;
+      if(btn) btn.click();
+      await wait(300);
+      out.merged = isMergeNode(nodes.get('mg_m')) && document.querySelectorAll('.amalgam-out[data-to="mg_m"]').length === 1;
+      out.allJoin = mergeMembersOf(nodes.get('mg_m')).length === 3;
+      out.gradientBorder = /^url\(#/.test(document.querySelector('[data-id="mg_m"] > rect[stroke]').getAttribute('stroke') || '');
+
+      /* Each stretch has ends of its own: one at its start, and one where
+         it joins the bar; the merged arrow has both of its own too. */
+      applyEdit(()=>{
+        setEdgeStyleOverride('mg_a','mg_m', Object.assign({}, edgeStyleFor('mg_a','mg_m'), {arrowIn:true, barEnd:'out'}));
+        setEdgeStyleOverride('mg_c','mg_m', Object.assign({}, edgeStyleFor('mg_c','mg_m'), {gradient:['#eeaa00','#1d7a5f']}));
+        setEdgeStyleOverride('','mg_m', Object.assign({}, edgeStyleFor('','mg_m'), {arrowIn:true, teeIn:true, teeOut:true, color:'#7a3fb0', colorFixed:true}));
+      });
+      await wait(300);
+      out.memberHeads = document.querySelectorAll('[data-from="mg_a"][data-to="mg_m"].edge-arrow, .edge-arrow[data-from="mg_a"][data-to="mg_m"]').length;
+      const memberC = document.querySelector('.amalgam-member[data-from="mg_c"]');
+      out.memberGradient = !!memberC && /^url\(#/.test(memberC.getAttribute('stroke') || '');
+      const outPath = document.querySelector('.amalgam-out[data-to="mg_m"]');
+      out.outColour = outPath && outPath.getAttribute('stroke');
+      out.outHeads = document.querySelectorAll('.edge-arrow[data-from=""][data-to="mg_m"]').length;
+      out.noBeadUnderHead = !document.querySelector('.amalgam-junction[data-to="mg_m"]') ||
+                            !!edgeStyleFor('', 'mg_m').arrowIn;
+      /* The style bar's end on a merged stretch is the head at the bar. */
+      openStyleBar({kind:'edge', from:'mg_b', to:'mg_m'});
+      await wait(100);
+      const endOut = styleBar.querySelector('[data-group="endOut"] button[data-value="tout"]');
+      out.barEndOffered = !!endOut && !endOut.disabled;
+      if(endOut) endOut.click();
+      await wait(250);
+      out.barEndWritten = edgeStyleFor('mg_b','mg_m').barEnd === 'tout' && edgeStyleFor('mg_b','mg_m').arrow !== false;
+      closeStyleBar();
+
+      /* Unmerged the same way: one lineage leaves, the rest still merge;
+         on the merged arrow, the whole merge goes. */
+      unmergeEdge('mg_c','mg_m'); await wait(250);
+      out.oneLeft = isMergeNode(nodes.get('mg_m')) && mergeMembersOf(nodes.get('mg_m')).length === 2 &&
+                    Array.isArray(entryOpts(workingEntry('mg_m').entry).merge);
+      unmergeEdge('','mg_m'); await wait(250);
+      out.allGone = !isMergeNode(nodes.get('mg_m')) && !('merge' in entryOpts(workingEntry('mg_m').entry)) &&
+                    !document.querySelector('.amalgam-out[data-to="mg_m"]');
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      refill(EDGE_STYLES, beforeStyles); });
+      if(typeof closeTouchMenu === 'function') closeTouchMenu();
+      closeEdgePopover();
+      await wait(200);
+    }
+    return out;
+  });
+  check('an amalgam saved before opens as an entry that merges, keeping a colour only where it had one lineage',
+        r.migrated && r.shapeGone, JSON.stringify({m:r.migrated, s:r.shapeGone}));
+  check('two connectors into one entry are merged from the connector’s menu',
+        r.notYet && r.menuOffers && r.merged && r.allJoin, JSON.stringify({n:r.notYet, o:r.menuOffers, m:r.merged, a:r.allJoin}));
+  check('the entry they meet in wears their colours as a gradient', r.gradientBorder);
+  check('a merged stretch has ends, and a gradient, of its own',
+        r.memberHeads >= 2 && r.memberGradient, JSON.stringify({heads:r.memberHeads, grad:r.memberGradient}));
+  check('the merged arrow takes a colour and both ends of its own',
+        r.outColour === '#7a3fb0' && r.outHeads >= 2 && r.noBeadUnderHead,
+        JSON.stringify({c:r.outColour, h:r.outHeads}));
+  check('the style bar’s end on a merged stretch is the head at the bar',
+        r.barEndOffered && r.barEndWritten);
+  check('unmerging one lineage keeps the others merged, and on the merged arrow ends the merge',
+        r.oneLeft && r.allGone, JSON.stringify({one:r.oneLeft, all:r.allGone}));
+  });
+  await scenario("the owner's list of 23.10, evening: the toolbar, words along a line, arrays", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 74000, Y = 74000;
+    try{
+      /* Undo, redo and the guides: small, on the toolbar under the counts,
+         for whoever edits — a mouse included — and for nobody else. */
+      const stats = document.querySelector('.topbar-stats').getBoundingClientRect();
+      const tools = [...document.querySelectorAll('.topbar-tools button')].map(b=> b.getBoundingClientRect());
+      out.toolsUnderCounts = tools.length === 3 && tools.every(t=> t.top >= stats.bottom - 0.5 && t.height > 0 && t.height <= 20 &&
+                                                         t.right <= stats.right + 0.5);
+      out.inTopbar = !!document.getElementById('guideToggle').closest('.topbar') &&
+                     !!document.getElementById('touchTools').closest('.topbar');
+      markReadOnly(false); await wait(150);
+      out.readerNoTools = getComputedStyle(document.querySelector('.topbar-tools')).display === 'none';
+      markEditable(); await wait(200);
+
+      /* Words along a line stay level with the point they ride on when
+         the side is changed: the copy of the line above an elbow is not
+         as long as the one below it. */
+      applyEdit(()=>{
+        workingNodes.push(['ev_a','From',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['ev_b','To','ev_a',null,null,null,{pos:[X + 420, Y + 120]}]);
+        EDGE_STYLES.push({from:'ev_a', to:'ev_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          note:'along here', noteAt:0.75, noteAlong:true});
+      });
+      await wait(300);
+      // An edit made with a mouse lights undo, with no touch in between.
+      out.undoLit = !document.querySelector('#touchTools [data-act="undo"]').disabled;
+      const centreAt = async (pos)=>{
+        applyEdit(()=>{ EDGE_STYLES.find(s=> s.from === 'ev_a' && s.to === 'ev_b').notePos = pos; });
+        await wait(250);
+        const t = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along');
+        const b = t.getBoundingClientRect();
+        return (b.left + b.right) / 2;
+      };
+      const xs = [await centreAt('above'), await centreAt('on'), await centreAt('below')];
+      out.sideXs = xs.map(v=> +v.toFixed(1));
+      out.levelAcrossSides = Math.max(...xs) - Math.min(...xs) < 1.5;
+      out.unframedByDefault = !document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
+
+      /* …and may be framed, from the style bar's frame button, by a band
+         that bends with the words. */
+      openStyleBar({kind:'note', from:'ev_a', to:'ev_b'}); await wait(80);
+      const frameBtn = styleBar.querySelector('[data-group="frame"] button[data-value="frame"]');
+      out.frameOffered = !!frameBtn && !frameBtn.disabled;
+      if(frameBtn) frameBtn.click();
+      await wait(250);
+      out.frameStored = edgeStyleFor('ev_a','ev_b').noteAlongFrame === true;
+      const frame = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
+      const ground = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-ground');
+      out.frameDrawn = !!frame && !!ground && +frame.getAttribute('stroke-width') > +ground.getAttribute('stroke-width');
+      if(frame){
+        const t = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along').getBoundingClientRect();
+        const f = frame.getBoundingClientRect();
+        out.frameRoundWords = f.left <= t.left + 0.5 && f.right >= t.right - 0.5;
+      }
+      const cornersBtn = styleBar.querySelector('[data-group="corners"] button');
+      out.cornersOffered = !!cornersBtn && !cornersBtn.disabled;
+      out.savedAsSuch = /noteAlongFrame:true/.test(serializeEdgeStyles ? serializeEdgeStyles(EDGE_STYLES) : chartDataOnly());
+      closeStyleBar();
+      // The face of the button is drawn as the font draws its arrows.
+      const glyph = styleBar.querySelector('[data-group="noteAlong"] svg');
+      out.glyphThin = !!glyph && +glyph.getAttribute('stroke-width') <= 1.4 && glyph.getAttribute('stroke-linecap') === 'round';
+
+      /* An entry in an array is not connected to the array, nor the array
+         to it; a cross at the pointer says so while the connector is
+         aimed, and letting go there connects nothing. */
+      applyEdit(()=>{
+        workingNodes.push(['ev_m','Member',null,null,null,null,{pos:[X, Y + 500]}]);
+        workingNodes.push(['ev_o','Outsider',null,null,null,null,{pos:[X + 600, Y + 500]}]);
+        workingNodes.push(['ev_r','Frame',null,null,null,'array',{members:['ev_m']}]);
+      });
+      await wait(350);
+      out.refusals = [connectRefusal('ev_m','ev_r'), connectRefusal('ev_r','ev_m'), connectRefusal('ev_o','ev_r'),
+                      connectRefusal('ev_a','ev_b')].map(x=> x ? 'no' : 'yes').join();
+      const rv = svg.getBoundingClientRect();
+      vs = 1; vx = rv.width / 2 - (X + 300); vy = rv.height / 2 - (Y + 500); applyTransform();
+      await wait(200);
+      const m = nodes.get('ev_m');
+      beginConnectorDrag({button:0, stopPropagation(){}, preventDefault(){}}, m, 'right', 0);
+      // Onto the array's frame, clear of the member inside it.
+      const ra = nodes.get('ev_r');
+      const toClient = (x, y)=> ({x: rv.left + vx + x * vs, y: rv.top + vy + y * vs});
+      const onFrame = toClient(ra.x + 1.5, ra.y + ra.h / 2);
+      const hitEl = document.elementFromPoint(onFrame.x, onFrame.y);
+      out.aimedAtArray = !!(hitEl && hitEl.closest && hitEl.closest('.node[data-id="ev_r"]'));
+      window.dispatchEvent(new MouseEvent('mousemove', {clientX:onFrame.x, clientY:onFrame.y, bubbles:true}));
+      await wait(60);
+      const mark = document.querySelector('.connector-refused');
+      out.crossShown = !!mark && mark.style.display !== 'none';
+      out.notLit = !document.querySelector('.node[data-id="ev_r"].connect-target');
+      window.dispatchEvent(new MouseEvent('mouseup', {clientX:onFrame.x, clientY:onFrame.y, bubbles:true}));
+      await wait(250);
+      out.notConnected = !(nodes.get('ev_r').parents || []).includes('ev_m');
+      out.crossGone = mark.style.display === 'none';
+      // An entry it may join takes no cross.
+      beginConnectorDrag({button:0, stopPropagation(){}, preventDefault(){}}, m, 'right', 0);
+      const o = nodes.get('ev_o');
+      const onOut = toClient(o.x + o.w / 2, o.y + o.h / 2);
+      window.dispatchEvent(new MouseEvent('mousemove', {clientX:onOut.x, clientY:onOut.y, bubbles:true}));
+      await wait(60);
+      out.noCrossOnAllowed = mark.style.display === 'none';
+      window.dispatchEvent(new MouseEvent('mouseup', {clientX:onOut.x, clientY:onOut.y, bubbles:true}));
+      await wait(250);
+      out.allowedConnects = (nodes.get('ev_o').parents || []).includes('ev_m');
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      refill(EDGE_STYLES, beforeStyles); });
+      closeStyleBar();
+      await wait(200);
+    }
+    return out;
+  });
+  check('undo, redo and the guides are small buttons under the counts on the toolbar',
+        r.toolsUnderCounts && r.inTopbar, JSON.stringify({under:r.toolsUnderCounts, bar:r.inTopbar}));
+  check('…and a reader has none of them', r.readerNoTools);
+  check('…and undo lights after an edit made with a mouse', r.undoLit);
+  check('words along a line stay level with their point when moved above, onto or below it',
+        r.levelAcrossSides, JSON.stringify(r.sideXs));
+  check('words along a line are bare until framed, and the frame button frames them with a band that bends with them',
+        r.unframedByDefault && r.frameOffered && r.frameStored && r.frameDrawn && r.frameRoundWords && r.cornersOffered && r.savedAsSuch,
+        JSON.stringify({bare:r.unframedByDefault, offered:r.frameOffered, stored:r.frameStored, drawn:r.frameDrawn,
+                        round:r.frameRoundWords, corners:r.cornersOffered, saved:r.savedAsSuch}));
+  check('the along-the-line button is drawn as the bar’s other arrows are', r.glyphThin);
+  check('an entry in an array cannot be connected to the array, nor the array to it',
+        r.refusals === 'no,no,yes,no', r.refusals);
+  check('a connector aimed where it cannot end shows a cross, and letting go there connects nothing',
+        r.aimedAtArray && r.crossShown && r.notLit && r.notConnected && r.crossGone,
+        JSON.stringify({aimed:r.aimedAtArray, cross:r.crossShown, unlit:r.notLit, none:r.notConnected, gone:r.crossGone}));
+  check('…and aimed where it can, no cross, and it connects', r.noCrossOnAllowed && r.allowedConnects);
+
+  /* The guides button means Shift to a mouse too: a carry made with it lit
+     is offered the guides. Real mouse events, since the stand-in is only
+     made for those. */
+  const g = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    window.__evBefore = workingNodes.map(x=> x.slice());
+    applyEdit(()=>{
+      workingNodes.push(['ev_g1','Anchor',null,null,null,null,{pos:[76000, 76000]}]);
+      workingNodes.push(['ev_g2','Mover',null,null,null,null,{pos:[76300, 76200]}]);
+    });
+    await wait(300);
+    const rv = svg.getBoundingClientRect();
+    vs = 1; vx = rv.width / 2 - 76150; vy = rv.height / 2 - 76100; applyTransform();
+    await wait(200);
+    document.getElementById('guideToggle').click();
+    const n = nodes.get('ev_g2'), a = nodes.get('ev_g1');
+    return {from: {x: rv.left + vx + n.x + n.w / 2, y: rv.top + vy + n.y + n.h / 2},
+            to: {x: rv.left + vx + a.x + a.w / 2 + 2, y: rv.top + vy + n.y + n.h / 2 + 60}};
+  });
+  await page.mouse.move(g.from.x, g.from.y);
+  await page.mouse.down();
+  for(let i = 1; i <= 10; i++){
+    await page.mouse.move(g.from.x + (g.to.x - g.from.x) * i / 10, g.from.y + (g.to.y - g.from.y) * i / 10);
+    await new Promise(ok=> setTimeout(ok, 20));
+  }
+  const guided = await page.evaluate(()=> document.querySelectorAll('#guideLayer .align-guide, .align-guide').length);
+  await page.mouse.up();
+  await page.evaluate(async ()=>{
+    document.getElementById('guideToggle').click();
+    applyEdit(()=>{ workingNodes.length = 0; window.__evBefore.forEach(x=> workingNodes.push(x)); });
+    await new Promise(ok=> setTimeout(ok, 200));
+  });
+  check('the guides button stands in for Shift under a mouse too', guided > 0, String(guided));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

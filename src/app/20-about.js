@@ -11,9 +11,15 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.15.0';
+const APP_VERSION = '0.16.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.16.0', date:'2026-10-23', title:'Merged by hand', notes:[
+'A merge is no longer a kind of entry. Two connectors running into one entry are merged from the connector\u2019s menu \u2014 press and hold, or a right click \u2014 and the entry they meet in becomes the merge: one bar, one arrow, its border and words in the lineages\u2019 colours, or in a border colour of its own. Unmerge takes a lineage out, and on the merged arrow ends the merge. Every stretch of it is a connector like any other, with its own line, colour, gradient and ends, the merged arrow too. A chart with amalgams opens with them as merges, drawn as before.',
+'A moving picture is played, stopped or set to move on hover by a player\u2019s buttons over the picture itself. Undo, redo and the guides are small buttons under the counts on the toolbar, for a mouse as much as a finger.',
+'Words along a line can be framed by a band that bends with them, and stay level with their point when moved above, onto or below the line. An entry in an array cannot be connected to the array, and a cross at the pointer says so while a connector is aimed where it cannot end.',
+'Also in this version: a connector\u2019s note can be written along its line; an array has a link of its own; the chart can be read as text and exported as JSON; a Save on the site is merged with one made elsewhere rather than refused; the site loads in about half the time; and an edit on a large chart is about twice as quick again.',
+  ]},
   {v:'0.15.0', date:'2026-10-21', title:'In one frame', notes:[
 'Arrays: entries picked together can be put in a frame of their own \u2014 Ctrl+G, Array on the add menu, or Array in the long-press menu on a phone. The frame is worked out from where its entries stand, so carrying one stretches it and carrying it by its tab carries them all; their own borders stay as they were. It has ports for connectors, a border style, corners, a colour and a ground that may be hatched in four directions, and it may hold another array. Ctrl+Shift+G takes it away and leaves everything in it.',
 'A connector\u2019s end can be a T instead of an arrow \u2014 a bar across the line, standing off the entry \u2014 the mark for broad strokes. Either end may wear one, from the connector\u2019s bar.',

@@ -160,8 +160,7 @@ function ringStepFor(n){ return isWavyBorder(n) ? POCKET_RING_STEP : RING_STEP; 
    archetypes that paint their scenery from the first colour only ever have
    one. */
 function ringCountOf(n){
-  const shape = (n && n.shape) || '';
-  if(shape === 'amalgam') return 1;
+  if(mergePainted(n)) return 1;
   return (n && n.colors && n.colors.length) ? n.colors.length : 1;
 }
 /* Written the way they are read. A hyphen is how a tag has to be written
@@ -605,9 +604,11 @@ const componentMeta = []; // [{ids, origin:{x,y}, bbox}]
  * page, an export, a pull from claude.ai — opens as it did.
  *
  * DATA_FORMAT counts the forms, and is written into the chart's settings
- * with every save. 1 was the list, 2 is the record. A file from a page with
- * a higher number is refused at import rather than half-read. */
-const DATA_FORMAT = 2;
+ * with every save. 1 was the list, 2 is the record, 3 the merge as a
+ * property of the entry the lineages join rather than a kind of entry (see
+ * migrateAmalgams). A file from a page with a higher number is refused at
+ * import rather than half-read. */
+const DATA_FORMAT = 3;
 const ENTRY_FIELDS = ['id', 'label', 'parent', 'edgeLabel', 'note', 'shape'];
 function entryOfRecord(rec){
   if(Array.isArray(rec)) return rec.slice();
@@ -748,6 +749,26 @@ function migrateTagSpellings(list){
   return moved;
 }
 
+/* An amalgam becomes an ordinary entry whose lineages all merge — the
+   same drawing, said the new way (see mergeOf). A colour it carried of its
+   own was never shown while two lineages or more fed it (they decided its
+   colours), and would now be read as the border colour the owner can set,
+   so it goes; with fewer, the colour WAS what it wore, and stays. */
+function migrateAmalgams(list){
+  let moved = 0;
+  (list || []).forEach(item=>{
+    if(!Array.isArray(item) || item[5] !== 'amalgam') return;
+    const opts = (item[6] && typeof item[6] === 'object') ? item[6] : {};
+    const parents = Array.isArray(item[2]) ? item[2].filter(Boolean) : (item[2] ? [item[2]] : []);
+    if(parents.length >= 2) delete opts.colors;
+    opts.merge = true;
+    item[5] = null;
+    item[6] = opts;
+    moved++;
+  });
+  return moved;
+}
+
 /* Which of those a chart needs is a question of when it was written, and
  * a chart says when: the form number in its settings (DATA_FORMAT). One
  * written before the number existed is form 1.
@@ -771,7 +792,9 @@ const MIGRATIONS = [
   {upTo: 1, run(){
     return migrateLegacyArchetypes(workingNodes) + migrateArchetypeLooks(workingNodes) +
            migrateTagSpellings(workingNodes) + (typeof EDGE_STYLES !== 'undefined' ? migrateLeaderNotes() : 0);
-  }}
+  }},
+  // The amalgam archetype, which became a merge on an ordinary entry.
+  {upTo: 2, run(){ return migrateAmalgams(workingNodes); }}
 ];
 function chartFormatOf(settings){
   const f = settings && settings.format;
@@ -805,6 +828,43 @@ function amalgamBarOf(opts){
   if(typeof v.lead !== 'number' || !Number.isFinite(v.lead)) return null;
   return {k: v.k, after: !!v.after, lead: Math.max(AMALGAM_LEAD_MIN, v.lead)};
 }
+/* A merge is no longer a kind of entry (the owner's rework, 23.10).
+ *
+ * It used to be the 'amalgam' archetype: an entry of that kind merged every
+ * lineage drawn into it, and an entry of any other kind merged none. But
+ * what merges is the CONNECTORS — two lineages running into one bar and one
+ * arrow — and the entry they run into is an entry like any other. So the
+ * entry now says which of its lineages merge: `merge: true` for all of them,
+ * the way an amalgam always had it (and the way a lineage drawn in later
+ * joins), or a list naming the ones that do, which is what taking one
+ * lineage out of a merge leaves behind. It is set from a connector's menu
+ * (Merge, Unmerge); nothing else turns it on. */
+function mergeOf(opts){
+  const v = opts && opts.merge;
+  if(v === true) return true;
+  if(!Array.isArray(v)) return null;
+  const ids = v.filter(x=> typeof x === 'string' && x);
+  return ids.length ? ids : null;
+}
+/* The lineages of `n` that run into its merge, in the order its parents
+   are listed. A merge of fewer than two is not drawn as one. */
+function mergeMembersOf(n){
+  if(!n || !n.merge) return [];
+  const parents = n.parents || [];
+  return n.merge === true ? parents.slice() : parents.filter(p=> n.merge.includes(p));
+}
+/* Only a box takes a merge: the bar and its one arrow are laid out against
+   a box's sides, and a portrait, a caption, a picture, a callout or an
+   array has none of the kind. One whose kind is changed afterwards keeps
+   the field, and draws as a merge again if it is changed back. */
+function mergeShapeOk(shape){ return !shape || shape === 'rect'; }
+function isMergeNode(n){ return !!n && mergeShapeOk(n.shape) && mergeMembersOf(n).length >= 2; }
+/* …and wearing the merge's colours: the lineages', as a gradient round the
+   border and through the words, which is what an amalgam always wore. An
+   entry given a border colour of its own wears that instead (the one change
+   the owner asked for in the move). */
+function mergePainted(n){ return isMergeNode(n) && !(n.ownColors && n.ownColors.length); }
+
 function buildModel(){
   // A rebuilt chart is a new chart as far as the routes are concerned.
   routeBars.clear();
@@ -959,6 +1019,9 @@ workingNodes.forEach(item=>{
     /* Where an amalgam's bar stands, once it has been put somewhere: see
        amalgamBarOf and amalgamGeometry. */
     bar: amalgamBarOf(opts),
+    /* Which of its lineages merge into one bar and one arrow: all of them
+       (true), the ones named, or none. See mergeMembersOf. */
+    merge: mergeOf(opts),
     /* An array's entries, and the hatching over its ground. Absent on
        everything else. */
     members: isArray ? arrayMembersOf(opts) : null,

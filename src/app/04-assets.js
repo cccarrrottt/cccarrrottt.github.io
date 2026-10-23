@@ -386,9 +386,9 @@ function pictureAnimOf(v){ return v === 'still' || v === 'hover' ? v : null; }
  * the head of the picture is decoded — a few kilobytes of a megabyte.
  *
  * A file beside the page is asked once, by fetching it (the service
- * worker usually has it), and the bar is drawn again when the answer is
- * in; until then it is a still picture, which only means the bar does not
- * offer to stop it yet. A picture from another host is a GIF or nothing:
+ * worker usually has it); until the answer is in it is a still picture,
+ * which only means its player (37-style-bar.js) is not offered yet — the
+ * next movement of the pointer over it asks again. A picture from another host is a GIF or nothing:
  * its bytes are not ours to read. */
 const pictureMovesKnown = new Map();
 function animatedBytes(b){
@@ -421,7 +421,6 @@ function pictureMoves(src){
     fetch(src).then(r=> r.ok ? r.arrayBuffer() : null).then(buf=>{
       if(!buf || !animatedBytes(new Uint8Array(buf, 0, Math.min(buf.byteLength, 4096)))) return;
       pictureMovesKnown.set(src, true);
-      if(styleBarTarget) syncStyleBar();
     }).catch(()=>{});
     return false;
   }
