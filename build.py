@@ -533,6 +533,12 @@ def analytics_beacon():
     token = os.environ.get('CF_WEB_ANALYTICS_TOKEN', '').strip()
     if not token:
         return ''
+    # Cloudflare offers the token inside a whole <script> snippet, and the
+    # snippet is what gets pasted. Take the token out of it rather than fail
+    # the publish over it: only the token is ever written into the page.
+    pasted = re.search(r'"token"\s*:\s*"([^"]*)"', token)
+    if pasted:
+        token = pasted.group(1).strip()
     if not re.fullmatch(r'[0-9A-Za-z]{16,64}', token):
         sys.exit('build: CF_WEB_ANALYTICS_TOKEN is not a Web Analytics token')
     return ('<script defer src="https://static.cloudflareinsights.com/beacon.min.js"'

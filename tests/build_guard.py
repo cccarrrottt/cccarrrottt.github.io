@@ -419,6 +419,13 @@ def main():
     check('and only the site: not the single page, nor an export cut from it',
           'cloudflareinsights' not in (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
           and 'cloudflareinsights' not in cut(counted))
+    snippet = ("<!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js'"
+               f" data-cf-beacon='{{\"token\": \"{token}\"}}'></script><!-- End Cloudflare Web Analytics -->")
+    r = run(tmp, extra_env={'CF_WEB_ANALYTICS_TOKEN': snippet})
+    counted = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
+    check('the whole snippet Cloudflare offers, pasted as the token, gives the same counter',
+          r.returncode == 0 and counted.count('cloudflareinsights') == 1 and f'"token": "{token}"' in counted
+          and 'End Cloudflare' not in counted, r.stdout + r.stderr)
     r = run(tmp, extra_env={'CF_WEB_ANALYTICS_TOKEN': '"><script>alert(1)</script>'})
     check('a token that is not one stops the build rather than being written into the page',
           r.returncode != 0 and 'CF_WEB_ANALYTICS_TOKEN' in (r.stdout + r.stderr), r.stdout + r.stderr)

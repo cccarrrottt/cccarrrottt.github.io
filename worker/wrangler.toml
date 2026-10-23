@@ -12,6 +12,10 @@
 # the one the dashboard gave it when the repository was imported. The address
 # it makes, https://cccarrrottt-github-io.<account>.workers.dev, has to match
 # SITE_API in src/app/01-store.js.
+#
+# worker/package-lock.json is there for that build, though the service has no
+# dependencies: once the repository's root carries a lockfile, Workers Builds
+# installs with `npm clean-install`, which refuses a directory without one.
 name = "cccarrrottt-github-io"
 main = "index.js"
 compatibility_date = "2026-09-01"

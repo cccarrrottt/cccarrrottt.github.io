@@ -258,7 +258,7 @@ logins and the site's address.
 which sets no cookie and keeps nothing in the reader's browser, so there is
 nothing to ask anyone's leave for. In Cloudflare: *Analytics & Logs → Web
 Analytics → Add a site*, the site's address, and take the token from the
-snippet it offers. In GitHub: *Settings → Secrets and variables → Actions →
+snippet it offers (pasting the whole snippet works too: the build takes the token out of it). In GitHub: *Settings → Secrets and variables → Actions →
 Variables*, a repository **variable** (not a secret: it is printed into every
 page) named `CF_WEB_ANALYTICS_TOKEN`. The next publish carries the counter;
 without the variable the site has none, and neither does a fork, a local
