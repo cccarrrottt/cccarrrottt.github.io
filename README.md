@@ -739,7 +739,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 126 named scenarios, and they are independent of one
+The browser suite is 127 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

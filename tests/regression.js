@@ -17295,6 +17295,52 @@ async function main(){
         r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
         JSON.stringify(r.calls));
   });
+  await scenario("an edit redraws only the entries it changed", async () => {
+  /* Every entry is still drawn each pass, and one whose drawing comes out
+     as it was keeps the drawing it had (drawOrKeep). Two claims, checked:
+     an edit to one entry leaves every other entry's drawing the very same
+     element, and what is kept is, entry by entry, the markup a pass that
+     keeps nothing would draw. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const out = {kept: {}, same: {}};
+    try{
+      applyEdit(()=>{ workingNodes.length = 0;
+        for(let i = 0; i < 60; i++) workingNodes.push(['dk' + i, 'Entry ' + i, i ? 'dk' + Math.floor((i - 1) / 2) : null, null,
+          i % 5 === 0 ? 'A note' : null, i % 11 === 0 ? 'ellipse' : null,
+          {pos:[(i % 8)*170, Math.floor(i / 8)*110], colors: i % 7 === 0 ? ['#cc2222', '#2222cc'] : undefined,
+           border: i % 9 === 0 ? 'wavy' : undefined, tags: i % 6 === 0 ? ['probe'] : undefined}]);
+      });
+      const opt = id=> { const it = workingNodes.find(x=> x[0] === id); it[6] = Object.assign({}, it[6]); return it[6]; };
+      const EDITS = {
+        recolour: ['dk20', ()=> { opt('dk20').colors = ['#22aa22']; }],
+        rename: ['dk23', ()=> { workingNodes.find(x=> x[0] === 'dk23')[1] = 'Entry 2x'; }],
+        move: ['dk25', ()=> { opt('dk25').pos = [2000, 2000]; }],
+        tag: ['dk27', ()=> { opt('dk27').tags = ['other']; }]
+      };
+      const drawn = ()=> new Map([...document.querySelectorAll('#nodeLayer .node[data-id]')].map(g=> [g.dataset.id, g]));
+      for(const [k, [id, edit]] of Object.entries(EDITS)){
+        const was = drawn();
+        applyEdit(edit);
+        await new Promise(res=> setTimeout(res, 50));
+        const now = drawn();
+        out.kept[k] = {others: [...now].filter(([x, g])=> x !== id && g !== was.get(x)).length,
+                       changed: now.get(id) !== was.get(id), total: now.size};
+        const warm = new Map([...drawnEntries].map(([x, rec])=> [x, drawingSig(rec.pieces)]));
+        drawnEntries = new Map(); renderNodes();
+        const cold = new Map([...drawnEntries].map(([x, rec])=> [x, rec.sig]));
+        out.same[k] = cold.size === warm.size && cold.size >= 60 && [...cold].every(([x, s])=> warm.get(x) === s);
+      }
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x)); });
+    }
+    return out;
+  });
+  check('an edit to one entry keeps every other entry\'s drawing, and draws that one anew',
+        Object.values(r.kept).every(k=> k.others === 0 && k.changed && k.total >= 60), JSON.stringify(r.kept));
+  check('what is kept is, entry by entry, what a pass that keeps nothing draws',
+        Object.values(r.same).every(Boolean), JSON.stringify(r.same));
+  });
   await scenario("an entry's controls are built when something reaches them", async () => {
   /* The grips, the turning handle and the connector strips are built the
      first time the pointer, a selection or a connector drag reaches an

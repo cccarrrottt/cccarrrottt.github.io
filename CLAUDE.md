@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 126 named scenarios, and they do not depend on one another —
+The suite is 127 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -401,15 +401,45 @@ cross"). Moving one entry on a 600-entry chain, `tools/bench-edit.js`:
 ### What is left of an edit is the browser laying out the new drawing
 
 Measured October 23 on the same chain: of ~100 ms an edit costs at 600
-entries, ~55 ms is style and layout of the SVG every redraw builds afresh,
+entries, ~55 ms was style and layout of the SVG every redraw built afresh,
 nearly all of it the entries' TEXT. A profile files it under
 `buildSideTabs`, whose own work is 3 ms: it reads `scrollTop`, and that is
 where the browser lays out what `renderNodes` just built. Moving the read
 does not help — the layout happens before the next paint wherever it is
-asked for. Only drawing fewer new elements would, which means keeping an
-unchanged entry's DOM between redraws; its listeners close over the `n` of
-the pass that drew them, so that is a change to how they find their entry
-first.
+asked for. Two things took it away:
+
+- **An entry drawn as it was keeps the drawing it had** (`drawOrKeep`,
+  `13-render-nodes.js`). Every entry is still drawn, so nothing about what
+  a pass works out changes; then the new drawing is compared, as markup,
+  with the old one, and where nothing differs the new one is dropped before
+  the browser has seen it. Compared as markup because what goes into an
+  entry's drawing is spread over the whole program and the markup cannot
+  leave anything out: its own gradient ids are compared by where they are
+  used, its controls group as empty, the layer it is in counts, and an old
+  drawing anything has touched since it was drawn is drawn afresh. Its
+  listeners outlive the pass that made them, so every one that hands the
+  entry on looks it up live (`liveN`) — the portrait-resize check is the
+  one that caught a grip still holding the entry of an older pass. The
+  suite checks that one edit keeps every other drawing and that what is
+  kept is what a pass that keeps nothing would draw ("an edit redraws only
+  the entries it changed").
+- **The chart does not take the top bar's text with it.** Even with every
+  drawing kept, writing the counts in the top bar (`updateStats`) laid the
+  SVG out again — ~33 ms — because the drawing's box depended on the bar.
+  `.app > .main` is now `contain:size` (not `layout`, which would make it
+  the containing block of the fixed menus inside it).
+
+`tools/bench-edit.js`, 600 entries:
+
+| edit | before | after |
+| --- | ---: | ---: |
+| recolour, tag, note, rename | ~100–106 ms | ~64–72 ms |
+| move an entry | ~141 ms | ~83 ms |
+| of which `buildSideTabs` | ~52 ms | ~9 ms |
+
+What is left is `renderNodes` drawing everything to compare it (~33 ms)
+and `redrawEdges` (~15). Keeping edges the same way is the next candidate,
+and should be measured first.
 
 ### What a reader waits for before the chart is drawn
 
@@ -478,11 +508,9 @@ selected, a connector dragged onto it (`nodeControlsWanted`,
 | elements per entry | 40 | 6 |
 
 At 200 entries an edit went from ~90–125 ms to ~45–75. Reusing an
-unchanged entry's drawing between redraws was the plan before this was
-measured; what remains of `renderNodes` is now ~50 ms at 600, and reuse
-would have to carry an entry's defs, its measured size and everything
-`renderNodes` writes onto the entry along with it. Not worth it until a
-chart is in the thousands. A test that wants an entry's grips or strips
+unchanged entry's drawing was judged not worth it here, on what
+`renderNodes` itself cost; what it saves turned out to be the browser's
+layout after it, and it is done now (see above). A test that wants an entry's grips or strips
 without moving a pointer calls `nodeControlsOn(id)`.
 
 ### What an edit cost before it was even drawn
