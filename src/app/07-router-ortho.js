@@ -54,12 +54,30 @@ let routedSegments = [];
  * charge is a sum, so the order they are asked in does not matter: the
  * score comes out the same to the last unit, and so does every route. */
 const ROUTED_BAND = 8;
-let routedByLine = {v: new Map(), h: new Map()};
-function resetRoutedSegments(){ routedSegments = []; routedByLine = {v: new Map(), h: new Map()}; }
+/* …and within a line, by stretch of it.
+ *
+ * A line is not a short list on a real chart: every connector of a column
+ * of entries runs down the same few x, so a band could hold most of the
+ * chart's vertical segments, and each candidate was still asked about all
+ * of them — the larger part of what a move cost once the boxes were filed
+ * (see obstaclesNear). Only a segment whose stretch shares more than a few
+ * pixels with the candidate's can be charged, so each band is cut along
+ * its length into chunks, a segment is filed in every chunk it covers, and
+ * a candidate reads the chunks its own stretch covers, each segment once.
+ * A segment too long or too odd to cut is kept aside and always read. */
+const ROUTED_CHUNK = 256, ROUTED_MAX_CHUNKS = 4096;
+let routedByLine = {v: new Map(), h: new Map(), wide: []};
+let routedAsk = 0;
+function resetRoutedSegments(){ routedSegments = []; routedByLine = {v: new Map(), h: new Map(), wide: []}; }
 function routedLineOf(seg){
   const vert = Math.abs(seg.x1-seg.x2) < 0.5, horz = Math.abs(seg.y1-seg.y2) < 0.5;
   if(vert === horz) return null;    // a point, or a slant: overlaps nothing
-  return vert ? {map: 'v', at: seg.x1} : {map: 'h', at: seg.y1};
+  return vert ? {map: 'v', at: seg.x1, lo: Math.min(seg.y1, seg.y2), hi: Math.max(seg.y1, seg.y2)}
+              : {map: 'h', at: seg.y1, lo: Math.min(seg.x1, seg.x2), hi: Math.max(seg.x1, seg.x2)};
+}
+function routedChunks(line){
+  const c0 = Math.floor(line.lo / ROUTED_CHUNK), c1 = Math.floor(line.hi / ROUTED_CHUNK);
+  return (Number.isFinite(c0) && Number.isFinite(c1) && c1 - c0 < ROUTED_MAX_CHUNKS) ? [c0, c1] : null;
 }
 function registerRoutedSegments(pts){
   for(let i=0;i<pts.length-1;i++){
@@ -67,21 +85,36 @@ function registerRoutedSegments(pts){
     routedSegments.push(seg);
     const line = routedLineOf(seg);
     if(!line) continue;
+    const chunks = routedChunks(line);
+    if(!chunks){ routedByLine.wide.push(seg); continue; }
     const band = Math.floor(line.at / ROUTED_BAND), map = routedByLine[line.map];
-    if(!map.has(band)) map.set(band, []);
-    map.get(band).push(seg);
+    if(!map.has(band)) map.set(band, new Map());
+    const along = map.get(band);
+    for(let c = chunks[0]; c <= chunks[1]; c++){
+      if(!along.has(c)) along.set(c, []);
+      along.get(c).push(seg);
+    }
   }
 }
-// Every routed segment that could share a line with this one.
+// Every routed segment that could share a line with this one, once each.
 function routedNear(seg, visit){
   const line = routedLineOf(seg);
   if(!line) return;
+  const ask = ++routedAsk;
+  const once = other=>{ if(other.asked !== ask){ other.asked = ask; visit(other); } };
+  routedByLine.wide.forEach(once);
+  const chunks = routedChunks(line);
   const map = routedByLine[line.map];
   const lo = Math.floor((line.at - OVERLAP_TOL) / ROUTED_BAND);
   const hi = Math.floor((line.at + OVERLAP_TOL) / ROUTED_BAND);
   for(let band = lo; band <= hi; band++){
-    const list = map.get(band);
-    if(list) for(const other of list) visit(other);
+    const along = map.get(band);
+    if(!along) continue;
+    if(!chunks){ along.forEach(list=> list.forEach(once)); continue; }
+    for(let c = chunks[0]; c <= chunks[1]; c++){
+      const list = along.get(c);
+      if(list) list.forEach(once);
+    }
   }
 }
 // Two axis-aligned segments "overlap" when they're collinear on the same

@@ -17014,7 +17014,8 @@ async function main(){
   });
   await scenario("the router asks only the lines a segment can share", async () => {
   /* scorePath looks the routed segments up by the line they stand on
-     (routedNear) instead of walking all of them. Routing is order-sensitive
+     and the stretch of it they cover (routedNear) instead of walking all of
+     them. Routing is order-sensitive
      and every connector steers round the ones before it, so the only
      acceptable answer is the same picture: every route on a crowded chart
      drawn both ways, compared point for point. */
