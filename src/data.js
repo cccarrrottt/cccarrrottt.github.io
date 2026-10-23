@@ -67,6 +67,9 @@ const NODES = [
   {id:'rework-github-like-issue-buttons-copy', label:'**Rework:** amalgam connector system', pos:[312.17, 181.26]},
   {id:'adjust-animation-toggler-on-gif-s-copy', label:'**Add:** miscellaneous decorative node shapes', pos:[312.17, 241.68]},
   {id:'array-2', label:'', shape:'array', members:['beast-wars-uprising-copy-4', 'beast-wars-uprising-copy-3', 'beast-wars-uprising-copy-2'], hatch:'diag-r', border:'dotted'},
+  {id:'node-7', label:'Amalgam 1', pos:[-654.55, 214.58]},
+  {id:'node-8', label:'Amalgam 2', pos:[-569.89, 214.58]},
+  {id:'node-13', label:'Amalgam 3', parent:['node-7', 'node-8'], pos:[-614.27, 268.66]},
 ];
 /* @@EDIT:NODES:END@@ */
 
@@ -161,5 +164,7 @@ const EDGE_STYLES = [
   {from:'node-5', to:'node-6', routing:'orthogonal', dash:'solid', arrow:true, bends:[[-281.66, 203.24], [-257.72, 174.11]], bendSides:['top', 'top'], fromSide:'top', toSide:'top', square:true},
   {from:'asdasd-copy', to:'beast-wars-uprising-copy-4', routing:'curve', dash:'solid', arrow:true, note:'фывфы', notePos:'below', noteAt:0.524, gradient:['#2c2', '#22c'], fromSide:'left', toSide:'top', square:true, noteSquare:true, noteAlong:true},
   {from:'array', to:'beast-wars-uprising-copy-7', routing:'orthogonal', dash:'solid', arrow:true, arrowIn:true, teeOut:true, fromSide:'top', toSide:'bottom', square:true},
+  {from:'node-7', to:'node-13', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
+  {from:'node-8', to:'node-13', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
 ];
 /* @@EDIT:EDGESTYLES:END@@ */
