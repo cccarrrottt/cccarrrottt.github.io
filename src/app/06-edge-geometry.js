@@ -940,13 +940,79 @@ function invalidateObstacles(){ obstacleEpoch++; }
 function obstacleAll(){
   if(obstacleAllEpoch === obstacleEpoch && obstacleAllCache) return obstacleAllCache;
   obstacleAllCache = buildObstacleRects();
+  obstacleAllCache.index = obstacleIndexOf(obstacleAllCache);
   obstacleAllEpoch = obstacleEpoch;
   return obstacleAllCache;
 }
 function obstacleRects(excludeIds){
   const all = obstacleAll();
   if(!excludeIds || !excludeIds.size) return all;
-  return all.filter(r=> !excludeIds.has(r.id));
+  const some = all.filter(r=> !excludeIds.has(r.id));
+  // The subset is asked through the whole set's index, minus the same ids.
+  some.index = all.index; some.skip = excludeIds;
+  return some;
+}
+/* The boxes a segment can cross, without asking every box.
+ *
+ * The router tests each leg of each candidate shape of each connector
+ * against every box: at six hundred entries, moving one entry spent about
+ * a hundred milliseconds in that walk alone. But a leg is level or upright
+ * (segIntersectsRect answers no to anything else), so the only boxes it can
+ * cross are those standing across its one coordinate. Each box is filed in
+ * every band of x it spans, and of y; a band is sorted by where its boxes
+ * start along the other axis, and remembers its tallest, so a leg reads
+ * only the boxes that begin within its reach. Every box that could answer
+ * yes is still asked, by the same test, so a route cannot come out
+ * differently — the suite compares them ("the router asks only the boxes a
+ * leg can cross"). */
+const OBSTACLE_BAND = 128;
+function obstacleIndexOf(rects){
+  const file = (map, lo, hi, r, from)=>{
+    for(let b = Math.floor(lo / OBSTACLE_BAND); b <= Math.floor(hi / OBSTACLE_BAND); b++){
+      if(!map.has(b)) map.set(b, {list: [], reach: 0});
+      const band = map.get(b);
+      band.list.push(r);
+      band.reach = Math.max(band.reach, from(r));
+    }
+  };
+  const v = new Map(), h = new Map();
+  rects.forEach(r=>{
+    if(!(r.x1 - r.x0 < 1e6 && r.y1 - r.y0 < 1e6)) return;   // nothing sane to file; asked by walking
+    file(v, r.x0, r.x1, r, q=> q.y1 - q.y0);
+    file(h, r.y0, r.y1, r, q=> q.x1 - q.x0);
+  });
+  v.forEach(b=> b.list.sort((a, c)=> a.y0 - c.y0));
+  h.forEach(b=> b.list.sort((a, c)=> a.x0 - c.x0));
+  const odd = rects.filter(r=> !(r.x1 - r.x0 < 1e6 && r.y1 - r.y0 < 1e6));
+  return {v, h, odd};
+}
+// Calls visit(rect) for every box of `rects` this segment might cross —
+// a superset of the ones segIntersectsRect says it does.
+function obstaclesNear(rects, x1, y1, x2, y2, visit){
+  const index = rects.index;
+  if(!index){ for(const r of rects) if(visit(r) === false) return; return; }
+  const skip = rects.skip;
+  let band, lo, hi, start;
+  if(Math.abs(x1 - x2) < 0.5){
+    band = index.v.get(Math.floor(x1 / OBSTACLE_BAND));
+    lo = Math.min(y1, y2); hi = Math.max(y1, y2); start = r=> r.y0;
+  } else if(Math.abs(y1 - y2) < 0.5){
+    band = index.h.get(Math.floor(y1 / OBSTACLE_BAND));
+    lo = Math.min(x1, x2); hi = Math.max(x1, x2); start = r=> r.x0;
+  } else return;
+  for(const r of index.odd) if(!(skip && skip.has(r.id)) && visit(r) === false) return;
+  if(!band) return;
+  // A unit of slack, so rounding in a box's own size can never leave it out.
+  const list = band.list, from = lo - band.reach - 1;
+  // The first box that could still reach the segment.
+  let a = 0, b = list.length;
+  while(a < b){ const m = (a + b) >> 1; if(start(list[m]) < from) a = m + 1; else b = m; }
+  for(let i = a; i < list.length; i++){
+    const r = list[i];
+    if(start(r) >= hi) break;
+    if(skip && skip.has(r.id)) continue;
+    if(visit(r) === false) return;
+  }
 }
 function buildObstacleRects(){
   const rects = [];

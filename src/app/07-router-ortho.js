@@ -125,9 +125,9 @@ function scorePath(pts, obstacles){
   let score = pathLength(pts) + countBends(pts)*PENALTY_BEND;
   for(let i=0;i<pts.length-1;i++){
     const a=pts[i], b=pts[i+1];
-    for(const rect of obstacles){
+    obstaclesNear(obstacles, a.x, a.y, b.x, b.y, rect=>{
       if(segIntersectsRect(a.x,a.y,b.x,b.y,rect)) score += PENALTY_NODE;
-    }
+    });
     const seg = {x1:a.x,y1:a.y,x2:b.x,y2:b.y};
     routedNear(seg, other=>{
       const shared = segmentsOverlap(seg, other);

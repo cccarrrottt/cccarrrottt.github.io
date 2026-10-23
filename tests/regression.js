@@ -17053,6 +17053,52 @@ async function main(){
   });
   check('every route comes out the same with the segments filed by line', eq.routes >= 199 && eq.differ === 0, JSON.stringify(eq));
   });
+  await scenario("the router asks only the boxes a leg can cross", async () => {
+  /* scorePath and pathClearParts look the boxes up by the band of x or y a
+     leg stands in (obstaclesNear) instead of walking every one. The same
+     answer is the only acceptable one, so a crowded chart — boxes of every
+     size, a few tall and wide ones among them, some exactly on a band's
+     edge — is routed both ways and compared point for point, and a move
+     is routed both ways after it. */
+  const eq = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const snap = ()=>{ const m = {}; drawnRoutes.forEach((r, k)=>{ m[k] = JSON.stringify((r.pts || []).map(q=> [+q.x.toFixed(3), +q.y.toFixed(3)])); }); return m; };
+    const walking = function(rects, x1, y1, x2, y2, visit){ for(const r of rects) if(visit(r) === false) return; };
+    const bothWays = ()=>{
+      redrawEdges();
+      const banded = snap();
+      const keep = window.obstaclesNear;
+      window.obstaclesNear = walking;
+      routeLast = null;
+      try{ redrawEdges(); } finally { window.obstaclesNear = keep; }
+      const walked = snap();
+      routeLast = null;
+      const keys = Object.keys(walked);
+      return {routes: keys.length, differ: keys.filter(k=> banded[k] !== walked[k])};
+    };
+    let seed = 11; const rnd = ()=> (seed = (seed*16807) % 2147483647) / 2147483647;
+    const M = 220, cols = Math.ceil(Math.sqrt(M));
+    applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+      for(let i = 0; i < M; i++){
+        const big = i % 37 === 5;
+        workingNodes.push(['ob' + i, (big ? 'A wide entry with a long label\n'.repeat(1 + i % 4) : 'Entry ') + i,
+          i > 0 ? 'ob' + Math.max(0, i - 1 - Math.floor(rnd()*cols*1.5)) : null, null, null, null,
+          {pos:[i % 9 === 0 ? (i % cols)*128 : (i % cols)*170 + (rnd()-0.5)*60,
+                i % 11 === 0 ? Math.floor(i / cols)*128 : Math.floor(i / cols)*95 + (rnd()-0.5)*40]}]);
+      }
+    });
+    const out = {first: bothWays()};
+    applyEdit(()=>{ workingNodes[40][6] = Object.assign({}, workingNodes[40][6], {pos:[333, 777]}); });
+    out.moved = bothWays();
+    applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                    EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    return out;
+  });
+  check('every route comes out the same with the boxes filed by band',
+        eq.first.routes >= 219 && !eq.first.differ.length && eq.moved.routes >= 219 && !eq.moved.differ.length,
+        JSON.stringify({first: eq.first.routes, moved: eq.moved.routes, differ: eq.first.differ.slice(0, 3).concat(eq.moved.differ.slice(0, 3))}));
+  });
   await scenario("entries written with their fields named", async () => {
   /* The file writes an entry as a record, {id, label, parent, …}, and the
      page still works on the list it always did. What has to hold: every
