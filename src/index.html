@@ -6,7 +6,14 @@
 <title>Rhizome Project</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@500;700;800&family=Caveat:wght@500;600;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+<!-- The faces the interface is set in. Asked for as print-only and switched
+     to every medium once they have arrived, which is how a stylesheet is
+     fetched without the page waiting for it: the chart draws at once in the
+     fallback faces and again when these land (fontsLanded,
+     05-render-text.js). Waiting cost a first visit some 600 ms. The faces
+     an entry can be set in are not here: each is asked for the first time
+     an entry uses it (FONT_OPTIONS). -->
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <!-- @@HEAD:END@@ -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- The built page carries this inline (build.py, favicon_link). -->

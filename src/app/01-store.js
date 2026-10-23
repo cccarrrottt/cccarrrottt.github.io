@@ -80,6 +80,49 @@ const SITE_API = 'https://cccarrrottt-github-io.wowwodptr2.workers.dev';
    them too. */
 const SITE_REPO = 'cccarrrottt/cccarrrottt.github.io';
 const ON_SITE = !HOSTED && SITE_ORIGINS.indexOf(location.origin) >= 0;
+/* What goes wrong in a reader's browser, told to the write service, which
+   writes it to its log (POST /report, worker/index.js). Until now a fault
+   on the site was known only if the person who met it wrote to say so, and
+   most people close the tab instead. Only on the site: a copy on a disk or
+   on claude.ai is its holder's, and its faults are none of the service's
+   business.
+
+   Registered here, in the first part, so a fault anywhere in start-up is
+   caught too. A few to a page load, each once — a fault in a drawing
+   pass would otherwise be sent with every frame of a pan. What is sent is
+   the fault, where it happened and the browser; never the session, and
+   not the chart, which is public anyway. sendBeacon, because it is sent
+   even as the page closes and needs no answer; its plain-text body is one
+   the service may take without asking the browser's leave first. */
+const faultsSent = new Set();
+function reportFault(kind, message, file, line, col, stack){
+  if(faultsSent.size >= 5) return;
+  message = String(message || '').slice(0, 500);
+  const key = kind + '|' + message + '|' + (file || '') + ':' + (line || 0);
+  if(faultsSent.has(key)) return;
+  faultsSent.add(key);
+  /* APP_VERSION is declared in a later part, and a fault in start-up can
+     come before it has been. */
+  let version = '';
+  try{ version = APP_VERSION; }catch(e){}
+  const body = JSON.stringify({kind, message, file: String(file || '').slice(0, 300),
+    line: line || 0, col: col || 0, stack: String(stack || '').slice(0, 2000),
+    version, ua: String(navigator.userAgent || '').slice(0, 300)});
+  try{ if(navigator.sendBeacon && navigator.sendBeacon(SITE_API + '/report', body)) return; }catch(e){}
+  try{ fetch(SITE_API + '/report', {method: 'POST', body, mode: 'no-cors', keepalive: true}).catch(()=>{}); }catch(e){}
+}
+if(ON_SITE && SITE_API){
+  window.addEventListener('error', e=>{
+    /* A script from another origin reports only "Script error." and
+       nothing else, which says nothing worth a line in the log. */
+    if(!e.filename && !e.error) return;
+    reportFault('error', e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack);
+  });
+  window.addEventListener('unhandledrejection', e=>{
+    const r = e.reason;
+    reportFault('rejection', r && r.message ? r.message : String(r), '', 0, 0, r && r.stack);
+  });
+}
 /* The open suggestions the write service last listed (22-file-comments),
    or null before it has been asked. Declared here, ahead of everything,
    because every rebuild draws their marks, and the first rebuild runs long

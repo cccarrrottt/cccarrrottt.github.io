@@ -67,8 +67,11 @@ own and answers with an exit code.
 import base64
 import hashlib
 import re
+import os
 import shutil
+import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -385,6 +388,66 @@ def site_origin():
     return m.group(1)
 
 
+# The esbuild that minifies the site's program and stylesheet is pinned in
+# package.json, so the same sources always give the same bytes and so the
+# same file names. ESBUILD names another copy (CI's deploy job installs one
+# on its own, without the browsers and linters the tests need, and must pin
+# the same version).
+
+
+def esbuild_path():
+    for cand in (os.environ.get('ESBUILD'), ROOT / 'node_modules' / '.bin' / 'esbuild',
+                 shutil.which('esbuild')):
+        if cand and Path(cand).exists():
+            return str(cand)
+    return None
+
+
+def minify_for_site(text, kind):
+    """The site's program or stylesheet as a reader's browser needs it.
+
+    Nearly half of the program's text is comments, written for whoever works
+    on it next and worth keeping there; a reader's browser downloads them and
+    throws them away. Minified, the program goes from ~490 to ~200 KB gzipped
+    and the stylesheet from ~60 to ~29. Only whitespace and syntax are
+    touched, never names: the program is one script whose top-level names
+    every part reads, and the tests call them by name.
+
+    The program gets a source map beside it, so a stack trace from a
+    reader's browser can still be read against the source. Without esbuild
+    the files go out as they are — locally that is fine, and CI says it must
+    have one (RHIZOME_MINIFY=required), so the site is never published
+    unminified by accident.
+
+    Returns (text, map_text or None)."""
+    exe = esbuild_path()
+    if not exe:
+        if os.environ.get('RHIZOME_MINIFY') == 'required':
+            sys.exit('build: esbuild is required to build the site (npm install)')
+        return text, None
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / f'app.{kind}'
+        out = Path(d) / f'out.{kind}'
+        src.write_text(text, encoding='utf-8')
+        args = [exe, str(src), f'--outfile={out}', '--charset=utf8', '--legal-comments=none', '--log-level=error']
+        if kind == 'js':
+            args += ['--minify-whitespace', '--minify-syntax', '--sourcemap=external', '--sources-content=true']
+        else:
+            args += ['--minify']
+        r = subprocess.run(args, capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f'build: esbuild could not minify the site\'s {kind}:\n{r.stderr}')
+        mini = out.read_text(encoding='utf-8')
+        mapped = Path(str(out) + '.map')
+        smap = mapped.read_text(encoding='utf-8') if mapped.exists() else None
+    # The program is put back inside a <script> when the site exports itself
+    # (inlineSiteFiles), and the parser ends that element at the first
+    # closing tag it meets, wherever it stands.
+    if kind == 'js' and re.search(r'</script', mini, re.I):
+        sys.exit('build: the minified program contains a closing script tag')
+    return mini, smap
+
+
 def build_site(head_rest, css, body, data_js, app_js, data_sha):
     """dist/site/: the published site, as CI puts it on Pages.
 
@@ -406,12 +469,21 @@ def build_site(head_rest, css, body, data_js, app_js, data_sha):
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
+    sizes = {}
     names = {}
     for kind, text in (('app', app_js), ('style', css)):
         ext = 'js' if kind == 'app' else 'css'
+        text, smap = minify_for_site(text, ext)
+        if smap:
+            # Named by the program it maps, before the line naming it is
+            # added — that line is part of the bytes the program is named by.
+            map_name = f'{kind}.{hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}.map'
+            (out / map_name).write_text(smap, encoding='utf-8')
+            text = text.rstrip('\n') + f'\n//# sourceMappingURL={map_name}\n'
         name = f'{kind}.{hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}.{ext}'
         (out / name).write_text(text, encoding='utf-8')
         names[kind] = name
+        sizes[kind] = len(text)
     charset = '<meta charset="utf-8">'
     content = (f'{charset}\n{PAGE_BEGIN}\n{head_rest}\n\n'
                f'<link rel="stylesheet" href="{names["style"]}" data-inline>{body}\n\n'
@@ -432,7 +504,8 @@ def build_site(head_rest, css, body, data_js, app_js, data_sha):
         f'<meta property="og:image" content="{origin}/{OG_IMAGE}">\n'
         '<meta property="og:image:width" content="1200">\n'
         '<meta property="og:image:height" content="630">\n'
-        '<meta name="twitter:card" content="summary_large_image">\n')
+        '<meta name="twitter:card" content="summary_large_image">\n'
+        + analytics_beacon())
     page = wrap(content, preview)
     (out / 'index.html').write_text(page, encoding='utf-8')
     site_files = SRC / 'site'
@@ -442,7 +515,28 @@ def build_site(head_rest, css, body, data_js, app_js, data_sha):
     if not (out / OG_IMAGE).exists():
         sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')
     print(f'  dist/site/index.html   {len(page):>8,} chars, '
-          f'{names["app"]} {len(app_js):,}, {names["style"]} {len(css):,}')
+          f'{names["app"]} {sizes["app"]:,}, {names["style"]} {sizes["style"]:,}'
+          + ('' if esbuild_path() else ' (not minified: no esbuild)'))
+
+
+def analytics_beacon():
+    """Cloudflare Web Analytics, when the site has a token for it.
+
+    It counts visits without a cookie and without anything kept in the
+    reader's browser, so there is nothing to ask a reader's leave for. The
+    token comes from the environment (CI passes the repository variable
+    CF_WEB_ANALYTICS_TOKEN) rather than from the sources, so a fork, a local
+    build and the tests have no counter; and it sits beside the preview
+    tags, outside the page's markers, so an exported copy never counts its
+    holder's visits on the owner's account.
+    """
+    token = os.environ.get('CF_WEB_ANALYTICS_TOKEN', '').strip()
+    if not token:
+        return ''
+    if not re.fullmatch(r'[0-9A-Za-z]{16,64}', token):
+        sys.exit('build: CF_WEB_ANALYTICS_TOKEN is not a Web Analytics token')
+    return ('<script defer src="https://static.cloudflareinsights.com/beacon.min.js"'
+            f' data-cf-beacon=\'{{"token": "{token}"}}\'></script>\n')
 
 
 OG_TITLE = 'Rhizome Project'

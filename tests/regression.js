@@ -352,6 +352,38 @@ async function main(){
   check('…and the block cache with it', !late.block);
   check('…and the chart is drawn again, not left empty', late.drawn);
 
+  /* Nothing waits for the faces. The interface's arrive as a print-only
+     stylesheet switched on when it lands, so the first draw does not wait
+     for a font host; and the faces an entry can be set in are asked for
+     only when an entry is. */
+  const faces = await page.evaluate(() => {
+    const ui = [...document.querySelectorAll('link[rel="stylesheet"][href*="fonts.googleapis.com"]')].filter(l => !l.dataset.face);
+    const before = document.querySelectorAll('link[data-face="orbitron"]').length;
+    const was = workingNodes.map(x => x.slice());
+    let after, twice;
+    try{
+      applyEdit(() => {
+        workingNodes.push(['face_a', 'Fancy', null, null, null, null, {pos:[5000, 5000], font:'orbitron'}]);
+      });
+      after = document.querySelectorAll('link[data-face="orbitron"]').length;
+      applyEdit(() => {
+        workingNodes.push(['face_b', 'Fancier', null, null, null, null, {pos:[5300, 5000], font:'orbitron'}]);
+      });
+      twice = document.querySelectorAll('link[data-face="orbitron"]').length;
+    } finally {
+      applyEdit(() => { workingNodes.length = 0; was.forEach(x => workingNodes.push(x)); });
+    }
+    return {ui: ui.map(l => ({media: l.getAttribute('media'), onload: l.getAttribute('onload'), href: l.href})),
+            usedBefore: workingNodes.some(x => x[6] && x[6].font === 'orbitron'), before, after, twice};
+  });
+  check('the interface\'s faces do not hold up the first draw',
+        faces.ui.length === 1 && /this\.media='all'/.test(faces.ui[0].onload || '') && faces.ui[0].media === 'all',
+        JSON.stringify(faces.ui));
+  check('and they are only the interface\'s: no face an entry may choose',
+        faces.ui.every(l => !/Merriweather|Orbitron|Caveat|Space\+Grotesk/.test(l.href)), JSON.stringify(faces.ui));
+  check('an entry\'s face is asked for when an entry is set in it, once',
+        (faces.usedBefore || faces.before === 0) && faces.after === 1 && faces.twice === 1, JSON.stringify(faces));
+
   });
   await scenario("carried connector heads", async () => {
   /* A head on an entry's outermost border is drawn under the entry. While a
@@ -11047,6 +11079,86 @@ async function main(){
   check('which lets go of the owner and signs in again as a reader',
         r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,reader,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
+  await c.close();
+  });
+
+  /* ---- faults on the published site ----
+   *
+   * A fault a reader meets used to be known only if they wrote to say so.
+   * On the site the page now tells the write service (reportFault,
+   * 01-store.js), which writes it to its log. Driven at the real address,
+   * as above, with the service answered from here: what is checked is what
+   * leaves the reader's browser, and how often. */
+  await scenario("faults on the published site", async () => {
+  if(MODE === 'src'){
+    check('the site serves the built file, so there is nothing to check from src', true);
+    return;
+  }
+  const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
+  const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
+  const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
+  const appVersion = /const APP_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'src', 'app', '20-about.js'), 'utf8'))[1];
+  const SITE_BUILT = path.join(DIR, 'site');
+  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
+  const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(SITE_ORIGIN + '/**', r => {
+    const u = new URL(r.request().url());
+    const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
+    if(beside) return r.fulfill({status: 200, contentType: u.pathname.endsWith('.css') ? 'text/css' : 'text/javascript', body: beside});
+    return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
+  });
+  await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'},
+    contentType: 'application/json', body: '[]'}));
+  const reports = [];
+  await c.route(SITE_API + '/**', r => {
+    const q = r.request(), u = new URL(q.url());
+    if(u.pathname === '/report'){
+      reports.push({method: q.method(), headers: q.headers(), body: q.postData()});
+      return r.fulfill({status: 204, body: ''});
+    }
+    return r.fulfill({status: 401, contentType: 'application/json', body: '{"error":"not signed in."}'});
+  });
+  const site = await c.newPage();
+  const errs = [];
+  site.on('pageerror', e => errs.push(e.message));
+  await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+  await site.waitForFunction(() => typeof rebuildChart === 'function');
+  await wait(200);
+  check('a page that met no fault reports none', reports.length === 0, JSON.stringify(reports));
+  check('and with no token for the counter, the site has none', !/cloudflareinsights/.test(html));
+
+  /* A fault in the program itself — an entry that is not there, handed
+     to the text view — twice over, as a drawing pass would. */
+  await site.evaluate(() => {
+    setTimeout(textViewItem, 0, null, null, new Set());
+    setTimeout(textViewItem, 0, null, null, new Set());
+    setTimeout(() => { Promise.reject(new Error('a promise nobody caught')); }, 0);
+  });
+  await wait(400);
+  const got = reports.map(r => { try{ return JSON.parse(r.body); }catch(e){ return {unreadable: r.body}; } });
+  const first = got.find(g => g.kind === 'error');
+  check('a fault in a reader\'s browser is sent to the write service, once though it happened twice',
+        got.filter(g => g.kind === 'error').length === 1, JSON.stringify(got));
+  check('with what went wrong, in which file of the program and where',
+        !!first && /TypeError/.test(first.message) && /\/app\.[0-9a-f]{16}\.js$/.test(first.file) && first.line > 0
+        && /textViewEntryLink/.test(first.stack) && first.version === appVersion && !!first.ua, JSON.stringify(first));
+  check('and a promise nobody caught is sent too',
+        got.some(g => g.kind === 'rejection' && g.message === 'a promise nobody caught'), JSON.stringify(got));
+  check('as a POST with nothing that would make the browser ask first, and no session',
+        reports.length > 0 && reports.every(r => r.method === 'POST' && !r.headers['authorization']
+          && /^text\/plain/.test(r.headers['content-type'] || '')), JSON.stringify(reports.map(r => r.headers)));
+
+  await site.evaluate(() => {
+    for(let i = 0; i < 8; i++) setTimeout(() => { throw new Error('fault number ' + i); }, 0);
+  });
+  await wait(400);
+  check('a page sends a few and then stops, so a fault in every frame of a pan is not a flood',
+        reports.length === 5, reports.length);
+  check('and a fault still reaches the console as before', errs.filter(m => /fault number/.test(m)).length === 8, errs.join(' | '));
   await c.close();
   });
 

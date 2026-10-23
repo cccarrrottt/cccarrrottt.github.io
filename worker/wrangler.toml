@@ -28,3 +28,9 @@ REPO = "cccarrrottt/cccarrrottt.github.io"
 BRANCH = "main"
 OWNERS = "cccarrrottt"
 ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
+
+# Keeps what the service writes to its console, so the owner can read it in
+# the dashboard (the Worker → Logs): sign-in failures, and the faults the
+# site's readers meet, which the page sends to POST /report.
+[observability]
+enabled = true

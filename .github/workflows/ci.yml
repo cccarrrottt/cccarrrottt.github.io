@@ -100,7 +100,11 @@ jobs:
       - name: What chart this checkout carries
         run: python3 tools/data_check.py
 
+      # esbuild came with the install above. Required, so a run where it is
+      # missing fails rather than quietly publishing the program unminified.
       - name: Build
+        env:
+          RHIZOME_MINIFY: required
         run: python3 build.py
 
       - name: Build guard
@@ -119,7 +123,7 @@ jobs:
           path: dist/
           retention-days: 14
 
-  # The suite is 67 named scenarios and they do not depend on one another —
+  # The suite is a set of named scenarios and they do not depend on one another —
   # which is checked rather than assumed: four shards print exactly the checks
   # one whole run prints, by name. So they run as shards, and a regression job
   # is about a minute and a half instead of six.
@@ -180,7 +184,26 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Only the minifier, at the version package.json pins: the site's
+      # program and stylesheet go out minified, and a data-only push comes
+      # straight here without the build job's install. Nothing else from
+      # package.json is needed to build.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the minifier
+        run: |
+          v=$(node -p "require('./package.json').devDependencies.esbuild")
+          npm install --no-audit --no-fund --no-save --prefix "$RUNNER_TEMP/esb" "esbuild@$v"
+
+      # The visitor counter's token is a repository variable, not a secret:
+      # it is printed into every page anyway. Unset, the site has no counter.
       - name: Build
+        env:
+          RHIZOME_MINIFY: required
+          ESBUILD: ${{ runner.temp }}/esb/node_modules/.bin/esbuild
+          CF_WEB_ANALYTICS_TOKEN: ${{ vars.CF_WEB_ANALYTICS_TOKEN }}
         run: python3 build.py
 
       # The build's site: the page, with its program and stylesheet beside

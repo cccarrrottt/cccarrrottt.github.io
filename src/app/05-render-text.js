@@ -81,21 +81,39 @@ function applyRunStyle(t, w, skipSize){
 // (a plain font-family attribute loses to the .node text{} stylesheet
 // rule, so callers must set it as `style="font-family:...;"`, not as an
 // attribute).
+/* `web` is what the font host is asked for, the first time an entry is set
+   in that face (askForFace). They used to be fetched with the interface's
+   own, on every visit, for a chart that may use none of them. */
 const FONT_OPTIONS = [
   { key:'arial',     label:'Arial (default)',         family:"Arial, Helvetica, sans-serif" },
   { key:'times',     label:'Times New Roman',          family:"'Times New Roman', Times, serif" },
   { key:'plex',      label:'IBM Plex Sans',            family:"'IBM Plex Sans', sans-serif" },
-  { key:'serif',     label:'Merriweather (serif)',     family:"'Merriweather', serif" },
-  { key:'grotesk',   label:'Space Grotesk (modern)',   family:"'Space Grotesk', sans-serif" },
-  { key:'orbitron',  label:'Orbitron (sci-fi)',         family:"'Orbitron', sans-serif" },
-  { key:'hand',      label:'Caveat (handwritten)',      family:"'Caveat', cursive" },
+  { key:'serif',     label:'Merriweather (serif)',     family:"'Merriweather', serif",
+    web:'Merriweather:ital,wght@0,400;0,700;1,400' },
+  { key:'grotesk',   label:'Space Grotesk (modern)',   family:"'Space Grotesk', sans-serif",
+    web:'Space+Grotesk:wght@400;500;600;700' },
+  { key:'orbitron',  label:'Orbitron (sci-fi)',         family:"'Orbitron', sans-serif",
+    web:'Orbitron:wght@500;700;800' },
+  { key:'hand',      label:'Caveat (handwritten)',      family:"'Caveat', cursive",
+    web:'Caveat:wght@500;600;700' },
   // Embedded as a data: URI in the @font-face block up top, not fetched
   // from a font host — see the note there.
   { key:'autobot',   label:'Autobot Characters',        family:"'Autobot Characters', 'IBM Plex Sans', sans-serif" },
 ];
 function fontFamilyFor(key){
   const opt = FONT_OPTIONS.find(f=>f.key===key);
+  if(opt && opt.web && !opt.asked) askForFace(opt);
   return opt ? opt.family : FONT_OPTIONS[0].family;
+}
+/* Once per face and page. Whatever was measured before it lands is
+   measured again when it does (fontsLanded), as for any late face. */
+function askForFace(opt){
+  opt.asked = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=' + opt.web + '&display=swap';
+  link.dataset.face = opt.key;
+  document.head.appendChild(link);
 }
 
 const measureEl = el('text',{x:-9999,y:-9999,visibility:'hidden',

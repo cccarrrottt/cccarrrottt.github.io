@@ -14,6 +14,7 @@
      GET  /suggestions  the open suggestions, read from the issues
      POST /suggest      opens an issue, as the reader who signed in
      POST /resolve      closes one, as the owner
+     POST /report       a fault a reader's browser met, written to the log
 
    The commit is the publish: CI builds the page from it and puts it on the
    site, the same as for any other change to the repository.
@@ -698,6 +699,31 @@ async function resolve(env, request, ctx){
   return {closed: number, reason};
 }
 
+/* ---- what goes wrong in readers' browsers ------------------------------
+
+   The site tells the service about a fault a reader's browser met
+   (reportFault, src/app/01-store.js), and the service writes it to its
+   log, which is where the owner reads it: Cloudflare, the Worker, Logs.
+   Nothing is kept here, and nothing is answered but that it arrived.
+
+   Only from the site's own origin — a browser always says which page sent
+   a POST — and only a few kilobytes. What is written is the report's own
+   fields, each cut to length and nothing else, so a sender cannot make a
+   line of the log say whatever it likes about anything but its fault. */
+export async function report(env, request){
+  const origin = request.headers.get('Origin');
+  if(!origin || list(env.ALLOWED_ORIGINS).indexOf(origin) < 0) throw httpError(403, 'reports are taken only from the chart\'s own site.');
+  const b = await readJson(request, 8192, 'the report');
+  if(!b || typeof b !== 'object' || Array.isArray(b)) throw httpError(400, 'the report is not a report.');
+  const text = (v, n) => typeof v === 'string' ? v.slice(0, n) : '';
+  const whole = v => Number.isFinite(v) ? Math.max(0, Math.trunc(v)) : 0;
+  const entry = {report: 'page fault', kind: text(b.kind, 20), message: text(b.message, 500),
+    file: text(b.file, 300), line: whole(b.line), col: whole(b.col), stack: text(b.stack, 2000),
+    version: text(b.version, 20), ua: text(b.ua, 300)};
+  console.error(JSON.stringify(entry));
+  return entry;
+}
+
 export default {
   async fetch(request, env){
     const url = new URL(request.url);
@@ -714,6 +740,7 @@ export default {
       if(request.method === 'POST' && url.pathname === '/save') return json(withSession(await save(env, request, ctx)), 200, h);
       if(request.method === 'GET' && url.pathname === '/suggestions') return json(withSession(await suggestions(env, request, ctx)), 200, h);
       if(request.method === 'POST' && url.pathname === '/suggest') return json(withSession(await suggest(env, request, ctx)), 200, h);
+      if(request.method === 'POST' && url.pathname === '/report'){ await report(env, request); return new Response(null, {status: 204, headers: h}); }
       if(request.method === 'POST' && url.pathname === '/resolve') return json(withSession(await resolve(env, request, ctx)), 200, h);
       return json({error: 'not found'}, 404, h);
     }catch(e){

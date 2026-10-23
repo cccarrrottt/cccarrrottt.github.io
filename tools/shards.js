@@ -1,6 +1,6 @@
 /* The whole suite, in parallel, in about a quarter of the time.
  *
- * tests/regression.js is 67 named scenarios that do not depend on one
+ * tests/regression.js is a set of named scenarios that do not depend on one
  * another — which is checked rather than assumed: run it as four shards and
  * the four together print exactly the checks one whole run prints, by name.
  * So there is no reason to wait for them one after another.

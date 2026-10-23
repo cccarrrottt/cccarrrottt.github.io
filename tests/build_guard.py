@@ -14,6 +14,7 @@ can touch the real src/data.js.
     python3 tests/build_guard.py
 """
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -59,9 +60,20 @@ def site_files(tmp):
     return sorted(re.findall(r'(?:src|href)="([\w.-]+)" data-inline', site))
 
 
-def run(tmp, *args):
+# The sandbox has no node_modules of its own, so its builds are pointed at
+# this checkout's esbuild: the site they make is minified, as CI's is.
+ESBUILD = ROOT / 'node_modules' / '.bin' / 'esbuild'
+
+
+def run(tmp, *args, extra_env=None):
+    env = dict(os.environ)
+    # The counter's token is CI's to pass, and only to the publishing build.
+    env.pop('CF_WEB_ANALYTICS_TOKEN', None)
+    env.update(extra_env or {})
+    if ESBUILD.exists():
+        env['ESBUILD'] = str(ESBUILD)
     return subprocess.run([sys.executable, 'build.py', *args],
-                          cwd=tmp, capture_output=True, text=True)
+                          cwd=tmp, capture_output=True, text=True, env=env)
 
 
 def run_check(tmp):
@@ -352,9 +364,30 @@ def main():
           len(files) == 2 and all(
               hashlib.sha256((tmp / 'dist' / 'site' / n).read_bytes()).hexdigest()[:16] == n.split('.')[1]
               for n in files), str(files))
+    # What the files hold is the program and the stylesheet minified, and
+    # nothing else: esbuild's output for the same sources, byte for byte,
+    # and the line that names the program's source map.
+    sys.path.insert(0, str(tmp))
+    import build as built_by
+    os.environ.setdefault('ESBUILD', str(ESBUILD))
+    sources = {'js': built_by.read_app(), 'css': (tmp / 'src' / 'style.css').read_text(encoding='utf-8')}
+    minified = all(
+        (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8').split('\n//# sourceMappingURL=')[0].rstrip('\n')
+        == built_by.minify_for_site(sources[n.rsplit('.', 1)[1]], n.rsplit('.', 1)[1])[0].rstrip('\n')
+        for n in files)
+    check('they are the program and the stylesheet, minified and nothing else', minified)
+    js_name = next(n for n in files if n.endswith('.js'))
+    js_text = (tmp / 'dist' / 'site' / js_name).read_text(encoding='utf-8')
+    if ESBUILD.exists():
+        check('smaller than half what they were', len(js_text) < len(sources['js']) / 2,
+              f'{len(js_text):,} of {len(sources["js"]):,}')
+        mapped = re.search(r'//# sourceMappingURL=([\w.-]+)\n$', js_text)
+        check('and the program names its source map, which is beside it',
+              bool(mapped) and (tmp / 'dist' / 'site' / mapped.group(1)).exists(), js_text[-120:])
+    # Put back as written, they give dist/nexus.html.
     inlined = site
     for n in files:
-        text = (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8')
+        text = sources[n.rsplit('.', 1)[1]]
         if n.endswith('.css'):
             inlined = inlined.replace(f'<link rel="stylesheet" href="{n}" data-inline>', f'<style>{text}</style>')
         else:
@@ -371,6 +404,24 @@ def main():
           and 'content="https://' in site and '/og-image.png"' in site)
     check('and only the site: neither the single page nor an export cut from it carries it',
           not any(k in built for k in og) and not any(k in cut(site) for k in og))
+
+    # The visitor counter: the site has it when CI passes a token, and like
+    # the preview it stands outside the markers, so an export cut from the
+    # site never counts its holder's visits on the owner's account.
+    check('with no token the site has no visitor counter', 'cloudflareinsights' not in site)
+    token = '0123456789abcdef0123456789abcdef'
+    r = run(tmp, extra_env={'CF_WEB_ANALYTICS_TOKEN': token})
+    counted = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
+    head = counted[:counted.index('<!-- @@PAGE:BEGIN@@ -->')]
+    check('with one, the site counts its visits',
+          r.returncode == 0 and 'static.cloudflareinsights.com/beacon.min.js' in head and f'"token": "{token}"' in head,
+          r.stdout + r.stderr)
+    check('and only the site: not the single page, nor an export cut from it',
+          'cloudflareinsights' not in (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+          and 'cloudflareinsights' not in cut(counted))
+    r = run(tmp, extra_env={'CF_WEB_ANALYTICS_TOKEN': '"><script>alert(1)</script>'})
+    check('a token that is not one stops the build rather than being written into the page',
+          r.returncode != 0 and 'CF_WEB_ANALYTICS_TOKEN' in (r.stdout + r.stderr), r.stdout + r.stderr)
 
     # 10d. Files the old builds made are taken away, not left looking current
     #      beside the one that is: one of them is exactly the file somebody
@@ -469,6 +520,21 @@ def main():
     check('and a second build has nothing new to copy',
           r.returncode == 0 and 'new' not in [l for l in r.stdout.splitlines() if 'dist/media' in l][0],
           r.stdout)
+
+    # CLAUDE.md and README say how many scenarios the browser suite has,
+    # and both had drifted (89 and 77, against 121) because nothing read
+    # them back. The number is counted from the suite's own source rather
+    # than asked of it: --list sets up the page before it names anything,
+    # and this job has no browser to set it up with.
+    suite = (ROOT / 'tests' / 'regression.js').read_text(encoding='utf-8')
+    n = len(re.findall(r'^\s*await scenario\(', suite, re.M))
+    if not n:
+        check('the suite says how many scenarios it has', False, 'no scenario( calls found')
+    else:
+        for doc in ('CLAUDE.md', 'README.md'):
+            said = re.findall(r'(\d+) named scenarios', (ROOT / doc).read_text(encoding='utf-8'))
+            check(f'{doc} says the suite has the {n} scenarios it has',
+                  said and all(int(x) == n for x in said), f'{doc} says {said or "nothing"}')
 
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0
