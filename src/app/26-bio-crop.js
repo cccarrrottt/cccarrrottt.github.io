@@ -73,6 +73,8 @@ function paintBioCardDim(){
     let node = null;
     try{ node = qNode(`.node[data-id="${cssEscape(g.dataset.id || '')}"]`); }catch(e){}
     g.classList.toggle('dim', !!(node && node.classList.contains('dim')));
+    // …and lit when it is: a picked portrait's card is the portrait's words.
+    g.classList.toggle('focused', !!(node && node.classList.contains('selected')));
   });
 }
 // Builds the card with the node renderer's own primitives.
@@ -580,13 +582,14 @@ bioImageFile.addEventListener('change', async ()=>{
        declaration throws even through `typeof`. */
     const shapeSel = document.getElementById('editShapeInput');
     const roundTarget = !!shapeSel && shapeSel.value === 'ellipse';
-    /* An animated GIF is kept as it came, as a sticker is: a canvas keeps
-       only its first frame, which is why a GIF put in a portrait or a
-       picture stood still (the owner's report, 22.10). With nothing to
+    /* An animated GIF — or WebP, or PNG — is kept as it came, as a
+       sticker is: a canvas keeps only its first frame, which is why a GIF
+       put in a portrait or a picture stood still (the owner's report,
+       22.10). With nothing to
        redraw there is nothing to crop either, so the cropper is not
        offered; the frame shows the middle of it, as it does any picture. */
-    if(/gif/i.test(file.type)){
-      target.value = await stickerDataFromFile(file, null);
+    if(await fileMoves(file)){
+      target.value = await stickerDataFromFile(file, null, true);
       target.dispatchEvent(new Event('input', {bubbles:true}));
       return;
     }

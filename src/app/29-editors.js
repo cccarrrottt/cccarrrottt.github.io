@@ -434,7 +434,8 @@ function serializeMedia(list){
 function serializeStickers(list){
   if(!list.length) return 'const STICKERS = [\n];';
   return 'const STICKERS = [\n' + list.map(s=>
-    `  {key:${jsStr(s.key)}, name:${jsStr(s.name || s.key)}, src:${jsStr(s.src)}},`
+    `  {key:${jsStr(s.key)}, name:${jsStr(s.name || s.key)}, ` +
+    (pictureAnimOf(s.anim) ? `anim:${jsStr(s.anim)}, ` : '') + `src:${jsStr(s.src)}},`
   ).join('\n') + '\n];';
 }
 

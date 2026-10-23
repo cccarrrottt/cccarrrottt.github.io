@@ -312,7 +312,7 @@ function keyMarksInUse(){
 const KEY_MARKS = [
   {key:'shape:entry',   group:'Entries', name:'Entry',     sample:()=> keyBoxSample()},
   {key:'shape:card',    group:'Entries', name:'Card',      sample:()=> keySvg(`<rect ${KEY_BOX} class="key-box"/><line class="key-rule" x1="7" y1="10" x2="33" y2="10"/>`)},
-  {key:'shape:bio',     group:'Entries', name:'Portrait',  sample:()=> keySvg('<circle cx="20" cy="10" r="6.5" class="key-box"/>')},
+  {key:'shape:bio',     group:'Entries', name:'Character', sample:()=> keySvg('<circle cx="20" cy="10" r="6.5" class="key-box"/>')},
   {key:'shape:amalgam', group:'Entries', name:'Amalgam',   meaning:'Several lineages merging into one.',
    sample:()=> keySvg(`<rect ${KEY_BOX} class="key-box key-amalgam"/>`)},
   {key:'shape:callout', group:'Entries', name:'Remark',    meaning:'A note about the chart rather than a part of it.',

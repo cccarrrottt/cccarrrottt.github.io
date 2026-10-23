@@ -22,9 +22,13 @@
    ------------------------------------------------------------------ */
 function isArrayNode(n){ return !!n && (n.shape || '') === 'array'; }
 /* What an array leaves between its members and the inner edge of its own
-   frame: two pixels (the owner's measure). It used to be two steps of the
-   grid, which read as a second, empty frame round the first. */
-function arrayPad(a){ return 2 + borderHalfOf(a); }
+   frame: the gap a T at the end of a connector leaves before the border
+   it stops at (TEE_GAP), so the two clearances on the chart are one
+   measure (the owner's, 23.10; it was two pixels, and before that two
+   steps of the grid, which read as a second, empty frame round the
+   first). Written out rather than read: TEE_GAP is a constant of part
+   12, and arrays are fitted while part 02 is still being run. */
+function arrayPad(a){ return 2.5 + borderHalfOf(a); }
 /* The four ways an array's ground may be hatched, as well as coloured. An
    entry has none of them: a hatch is for a region, which is what an array
    is, and inside one entry it would run through the words. */

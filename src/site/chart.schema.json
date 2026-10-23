@@ -93,6 +93,7 @@
         "hatch": {"enum": ["diag-r", "diag-l", "vert", "horiz"]},
         "card": {"type": "boolean"},
         "cardCrop": {"type": "boolean"},
+        "anim": {"enum": ["still", "hover"], "description": "How the entry's moving picture moves: still, only on hover, or (absent) always."},
         "cardImgW": {"type": "number"},
         "cardImgH": {"type": "number"},
         "bioCard": {"type": "boolean"},
@@ -128,7 +129,8 @@
     },
     "sticker": {
       "type": "object", "required": ["key", "src"],
-      "properties": {"key": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"}, "name": {"type": "string"}, "src": {"type": "string"}}
+      "properties": {"key": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"}, "name": {"type": "string"},
+                     "anim": {"enum": ["still", "hover"]}, "src": {"type": "string"}}
     },
     "media": {
       "type": "object", "required": ["key", "src"],
