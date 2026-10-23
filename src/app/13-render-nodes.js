@@ -1230,8 +1230,7 @@ const drawOne = (n)=>{
            leaves no empty margin to fill. */
         preserveAspectRatio: n.cardCrop ? 'xMidYMid slice' : 'xMidYMid meet'
       }, g);
-      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', n.image);
-      img.setAttribute('href', n.image);
+      wearPicture(img, n.image, n.anim);
     }
 
     borderRing(isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
@@ -1284,8 +1283,7 @@ const drawOne = (n)=>{
         x:n.x, y:n.y, width:n.w, height:h,
         preserveAspectRatio: 'xMidYMid meet'
       }, g);
-      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', n.image);
-      img.setAttribute('href', n.image);
+      wearPicture(img, n.image, n.anim);
     } else {
       // An empty frame, so a picture you haven't chosen yet is still
       // something you can find, move and click.
@@ -1327,8 +1325,7 @@ const drawOne = (n)=>{
         'clip-path': `url(#${clipId})`,
         preserveAspectRatio: 'xMidYMid slice'
       }, g);
-      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', n.image);
-      img.setAttribute('href', n.image);
+      wearPicture(img, n.image, n.anim);
     }
     /* Named. A portrait's border and the invisible pad that catches the
        pointer are both circles inside the same group, and the stylesheet

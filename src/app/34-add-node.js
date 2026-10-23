@@ -15,7 +15,7 @@
    ------------------------------------------------------------------ */
 const NODE_STYLE_PICKS = [
   {value:'rect',    label:'Default',       hint:'An ordinary entry: a box with its name in it.'},
-  {value:'ellipse', label:'Character bio', hint:'A portrait circle, with its words on a card beside it.'},
+  {value:'ellipse', label:'Character',     hint:'A portrait circle, with its words on a card beside it.'},
   {value:'amalgam', label:'Amalgam',       hint:'A reality made of others: its lineages merge into one bar and one arrow.'},
   {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
   {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}

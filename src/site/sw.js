@@ -22,9 +22,9 @@
  * whose every answer has to be live, and the webfonts, which the page does
  * without when they cannot be had.
  */
-const CACHE = 'rhizome-site-2';
+const CACHE = 'rhizome-site-3';
 const PAGE = new URL('./', self.location).href;
-const SHELL = ['./', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const SHELL = ['./', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 const PATIENCE = 4000;
 
 self.addEventListener('install', ev => {

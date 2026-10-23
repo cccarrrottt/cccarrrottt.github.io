@@ -63,7 +63,8 @@
     </div>
     <button class="save-btn" id="saveBtn" disabled title="Publish your changes to this page (Ctrl+S)">Save</button>
     <div class="view-badge" title="You are viewing this chart; only its owner can change it">View only</div>
-    <button class="owner-btn" id="ownerBtn" hidden title="Sign in with GitHub: anyone may suggest a change, and the owner edits.">Sign in</button>
+    <img class="owner-avatar" id="ownerAvatar" hidden alt="">
+    <button class="owner-btn" id="ownerBtn" hidden aria-label="Sign in" title="Sign in with GitHub: anyone may suggest a change, and the owner edits."></button>
     <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
   </div>
 
@@ -249,7 +250,7 @@
             <label for="editShapeInput">Node style</label>
             <select id="editShapeInput">
               <option value="rect">Default (rectangle)</option>
-              <option value="ellipse">Character bio (portrait circle)</option>
+              <option value="ellipse">Character (portrait circle)</option>
               <option value="amalgam">Amalgam reality (gradient border &amp; text)</option>
                   <optgroup label="Free-standing elements — no connections">
                 <option value="image">Image</option>
@@ -408,7 +409,6 @@
             <div class="comment-compose-row">
               <button type="button" class="editor-btn primary" id="commentSubmit" hidden>Post</button>
               <button type="button" class="editor-btn primary" id="suggestSignIn" title="Suggestions are kept as issues in the chart’s repository on GitHub, so posting one takes a GitHub account">Sign in</button>
-              <button type="button" class="editor-btn" id="suggestSwitch" hidden>Use another GitHub account</button>
             </div>
           </div>
 

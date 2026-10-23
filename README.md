@@ -483,8 +483,9 @@ somebody who misuses it is blocked with GitHub's own button.
   between. GitHub answers an anonymous browser sixty times an hour, and
   past that the panel says so and offers sign-in, which lists them through
   the service instead. Posting still needs a sign-in.
-- The owner sees the open suggestions in the same panel, with **Done** and
-  **Decline** (closed as completed or as not planned), and a small numbered
+- The owner sees the open suggestions in the same panel, with **Done** (a
+  green circle with a tick) and **Decline** (a red square with a cross),
+  closed as completed or as not planned, and a small numbered
   mark on every entry that has one open.
 - Off the site — a disk, claude.ai — there is no service to carry a
   suggestion, so neither button is shown.
@@ -739,7 +740,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 127 named scenarios, and they are independent of one
+The browser suite is 128 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

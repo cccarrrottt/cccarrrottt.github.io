@@ -936,6 +936,9 @@ workingNodes.forEach(item=>{
        was once the only answer, which meant a wide picture arrived with
        both its ends cut off and no way to say otherwise. */
     cardCrop: !!(opts && opts.cardCrop),
+    /* How its picture moves, if it moves: still, on hover, or (absent)
+       always. See wearPicture. */
+    anim: pictureAnimOf(opts && opts.anim),
     /* The card's third band of words, drawn under the heading and above
        the note. Only a card has one — every other archetype has one text
        and its note. */

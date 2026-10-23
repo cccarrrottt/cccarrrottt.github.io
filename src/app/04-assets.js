@@ -209,7 +209,9 @@ function sanitizeStickers(list){
     const src = typeof s.src === 'string' ? s.src.trim() : '';
     if(!pictureSrcOk(src)) return;
     seen.add(key);
-    out.push({key, name: typeof s.name === 'string' ? s.name : key, src});
+    const kept = {key, name: typeof s.name === 'string' ? s.name : key, src};
+    if(pictureAnimOf(s.anim)) kept.anim = s.anim;
+    out.push(kept);
   });
   return out;
 }
@@ -367,3 +369,151 @@ function runToHtml(t){
   }
 }
 
+
+/* How a moving picture moves: always (the absence of the field), never,
+ * or only while the pointer is on the thing that wears it. Asked of a
+ * picture an entry wears (`anim` among its options) and of a sticker (on
+ * its record), and nowhere else — a figure in a note is read, not watched.
+ *
+ * A function rather than a list beside it for the reason mediaRefKind is
+ * one: the model asks it while it loads the chart, in part 02, before
+ * anything this part declares has a value. */
+function pictureAnimOf(v){ return v === 'still' || v === 'hover' ? v : null; }
+
+/* Whether a picture has more than one frame, from its own bytes: a GIF
+ * by being one; a WebP by the animation bit of its VP8X header; a PNG by
+ * the acTL chunk an animated one must carry before its first IDAT. Only
+ * the head of the picture is decoded — a few kilobytes of a megabyte.
+ *
+ * A file beside the page is asked once, by fetching it (the service
+ * worker usually has it), and the bar is drawn again when the answer is
+ * in; until then it is a still picture, which only means the bar does not
+ * offer to stop it yet. A picture from another host is a GIF or nothing:
+ * its bytes are not ours to read. */
+const pictureMovesKnown = new Map();
+function animatedBytes(b){
+  const at = (i, word)=> [...word].every((ch, k)=> b[i + k] === ch.charCodeAt(0));
+  if(at(0, 'GIF8')) return true;
+  if(at(0, 'RIFF') && at(8, 'WEBP')) return at(12, 'VP8X') && !!(b[20] & 0x02);
+  if(b[0] === 0x89 && at(1, 'PNG')){
+    for(let i = 8; i + 4 <= b.length; i++){
+      if(at(i, 'acTL')) return true;
+      if(at(i, 'IDAT')) return false;
+    }
+  }
+  return false;
+}
+function pictureMoves(src){
+  if(typeof src !== 'string' || !src) return false;
+  if(pictureMovesKnown.has(src)) return pictureMovesKnown.get(src);
+  let moves = false;
+  const at = src.indexOf(';base64,');
+  if(at > 5 && /^data:image\//i.test(src)){
+    try{
+      // A whole number of base64 quads, so the head decodes on its own.
+      const head = atob(src.slice(at + 8, at + 8 + 5460));
+      moves = animatedBytes(Uint8Array.from(head, ch=> ch.charCodeAt(0)));
+    }catch(e){ moves = false; }
+  } else if(/\.gif(?:[?#]|$)/i.test(src)){
+    moves = true;
+  } else if(mediaRefKind(src) === 'image' && /\.(png|webp)$/.test(src)){
+    pictureMovesKnown.set(src, false);
+    fetch(src).then(r=> r.ok ? r.arrayBuffer() : null).then(buf=>{
+      if(!buf || !animatedBytes(new Uint8Array(buf, 0, Math.min(buf.byteLength, 4096)))) return;
+      pictureMovesKnown.set(src, true);
+      if(styleBarTarget) syncStyleBar();
+    }).catch(()=>{});
+    return false;
+  }
+  pictureMovesKnown.set(src, moves);
+  return moves;
+}
+
+/* The same question of a file being chosen, before anything decides
+   whether to redraw it: a picture that moves is kept as it came — a canvas
+   keeps one frame — and an animated WebP or PNG (a messenger's sticker,
+   most often) is as much a moving picture as a GIF. */
+function fileMoves(file){
+  if(!file) return Promise.resolve(false);
+  if(/gif/i.test(file.type)) return Promise.resolve(true);
+  if(!/png|webp/i.test(file.type) || !file.slice) return Promise.resolve(false);
+  return file.slice(0, 4096).arrayBuffer()
+    .then(buf=> animatedBytes(new Uint8Array(buf)), ()=> false);
+}
+
+/* The first frame of a moving picture, drawn once on a canvas and kept by
+ * its source, for every place that wears it still. A picture from another
+ * host taints the canvas and cannot be read back; it is left moving rather
+ * than left blank — the one outcome worse than not stopping. */
+const stillFrames = new Map();   // src -> {url, failed, waiting: [fn]}
+function stillFrameOf(src, done){
+  let f = stillFrames.get(src);
+  if(f && (f.url || f.failed)){ done(f.url || null); return; }
+  if(f){ f.waiting.push(done); return; }
+  f = {url: null, failed: false, waiting: [done]};
+  stillFrames.set(src, f);
+  const settle = ()=>{ const w = f.waiting; f.waiting = []; w.forEach(fn=> fn(f.url)); };
+  const img = new Image();
+  img.onload = ()=>{
+    try{
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth || 1; c.height = img.naturalHeight || 1;
+      c.getContext('2d').drawImage(img, 0, 0);
+      f.url = c.toDataURL('image/png');
+    }catch(e){ f.failed = true; }
+    settle();
+  };
+  img.onerror = ()=>{ f.failed = true; settle(); };
+  img.src = src;
+}
+
+/* Every <image> on the chart is given its picture here, with the way that
+ * picture is to move. Moving is the picture itself; still and on-hover
+ * draw its first frame, and on-hover swaps the picture back in while the
+ * pointer is over the entry, note or card it belongs to (see the listener
+ * below). Still and hover are asked of the canvas whether or not the
+ * picture was found to move: what decides is the choice written down, and
+ * a still copy of a still picture looks exactly like the picture.
+ *
+ * The element is hidden until its first frame is ready, so a picture
+ * asked to stand still does not play a few frames first. */
+function wearPicture(img, src, mode){
+  const put = (u)=>{
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', u);
+    img.setAttribute('href', u);
+  };
+  mode = pictureAnimOf(mode);
+  if(!mode){ put(src); return; }
+  img.dataset.anim = mode;
+  img.dataset.src = src;
+  const known = stillFrames.get(src);
+  if(known && (known.url || known.failed)){ put(known.url || src); return; }
+  img.style.visibility = 'hidden';
+  stillFrameOf(src, (url)=>{
+    if(!img.dataset.playing) put(url || src);
+    img.style.visibility = '';
+  });
+}
+/* One listener for every picture that moves on hover: what the pointer is
+ * over is followed up to the thing it belongs to, and that thing's
+ * pictures play until the pointer is somewhere else. On a touch screen
+ * the pointer is "over" for as long as the finger is down. */
+let animHoverHost = null;
+function playHostPictures(host, on){
+  if(!host) return;
+  host.querySelectorAll('image[data-anim="hover"]').forEach(img=>{
+    const f = stillFrames.get(img.dataset.src);
+    const u = on ? img.dataset.src : (f && f.url) || img.dataset.src;
+    if(on) img.dataset.playing = '1'; else delete img.dataset.playing;
+    img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', u);
+    img.setAttribute('href', u);
+  });
+}
+document.addEventListener('pointerover', (ev)=>{
+  const t = ev.target;
+  const host = (t && t.closest) ? t.closest('g.node, g.edge-note, g.bio-card-g') : null;
+  if(host === animHoverHost) return;
+  playHostPictures(animHoverHost, false);
+  animHoverHost = host;
+  playHostPictures(host, true);
+});

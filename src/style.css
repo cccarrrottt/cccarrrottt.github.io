@@ -275,6 +275,14 @@
   }
   .owner-btn:hover{color:var(--ink);border-color:var(--ink-faint);}
   .owner-btn[hidden]{display:none;}
+  /* GitHub's mark to come in, a red door to leave; see updateOwnerBtn. */
+  .owner-btn{display:inline-flex;align-items:center;justify-content:center;padding:6px;line-height:0;}
+  .owner-btn.signed-in{color:var(--accent);}
+  .owner-btn.signed-in:hover{color:var(--accent);border-color:var(--accent);}
+  .owner-avatar{width:26px;height:26px;border-radius:50%;margin-left:10px;flex:0 0 auto;
+    border:1px solid var(--line);background:var(--panel-2);object-fit:cover;}
+  .owner-avatar[hidden]{display:none;}
+  .owner-avatar:not([hidden]) + .owner-btn{margin-left:6px;}
   /* Everything that writes to the chart is hidden outright in a read-only
      view rather than left visible and failing on click. Reading, search,
      tag filters, language tabs and the bio cards all stay. */
@@ -785,7 +793,15 @@
      unchanged. */
   .bend-hit{fill:transparent;stroke:none;cursor:grab;}
   body.bending .bend-hit{cursor:grabbing;}
-  /* A connector whose panel is open, lit like a selected entry. */
+  /* A connector whose panel is open, lit like a selected entry — and its
+     note with it, and in the same way a callout's leader, a picture and a
+     portrait's card when what they belong to is the one picked (the
+     owner's ask, 23.10): every one of them used to stay unlit, so the
+     thing being worked on was the one thing on the chart that did not
+     say so. */
+  .edge-note.edge-picked > .edge-note-plate:not(.bare), .edge-note.edge-picked > text,
+  .callout-leader.focused .leader-line, .callout-leader.focused .leader-dot,
+  .node.selected > image, .bio-card-g.focused > rect,
   .edge.edge-picked, .edge-arrow.edge-picked{
     filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
@@ -1107,10 +1123,11 @@
   }
   /* A note written along its line takes the pointer on its letters, and is
      ringed in the paper (or its own ground) so a line or the grid under
-     it never runs through the words — what the plate does for a level one. */
-  .edge-note-text.edge-note-along{
-    pointer-events:visiblePainted;paint-order:stroke;
-    stroke:var(--paper);stroke-width:3px;stroke-linejoin:round;
+     it never runs through the words — what the plate does for a level one.
+     The ring is a copy of the words underneath them; see drawNoteAlong. */
+  .edge-note-text.edge-note-along{pointer-events:visiblePainted;}
+  .edge-note-text.edge-note-along-ring{
+    fill:none;stroke:var(--paper);stroke-width:3px;stroke-linejoin:round;pointer-events:none;
   }
   .edge-note.dim{opacity:0.08;}
   /* The arrowheads and an amalgam's beads are their own shapes in their
@@ -2253,10 +2270,16 @@
   .comment-compose-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .comment-compose-row input[type=text]{flex:1;min-width:130px;}
   .comment-compose-row .editor-btn{white-space:nowrap;}
+  /* Never shorter than four lines of what is typed into it. On a phone,
+     with the keyboard up, the card is the strip above the keys, and a
+     field that gave way to everything else came out too short to show a
+     single line (the owner's report, 23.10); what gives way now is the
+     card, which scrolls (below). */
   .comment-compose textarea{
     width:100%;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12.5px;line-height:1.55;
     background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:5px;
     padding:9px 10px;resize:vertical;
+    flex:0 0 auto;min-height:calc(4lh + 20px);
   }
   .comment-compose textarea:focus{outline:none;border-color:var(--accent);}
   .comment-compose #commentTitle{
@@ -2271,6 +2294,10 @@
      and a thin bar that shows only while scrolling did not say there was
      more below. */
   .comments-card .about-body{display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  @media (max-width: 720px), (max-height: 520px){
+    .comments-card .about-body{overflow-y:auto;}
+    .comments-card .comment-list{flex:0 0 auto;overflow-y:visible;min-height:0;}
+  }
   .comments-card .comment-compose{flex:0 0 auto;}
   .comments-card .comment-list{
     flex:1 1 auto;min-height:80px;overflow-y:scroll;overscroll-behavior:contain;
@@ -2295,7 +2322,7 @@
   }
   /* Post and Sign in take turns, and a class that gives a button its display
      would otherwise outrank the hidden attribute. */
-  .comment-compose [hidden], #detailSuggest[hidden], #detailLink[hidden], #suggestSwitch[hidden]{display:none;}
+  .comment-compose [hidden], #detailSuggest[hidden], #detailLink[hidden]{display:none;}
   #detailLink.done{color:var(--accent);}
 
   .comment-list{display:flex;flex-direction:column;gap:9px;}
@@ -2319,7 +2346,16 @@
   .comment-item.k-addition .comment-kind{color:#3fae4a;}
   .comment-item.k-deletion .comment-kind{color:#8a8f98;}
   .comment-body{font-size:12.5px;line-height:1.6;white-space:pre-wrap;}
-  .comment-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .comment-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;}
+  .comment-actions .suggest-gh{display:inline-flex;align-items:center;gap:3px;padding:3px 6px;line-height:0;}
+  .suggest-done, .suggest-decline{
+    width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+    border:none;color:#fff;cursor:pointer;line-height:0;
+  }
+  .suggest-done{border-radius:50%;background:#2f9a4a;}
+  .suggest-decline{border-radius:3px;background:var(--danger,#c23b22);}
+  .suggest-done:hover, .suggest-decline:hover{filter:brightness(1.1);}
+  .suggest-done:disabled, .suggest-decline:disabled{opacity:0.5;cursor:default;}
   .comment-actions .editor-btn{padding:3px 8px;font-size:9.5px;}
   .comment-actions a.editor-btn{text-decoration:none;}
   /* The mark on an entry with a suggestion open about it: a dot at its
@@ -2352,6 +2388,7 @@
   .sticker-cell img{width:52px;height:52px;object-fit:contain;}
   .sticker-cell-actions{display:flex;gap:5px;width:100%;}
   .sticker-cell-actions .editor-btn{flex:1;padding:3px 2px;font-size:9.5px;}
+  .sticker-cell-actions .sticker-anim{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;padding:2px 4px;}
   /* Removing a sticker is a corner cross on the tile, not a word inside it:
      the tile is 52px of picture and no button spelling "Delete" fits across
      it without spilling over the frame. */
@@ -3166,7 +3203,7 @@
     .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
     .search-wrap svg{top:9px;}
     .topbar > .icon-btn{order:3;width:34px;height:34px;}
-    .save-btn, .view-badge, .owner-btn{order:4;margin-left:auto;}
+    .save-btn, .view-badge, .owner-avatar, .owner-btn{order:4;margin-left:auto;}
     /* On the site a reader has both the badge and the owner's way in, and
        beside the buttons there is room for one. The badge goes: no Save
        button already says the same thing. */

@@ -8,6 +8,33 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- Words written along a line no longer break on an elbowed connector:
+  every letter stands clear of the line and goes round the outside of a
+  corner at its full distance, the paper ring under the words no longer
+  eats the letter before it, and the note's style bar opens over the
+  words rather than somewhere off over the line's whole box.
+- A picked note glows with its connector, a picked callout's leader with
+  the callout, and a picked picture or character's card with its entry,
+  as everything else on the chart does.
+- A moving picture (a GIF, an animated WebP or PNG) on a picture,
+  a card or a portrait can move always, stand still on its first frame,
+  or move only while the pointer is on it, chosen on its style bar. A
+  sticker can do the same, from its cell in the sticker library, and an
+  animated WebP or PNG sticker is kept as it came so it keeps moving.
+- The app's icon on a phone's home screen is the R·P, not the old
+  drawing.
+- Suggestions: Done is a green circle with a tick, Decline a red square
+  with a cross, the issue on GitHub the GitHub mark with an arrow. The
+  text field never opens shorter than four lines, and the card scrolls
+  instead on a short screen. "Use another GitHub account" is gone; the
+  bar's button signs in and out.
+- The bar's Sign in is the GitHub mark. Signed in, it shows the account's
+  picture and a door to sign out by.
+- The character bio is called a Character.
+- An array stands as far off the entries it holds as a T-end does.
+- An entry deleted while its style bar or menu was open no longer leaves
+  them on screen until the next click; nor does undoing an entry's
+  arrival, a cut or an import.
 - The site loads faster: its program and stylesheet are minified (491 KB
   gzipped became 200), and fonts no longer hold up the first drawing. A
   face an entry can be set in is fetched only when an entry uses it.

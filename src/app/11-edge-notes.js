@@ -941,7 +941,7 @@ let noteAlongSeq = 0;
    folded every letter that reached it onto its neighbours (the owner's
    report, 22.10); round, a word turns the corner one letter at a time. */
 const NOTE_ALONG_TURN = EDGE_NOTE_FS * 3.2;
-function noteAlongFillet(pts){
+function noteAlongFillet(pts, side){
   if(pts.length < 3) return pts.slice();
   const out = [pts[0]];
   for(let i = 1; i < pts.length - 1; i++){
@@ -951,6 +951,15 @@ function noteAlongFillet(pts){
     const ux = (p.x - a.x) / la, uy = (p.y - a.y) / la, vx = (b.x - p.x) / lb, vy = (b.y - p.y) / lb;
     const turn = Math.acos(Math.max(-1, Math.min(1, ux*vx + uy*vy)));
     if(turn < 0.05){ out.push(p); continue; }
+    /* The outside of a turn is not rounded here: the words go round the
+       corner itself, at their full distance from it (see drawNoteAlong).
+       Rounding the line first and then stepping off it cut across the
+       corner — on an elbowed connector the letters came down onto the
+       elbow (the owner's report, 23.10). */
+    if(side && ((uy + vy) * (vx - ux) - (ux + vx) * (vy - uy)) * side < 0){
+      out.push({x: p.x, y: p.y, outer: true});
+      continue;
+    }
     // As round as the legs allow: never past the middle of either.
     const cut = Math.min(NOTE_ALONG_TURN * Math.tan(turn / 2), la / 2, lb / 2);
     const s0 = {x: p.x - ux*cut, y: p.y - uy*cut}, s1 = {x: p.x + vx*cut, y: p.y + vy*cut};
@@ -970,13 +979,43 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   const off = pos === 'on' ? 0 : reach * (pos === 'below' ? -1 : 1);
   // The side asked for, as a multiple of the line's own left normal.
   const sign = (m.dy * px - m.dx * py) >= 0 ? 1 : -1;
-  const line = noteAlongFillet(pts);
-  const moved = line.map((p, i)=>{
-    const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)];
-    let dx = b.x - a.x, dy = b.y - a.y;
-    const L = Math.hypot(dx, dy) || 1;
-    dx /= L; dy /= L;
-    return {x: p.x + dy * off * sign, y: p.y - dx * off * sign};
+  /* Points closer than a tenth of a unit are one point. The rounding
+     meets the next corner's at the middle of a short leg, and a curve is
+     already sampled finely, so the line came here with points doubled —
+     and a point's direction, taken from its two neighbours, was then
+     taken from two copies of the same place: nothing, so that point was
+     not moved off the line at all. The words ran in and out of their own
+     connector, each letter turned its own way (the owner's report, 23.10). */
+  const line = [];
+  noteAlongFillet(pts, off * sign).forEach(p=>{
+    const q = line[line.length - 1];
+    if(!q || Math.hypot(p.x - q.x, p.y - q.y) > 0.1) line.push(p);
+  });
+  /* Each point is moved along the bisector of the two legs that meet at
+     it, by as much as keeps both legs at the full distance — so a turn
+     keeps its distance too rather than cutting the corner. */
+  const unit = (a, b)=>{ const L = Math.hypot(b.x - a.x, b.y - a.y) || 1; return {x: (b.x - a.x) / L, y: (b.y - a.y) / L}; };
+  const moved = line.flatMap((p, i)=>{
+    const u = i > 0 ? unit(line[i-1], p) : unit(p, line[i+1] || p);
+    const v = i < line.length - 1 ? unit(p, line[i+1]) : u;
+    /* An outside corner, left sharp by the rounding: an arc round it at
+       the full distance, from the one leg's side to the other's. */
+    if(p.outer){
+      const a0 = Math.atan2(-u.x * sign * off, u.y * sign * off);
+      let sweep = Math.atan2(-v.x * sign * off, v.y * sign * off) - a0;
+      while(sweep > Math.PI) sweep -= 2 * Math.PI;
+      while(sweep < -Math.PI) sweep += 2 * Math.PI;
+      const r = Math.abs(off), steps = 8;
+      return Array.from({length: steps + 1}, (_, k)=>{
+        const ang = a0 + sweep * k / steps;
+        return {x: p.x + r * Math.cos(ang), y: p.y + r * Math.sin(ang)};
+      });
+    }
+    let nx = (u.y + v.y), ny = -(u.x + v.x);
+    const L = Math.hypot(nx, ny);
+    if(L < 1e-6){ nx = u.y; ny = -u.x; } else { nx /= L; ny /= L; }
+    const k = Math.max(0.5, nx * u.y - ny * u.x);
+    return [{x: p.x + nx * off * sign / k, y: p.y + ny * off * sign / k}];
   });
   let total = 0;
   for(let i = 1; i < moved.length; i++) total += Math.hypot(moved[i].x - moved[i-1].x, moved[i].y - moved[i-1].y);
@@ -987,19 +1026,31 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   const id = 'note-along-' + (++noteAlongSeq);
   el('path', {id, class:'edge-note-along-path', fill:'none', stroke:'none',
               d: run.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ')}, g);
-  const t = el('text', {class:'edge-note-text edge-note-along' + (pos === 'on' ? ' on-line' : '')}, g);
-  t.style.textAnchor = 'middle';
-  t.style.dominantBaseline = 'central';
-  if(paint) t.style.fill = paint;
-  if(bg) t.style.stroke = bg;
-  const tp = el('textPath', {href: '#' + id}, t);
-  tp.textContent = stripMarkup(text).replace(/\s+/g, ' ').trim();
+  /* The ring of paper round the words is a second copy of them, drawn
+     first. On the words themselves (paint-order) it did not work along a
+     path: a path's letters are painted one at a time, ring and all, so
+     each letter's ring was laid over the letter before it and ate its
+     edge — an o came out a c (the owner's report, 23.10). */
+  const words = stripMarkup(text).replace(/\s+/g, ' ').trim();
+  const lay = (cls)=>{
+    const t = el('text', {class:'edge-note-text ' + cls}, g);
+    t.style.textAnchor = 'middle';
+    t.style.dominantBaseline = 'central';
+    const tp = el('textPath', {href: '#' + id}, t);
+    tp.textContent = words;
+    return {t, tp};
+  };
+  const ring = lay('edge-note-along-ring');
+  const ink = lay('edge-note-along' + (pos === 'on' ? ' on-line' : ''));
+  if(paint) ink.t.style.fill = paint;
+  if(bg) ring.t.style.stroke = bg;
   /* Held inside the line: a note slid near an end ran its words off it,
      and a path drops the letters it has no room for. */
   let half = 0;
-  try{ half = t.getComputedTextLength() / 2; }catch(e){}
+  try{ half = ink.t.getComputedTextLength() / 2; }catch(e){}
   if(half * 2 >= total) at = total / 2;
   else at = Math.max(half, Math.min(total - half, at));
-  tp.setAttribute('startOffset', at.toFixed(2));
+  ring.tp.setAttribute('startOffset', at.toFixed(2));
+  ink.tp.setAttribute('startOffset', at.toFixed(2));
 }
 // The outward normal of the side a port sits on.

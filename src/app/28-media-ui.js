@@ -134,9 +134,9 @@ function shrinkImageToDataUrl(file){
     fr.onerror = ()=> reject(new Error('could not read that file'));
     fr.onload = ()=>{
       const raw = String(fr.result);
-      /* An animated GIF cannot survive a canvas — only its first frame
+      /* An animated GIF (or WebP, or PNG) cannot survive a canvas — only its first frame
          would — so it is kept exactly as it came, like a sticker. */
-      if(/^data:image\/gif;/i.test(raw)){ resolve(raw); return; }
+      if(/^data:image\/gif;/i.test(raw) || pictureMoves(raw)){ resolve(raw); return; }
       const img = new Image();
       img.onerror = ()=> reject(new Error('that file is not a picture this browser can read'));
       img.onload = ()=>{

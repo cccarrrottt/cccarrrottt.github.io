@@ -10379,6 +10379,7 @@ async function main(){
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
   /* The site serves the page, and the pictures the write service has been
      sent (api.files) beside it, as Pages serves src/media. */
   await c.route(SITE_ORIGIN + '/**', r => {
@@ -10474,7 +10475,7 @@ async function main(){
       drew: document.querySelectorAll('#nodeLayer .node').length,
       oldEditShown: workingNodes.some(n => n[1] === 'A READER’S OLD EDIT'),
       saveHidden: !shown('saveBtn'),
-      signIn: shown('ownerBtn') ? document.getElementById('ownerBtn').textContent : null,
+      signIn: shown('ownerBtn') ? document.getElementById('ownerBtn').getAttribute('aria-label') : null,
       exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(shown),
       importRefused: !shown('fileImport') || readOnlyView
     };
@@ -10571,7 +10572,7 @@ async function main(){
   await site.waitForFunction(() => !readOnlyView, null, {timeout: 5000}).catch(() => {});
   const inn = await site.evaluate(() => ({
     readOnly: readOnlyView,
-    button: document.getElementById('ownerBtn').textContent,
+    button: document.getElementById('ownerBtn').getAttribute('aria-label'),
     stored: localStorage.getItem('rhizome.site.session'),
     saveShown: getComputedStyle(document.getElementById('saveBtn')).display !== 'none'
   }));
@@ -10856,6 +10857,7 @@ async function main(){
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
   await c.route(SITE_ORIGIN + '/**', r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html}));
   /* GitHub's own API, which a signed-out page reads the open issues from:
      the same suggestions the service lists, as GitHub holds them — the
@@ -10968,7 +10970,7 @@ async function main(){
   const r1 = await site.evaluate(() => ({
     readOnly: readOnlyView,
     saveShown: getComputedStyle(document.getElementById('saveBtn')).display !== 'none',
-    button: document.getElementById('ownerBtn').textContent,
+    button: document.getElementById('ownerBtn').getAttribute('aria-label'),
     post: !document.getElementById('commentSubmit').hidden,
     items: document.querySelectorAll('#commentList .comment-item').length,
     imgs: document.querySelectorAll('#commentList img').length,
@@ -10976,9 +10978,17 @@ async function main(){
     closers: [...document.querySelectorAll('#commentList .comment-actions button')].length,
     github: !!document.querySelector('#commentList .comment-actions a[href^="https://github.com/"]'),
     marks: [...document.querySelectorAll('#suggestionLayer .suggestion-mark')].map(g => g.dataset.id),
-    owned: !!window.__owned
+    owned: !!window.__owned,
+    avatar: (a => a && !a.hidden ? a.getAttribute('src') : null)(document.getElementById('ownerAvatar')),
+    door: !!document.querySelector('#ownerBtn.signed-in svg') && !document.getElementById('ownerBtn').textContent.trim(),
+    field: (t => t && {min: parseFloat(getComputedStyle(t).minHeight), line: parseFloat(getComputedStyle(t).lineHeight) ||
+                       parseFloat(getComputedStyle(t).fontSize) * 1.2})(document.getElementById('commentText'))
   }));
   check('the reader signs in as a reader', api.loginAs.join() === 'reader', api.loginAs.join());
+  check('signed in, the bar shows the account\'s GitHub picture and a door to sign out by',
+        r1.avatar === 'https://github.com/a-reader.png?size=64' && r1.door, JSON.stringify({avatar: r1.avatar, door: r1.door}));
+  check('the suggestion field is never shorter than four lines, however small the card',
+        r1.field && r1.field.min >= r1.field.line * 4, JSON.stringify(r1.field));
   check('and stays a reader: no Save, still read-only, and a way to sign out',
         r1.readOnly && !r1.saveShown && r1.button === 'Sign out', JSON.stringify(r1));
   check('signed in, the form offers Post and lists what is open', r1.post && r1.items === 1, JSON.stringify(r1));
@@ -11022,7 +11032,7 @@ async function main(){
     for(let i = 0; i < 40 && !marksAt(); i++) await new Promise(res => setTimeout(res, 50));
     const fromGitHub = await fetch('https://api.github.com/repos/' + SITE_REPO + '/issues?state=open')
       .then(r=> r.json()).then(list=> list.map(readSuggestionIssue).filter(Boolean)).catch(e=> 'failed: ' + e.message);
-    return {stored: localStorage.getItem('rhizome.site.session'), button: document.getElementById('ownerBtn').textContent,
+    return {stored: localStorage.getItem('rhizome.site.session'), button: document.getElementById('ownerBtn').getAttribute('aria-label'),
             right, marks: marksAt(),
             ghTitles: Array.isArray(fromGitHub) ? fromGitHub.map(x=> x.title) : String(fromGitHub)};
   });
@@ -11045,7 +11055,14 @@ async function main(){
     const out = {readOnly: readOnlyView, about: document.getElementById('suggestAbout').textContent,
                  marks: document.querySelectorAll('#suggestionLayer .suggestion-mark').length};
     const item = [...document.querySelectorAll('#commentList .comment-item')].find(x => x.textContent.includes('Not canon'));
-    const done = item && [...item.querySelectorAll('button')].find(b => b.textContent === 'Done');
+    const done = item && [...item.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === 'Done');
+    /* Done a green circle with a tick, Decline a red square with a cross,
+       the issue a GitHub mark with an arrow (the owner's ask, 23.10). */
+    const decline = item && item.querySelector('button.suggest-decline');
+    const gh = item && item.querySelector('a.suggest-gh');
+    const look = b => b && {radius: getComputedStyle(b).borderRadius, w: b.getBoundingClientRect().width,
+                            bg: getComputedStyle(b).backgroundColor, svg: !!b.querySelector('svg'), text: b.textContent.trim()};
+    out.looks = {done: look(done), decline: look(decline), gh: gh && {svgs: gh.querySelectorAll('svg').length, text: gh.textContent.trim()}};
     out.offered = !!done;
     if(done) done.click();
     await new Promise(res => setTimeout(res, 400));
@@ -11061,23 +11078,21 @@ async function main(){
         JSON.stringify({r4, resolved: api.resolved}));
   check('it leaves the list, and its entry\'s mark goes with it', r4.items === 1 && r4.marksAfter.join() === ids[1],
         JSON.stringify(r4));
-  /* ---- a second account, from a page the owner is signed in to ----
-     The owner trying a reader's account found the page still posting as
-     the owner: whoever is signed in stays signed in. The form offers
-     another account, which lets go of this one and asks again. */
-  api.account = 'reader';
-  const popup3 = c.waitForEvent('page');
-  const r5a = await site.evaluate(() => {
-    const b = document.getElementById('suggestSwitch');
-    const shown = !!b && !b.hidden && getComputedStyle(b).display !== 'none';
-    if(b) b.click();
-    return {shown, readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')};
-  });
-  await popup3;
-  await site.waitForFunction(() => !document.getElementById('commentSubmit').hidden, null, {timeout: 5000}).catch(() => {});
-  check('signed in, the form offers another GitHub account', r5a.shown, JSON.stringify(r5a));
-  check('which lets go of the owner and signs in again as a reader',
-        r5a.readOnly && r5a.stored === null && api.loginAs.join() === 'reader,reader,reader', api.loginAs.join() + ' ' + JSON.stringify(r5a));
+  check('Done is a green circle with a tick, Decline a red square with a cross, both without words',
+        r4.looks.done && r4.looks.done.svg && !r4.looks.done.text && parseFloat(r4.looks.done.radius) >= r4.looks.done.w / 2 - 0.5 &&
+        /rgb\(47, 154, 74\)/.test(r4.looks.done.bg) && r4.looks.decline && r4.looks.decline.svg && !r4.looks.decline.text &&
+        parseFloat(r4.looks.decline.radius) <= 4 && /rgb\(194, 59, 34\)/.test(r4.looks.decline.bg), JSON.stringify(r4.looks));
+  check('the issue on GitHub is the GitHub mark with an arrow, not the words', r4.looks.gh && r4.looks.gh.svgs === 2 && !r4.looks.gh.text,
+        JSON.stringify(r4.looks.gh));
+  /* ---- one way to sign in ----
+     The form used to offer another GitHub account as well, which let go
+     of this one and asked again. The owner found it redundant beside the
+     bar's own button, which signs out (23.10). */
+  const r5a = await site.evaluate(() => ({gone: !document.getElementById('suggestSwitch') &&
+    ![...document.querySelectorAll('.comments-card button')].some(b => /another GitHub account/i.test(b.textContent)),
+    bar: document.getElementById('ownerBtn').getAttribute('aria-label')}));
+  check('the form offers no second account: the bar\'s button is the one way in and out',
+        r5a.gone && r5a.bar === 'Sign out', JSON.stringify(r5a));
   check('and none of it raised an error', errs.length === 0, errs.join(' | '));
   await c.close();
   });
@@ -11105,6 +11120,7 @@ async function main(){
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
   await c.route(SITE_ORIGIN + '/**', r => {
     const u = new URL(r.request().url());
     const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
@@ -11195,6 +11211,7 @@ async function main(){
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
   await c.route('https://fonts.googleapis.com/**', quiet);
   await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
   const errs = [];
   try{
     const manifest = JSON.parse(files['/manifest.webmanifest'].toString('utf8'));
@@ -11260,8 +11277,10 @@ async function main(){
       files['/'] = Buffer.from(files['/'].toString().replace(was, now));
       return now;
     };
-    const keptPrograms = () => p.evaluate(async () => (await (await caches.open('rhizome-site-2')).keys())
-      .map(k => new URL(k.url).pathname.slice(1)).filter(n => /^app\./.test(n)).sort());
+    // The worker's cache by the name it is given, which a release of the shell moves on.
+    const cacheName = /const CACHE = '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'src', 'site', 'sw.js'), 'utf8'))[1];
+    const keptPrograms = () => p.evaluate(async (name) => (await (await caches.open(name)).keys())
+      .map(k => new URL(k.url).pathname.slice(1)).filter(n => /^app\./.test(n)).sort(), cacheName);
     up = true;
     const first = appOf(), second = release(1);
     await p.reload({waitUntil: 'load'});
@@ -17949,7 +17968,7 @@ async function main(){
       (arr.x + arr.w - inner) - Math.max(m1.x + m1.w + r1.side, m2.x + m2.w + r2.side),
       (arr.y + arr.h - inner) - Math.max(m1.y + m1.h + r1.side, m2.y + m2.h + r2.side),
     ].map(v=> round2(v));
-    out.holds = out.margins.every(v=> Math.abs(v - 2) < 0.05);
+    out.holds = out.margins.every(v=> Math.abs(v - TEE_GAP) < 0.05);
     // A member's tab stands inside the frame too, two pixels short of it.
     applyEdit(()=>{ const it = workingNodes.find(x=> x[0] === 'az_a'); it[6] = Object.assign({}, it[6], {link:'https://example.com/'}); });
     await pause(100);
@@ -18021,8 +18040,8 @@ async function main(){
   });
   check('two entries picked make an array of them', !!a.id && /"members":\["az_a","az_b"\]/.test(a.saved || ''), JSON.stringify(a));
   check('the new array is picked, with no drawer', a.selected && !a.drawer, JSON.stringify(a));
-  check('the array holds its members two pixels off their outer borders', a.holds, JSON.stringify(a.margins));
-  check('…and their tabs two pixels off its frame', a.tabGap !== null && Math.abs(a.tabGap - 2) < 0.3, String(a.tabGap));
+  check('the array holds its members as far off their outer borders as a T-end stands (23.10)', a.holds, JSON.stringify(a.margins));
+  check('…and their tabs as far off its frame', a.tabGap !== null && Math.abs(a.tabGap - 2.5) < 0.3, String(a.tabGap));
   check('arrays are drawn over a backdrop and under the connectors', a.behind && a.inLayer, JSON.stringify(a));
   check('the router does not go round an array', !a.obstacle);
   check('an array is taken hold of anywhere inside it, and a member inside still answers for itself',
@@ -18267,7 +18286,7 @@ async function main(){
     const held = window.open;
     window.open = (url)=>{ opened.push(String(url)); return {}; };
     try{ btn.onclick(); } finally { window.open = held; }
-    out.sign = {label: btn.textContent.trim(), url: opened[0] || ''};
+    out.sign = {label: btn.getAttribute('aria-label'), mark: !!btn.querySelector('svg') && !btn.textContent.trim(), url: opened[0] || ''};
     out.suggestNote = !!document.getElementById('suggestNote');
     out.stickerProse = !!document.querySelector('#stickerOverlay p, .sticker-hint');
     // A GIF is kept byte for byte, so it still moves.
@@ -18293,7 +18312,7 @@ async function main(){
   check('…its exports are a row of five file icons, HTML, JS, JSON, PNG and SVG, Import across the bottom',
         r.file.cols === 5 && r.file.pics.join() === 'HTML,JS,JSON,PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
   check('there is one Sign in, and it asks for a reader\'s session',
-        r.sign.label === 'Sign in' && /\/login\?/.test(r.sign.url) && /as=reader/.test(r.sign.url), JSON.stringify(r.sign));
+        r.sign.label === 'Sign in' && r.sign.mark && /\/login\?/.test(r.sign.url) && /as=reader/.test(r.sign.url), JSON.stringify(r.sign));
   check('Suggestions and Stickers carry no notes', !r.suggestNote && !r.stickerProse, JSON.stringify(r));
   check('a GIF sticker is kept byte for byte, so it moves', r.gif);
   check('tags with no category sit in a dashed field with a mark in its middle and no words',
@@ -19190,6 +19209,217 @@ async function main(){
         !!r.plainNote && /routing:'orthogonal', dash:'solid', arrow:true/.test(r.plainNote) && !/undefined|arrow:null/.test(r.plainNote), r.plainNote);
   check('a note\'s ground typed into, then another note\'s, is two steps of undo, not one',
         r.afterUndo[0] === '#ffeebb' && r.afterUndo[1] === null, JSON.stringify(r.afterUndo));
+  });
+  await scenario("the owner's list of 23.10: words along a line, glow, moving pictures", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const beforeStickers = STICKERS.map(x=> Object.assign({}, x));
+    /* Two frames each, four pixels square: a GIF, an animated WebP and an
+       animated PNG, and a WebP and a PNG that hold still. */
+    const GIF = 'data:image/gif;base64,R0lGODlhBAAEAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAABAAEAAAICQABCBxIsCCAgAAh+QQBFAABACwAAAAABAAEAIEAAP8AAAAAAAAAAAAICQABCBxIsCCAgAA7';
+    const WEBP = 'data:image/webp;base64,UklGRsQAAABXRUJQVlA4WAoAAAACAAAAAwAAAwAAQU5JTQYAAAAAAAAAAABBTk1GSgAAAAAAAAAAAAMAAAMAAMgAAAJWUDggMgAAADABAJ0BKgQABAABQCYloAADcAD+8ut///mwP/bz/wR6Af//0uD//pcH//S4P/SkAAAAQU5NRkYAAAAAAAAAAAADAAADAADIAAAAVlA4IC4AAAA0AQCdASoEAAQAAAAmJaAAA3AA/vtV4///S4P/+lwf/9Lg/9Lg//rV5Vesq6AA';
+    const APNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAAAAAAEAAAABAAAAAAAAAAAAAEABQAAXC5E3AAAABBJREFUeJxj/M+AAEwMRHEAM9EBBzqEPrgAAAAaZmNUTAAAAAEAAAAEAAAABAAAAAAAAAAAAAEABQAAx12uCAAAABhmZEFUAAAAAnicY2Rg+M8AA0wMSAA3BwAx0wEHhrHizAAAAABJRU5ErkJggg==';
+    const STILL_WEBP = 'data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoEAAQAAUAmJaACdLoB+AADsAD+8ut//NgVzXPv9//S4P0uD9Lg/9KQAAA=';
+    const STILL_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP8z4AATAxEcQAz0QEHOoQ+uAAAAABJRU5ErkJggg==';
+    const out = {};
+    const X = 31000, Y = 31000;
+    applyEdit(()=>{
+      workingNodes.push(['tw_a', 'Start', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['tw_b', 'Finish', 'tw_a', null, null, null, {pos:[X + 320, Y + 260]}]);
+      workingNodes.push(['tw_c', 'A callout', null, null, null, 'callout', {pos:[X - 260, Y + 120], leader:{from:'tw_a', to:'tw_b', at:0.3}}]);
+      workingNodes.push(['tw_i', '', null, null, null, 'image', {pos:[X + 600, Y], image: GIF}]);
+      workingNodes.push(['tw_s', '', null, null, null, 'image', {pos:[X + 800, Y], image: STILL_PNG}]);
+      workingNodes.push(['tw_p', 'Someone', null, null, 'A short life.', 'ellipse', {pos:[X + 600, Y + 300], image: APNG, bioCard:true}]);
+      EDGE_STYLES.push({from:'tw_a', to:'tw_b', routing:'orthogonal', note:'фывфы along', noteAlong:true});
+    });
+    await wait(250);
+    flyToNode('tw_a'); await wait(200);
+
+    /* Along an elbowed line (the owner's screenshot, 23.10): every point of
+       the words' path stands off the line, the words are whole letters
+       over a ring drawn under them all, and the bar opens over the words. */
+    const line = drawnLineOf('tw_a', 'tw_b');
+    const off = (x, y)=>{
+      let best = Infinity;
+      for(let i = 1; i < line.length; i++){
+        const a = line[i-1], b = line[i], dx = b.x - a.x, dy = b.y - a.y, L = dx*dx + dy*dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - a.x)*dx + (y - a.y)*dy) / L));
+        best = Math.min(best, Math.hypot(a.x + dx*t - x, a.y + dy*t - y));
+      }
+      return best;
+    };
+    const g = document.querySelector('.edge-note[data-from="tw_a"][data-to="tw_b"]');
+    const along = g && g.querySelector('.edge-note-along-path');
+    if(along){
+      const L = along.getTotalLength(), ds = [];
+      for(let k = 0; k <= 40; k++){ const q = along.getPointAtLength(L * k / 40); ds.push(off(q.x, q.y)); }
+      out.minOff = Math.round(Math.min(...ds) * 100) / 100;
+    }
+    const ring = g && g.querySelector('text.edge-note-along-ring');
+    const word = g && g.querySelector('text.edge-note-along');
+    out.ring = {ring: !!ring, word: !!word,
+                under: !!(ring && word && (ring.compareDocumentPosition(word) & Node.DOCUMENT_POSITION_FOLLOWING)),
+                same: !!(ring && word) && ring.textContent === word.textContent,
+                offset: !!(ring && word) && ring.querySelector('textPath').getAttribute('startOffset') ===
+                                            word.querySelector('textPath').getAttribute('startOffset'),
+                wordStroke: word && getComputedStyle(word).stroke, ringFill: ring && getComputedStyle(ring).fill};
+    openStyleBar({kind:'note', from:'tw_a', to:'tw_b'});
+    await wait(50);
+    if(word){
+      const b = styleBar.getBoundingClientRect(), w = word.getBoundingClientRect();
+      out.bar = {gap: Math.round(w.top - b.bottom), dx: Math.round(Math.abs(b.left - w.left)), shown: !styleBar.hidden};
+    }
+    closeStyleBar();
+
+    /* Picked, a note glows with its connector; a callout's leader glows
+       with the callout; a picture, and a portrait's card, glow with their
+       entry. */
+    const glows = (el)=> !!el && /drop-shadow/.test(getComputedStyle(el).filter);
+    const hit = document.querySelector('.edge-hit[data-from="tw_a"][data-to="tw_b"]');
+    if(hit){
+      const hr = hit.getBoundingClientRect();
+      hit.dispatchEvent(new MouseEvent('click', {bubbles:true, clientX:hr.left + 4, clientY:hr.top + 4}));
+      await wait(150);
+      const ng = document.querySelector('.edge-note[data-from="tw_a"][data-to="tw_b"]');
+      out.noteGlows = glows(ng && ng.querySelector('text.edge-note-along'));
+      closeEdgePopover(); await wait(80);
+      out.noteLetGo = !document.querySelector('.edge-note.edge-picked');
+    }
+    selectNode('tw_c'); await wait(120);
+    out.leaderGlows = glows(document.querySelector('.callout-leader[data-id="tw_c"] .leader-line'));
+    selectNode('tw_i'); await wait(120);
+    out.imageGlows = glows(document.querySelector('.node[data-id="tw_i"] > image'));
+    out.leaderLetGo = !glows(document.querySelector('.callout-leader[data-id="tw_c"] .leader-line'));
+    selectNode('tw_p'); await wait(120);
+    out.cardGlows = glows(document.querySelector('.bio-card-g[data-id="tw_p"] > rect'));
+    deselect(); await wait(80);
+    out.cardLetGo = !glows(document.querySelector('.bio-card-g[data-id="tw_p"] > rect'));
+
+    /* Which pictures move, from their own bytes. */
+    out.moves = [GIF, WEBP, APNG, STILL_WEBP, STILL_PNG].map(pictureMoves).join();
+    const bytes = (u)=> Uint8Array.from(atob(u.split(',')[1]), c=> c.charCodeAt(0));
+    out.fileMoves = (await Promise.all([
+      fileMoves(new File([bytes(WEBP)], 'a.webp', {type:'image/webp'})),
+      fileMoves(new File([bytes(APNG)], 'a.png', {type:'image/png'})),
+      fileMoves(new File([bytes(STILL_PNG)], 'b.png', {type:'image/png'}))])).join();
+    out.keptWhole = (await stickerDataFromFile(new File([bytes(WEBP)], 'a.webp', {type:'image/webp'}), null, true)) === WEBP;
+
+    /* The bar offers the three ways on a picture that moves, and not on
+       one that cannot. */
+    const anim = ()=> styleBar.querySelector('[data-group="anim"]');
+    openStyleBar({kind:'node', id:'tw_s'}); await wait(50);
+    out.stillOffered = !anim().hidden;
+    closeStyleBar();
+    openStyleBar({kind:'node', id:'tw_i'}); await wait(50);
+    out.offered = !anim().hidden && !styleBar.hidden;
+    out.playLit = !!anim().querySelector('button.on[data-value="play"]');
+    out.values = [...anim().querySelectorAll('button[data-value]')].map(b=> b.dataset.value).join();
+    const href = ()=> document.querySelector('.node[data-id="tw_i"] > image').getAttribute('href');
+    out.playing = href() === GIF;
+    anim().querySelector('button[data-value="still"]').click();
+    await wait(300);
+    const rec = workingEntry('tw_i');
+    out.stored = rec && entryOpts(rec.entry).anim === 'still' && nodes.get('tw_i').anim === 'still';
+    out.stillDrawn = /^data:image\/png/.test(href() || '');
+    anim().querySelector('button[data-value="hover"]').click();
+    await wait(300);
+    out.hoverStill = /^data:image\/png/.test(href() || '');
+    const img = document.querySelector('.node[data-id="tw_i"] > image');
+    img.dispatchEvent(new PointerEvent('pointerover', {bubbles:true}));
+    out.hoverPlays = href() === GIF;
+    document.body.dispatchEvent(new PointerEvent('pointerover', {bubbles:true}));
+    out.hoverStops = /^data:image\/png/.test(href() || '');
+    anim().querySelector('button[data-value="play"]').click();
+    await wait(200);
+    out.backToPlay = href() === GIF && !('anim' in entryOpts(workingEntry('tw_i').entry));
+    closeStyleBar();
+
+    /* A sticker moves, stands still or moves on hover too — chosen in its
+       cell, written on its record, and kept through a file. */
+    applyStickerEdit(()=> STICKERS.push({key:'tw-moving', name:'moving', src: WEBP}));
+    applyEdit(()=> workingNodes.push(['tw_t', 'Look {{s:tw-moving}} here', null, null, null, null, {pos:[X, Y + 600]}]));
+    await wait(200);
+    renderStickerLibrary();
+    const cellBtn = ()=> [...document.querySelectorAll('#stickerOverlay .sticker-cell')]
+      .find(c=> c.querySelector('img') && c.querySelector('img').getAttribute('src') === WEBP);
+    const cell = cellBtn();
+    const ab = cell && cell.querySelector('.sticker-anim');
+    out.cellOffers = !!ab && ab.dataset.value === 'play';
+    if(ab) ab.click();
+    await wait(300);
+    const srec = STICKERS.find(x=> x.key === 'tw-moving');
+    out.stickerStored = srec && srec.anim === 'still' && /anim:'still'/.test(serializeStickers(STICKERS));
+    const glyph = document.querySelector('.node[data-id="tw_t"] image.sticker-glyph');
+    out.stickerStill = !!glyph && glyph.dataset.anim === 'still' && /^data:image\/png/.test(glyph.getAttribute('href') || '');
+    out.sanitized = JSON.stringify(sanitizeStickers([{key:'a', src: WEBP, anim:'hover'}, {key:'b', src: WEBP, anim:'sometimes'}]).map(x=> x.anim || null));
+
+    /* Nothing between an array's border and the entries it holds is
+       narrower than what a T-end leaves before an entry. */
+    out.pad = Math.abs(arrayPad(nodes.get('tw_a')) - borderHalfOf(nodes.get('tw_a')) - TEE_GAP) < 1e-9;
+    /* A portrait is called a Character wherever an entry's kind is named. */
+    out.named = [document.querySelector('#editShapeInput option[value="ellipse"]').textContent,
+                 NODE_STYLE_PICKS.find(x=> x.value === 'ellipse').label,
+                 (KEY_MARKS.find(x=> x.key === 'shape:bio') || {}).name].join(' | ');
+    /* The app's icons are the owner's R·P, a picture: the old drawn icon
+       is gone from the manifest and from what the worker keeps. */
+    const man = await fetch('site/manifest.webmanifest').then(x=> x.ok ? x.json() : null).catch(()=> null);
+    const sw = await fetch('site/sw.js').then(x=> x.ok ? x.text() : '').catch(()=> '');
+    out.icons = man ? man.icons.map(i=> i.src).join() : null;
+    out.swSvg = /icon\.svg/.test(sw);
+
+    /* An entry deleted while its bar stands over it takes the bar with it
+       (the owner's report, 23.10), and undoing a picture's arrival with
+       its menu open takes the menu. */
+    applyEdit(()=> workingNodes.push(['tw_d', 'Doomed', null, null, null, null, {pos:[X + 300, Y - 200]}]));
+    await wait(150);
+    selectNode('tw_d'); openStyleBar({kind:'node', id:'tw_d'}); await wait(50);
+    const barWas = !styleBar.hidden;
+    deleteNode('tw_d'); await wait(150);
+    out.barGoes = barWas && styleBar.hidden;
+    applyEdit(()=> workingNodes.push(['tw_e', '', null, null, null, 'image', {pos:[X + 300, Y - 200]}]));
+    await wait(150);
+    openFreeMenu('tw_e'); await wait(50);
+    const menuWas = freeMenu.classList.contains('open');
+    undoLastEdit(); await wait(150);
+    out.menuGoes = menuWas && !freeMenu.classList.contains('open') && !nodes.has('tw_e');
+
+    applyStickerEdit(()=> refill(STICKERS, beforeStickers));
+    applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
+    await wait(150);
+    return out;
+  });
+  check('words along an elbowed line stand off it at every point', r.minOff >= 3, JSON.stringify(r.minOff));
+  check('…written as whole letters over one ring drawn under them all',
+        r.ring.ring && r.ring.word && r.ring.under && r.ring.same && r.ring.offset && r.ring.wordStroke === 'none' && r.ring.ringFill === 'none',
+        JSON.stringify(r.ring));
+  check('…and their bar opens just over the words, not far off where the line\'s box is',
+        r.bar && r.bar.shown && r.bar.gap >= 0 && r.bar.gap < 40 && r.bar.dx < 80, JSON.stringify(r.bar));
+  check('a picked connector\'s note glows with it, and lets go with it', r.noteGlows && r.noteLetGo, JSON.stringify([r.noteGlows, r.noteLetGo]));
+  check('a picked callout\'s leader glows, and lets go when something else is picked', r.leaderGlows && r.leaderLetGo, JSON.stringify([r.leaderGlows, r.leaderLetGo]));
+  check('a picked picture glows', r.imageGlows, String(r.imageGlows));
+  check('a picked portrait\'s card glows, and lets go when nothing is picked', r.cardGlows && r.cardLetGo, JSON.stringify([r.cardGlows, r.cardLetGo]));
+  check('a GIF, an animated WebP and an animated PNG are known to move, still ones are not',
+        r.moves === 'true,true,true,false,false', r.moves);
+  check('…a chosen file is asked the same, and one that moves is kept byte for byte',
+        r.fileMoves === 'true,true,false' && r.keptWhole, r.fileMoves + ' ' + r.keptWhole);
+  check('the bar offers moving, still and on hover for a picture that moves, and nothing for one that cannot',
+        r.offered && !r.stillOffered && r.values === 'play,still,hover' && r.playLit && r.playing, JSON.stringify([r.offered, r.stillOffered, r.values, r.playLit, r.playing]));
+  check('…still is written on the entry and draws the first frame', r.stored && r.stillDrawn, JSON.stringify([r.stored, r.stillDrawn]));
+  check('…on hover it stands still until the pointer is on it, and stops when it leaves',
+        r.hoverStill && r.hoverPlays && r.hoverStops, JSON.stringify([r.hoverStill, r.hoverPlays, r.hoverStops]));
+  check('…and moving again is the absence of the field', r.backToPlay, String(r.backToPlay));
+  check('a sticker that moves is offered the same in its cell, written on its record and drawn still',
+        r.cellOffers && r.stickerStored && r.stickerStill, JSON.stringify([r.cellOffers, r.stickerStored, r.stickerStill]));
+  check('…a sticker from a file keeps a way of moving it knows, and drops one it does not',
+        r.sanitized === '["hover",null]', r.sanitized);
+  check('an entry deleted under its style bar takes the bar with it', r.barGoes, String(r.barGoes));
+  check('…and one undone with its menu open takes the menu', r.menuGoes, String(r.menuGoes));
+  check('an array stands as far off its entries as a T-end does', r.pad, String(r.pad));
+  check('a portrait is called a Character', r.named.split(' | ').every(x=> /^Character\b/.test(x)) && !/bio/i.test(r.named), r.named);
+  check('the app\'s icons are pictures of the R·P, and the old drawn one is gone',
+        r.icons && !/svg/.test(r.icons) && /icon-192\.png/.test(r.icons) && !r.swSvg, JSON.stringify({icons: r.icons, sw: r.swSvg}));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
