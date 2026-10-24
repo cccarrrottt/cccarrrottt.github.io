@@ -8,6 +8,20 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A connector can be split: Split in its menu (a right click, or a held
+  finger) sets a coloured dot on the line where it was pointed at — or at
+  the place on offer nearby, the middle or a leg's middle — and the line
+  goes on out of the dot to where it went. The next entry picked takes a
+  new line out of the dot, and New line in the dot's own menu adds
+  another, as many as wanted. Every stretch into and out of a dot is a
+  connector of its own, styled, bent and ended on its own, and can be
+  split again. Read as a lineage (the text view), a dot is looked
+  through; deleting one gives its lines back to the line it stood on.
+- The drawers down the left edge rise out of their tabs as they open.
+- On a phone the top bar slides away while the chart is carried up, and
+  comes back as it is carried down, the way a phone's spreadsheet app
+  puts its sheet tabs away; what is under the finger stays under it.
+
 - A link node: a small round entry, half a portrait across, with an
   arrow on it. Its "Goes to" field takes a copied link to any entry, or
   that entry's id, and a click on it goes there; a double click opens its

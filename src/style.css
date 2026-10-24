@@ -1203,7 +1203,21 @@
     overflow:hidden;visibility:hidden;
     pointer-events:auto;
   }
-  .side-tab.open .side-tab-body{visibility:visible;}
+  .side-tab.open .side-tab-body{visibility:visible;
+    animation:side-tab-rise 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15);}
+  /* A drawer comes up out of its tab, a little past its size and back
+     (the owner's ask, 24.10): the chart has nothing else that moves when
+     it is opened, and a panel that is simply there reads as a jump. Only
+     on opening — shut, it is gone at once, as anything put away is. */
+  @keyframes side-tab-rise{
+    from{opacity:0;transform:translateX(-10px) scale(0.94);}
+    to{opacity:1;transform:none;}
+  }
+  .side-tab-body{transform-origin:0 22px;}
+  @media (prefers-reduced-motion: reduce){
+    .side-tab.open .side-tab-body{animation:none;}
+    .topbar{transition:none !important;}
+  }
   /* The overview is drawn on a canvas that fills its drawer. */
   .minimap-canvas{display:block;width:100%;height:100%;cursor:pointer;touch-action:none;}
   .side-tab-handle{
@@ -2751,6 +2765,8 @@
   /* While a point is being chosen the connectors are what the pointer is
      for, so the chart's own cursor gets out of the way. */
   body.leader-picking #canvas{cursor:crosshair;}
+  /* After a split, until the entry its new line goes to is picked. */
+  body.split-aiming #canvas, body.split-aiming .node{cursor:crosshair;}
   .leader-ghost{fill:none;stroke:var(--accent);stroke-width:1.6;}
   /* The leader being aimed: a live line out of the anchor with a bead on
      its end, which is where the card's centre will be. */
@@ -3231,6 +3247,14 @@
   @media (max-width: 720px){
     body, .app{height:100dvh;}
     .topbar{flex-wrap:wrap;gap:6px 6px;padding:7px 10px;}
+    /* Slid away while the chart is carried up, back when it is carried
+       down (followWithPhoneBar). The slide is a transform, so it costs no
+       layout; the height is given up once it is out of sight. */
+    .topbar{transition:transform 0.2s ease;}
+    .topbar.slid{transform:translateY(-100%);pointer-events:none;}
+    /* Out of the flow altogether while away, so whatever height it has
+       then takes nothing from the chart. */
+    .topbar.gone{visibility:hidden;position:absolute;top:0;left:0;right:0;}
     .brand{order:0;margin-right:2px;}
     .brand .mark{font-size:19px;}
     .search-wrap{order:1;flex:1 1 120px;min-width:0;}

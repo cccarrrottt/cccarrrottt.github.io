@@ -125,6 +125,126 @@ function connectNodes(sourceId, targetId, geom){
   });
 }
 
+/* ---------------------------------------------------------------------
+   Splitting a connector.
+
+   A coloured dot is set on a connector, and the line goes on out of it as
+   connectors of their own: the one it always went to, and as many more as
+   are drawn out of the dot after it (the owner's list of 24.10, evening).
+   The dot is an entry — a split, see isSplitNode — so the stretch into it
+   and every stretch out of it is a connector like any other, styled,
+   bent, ended and split again on its own.
+
+   Where on the line: where it was pointed at, or the place the program
+   offers when the pointer was near one — the same places Shift offers a
+   remark on a connector (connectorSnaps): the middle, the middle of each
+   leg and the twentieths.
+   ------------------------------------------------------------------ */
+// Screen pixels within which the pointer takes the place on offer.
+const SPLIT_SNAP_PX = 12;
+function splitOffered(from, to){
+  if(!from || readOnlyView) return false;
+  const a = nodes.get(from), b = nodes.get(to);
+  if(!a || !b || isArrayNode(a) || isArrayNode(b)) return false;
+  // A merge is drawn as one figure from its lineages; it is not cut into.
+  if(isAmalgamMember(from, to) || isMergedArrow(from, to) || isMergeNode(b)) return false;
+  return !!drawnLineOf(from, to);
+}
+/* The fraction along the drawn line a split at this point of the screen
+   stands at: the offered place when the pointer is near one, else the
+   point of the line nearest the pointer. */
+function splitFractionAt(from, to, clientX, clientY){
+  const pts = drawnLineOf(from, to);
+  if(!pts) return null;
+  const w = clientToWorld(clientX, clientY);
+  const f = fractionNearest(pts, w.x, w.y);
+  const sn = nearestSnapRecord(pts, f);
+  if(sn){
+    const q = pointAtFraction(pts, sn.f), mine = pointAtFraction(pts, f);
+    if(Math.hypot(q.x - mine.x, q.y - mine.y) * vs <= SPLIT_SNAP_PX) return sn.f;
+  }
+  return Math.max(0.02, Math.min(0.98, f));
+}
+function splitEdgeAt(from, to, f){
+  if(!splitOffered(from, to)) return null;
+  const pts = drawnLineOf(from, to);
+  const at = pointAtFraction(pts, f);
+  const found = workingEntry(to);
+  if(!found || !at) return null;
+  const id = uniqueId('split', new Set(workingNodes.map(e=> e[0])));
+  /* The dot wears the line's colour, as drawn: a split is a point OF that
+     line. A gradient or a colour the line only inherits is read off the
+     drawing as the plain colour nearest it, its first. */
+  const line = edgeLayer.querySelector(`path.edge.struct[data-from="${CSS.escape(from)}"][data-to="${CSS.escape(to)}"]`);
+  const stroke = line && line.getAttribute('stroke');
+  const style = edgeStyleFor(from, to);
+  const colour = /^#[0-9a-f]{3,8}$/i.test(stroke || '') ? stroke
+               : (style.gradient && style.gradient[0]) || null;
+  const own = EDGE_STYLES.find(s=> s.from === from && s.to === to) || null;
+  const noteAt = own && typeof own.noteAt === 'number' ? own.noteAt : 0.5;
+  /* Each half keeps the look the whole had, and the ends it has: the
+     stretch in keeps the start, the stretch out keeps the end. A note,
+     and the remarks hung on the line, go with the half they stood on. */
+  const halves = own ? (()=>{
+    const drop = (o, keys)=>{ keys.forEach(k=> delete o[k]); return o; };
+    const base = drop(Object.assign({}, own), ['bends', 'bendSides', 'bendLock']);
+    const noteKeys = Object.keys(own).filter(k=> /^note/.test(k));
+    const into = drop(Object.assign({}, base, {from, to: id, arrow: false}),
+                      ['teeOut', 'openOut', 'toSide', 'toRing'].concat(noteAt < f ? [] : noteKeys));
+    const out = drop(Object.assign({}, base, {from: id, to}),
+                     ['arrowIn', 'teeIn', 'openIn', 'fromSide', 'fromRing'].concat(noteAt < f ? noteKeys : []));
+    if(noteAt < f && 'noteAt' in into) into.noteAt = +(noteAt / f).toFixed(4);
+    if(noteAt >= f && 'noteAt' in out) out.noteAt = +((noteAt - f) / (1 - f)).toFixed(4);
+    return [into, out];
+  })() : [{from, to: id, arrow: false}];
+  applyEdit(()=>{
+    const dot = {pos: [round2(at.x - SPLIT_SIZE / 2), round2(at.y - SPLIT_SIZE / 2)]};
+    if(colour) dot.colors = [colour];
+    workingNodes.push([id, '', from, null, null, 'split', dot]);
+    const parents = resolveExplicitParents(found.entry).map(p=> p === from ? id : p);
+    found.entry[2] = parents.length === 1 ? parents[0] : parents;
+    putEntry(found.index, found.entry, entryOpts(found.entry));
+    for(let k = EDGE_STYLES.length - 1; k >= 0; k--){
+      if(EDGE_STYLES[k].from === from && EDGE_STYLES[k].to === to) EDGE_STYLES.splice(k, 1);
+    }
+    halves.forEach(h=> EDGE_STYLES.push(h));
+    workingNodes.forEach((e, i)=>{
+      const o = e[6];
+      if(!o || !o.leader || o.leader.from !== from || o.leader.to !== to) return;
+      const a = typeof o.leader.at === 'number' ? o.leader.at : 0.5;
+      const leader = Object.assign({}, o.leader, a < f
+        ? {to: id, at: +(a / f).toFixed(4)}
+        : {from: id, at: +((a - f) / (1 - f)).toFixed(4)});
+      delete leader.snap;
+      putEntry(i, e, Object.assign({}, o, {leader}));
+    });
+  });
+  return id;
+}
+/* After a split, the next entry picked is where its second line goes. A
+   var: drawing asks it, and may before this part has run. */
+var splitAiming = null;
+function beginSplitBranch(id){
+  if(!nodes.has(id)) return;
+  splitAiming = id;
+  document.body.classList.add('split-aiming');
+  flashStatus('Pick the entry the new line from the split goes to');
+}
+function endSplitBranch(){
+  splitAiming = null;
+  document.body.classList.remove('split-aiming');
+}
+document.addEventListener('click', ev=>{
+  if(!splitAiming) return;
+  const dot = splitAiming;
+  endSplitBranch();
+  const g = ev.target && ev.target.closest && ev.target.closest('.node');
+  if(!g || g.dataset.id === dot) return;
+  ev.stopPropagation(); ev.preventDefault();
+  connectNodes(dot, g.dataset.id);
+}, true);
+document.addEventListener('keydown', ev=>{ if(splitAiming && ev.key === 'Escape') endSplitBranch(); }, true);
+
 // Removes one connection (an existing arrow) - the inverse of connectNodes.
 // Drops sourceId from the target's parent list, and also drops any
 // per-edge style override that was set on that connection, since it no
@@ -261,12 +381,22 @@ function deleteNodes(ids){
   const doomed = new Set(ids.filter(id=> workingIndex(id) !== -1));
   if(!doomed.size) return false;
   closePopoverIfTouching(doomed);
+  /* A split taken away gives its lines back to the line it stood on: what
+     came out of it comes from what went into it, as it always did in the
+     lineage (lineageParentsOf). */
+  const handedOn = (id, seen)=>{
+    const e = workingNodes[workingIndex(id)];
+    if(!e || (e[5] || '') !== 'split' || seen.has(id)) return [id];
+    seen.add(id);
+    return resolveExplicitParents(e).flatMap(p=> doomed.has(p) ? handedOn(p, seen) : [p]);
+  };
   applyEdit(()=>{
     workingNodes.forEach((it,idx)=>{
       if(doomed.has(it[0])) return;
       const parents = resolveExplicitParents(it);
-      const remaining = parents.filter(p=>!doomed.has(p));
-      if(remaining.length === parents.length) return;
+      const remaining = [...new Set(parents.flatMap(p=> !doomed.has(p) ? [p] : handedOn(p, new Set())
+                                                          .filter(q=> !doomed.has(q) && q !== it[0])))];
+      if(remaining.length === parents.length && remaining.every((p, i)=> p === parents[i])) return;
       const out = [];
       for(let k=0;k<7;k++) out[k] = (k<it.length ? it[k] : undefined);
       out[2] = remaining.length===0 ? undefined : (remaining.length===1 ? remaining[0] : remaining);

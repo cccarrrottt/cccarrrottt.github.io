@@ -51,7 +51,7 @@
         "note": {"type": "string", "description": "The entry's longer text, shown when it is opened."},
         "shape": {
           "type": "string",
-          "description": "Absent is a box. Otherwise ellipse (a character with a portrait), link (a small circle that goes to the entry its link names), callout, image, textbox or array (a frame round its members). Older charts may carry shapes that are migrated on reading, amalgam among them (now a box with merge: true)."
+          "description": "Absent is a box. Otherwise ellipse (a character with a portrait), link (a small circle that goes to the entry its link names), split (a dot on a connector that its lines go on from), callout, image, textbox or array (a frame round its members). Older charts may carry shapes that are migrated on reading, amalgam among them (now a box with merge: true)."
         },
         "pos": {"$ref": "#/definitions/point", "description": "Where it was put by hand, [x, y] in chart units."},
         "size": {"$ref": "#/definitions/point", "description": "[w, h], when it was sized by hand."},

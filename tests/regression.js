@@ -13302,12 +13302,15 @@ async function main(){
 
     /* With nothing selected, so the entry's drawer is not over the canvas,
        and the chart moved well out of the way, so the finger lands on paper. */
-    await pp.evaluate(()=>{ deselect(); vx = 20000; vy = 20000; applyTransform(); });
+    /* Asked as what is under the finger, before and after: the top bar may
+       step aside as the chart is carried up, and the view takes up the
+       height it gives so that this stays true (followWithPhoneBar). */
+    const panFrom = await pp.evaluate(()=>{ deselect(); vx = 20000; vy = 20000; applyTransform(); return clientToWorld(300, 640); });
     await wait(300);
     await swipe([[300, 640]], [[240, 600]]);
-    const panned = await pp.evaluate(()=> ({vx, vy}));
-    check('one finger on open canvas pans', Math.abs(panned.vx - (20000 - 60)) < 2 && Math.abs(panned.vy - (20000 - 40)) < 2,
-          JSON.stringify(panned));
+    const panned = await pp.evaluate(()=> clientToWorld(240, 600));
+    check('one finger on open canvas pans', Math.abs(panned.x - panFrom.x) < 2 && Math.abs(panned.y - panFrom.y) < 2,
+          JSON.stringify({panFrom, panned}));
 
     /* Spread about a point; the world under it must stay under it. */
     const mid = [200, 500];
@@ -13452,11 +13455,14 @@ async function main(){
       vs = 1; vx = 20; vy = 20; applyTransform();
       await new Promise(r=> setTimeout(r, 300));
       const r = document.querySelector('#nodeLayer [data-id="tpA"]').getBoundingClientRect();
-      return {at: [r.x + r.width/2, r.y + r.height/2], x: nodes.get('tpA').x};
+      const at = [r.x + r.width/2, r.y + r.height/2];
+      return {at, x: nodes.get('tpA').x, w: clientToWorld(at[0], at[1])};
     });
     await swipe([reader.at], [[reader.at[0] + 50, reader.at[1] + 30]]);
-    const read = await pp.evaluate(()=>{ const out = {vx, vy, x: nodes.get('tpA').x}; markEditable(); return out; });
-    check('a reader dragging on an entry pans the chart', Math.abs(read.vx - 70) < 2 && Math.abs(read.vy - 50) < 2, JSON.stringify(read));
+    const read = await pp.evaluate((to)=>{ const out = {w: clientToWorld(to[0], to[1]), x: nodes.get('tpA').x}; markEditable(); return out; },
+                                   [reader.at[0] + 50, reader.at[1] + 30]);
+    check('a reader dragging on an entry pans the chart',
+          Math.abs(read.w.x - reader.w.x) < 2 && Math.abs(read.w.y - reader.w.y) < 2, JSON.stringify({was: reader.w, read}));
     eq('…and the entry stays put', read.x, reader.x);
     await wait(300);
 
@@ -13737,7 +13743,8 @@ async function main(){
     const states = [];
     for(const mask of [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1],[1,1,0,0],[0,1,1,1],[1,1,1,1]]){
       panels.forEach((p, i)=> setSideTab(p, !!mask[i]));
-      await wait(60);
+      // Past the rise a drawer opens with (side-tab-rise).
+      await wait(300);
       const bodies = panels.map(p=> p.querySelector('.side-tab-body'));
       const open = bodies.filter((b, i)=> mask[i]);
       states.push({mask: mask.join(''),
@@ -15990,8 +15997,8 @@ async function main(){
                                            a: nodes.has('tkA'), b: nodes.has('tkB')}));
     check('a long press on an entry not yet picked picks it and brings up the menu',
           sFresh.menu && sFresh.items === 'cut,copy,paste,delete' && sFresh.sel === 'tkA', JSON.stringify(sFresh));
-    check('a long press on a connector offers Delete, which takes the connector and nothing else',
-          sEdge.menu && sEdge.items === 'delete' && edgesBefore === 1 && after.edge === 0 && after.a && after.b && !sEdgeDel.menu,
+    check('a long press on a connector offers Split and Delete, and Delete takes the connector and nothing else',
+          sEdge.menu && sEdge.items === 'split,delete' && edgesBefore === 1 && after.edge === 0 && after.a && after.b && !sEdgeDel.menu,
           JSON.stringify({sEdge, edgesBefore, after}));
   } finally {
     await phone.close();
@@ -19076,6 +19083,7 @@ async function main(){
         workingNodes.push(['js_c', 'C', ['js_a', 'js_b'], null, null, null, {merge:true, bar:{k:'x', lead:40}}]);
         workingNodes.push(['js_d', 'Frame', null, null, null, 'array', {members:['js_a', 'js_b'], hatch:'vert'}]);
         workingNodes.push(['js_e', '', null, null, null, 'link', {pos:[4600, 3000], link:'#entry=js_a'}]);
+        workingNodes.push(['js_f', '', 'js_a', null, null, 'split', {pos:[4700, 3000], colors:['#123456']}]);
         EDGE_STYLES.push({from:'js_a', to:'js_c', barEnd:'oout', openIn:true, arrowIn:true});
         EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true, openOut:true,
                           note:'on it', notePos:'on', noteAt:0.3, bends:[[4100, 2950]], bendSides:['right', 'left'],
@@ -20037,6 +20045,142 @@ async function main(){
     });
     check('on a phone, undo, redo and the guides sit on the sign-in button’s row', ph.sameRow && ph.leftOfIt && ph.fits,
           JSON.stringify(ph));
+  } finally {
+    await phone.close();
+  }
+  });
+  await scenario("the owner's list of 24.10, evening: drawers that rise, a bar that steps aside, splits", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 82000, Y = 82000;
+    try{
+      /* A drawer rises out of its tab as it opens. */
+      const tags = document.getElementById('tagsPanel');
+      setSideTab(tags, true);
+      out.rises = getComputedStyle(tags.querySelector('.side-tab-body')).animationName === 'side-tab-rise';
+      setSideTab(tags, false);
+
+      applyEdit(()=>{
+        workingNodes.push(['sp_a','Source',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['sp_b','Target','sp_a','its word',null,null,{pos:[X + 300, Y + 200]}]);
+        workingNodes.push(['sp_c','Other',null,null,null,null,{pos:[X + 520, Y + 40]}]);
+        workingNodes.push(['sp_k','',null,null,null,'callout',{pos:[X + 380, Y + 300], leader:{from:'sp_a', to:'sp_b', at:0.9}}]);
+        EDGE_STYLES.push({from:'sp_a', to:'sp_b', arrowIn:true, dash:'dashed', note:'near the end', noteAt:0.8});
+      });
+      await wait(300);
+      flyToNode('sp_a'); await wait(300);
+
+      /* Split from the connector's menu, at the place on offer when the
+         pointer is near one: the middle, here. */
+      const pts = drawnLineOf('sp_a', 'sp_b');
+      const mid = pointAtFraction(pts, 0.5);
+      const rv = svg.getBoundingClientRect();
+      const cx = rv.left + vx + mid.x * vs + 4, cy = rv.top + vy + mid.y * vs + 3;
+      out.snapped = splitFractionAt('sp_a', 'sp_b', cx, cy) === 0.5;
+      openEdgeStylePopover('sp_a', 'sp_b', {clientX:cx, clientY:cy, stopPropagation(){}});
+      openTouchMenu(cx, cy, 'edge', true);
+      const btn = touchMenu.querySelector('[data-act="split"]');
+      out.offered = !!btn && !btn.hidden;
+      if(btn) btn.click();
+      await wait(300);
+      const dotId = (workingNodes.find(e=> e[5] === 'split' && e[2] === 'sp_a') || [])[0];
+      const dot = nodes.get(dotId);
+      out.dot = !!dot && dot.w === SPLIT_SIZE && !!document.querySelector(`.node.node-split[data-id="${dotId}"]`);
+      out.onTheLine = !!dot && Math.hypot(dot.x + dot.w / 2 - mid.x, dot.y + dot.h / 2 - mid.y) < 0.5;
+      out.rewired = (nodes.get('sp_b').parents || []).join() === dotId;
+      const into = edgeStyleFor('sp_a', dotId), on = edgeStyleFor(dotId, 'sp_b');
+      out.halves = into.arrowIn === true && into.arrow === false && into.dash === 'dashed' &&
+                   on.arrow !== false && !on.arrowIn && on.dash === 'dashed' &&
+                   on.note === 'near the end' && !into.note && Math.abs(on.noteAt - 0.6) < 0.01;
+      const k = workingEntry('sp_k').entry[6].leader;
+      out.calloutKept = k.from === dotId && k.to === 'sp_b' && Math.abs(k.at - 0.8) < 0.01;
+      out.wordKept = nodes.get('sp_b').edgeLabel === 'its word';
+      /* …and the next entry picked is where the new line goes. */
+      out.aiming = document.body.classList.contains('split-aiming');
+      const og = document.querySelector('.node[data-id="sp_c"]');
+      og.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}));
+      await wait(300);
+      out.branched = (nodes.get('sp_c').parents || []).join() === dotId && !document.body.classList.contains('split-aiming');
+      /* The lines out of it leave from one point, as one line forking. */
+      const l1 = drawnLineOf(dotId, 'sp_b'), l2 = drawnLineOf(dotId, 'sp_c');
+      out.onePoint = !!l1 && !!l2 && Math.hypot(l1[0].x - l2[0].x, l1[0].y - l2[0].y) < 0.5;
+      /* Held on its own, a split offers another line out of it. */
+      selectNode(dotId);
+      openTouchMenu(cx, cy, 'selection', true);
+      out.branchOffered = !touchMenu.querySelector('[data-act="branch"]').hidden;
+      closeTouchMenu();
+      /* Read as a lineage, the split is looked through. */
+      out.lineage = lineageParentsOf(nodes.get('sp_c')).join() + '|' + lineageChildrenOf(nodes.get('sp_a')).sort().join();
+      buildTextView();
+      const srcItem = [...textViewBody.querySelectorAll('li.tv-entry')].find(li=> li.querySelector('.tv-name').dataset.id === 'sp_a');
+      out.textView = !!srcItem && !!srcItem.querySelector('.tv-name[data-id="sp_c"]') &&
+                     !textViewBody.querySelector(`.tv-name[data-id="${dotId}"]`);
+      /* Taken away, its lines are given back to the line it stood on. */
+      deleteNodes([dotId]); await wait(300);
+      out.handedBack = (nodes.get('sp_b').parents || []).join() === 'sp_a' && (nodes.get('sp_c').parents || []).join() === 'sp_a';
+      undoLastEdit(); await wait(300);
+      out.undone = (nodes.get('sp_b').parents || []).join() === dotId;
+    } finally {
+      if(typeof endSplitBranch === 'function') endSplitBranch();
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      refill(EDGE_STYLES, beforeStyles); });
+      closeEdgePopover(); closeTouchMenu(); deselect();
+      await wait(200);
+    }
+    return out;
+  });
+  check('a drawer rises out of its tab as it opens', r.rises);
+  check('a connector’s menu offers Split, at the place on offer when the pointer is near one',
+        r.offered && r.snapped, JSON.stringify({o:r.offered, s:r.snapped}));
+  check('a split is a dot on the line, and the line goes on out of it to where it went',
+        r.dot && r.onTheLine && r.rewired, JSON.stringify({d:r.dot, l:r.onTheLine, w:r.rewired}));
+  check('…each half keeps the look and the ends it had, and the note and remarks the half they stood on',
+        r.halves && r.calloutKept && r.wordKept, JSON.stringify({h:r.halves, k:r.calloutKept, w:r.wordKept}));
+  check('…the next entry picked takes a new line out of the split, from the same point',
+        r.aiming && r.branched && r.onePoint, JSON.stringify({a:r.aiming, b:r.branched, p:r.onePoint}));
+  check('…and a split held on its own offers another', r.branchOffered);
+  check('a split is looked through wherever the chart is read as a lineage',
+        r.lineage === 'sp_a|sp_b,sp_c' && r.textView, JSON.stringify({l:r.lineage, t:r.textView}));
+  check('a split taken away gives its lines back to the line it stood on, and undo brings it back',
+        r.handedBack && r.undone, JSON.stringify({h:r.handedBack, u:r.undone}));
+
+  /* On a phone the top bar slides away while the chart is carried up and
+     comes back as it is carried down, and what is under the finger stays. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    const cdp = await phone.newCDPSession(pp);
+    const under = (y)=> pp.evaluate((y)=>{ const r = svg.getBoundingClientRect();
+      return [+((200 - r.left - vx) / vs).toFixed(1), +((y - r.top - vy) / vs).toFixed(1)]; }, y);
+    const carry = async (dy)=>{
+      const was = await under(500);
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:200, y:500}]});
+      for(let i = 1; i <= 12; i++){
+        await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:200, y:500 + dy * i / 12}]});
+        await wait(40);
+      }
+      await wait(320);
+      const now = await under(500 + dy);
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+      await wait(250);
+      const bar = await pp.evaluate(()=>{ const b = document.querySelector('.topbar');
+        return {gone: b.classList.contains('gone'), top: Math.round(svg.getBoundingClientRect().top)}; });
+      return {kept: Math.abs(was[0] - now[0]) < 0.6 && Math.abs(was[1] - now[1]) < 0.6, bar, was, now};
+    };
+    const up = await carry(-150);
+    const down = await carry(150);
+    check('on a phone the top bar slides away as the chart is carried up, and back as it is carried down',
+          up.bar.gone && up.bar.top < 5 && !down.bar.gone && down.bar.top > 40, JSON.stringify({up:up.bar, down:down.bar}));
+    check('…and what is under the finger stays under it', up.kept && down.kept, JSON.stringify({up, down}));
   } finally {
     await phone.close();
   }
