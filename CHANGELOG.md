@@ -8,6 +8,34 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A link node: a small round entry, half a portrait across, with an
+  arrow on it. Its "Goes to" field takes a copied link to any entry, or
+  that entry's id, and a click on it goes there; a double click opens its
+  settings. Made for tying together two entries that stand far apart.
+- Either end of a connector may be an open arrowhead (>) as well as a
+  filled one, a T or nothing, at a merge's bar too.
+- Several connectors can be picked at once: Shift- or Ctrl-click them
+  while one's panel is open, or on a phone hold another. A change from the
+  style bar or the panel, and Delete, then apply to all of them, as one
+  step of undo.
+- The merged arrow out of a merge bends as any connector does and has a
+  style bar of its own; a merge's colour field shows the colours it
+  inherits; and selecting an outer lineage lights the whole way to the
+  merged arrow, across the seams between stretches.
+- A head where a merged stretch meets its bar stands at the end of that
+  stretch, clear of the beads, and the line stops under it, so a
+  see-through colour no longer shows the line through the head.
+- A style bar menu opened over a connector's panel stands above the
+  panel, so every choice in it can be pressed.
+- On a phone, undo, redo and the guides share the sign-in button's row.
+- A moving picture's player follows the view and shrinks with the chart
+  as it is zoomed out, rather than standing out past the entry; zoomed
+  far enough out to be too small to press, it goes.
+- In the dark, pictures keep their colours while the view is moved by a
+  finger.
+- Stickers in the in-entry field are the size they are in the entry, so
+  the field and its words no longer spill out of the entry.
+
 ## 0.16.0 — "Merged by hand" (2026-10-23)
 
 - A merge is no longer a kind of entry. Two connectors running into one

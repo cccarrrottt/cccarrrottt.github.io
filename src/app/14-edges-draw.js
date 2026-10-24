@@ -58,6 +58,23 @@ function edgeHit(d, from, to){
       deselect();
       return;
     }
+    /* Shift or Ctrl picks it beside the connectors already picked — see
+       edgeSelection. Let go of, the panel moves to one still picked, or
+       closes with the last of them. */
+    if((ev.shiftKey || ev.ctrlKey || ev.metaKey) && !readOnlyView &&
+       (edgeSelection.size || edgePopover.classList.contains('open'))){
+      edgeSelectionToggle(from, to);
+      const k = calloutEdgeKey(from, to);
+      if(edgeSelection.has(k)) openEdgeStylePopover(from, to, ev);
+      else if(edgeSelection.size){
+        const next = [...edgeSelection.values()].pop();
+        if(edgeSelection.size === 1) edgeSelection.clear();
+        openEdgeStylePopover(next.from, next.to, ev);
+      } else closeEdgePopover();
+      paintEdgePick();
+      return;
+    }
+    edgeSelection.clear();
     openEdgeStylePopover(from, to, ev);
   });
   hit.addEventListener('dblclick', ev=>{
@@ -279,8 +296,8 @@ function redrawEdges(){
        ripple is laid out on the full geometry and stays put; see wavyPath. */
     const rec = ports.get(e) || {};
     const teeIn = headIn && style.teeIn, teeOut = headOut && style.teeOut;
-    const cutIn = !headIn ? 0 : teeIn ? TEE_CUT + teeBack(rec.p1, e.from) : headCut(rec.p1);
-    const cutOut = !headOut ? 0 : teeOut ? TEE_CUT + teeBack(rec.p2, e.to) : headCut(rec.p2);
+    const cutIn = !headIn ? 0 : endCutFor(teeIn, style.openIn, rec.p1, e.from);
+    const cutOut = !headOut ? 0 : endCutFor(teeOut, style.openOut, rec.p2, e.to);
     const drawPts = style.sinusoid ? pts
       : trimForHeads(pts, headIn, headOut, rec.p1, rec.p2, cutIn, cutOut);
     const drawD = style.sinusoid ? wavyPath(pts, cutIn, cutOut, false, edgeCornerR(style))
@@ -351,13 +368,13 @@ function redrawEdges(){
     else if(headOut) drawArrowHead(arrowLayerFor((rec.p2 || last).ring, rec.p2), tipOut.x, tipOut.y,
                               bent ? bent.out : angleDeg, paint, e.from, e.to,
                               clipHead(rec.p2) ? e.to : null,
-                              rec.p2 ? rec.p2.ring : 0);
+                              rec.p2 ? rec.p2.ring : 0, style.openOut);
     if(teeIn) drawTeeHead(arrowLayer, tipIn.x, tipIn.y, bent ? bent.in : startAngleDeg(pts), paint, e.from, e.to,
                           teeBack(rec.p1, e.from));
     else if(headIn) drawArrowHead(arrowLayerFor((rec.p1 || first).ring, rec.p1), tipIn.x, tipIn.y,
                              bent ? bent.in : startAngleDeg(pts), paint, e.from, e.to,
                              clipHead(rec.p1) ? e.from : null,
-                             rec.p1 ? rec.p1.ring : 0);
+                             rec.p1 ? rec.p1.ring : 0, style.openIn);
     /* Asked unconditionally: whether there is anything to draw is one
        question with one answer, and drawEdgeNote is where it lives — an
        empty note is still drawn while it is being started. */

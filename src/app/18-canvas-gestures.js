@@ -216,6 +216,9 @@ function applyTransform(){
     syncNodeEditorLook();
     positionNodeEditor();
   }
+  /* And a moving picture's player stands on its picture: left where it
+     was, a zoom carried the picture away from under it. */
+  if(typeof picturePlayerFor !== 'undefined' && picturePlayerFor) placePicturePlayer();
   /* Where the middle of the view stands on the chart — the same point the
      ⌖ beside it goes back to. The zoom is not shown: it is a number nobody
      works with, and the chart says how near it is by itself. */

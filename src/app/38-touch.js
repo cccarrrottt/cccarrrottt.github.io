@@ -534,7 +534,13 @@ function touchFinish(ev, cancelled){
   if(menu){
     touchLastTap = null;
     if(menu === 'add' || menu === 'edge'){
-      const mods = menu === 'add' ? {ctrl: true} : null;
+      /* A connector held while another one's panel is open is picked
+         beside it, as an entry held beside the selection is. */
+      const line = menu === 'edge' && st.target.closest('.edge-hit');
+      const t = currentEdgeStyleTarget;
+      const beside = !!(line && t && edgePopover.classList.contains('open') &&
+        (t.from !== line.dataset.from || t.to !== line.dataset.to));
+      const mods = (menu === 'add' || beside) ? {ctrl: true} : null;
       touchPress(st, mods);
       touchMouse('mouseup', under, st.x0, st.y0, mods, 1);
       touchMouse('click', touchClickTarget(st.target, under), st.x0, st.y0, mods, 1);

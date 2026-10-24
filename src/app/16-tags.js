@@ -266,10 +266,11 @@ function keyLineSample(dash, opts){
     line = `<path class="key-line" d="M4,10 q3.4,-4 6.8,0 t6.8,0 t6.8,0 t6.8,0"/>`;
   } else {
     const da = DASH_PATTERNS[dash] ? ` stroke-dasharray="${DASH_PATTERNS[dash]}"` : '';
-    line = `<line class="key-line" x1="${o.headIn ? 9 : 4}" y1="10" x2="${o.noHead ? 36 : o.tee ? 32 : 31}" y2="10"${da}/>`;
+    line = `<line class="key-line" x1="${o.headIn ? 9 : 4}" y1="10" x2="${o.noHead ? 36 : o.tee ? 32 : o.open ? 35 : 31}" y2="10"${da}/>`;
   }
   // A T stands short of where an arrow's tip would be, as it does on the chart.
   if(o.tee) return keySvg(line + `<path class="key-head" d="M31,6 h1.6 v8 h-1.6 z"/>`);
+  if(o.open) return keySvg(line + `<path class="key-line key-open" d="M31,7 L35.2,10 L31,13"/>`);
   return keySvg(line + (o.noHead ? '' : head(36, 1)) + (o.headIn ? head(4, -1) : ''));
 }
 /* Every mark the chart is using, in reading order: the entries, what is
@@ -280,6 +281,7 @@ function keyMarksInUse(){
   nodes.forEach(n=>{
     const shape = n.shape || 'rect';
     if(shape === 'ellipse') has.add('shape:bio');
+    else if(shape === 'link') has.add('shape:link');
     else if(isMergeNode(n)) has.add('shape:amalgam');
     else if(shape === 'callout') has.add('shape:callout');
     else if(shape === 'image') has.add('shape:image');
@@ -301,6 +303,7 @@ function keyMarksInUse(){
       if(st.arrowIn && st.arrow !== false) has.add('line:both');
       if(st.arrow === false && !st.arrowIn) has.add('line:none');
       if(st.teeOut || st.teeIn) has.add('line:tee');
+      if(st.openOut || st.openIn) has.add('line:open');
     });
   });
   if(!anyEdge) ['solid','dashed','dotted','dashdot','double'].forEach(d=> has.delete('line:' + d));
@@ -313,6 +316,8 @@ const KEY_MARKS = [
   {key:'shape:entry',   group:'Entries', name:'Entry',     sample:()=> keyBoxSample()},
   {key:'shape:card',    group:'Entries', name:'Card',      sample:()=> keySvg(`<rect ${KEY_BOX} class="key-box"/><line class="key-rule" x1="7" y1="10" x2="33" y2="10"/>`)},
   {key:'shape:bio',     group:'Entries', name:'Character', sample:()=> keySvg('<circle cx="20" cy="10" r="6.5" class="key-box"/>')},
+  {key:'shape:link',    group:'Entries', name:'Link',      meaning:'Goes to the entry it names when pressed.',
+   sample:()=> keySvg('<circle cx="20" cy="10" r="5" class="key-box"/><path class="key-line key-open" d="M18,12 L22,8 M19.2,8 H22 V10.8"/>')},
   {key:'shape:amalgam', group:'Entries', name:'Amalgam',   meaning:'Several lineages merging into one.',
    sample:()=> keySvg(`<rect ${KEY_BOX} class="key-box key-amalgam"/>`)},
   {key:'shape:callout', group:'Entries', name:'Remark',    meaning:'A note about the chart rather than a part of it.',
@@ -346,6 +351,7 @@ const KEY_MARKS = [
   {key:'line:both',    group:'Connectors', name:'Arrow at both ends',   sample:()=> keyLineSample('solid', {headIn:true})},
   {key:'line:none',    group:'Connectors', name:'Line with no arrow',   sample:()=> keyLineSample('solid', {noHead:true})},
   {key:'line:tee',     group:'Connectors', name:'Ends in a T, short of the entry', sample:()=> keyLineSample('solid', {tee:true})},
+  {key:'line:open',    group:'Connectors', name:'Open arrowhead',       sample:()=> keyLineSample('solid', {open:true})},
   {key:'mark:cite',    group:'Marks', name:'Citation', meaning:'The number of a source in References.',
    sample:()=> keySvg(`<text class="key-text" x="9" y="14">a</text><text class="key-cite" x="16" y="9" fill="${escapeHtml(refColor())}">[1]</text>`)}
 ];

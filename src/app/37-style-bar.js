@@ -87,18 +87,25 @@ const STYLE_BAR_EDGE_LINE = [
   ['dotted', '┈┈', 'Dotted line'], ['dashdot', '─·', 'Dash-dotted line'],
   ['double', '═', 'Double line'], ['sinusoid', '∿', 'Wavy line']
 ];
-/* An end carries an arrow, a T or nothing: three answers to one
-   question, so each end is one menu of the three, the start's on the left
-   and the end's on the right. */
+/* An end carries an arrow, an open arrow, a T or nothing: answers to one
+   question, so each end is one menu of them, the start's on the left and
+   the end's on the right. The open arrow is drawn, as the line draws it
+   (see drawArrowHead): a font's ">" is a letter, thinner and shorter than
+   the ◄ beside it. */
+const styleBarOpenGlyph = (d)=> '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="' + d + '"/></svg>';
 const STYLE_BAR_END_IN = [['none', 'No', 'Nothing at the start'],
                           ['in', '◄', 'Arrowhead at the start'],
+                          ['oin', styleBarOpenGlyph('M11.5 3L3.5 8L11.5 13'), 'Open arrowhead at the start'],
                           ['tin', '⊢', 'T at the start, stopped short of the entry']];
 const STYLE_BAR_END_OUT = [['none', 'No', 'Nothing at the end'],
                            ['out', '►', 'Arrowhead at the end'],
+                           ['oout', styleBarOpenGlyph('M4.5 3L12.5 8L4.5 13'), 'Open arrowhead at the end'],
                            ['tout', '⊣', 'T at the end, stopped short of the entry — broad strokes']];
-// What the same three say on a merged lineage, whose end is at the bar.
+// What the same say on a merged lineage, whose end is at the bar.
 const STYLE_BAR_END_BAR = {none: 'Nothing where it joins the bar',
                            out: 'Arrowhead where it joins the bar',
+                           oout: 'Open arrowhead where it joins the bar',
                            tout: 'T where it joins the bar'};
 /* The rows that are one choice out of several looks — a border, a
    hatching, a line, an end — are menus: one button showing what is
@@ -291,6 +298,10 @@ const styleBar = (()=>{
       const open = !row.classList.contains('open');
       shutStyleBarMenus();
       row.classList.toggle('open', open);
+      /* An open menu stands over everything the page floats, the
+         connector's own panel included: its choices unfold downward, and
+         that is where the panel usually is (the owner's list of 24.10). */
+      bar.classList.toggle('dropping', open);
       return;
     }
     shutStyleBarMenus();
@@ -368,6 +379,7 @@ function closeStyleBar(){
 }
 function shutStyleBarMenus(){
   styleBar.querySelectorAll('.style-bar-drop.open').forEach(r=> r.classList.remove('open'));
+  styleBar.classList.remove('dropping');
 }
 /* Each menu's face wears the choice that is lit, and is greyed when every
    choice under it is. Asked after every sync, whatever it lit. */
@@ -376,7 +388,7 @@ function paintStyleBarMenus(){
     const face = row.querySelector('.style-bar-drop-face');
     const opts = [...row.querySelectorAll('.style-bar-drop-list button')];
     const lit = opts.find(b=> b.classList.contains('on')) || opts[0];
-    face.textContent = lit ? lit.textContent : '';
+    face.innerHTML = lit ? lit.innerHTML : '';
     face.title = STYLE_BAR_MENUS[row.dataset.group] + (lit ? ': ' + lit.title : '');
     face.disabled = opts.every(b=> b.disabled);
   });
@@ -393,7 +405,11 @@ function syncStyleBarRows(){
   const style = t && (t.kind === 'note' || t.kind === 'edge') ? edgeStyleFor(t.from, t.to) : null;
   const callout = n && isCalloutNode(n) && n.leader ? n : null;
   if(!t || (t.kind === 'node' && !styleBarWants(n)) ||
-     ((t.kind === 'note' || t.kind === 'edge') && !(nodes.has(t.from) && nodes.has(t.to))) ||
+     /* A connector with both its entries — or a merge's own arrow, whose
+        source is the merge and is written as none (see isMergedArrow): it
+        used to be the one line on the chart the bar never came up on. */
+     ((t.kind === 'note' || t.kind === 'edge') &&
+      !((nodes.has(t.from) || (t.from === '' && isMergeNode(nodes.get(t.to)))) && nodes.has(t.to))) ||
      (t.kind === 'note' && !style.note) ||
      (t.kind === 'decor' && !nodes.get(t.id)) ||
      (t.kind === 'leader' && !(callout && callout.leader))){
@@ -473,8 +489,8 @@ function syncStyleBarRows(){
        are ends like any connector's. */
     const member = isAmalgamMember(t.from, t.to);
     const endOut = member ? (style.barEnd || 'none')
-                 : style.arrow !== false ? (style.teeOut ? 'tout' : 'out') : 'none';
-    light(rows.endIn, style.arrowIn ? (style.teeIn ? 'tin' : 'in') : 'none');
+                 : style.arrow !== false ? (style.teeOut ? 'tout' : style.openOut ? 'oout' : 'out') : 'none';
+    light(rows.endIn, style.arrowIn ? (style.teeIn ? 'tin' : style.openIn ? 'oin' : 'in') : 'none');
     light(rows.endOut, endOut);
     [[rows.endIn, STYLE_BAR_END_IN], [rows.endOut, STYLE_BAR_END_OUT]].forEach(([row, list])=>{
       row.querySelectorAll('button[data-value]').forEach(b=>{
@@ -669,23 +685,31 @@ function applyStyleBar(group, value){
       putEntry(found.index, found.entry, opts);
     });
   } else if(t.kind === 'edge'){
-    const kept = edgeStyleFor(t.from, t.to);
-    const change = {};
-    if(group === 'edgeLine'){
-      change.sinusoid = value === 'sinusoid' || undefined;
-      change.dash = value === 'sinusoid' ? 'solid' : value;
-    } else if(group === 'corners'){
-      change.square = kept.square ? false : undefined;
-    } else if(group === 'endIn'){
-      change.arrowIn = value !== 'none' || undefined;
-      change.teeIn = value === 'tin' || undefined;
-    } else if(group === 'endOut' && isAmalgamMember(t.from, t.to)){
-      change.barEnd = value === 'none' ? undefined : value;
-    } else if(group === 'endOut'){
-      change.arrow = value !== 'none';
-      change.teeOut = value === 'tout' || undefined;
-    }
-    applyEdit(()=> setEdgeStyleOverride(t.from, t.to, Object.assign({}, kept, change)));
+    /* On every connector picked with this one (see edgeSelection), each
+       keeping the rest of its own look. A toggle goes the way it goes on
+       the one the bar is over, so a mixed set ends up all one way. */
+    const here = edgeStyleFor(t.from, t.to);
+    applyEdit(()=> edgeGroupFor(t.from, t.to).forEach(({from, to})=>{
+      const kept = edgeStyleFor(from, to);
+      const change = {};
+      if(group === 'edgeLine'){
+        change.sinusoid = value === 'sinusoid' || undefined;
+        change.dash = value === 'sinusoid' ? 'solid' : value;
+      } else if(group === 'corners'){
+        change.square = here.square ? false : undefined;
+      } else if(group === 'endIn'){
+        change.arrowIn = value !== 'none' || undefined;
+        change.teeIn = value === 'tin' || undefined;
+        change.openIn = value === 'oin' || undefined;
+      } else if(group === 'endOut' && isAmalgamMember(from, to)){
+        change.barEnd = value === 'none' ? undefined : value;
+      } else if(group === 'endOut'){
+        change.arrow = value !== 'none';
+        change.teeOut = value === 'tout' || undefined;
+        change.openOut = value === 'oout' || undefined;
+      }
+      setEdgeStyleOverride(from, to, Object.assign({}, kept, change));
+    }));
   } else {
     applyEdit(()=>{
       const o = EDGE_STYLES.find(s=> s.from === t.from && s.to === t.to);
@@ -812,7 +836,11 @@ const picturePlayer = (()=>{
   document.querySelector('.app > .main').appendChild(bar);
   return bar;
 })();
-let picturePlayerFor = null;
+/* A var, since the view's every move asks it (see applyTransform) and the
+   first moves come before this part has run. */
+var picturePlayerFor = null;
+// The smallest the player is drawn at before it goes instead.
+const PICTURE_PLAYER_LEAST = 0.5;
 let picturePlayerTimer = null;
 /* The picture an entry wears, as drawn: its card's band, its portrait's
    disc or the picture standing on its own. */
@@ -841,7 +869,15 @@ function placePicturePlayer(){
   if(!img){ closePicturePlayer(); return; }
   const host = document.querySelector('.app > .main').getBoundingClientRect();
   const r = img.getBoundingClientRect();
-  const w = picturePlayer.offsetWidth, h = picturePlayer.offsetHeight;
+  /* Zoomed out, the player kept its size while the picture under it
+     shrank, and stood out past both sides of the entry (the owner's list
+     of 24.10). It shrinks with the chart instead, never growing past its
+     own size; once it would be too small to press it goes, and the
+     pointer brings it back over the picture when the chart is nearer. */
+  const k = Math.min(1, vs);
+  if(k < PICTURE_PLAYER_LEAST){ closePicturePlayer(); return; }
+  picturePlayer.style.transform = k < 1 ? `scale(${k.toFixed(3)})` : '';
+  const w = picturePlayer.offsetWidth * k, h = picturePlayer.offsetHeight * k;
   picturePlayer.style.left = (r.left - host.left + r.width / 2 - w / 2).toFixed(1) + 'px';
   picturePlayer.style.top = (r.bottom - host.top - h - Math.min(8, r.height * 0.06)).toFixed(1) + 'px';
 }

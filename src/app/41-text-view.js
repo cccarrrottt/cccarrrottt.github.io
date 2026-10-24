@@ -30,7 +30,13 @@ function textViewListed(n){
   return !!n && !isArrayNode(n) && !isFreeShape(n.shape) && (n.shape || '') !== 'callout';
 }
 function textViewName(n){
-  return stripMarkup(n.label || '').replace(/\s+/g, ' ').trim() || n.id;
+  const own = stripMarkup(n.label || '').replace(/\s+/g, ' ').trim();
+  /* A link node writes nothing in itself; it is named for where it goes. */
+  if(!own && isLinkNode(n)){
+    const to = linkNodeTarget(n), there = to && nodes.get(to.id);
+    return 'Link to ' + (there ? (stripMarkup(there.label || '').replace(/\s+/g, ' ').trim() || there.id) : 'nowhere');
+  }
+  return own || n.id;
 }
 /* What a screen reader says for an entry drawn on the chart: its name and
    its tags. The drawing inside it — the text in pieces, the stickers, the

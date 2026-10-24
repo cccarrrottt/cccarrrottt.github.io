@@ -603,7 +603,8 @@ click: Merge / Unmerge), and the entry they meet in takes `opts.merge` —
 merged (`mergeMembersOf`, `isMergeNode`, `02-model.js`). Its border wears
 the lineages' colours as a gradient unless it is given colours of its own.
 Each stretch is a connector with its own line, paint, gradient and ends;
-its end at the bar is `barEnd` ('out' or 'tout'). A chart that still has
+its end at the bar is `barEnd` ('out', 'oout' — an open head — or
+'tout'), drawn at the end of that stretch, clear of the beads. A chart that still has
 the old 'amalgam' entries opens with them as merges (`migrateAmalgams`,
 form 3).
 
@@ -615,7 +616,23 @@ merged arrow. Until then `amalgamGeometry` works the place out as before. A
 click on the bar picks it out and it is carried along the arrow
 (`beginBarDrag`). The merged arrow's style is the `EDGE_STYLES` entry
 `{from:'', to:<entry>}` (`isMergedArrow`); its colour, gradient and both
-ends are its own, and left alone it carries every lineage's colour.
+ends are its own, and left alone it carries every lineage's colour. It
+bends as any connector does, its start port kept in `mergedArrowPorts`
+for the bend handles. A selected lineage lights the way through the
+stretches after its own (`.amalgam-through`, drawn only while lit) to the
+merged arrow.
+
+## Link nodes
+
+An entry of shape `'link'` is a small round mark, half a portrait across
+(`LINK_NODE_SIZE`), with an arrow on it. Its `link` is a copied
+`#entry=` link, a link to the site with one, or a bare id
+(`linkNodeTarget`, `19-selection-search.js`, which never answers the node
+itself); a click goes there once a double click is plainly not coming,
+and a double click opens its settings. It is how two entries far apart on
+the chart are tied together without a connector across all of it. One
+that goes nowhere draws its arrow faint, and the text view names it by
+where it goes.
 
 ## On a phone
 
@@ -752,7 +769,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 130 named scenarios, and they are independent of one
+The browser suite is 131 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

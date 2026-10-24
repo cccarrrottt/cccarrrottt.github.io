@@ -16,6 +16,7 @@
 const NODE_STYLE_PICKS = [
   {value:'rect',    label:'Default',       hint:'An ordinary entry: a box with its name in it.'},
   {value:'ellipse', label:'Character',     hint:'A portrait circle, with its words on a card beside it.'},
+  {value:'link',    label:'Link',          hint:'A small circle that goes to another entry when pressed — to join two entries far apart.'},
   {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
   {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}
   /* Array stood here too, greyed until two entries were picked. It is not
@@ -41,6 +42,9 @@ function nodeStyleIcon(kind){
     add('circle', {cx:20, cy:15, r:10, class:'nsi-box'});
     add('circle', {cx:20, cy:12, r:3.1, class:'nsi-mark'});
     add('path', {d:'M14.4,22.6 a5.6,5 0 0 1 11.2,0', class:'nsi-mark'});
+  } else if(kind === 'link'){
+    add('circle', {cx:20, cy:15, r:6.5, class:'nsi-box'});
+    add('path', {d:'M17.4,17.6 L22.4,12.6 M18.8,12.6 H22.4 V16.2', class:'nsi-mark'});
   } else if(kind === 'textbox'){
     box(8, 14);
     add('path', {d:'M15,12 H25 M20,12 V19', class:'nsi-mark'});
@@ -118,8 +122,13 @@ function addEntryOfStyle(style){
                                     {pos: [spot.x, spot.y]}]));
   selectNode(id);
   /* Words go in where they will stand. A portrait and a picture have a
-     picture to choose before anything else, which their settings ask for. */
-  if(style !== 'ellipse' && style !== 'image') openNodeEditor(id);
+     picture to choose before anything else, which their settings ask for;
+     a link has where it goes, which its settings ask for too. */
+  if(style === 'link'){
+    openEntrySettings(id);
+    const field = document.getElementById('editLinkInput');
+    if(field) field.focus();
+  } else if(style !== 'ellipse' && style !== 'image') openNodeEditor(id);
   return id;
 }
 
@@ -334,9 +343,9 @@ function visibleCanvasRect(){
    the middle of a one-line entry, and an empty one is shorter than that,
    so the two differ by half the difference. */
 function emptySpotNearCentre(shapeVal){
-  const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : GRID;
-  const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : GRID;
-  const dy = (shapeVal==='ellipse' || shapeVal==='image') ? 0 : round2((h - NODE_GROW_REF) / 2);
+  const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : GRID;
+  const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : GRID;
+  const dy = (shapeVal==='ellipse' || shapeVal==='link' || shapeVal==='image') ? 0 : round2((h - NODE_GROW_REF) / 2);
   const rect = visibleCanvasRect();
   const c = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
   const ox = snapToGrid(c.x - w/2), oy = snapToGrid(c.y - h/2);
@@ -369,8 +378,8 @@ function emptySpotNearCentre(shapeVal){
 // Where a paste lands: the middle of what is on show, clear of what is there.
 function viewCentreSpot(shapeVal){
   const rect = visibleCanvasRect();
-  const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : 120;
-  const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : NODE_MINH;
+  const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : 120;
+  const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : NODE_MINH;
   const c = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
   let x = snapToGrid(c.x - w/2), y = snapToGrid(c.y - h/2);
   const taken = [...nodes.values()].filter(n=> !isArrayNode(n)).map(n=>({x:n.x, y:n.y, w:n.w, h:n.h}));

@@ -156,6 +156,29 @@ const ROT_SNAP = 45;
 
 let currentEdgeNaturalColor = '#20242b'; // this edge's color with no override — what "Default" resets to
 
+/* Connectors picked together, as entries are (the owner's list of 24.10):
+   Shift- or Ctrl-click a connector while another one's panel is open and
+   both are picked; Shift-click a picked one again and it is let go. The
+   panel stays the one it was, for the connector last clicked — and what
+   it, the bar over a picked line and Delete do, they do to every picked
+   connector at once, as one step of undo. Closing the panel lets them all
+   go; so does a plain click on another line. */
+const edgeSelection = new Map();     // calloutEdgeKey -> {from, to}
+function edgeSelectionToggle(from, to){
+  const t = currentEdgeStyleTarget;
+  if(t && edgePopover.classList.contains('open') && !edgeSelection.size){
+    edgeSelection.set(calloutEdgeKey(t.from, t.to), {from: t.from, to: t.to});
+  }
+  const k = calloutEdgeKey(from, to);
+  if(edgeSelection.has(k)) edgeSelection.delete(k);
+  else edgeSelection.set(k, {from, to});
+}
+/* What a change made on this connector applies to: every picked one when
+   it is one of them, itself alone otherwise. */
+function edgeGroupFor(from, to){
+  if(edgeSelection.size > 1 && edgeSelection.has(calloutEdgeKey(from, to))) return [...edgeSelection.values()];
+  return [{from, to}];
+}
 function openEdgeStylePopover(from, to, evt){
   /* A reader gets no settings for a line, as they get no style bar over
      one: the panel is nothing but controls for changing it. The click
@@ -265,10 +288,13 @@ function applyLiveEdgeStyle(){
     edgeEditUndoPushed = true;
   }
   const paint = currentPaint();
+  const group = edgeGroupFor(currentEdgeStyleTarget.from, currentEdgeStyleTarget.to);
+  let anyCallout = false;
+  group.forEach(target=>{
   // Sides and rings are set by dragging between border bands, not here —
   // carried through untouched so styling an edge never moves its ends.
-  const kept = edgeStyleFor(currentEdgeStyleTarget.from, currentEdgeStyleTarget.to);
-  setEdgeStyleOverride(currentEdgeStyleTarget.from, currentEdgeStyleTarget.to, {
+  const kept = edgeStyleFor(target.from, target.to);
+  setEdgeStyleOverride(target.from, target.to, {
     routing: styleRoutingSel.value,
     /* The line, its corners and its ends are set from the hover bar on the
        connector itself (see the style bar), the note's side and backing
@@ -276,6 +302,7 @@ function applyLiveEdgeStyle(){
     dash: kept.dash, sinusoid: kept.sinusoid || undefined,
     arrow: kept.arrow, arrowIn: kept.arrowIn || undefined,
     teeOut: kept.teeOut || undefined, teeIn: kept.teeIn || undefined,
+    openOut: kept.openOut || undefined, openIn: kept.openIn || undefined,
     barEnd: kept.barEnd || undefined,
     square: kept.square ? undefined : false,
     note: noteFromForm(),
@@ -310,6 +337,8 @@ function applyLiveEdgeStyle(){
     bends: (kept.bends && kept.bends.length) ? kept.bends : undefined,
     bendSides: (kept.bends && kept.bends.length && kept.bendSides) ? kept.bendSides : undefined
   });
+  if(connectorHasCallout(target.from, target.to)) anyCallout = true;
+  });
   /* A callout on this connector is drawn in the connector's ink, and a
      callout is an ENTRY — it lives in the node layer, which redrawEdges
      does not touch. So recolouring a connector repainted its line, its
@@ -317,7 +346,7 @@ function applyLiveEdgeStyle(){
      in the old colour until something else happened to redraw the entries:
      moving the leader's dot, which is the only reason it ever appeared to
      work. The entries are redrawn too when there is a card that cares. */
-  if(connectorHasCallout(currentEdgeStyleTarget.from, currentEdgeStyleTarget.to)){
+  if(anyCallout){
     renderNodes();
     if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
     paintMultiSelection();
