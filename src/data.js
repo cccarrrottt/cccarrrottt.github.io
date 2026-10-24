@@ -37,7 +37,7 @@
 // Inside label: **bold**, *italic*, [[base|ruby]] (a small annotation above a word/phrase).
 /* @@EDIT:NODES:START@@ */
 const NODES = [
-  {id:'uprising', label:'{{#cc22cc|{{u:solid|Beast Wars: }}}}{{u:solid|[[Upris|{{z:20|readin}}g]]ing}}{{s:images}}{{u:solid|фыву}}', parent:['uprising-copy', 'asdasd-1-copy'], pos:[-60.02, -21.79], colors:['#20242b'], square:true},
+  {id:'uprising', label:'{{#cc22cc|{{u:solid|Beast Wars: }}}}{{u:solid|[[Upris|{{z:20|readin}}g]]ing}}{{s:images}}{{u:solid|фыву}}', parent:['split', 'asdasd-1-copy'], pos:[-60.02, -21.79], colors:['#20242b'], square:true},
   {id:'uprising-copy', label:'Beast Wars: Uprising', parent:'uprising', pos:[292.98, 62.71], colors:['#20242b'], border:'dashdot'},
   {id:'asdasd', label:'asda{{u:double|sdи}}', note:'{{m:nagahurt}}', pos:[-196.67, 88.55], colors:['#20242b', '#c2c'], tags:['local multiverse', 'fan-fiction', 'multiversal hub'], border:'wavy', size:[50.35, 20.14], decor:'wavy'},
   {id:'asdasd-copy', label:'asdasd', parent:'asdasd', pos:[-122.41, 82.22], colors:['#20242b'], border:'dashdot'},
@@ -49,7 +49,7 @@ const NODES = [
   {id:'beast-wars-uprising-copy-6', label:'Beast Wars: Uprising', pos:[305.98, 297.28], colors:['#cccc'], square:true},
   {id:'beast-wars-uprising-copy-7', label:'Beast Wars: Uprising', parent:['beast-wars-uprising-copy', 'array'], pos:[-424.54, 297.21], colors:['#20242b'], square:true},
   {id:'callout-2', label:'sdafsdf', shape:'callout', pos:[-157.71, 378.84], leader:{from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', at:0.5396, line:'dashed', shelf:true}},
-  {id:'asdasd-1-copy', label:'Dghdhx{{s:1000012050}}{{s:images}}', colors:['#20242b'], pos:[-16.16, 53.37], border:'double'},
+  {id:'asdasd-1-copy', label:'Dghdhx{{s:1000012050}}{{s:images}}', parent:'split', colors:['#20242b'], pos:[-16.16, 53.37], border:'double'},
   {id:'asdasd-1-copy-2', label:'a', colors:['#20242b'], pos:[-17.09, 187], tags:['local multiverse'], square:true},
   {id:'node', label:'asdsa', shape:'ellipse', pos:[-211.02, -11.79], colors:['#20242b'], image:'media/bad8aa8b4beebd4fcc4f408a73a108030482920fd3ce9b6305f2b1fd66acdc61.png', tags:['unreleased']},
   {id:'node-2', label:'фыв', shape:'textbox', pos:[-26.11, 244.11], rot:340},
@@ -68,6 +68,7 @@ const NODES = [
   {id:'node-7', label:'Amalgam 1', pos:[-654.55, 214.58]},
   {id:'node-8', label:'Amalgam 2', pos:[-569.89, 214.58]},
   {id:'node-13', label:'Amalgam 3', parent:['node-7', 'node-8'], pos:[-612.53, 268.66]},
+  {id:'split', label:'', parent:'uprising-copy', shape:'split', pos:[171.23, 1.67], colors:['#20242b'], size:[40.28, 70.49]},
 ];
 /* @@EDIT:NODES:END@@ */
 
@@ -150,7 +151,6 @@ const REFS = [
 /* @@EDIT:EDGESTYLES:START@@ */
 const EDGE_STYLES = [
   {from:'uprising', to:'uprising-copy', routing:'orthogonal', dash:'solid', arrow:true, note:'гнгн', fromSide:'top', toSide:'top', square:true, noteSquare:true},
-  {from:'uprising-copy', to:'uprising', routing:'curve', dash:'solid', arrow:true, bends:[[251.21, -9.9]], fromSide:'left', toSide:'right'},
   {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, color:'#c2c', colorFixed:true, fromSide:'bottom', toSide:'top'},
   {from:'beast-wars-uprising-copy-2', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, arrowIn:true, barEnd:'tout', fromSide:'bottom', toSide:'top', square:true},
   {from:'beast-wars-uprising-copy-3', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
@@ -166,5 +166,8 @@ const EDGE_STYLES = [
   {from:'node-7', to:'node-13', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
   {from:'node-8', to:'node-13', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
   {from:'', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, bends:[[100.7, 366.06], [100.7, 410.36]], bendSides:['bottom', 'top'], square:true},
+  {from:'uprising-copy', to:'split', routing:'curve', dash:'solid', arrow:false, fromSide:'left'},
+  {from:'split', to:'uprising', routing:'curve', dash:'solid', arrow:true, toSide:'right'},
+  {from:'split', to:'asdasd-1-copy', routing:'curve', dash:'solid', arrow:true, fromSide:'bottom', toSide:'bottom'},
 ];
 /* @@EDIT:EDGESTYLES:END@@ */
