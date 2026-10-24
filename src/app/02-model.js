@@ -885,11 +885,14 @@ migrateChart(chartFormatOf(SETTINGS));
    theirs, moving a parent takes it along, and moving the amalgam moves
    nothing but the merged arrow. Absent until a drag first fixes it; until
    then amalgamGeometry works the place out as it always has. */
-/* The nearest a bar may be put to its lineages: the run-up a lineage needs
-   to come down and turn onto it with a full corner (AMALGAM_APPROACH, two
-   corner radii and a little) and a hair more. Written out rather than
-   derived, because this part runs before the geometry's. */
-const AMALGAM_LEAD_MIN = 18;
+/* The nearest a bar may be put to its lineages: one corner and a little
+   straight (AMALGAM_SQUEEZE), the least a lineage needs to come down and
+   turn onto it. It was a comfortable run-up of 18, more than an unmerged
+   connector needs, so a merge could not be brought as close to its
+   lineages as the same lines unmerged had stood (the owner's list of
+   24.10). Written out rather than derived, because this part runs before
+   the geometry's. */
+const AMALGAM_LEAD_MIN = 8;
 function amalgamBarOf(opts){
   const v = opts && opts.bar;
   if(!v || typeof v !== 'object' || (v.k !== 'x' && v.k !== 'y')) return null;

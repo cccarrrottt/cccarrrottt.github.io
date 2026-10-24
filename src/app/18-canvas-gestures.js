@@ -702,7 +702,10 @@ function amalgamBarClamp(st, offX, offY){
        * the shortest run-up a turn onto it can be drawn with. Anything
        * further out was an invisible wall a parent could not pass for no
        * reason it could see. */
-      const clear = AMALGAM_GAP + AMALGAM_APPROACH;
+      /* …and the bar's innermost is now the squeezed merge, the arrow's
+         head and bead with one corner of lineage above it — the length
+         the same lines unmerged would need (amalgamGeometry). */
+      const clear = AMALGAM_CROWDED + AMALGAM_SQUEEZE;
       const entryEdge = vertical ? (dir > 0 ? b.y + b.h : b.y)
                                  : (dir > 0 ? b.x + b.w : b.x);
       const origin = vertical ? m.originY : m.originX;

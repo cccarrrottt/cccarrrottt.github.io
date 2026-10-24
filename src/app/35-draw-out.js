@@ -133,7 +133,36 @@ function connectNodes(sourceId, targetId, geom){
       if(existing) EDGE_STYLES[EDGE_STYLES.indexOf(existing)] = entry;
       else EDGE_STYLES.push(entry);
     }
+    const look = splitBranchLook(sourceId, targetId);
+    if(look){
+      const row = EDGE_STYLES.find(s=> s.from === sourceId && s.to === targetId);
+      if(row) Object.assign(row, look);
+      else EDGE_STYLES.push(Object.assign({from: sourceId, to: targetId}, look));
+    }
   });
+}
+/* A new line out of a split looks like the line the split was set on (the
+ * owner's list of 24.10, evening).
+ *
+   It came out in the default look whatever the line was — a dashed curve
+   split in two went on as a dashed curve to where it always went, and as a
+   plain orthogonal line to the new entry, which read as a different line
+   altogether rather than a branch of this one. The look is the stretch
+   into the dot's: how it is routed, dashed, waved, cornered and coloured.
+   Its END is the continuation's, the stretch out that the line always
+   ended in, since the stretch in has none. Sides, rings, bends and notes
+   belong to where a stretch runs and what it says, so none is copied. */
+const SPLIT_LOOK_KEYS = ['routing', 'dash', 'sinusoid', 'square', 'color', 'colorFixed', 'gradient'];
+const SPLIT_END_KEYS = ['arrow', 'teeOut', 'openOut'];
+function splitBranchLook(dot, to){
+  const n = nodes.get(dot);
+  if(!isSplitNode(n)) return null;
+  const into = EDGE_STYLES.find(s=> s.to === dot);
+  const on = EDGE_STYLES.find(s=> s.from === dot && s.to !== to);
+  const look = {};
+  if(into) SPLIT_LOOK_KEYS.forEach(k=>{ if(into[k] !== undefined) look[k] = Array.isArray(into[k]) ? into[k].slice() : into[k]; });
+  if(on) SPLIT_END_KEYS.forEach(k=>{ if(on[k] !== undefined) look[k] = on[k]; });
+  return Object.keys(look).length ? look : null;
 }
 
 /* ---------------------------------------------------------------------
@@ -196,6 +225,7 @@ function splitEdgeAt(from, to, f){
   /* Each half keeps the look the whole had, and the ends it has: the
      stretch in keeps the start, the stretch out keeps the end. A note,
      and the remarks hung on the line, go with the half they stood on. */
+  const bent = own ? splitBends(own, pts, f) : null;
   const halves = own ? (()=>{
     const drop = (o, keys)=>{ keys.forEach(k=> delete o[k]); return o; };
     const base = drop(Object.assign({}, own), ['bends', 'bendSides', 'bendLock']);
@@ -206,6 +236,10 @@ function splitEdgeAt(from, to, f){
                      ['arrowIn', 'teeIn', 'openIn', 'fromSide', 'fromRing'].concat(noteAt < f ? noteKeys : []));
     if(noteAt < f && 'noteAt' in into) into.noteAt = +(noteAt / f).toFixed(4);
     if(noteAt >= f && 'noteAt' in out) out.noteAt = +((noteAt - f) / (1 - f)).toFixed(4);
+    if(bent){
+      Object.assign(into, bent.into);
+      Object.assign(out, bent.out);
+    }
     return [into, out];
   })() : [{from, to: id, arrow: false}];
   applyEdit(()=>{
@@ -231,6 +265,46 @@ function splitEdgeAt(from, to, f){
     });
   });
   return id;
+}
+/* The corners a line was bent through by hand, shared between its halves
+ * (the owner's list of 24.10, evening).
+ *
+   A split used to drop them all: corners are stored where they stand on
+   the chart, not along the line, and which half each belonged to went
+   unasked — so both halves came out routed afresh, and a line laid round
+   something by hand was straightened through it by being cut. Each corner
+   goes to the half it stands on, read off the line as drawn. One within a
+   few units of the dot goes to neither: the dot is the turn there now.
+   A half that keeps corners keeps the sides it was pinned by, and meets
+   the dot along the leg the dot was set on, so the line runs through the
+   dot the way it ran through that place. Nothing comes back for a line
+   with no corners, which goes on being routed as before. */
+const SPLIT_BEND_CLEAR = SPLIT_SIZE * 2;
+function splitBends(own, pts, f){
+  const list = handBends(own);
+  if(!list.length || !pts || pts.length < 2) return null;
+  const total = pts.reduce((t, p, i)=> i ? t + Math.hypot(p.x - pts[i-1].x, p.y - pts[i-1].y) : 0, 0);
+  if(!(total > 0)) return null;
+  const at = pointAtFraction(pts, f);
+  const before = [], after = [];
+  list.forEach(b=>{
+    if(Math.hypot(b.x - at.x, b.y - at.y) < SPLIT_BEND_CLEAR) return;
+    (fractionNearest(pts, b.x, b.y) < f ? before : after).push([b.x, b.y]);
+  });
+  // Which way the line runs through the dot: in by one side, out by the other.
+  const ahead = pointAtFraction(pts, Math.min(1, f + 1 / total));
+  const back = pointAtFraction(pts, Math.max(0, f - 1 / total));
+  const dx = ahead.x - back.x, dy = ahead.y - back.y;
+  const outSide = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'bottom' : 'top');
+  const inSide = OPPOSITE_SIDE[outSide];
+  const sides = Array.isArray(own.bendSides) && own.bendSides.length === 2 ? own.bendSides : null;
+  const half = (bends, s1, s2)=> bends.length
+    ? Object.assign({bends}, sides ? {bendSides: [s1, s2]} : {})
+    : {};
+  return {
+    into: Object.assign(half(before, sides && sides[0], inSide), {toSide: inSide}),
+    out: Object.assign(half(after, outSide, sides && sides[1]), {fromSide: outSide})
+  };
 }
 /* After a split, the next entry picked is where its second line goes. A
    var: drawing asks it, and may before this part has run. */

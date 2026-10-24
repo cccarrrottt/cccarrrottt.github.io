@@ -20428,6 +20428,56 @@ async function main(){
       out.splitSize = SPLIT_SIZE === 2 * LEADER_DOT_R &&
                       Math.abs(old[0][6].pos[0] + SPLIT_SIZE / 2 - (100 + SPLIT_SIZE_WAS / 2)) < 0.01 &&
                       Math.abs(old[0][6].pos[1] + SPLIT_SIZE / 2 - (200 + SPLIT_SIZE_WAS / 2)) < 0.01;
+
+      /* 5. A merge comes as close to its lineages as the same lines did
+            unmerged: the bar stays between them, the arrow points on. */
+      out.squeezed = [];
+      [16, 24, 32].forEach((gap, i)=>{
+        const y0 = Y + 3000 + i * 400;
+        applyEdit(()=>{
+          workingNodes.push(['lt_g' + i + 'a','Alpha',null,null,null,null,{pos:[X, y0]}]);
+          workingNodes.push(['lt_g' + i + 'b','Beta',null,null,null,null,{pos:[X + 250, y0]}]);
+        });
+        rebuildChart();
+        const h = nodes.get('lt_g' + i + 'a').h;
+        applyEdit(()=>{ workingNodes.push(['lt_g' + i + 'm','Child',['lt_g' + i + 'a','lt_g' + i + 'b'],null,null,null,{pos:[X + 120, y0 + h + gap]}]); });
+        rebuildChart();
+        mergeEdge('lt_g' + i + 'a', 'lt_g' + i + 'm');
+        rebuildChart();
+        const pa = nodes.get('lt_g' + i + 'a'), m = nodes.get('lt_g' + i + 'm'), bar = amalgamBars.get('lt_g' + i + 'm');
+        out.squeezed.push(!!bar && bar.cross > pa.y + pa.h + 0.5 && bar.cross < m.y - 0.5);
+      });
+      out.leadMin = AMALGAM_LEAD_MIN <= AMALGAM_SQUEEZE &&
+                    amalgamBarOf({bar:{k:'y', after:true, lead:AMALGAM_SQUEEZE}}).lead === AMALGAM_SQUEEZE;
+
+      /* 6. A split keeps the corners the line was bent through by hand,
+            each on its own half, and a new line out of it looks like the
+            line it was set on. */
+      applyEdit(()=>{
+        workingNodes.push(['lt_s1','Source',null,null,null,null,{pos:[X + 5000, Y]}]);
+        workingNodes.push(['lt_s2','Target','lt_s1',null,null,null,{pos:[X + 5300, Y + 200]}]);
+        workingNodes.push(['lt_s3','Other',null,null,null,null,{pos:[X + 5000, Y + 260]}]);
+        EDGE_STYLES.push({from:'lt_s1', to:'lt_s2', routing:'orthogonal', dash:'dashed', arrow:true, openOut:true,
+                          bends:[[X + 5040, Y + 120], [X + 5200, Y + 120], [X + 5200, Y + 60], [X + 5340, Y + 60]],
+                          bendSides:['bottom', 'top']});
+      });
+      rebuildChart();
+      const whole = drawnRoutes.get(calloutEdgeKey('lt_s1', 'lt_s2')).pts.map(p=> ({x: p.x, y: p.y}));
+      const dot = splitEdgeAt('lt_s1', 'lt_s2', 0.5);
+      rebuildChart();
+      const into = EDGE_STYLES.find(t=> t.from === 'lt_s1' && t.to === dot);
+      const on = EDGE_STYLES.find(t=> t.from === dot && t.to === 'lt_s2');
+      const kept = [].concat(into.bends || [], on.bends || []);
+      const halves = [drawnRoutes.get(calloutEdgeKey('lt_s1', dot)), drawnRoutes.get(calloutEdgeKey(dot, 'lt_s2'))];
+      // Every corner the whole line turned at, the halves still turn at.
+      const corners = whole.slice(2, -2);
+      const turned = corners.every(c=> halves.some(h=> h.pts.some(p=> Math.hypot(p.x - c.x, p.y - c.y) < 1)));
+      out.splitBends = kept.length >= 3 && turned;
+      out.splitBendsAt = [whole.length, kept.length];
+      connectNodes(dot, 'lt_s3');
+      rebuildChart();
+      const branch = edgeStyleFor(dot, 'lt_s3');
+      out.branchLook = branch.dash === 'dashed' && branch.openOut === true && !branch.bends;
     } finally {
       applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
                       EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
@@ -20442,6 +20492,12 @@ async function main(){
         JSON.stringify([r.forgotten, r.staleForgotten]));
   check('a curve round under an entry comes up into its port along the port, not off a hook', r.curveIn, JSON.stringify(r.curveAt));
   check('a split is as big as a callout\'s point, and one drawn before keeps its middle', r.splitSize);
+  check('a merge comes as close to its lineages as the lines did unmerged, its bar still between them',
+        r.squeezed.every(Boolean), JSON.stringify(r.squeezed));
+  check('…and a bar can be put as close to them as one corner', r.leadMin);
+  check('a split keeps the corners its line was bent through, each on the half it stood on',
+        r.splitBends, JSON.stringify(r.splitBendsAt));
+  check('a new line out of a split looks like the line the split was set on', r.branchLook);
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

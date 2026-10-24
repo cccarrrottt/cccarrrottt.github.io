@@ -211,11 +211,25 @@ function amalgamGeometry(list, ports){
          under them. */
       const o = k === 'x' ? 'y' : 'x', olen = k === 'x' ? 'h' : 'w';
       const behind = pnodes.some(p=> p[o] < b[o] + b[olen] && p[o] + p[olen] > b[o]);
-      const past = after ? centre >= at : centre < at;
+      /* A bar nobody has put anywhere is not somewhere the entry can be
+         carried across. It rests a LEAD beyond the lineages only while
+         there is room for that, and gives way to an entry nearer than
+         that (below) — so an entry standing clear of its lineages, by
+         however little, is past the bar, and the bar squeezes in between
+         them. Asking about `at` instead turned the merge inside out the
+         moment an entry was closer than the resting place: the bar went
+         round to the far side of it and the arrow pointed back up, where
+         the same two lines unmerged were a short arrow down. Only a bar
+         put somewhere by hand stands still for the entry to cross; and an
+         entry in among its lineages is not clear of them, so it is asked
+         about as before. */
+      const nearEdge = after ? b[k] : b[k] + b[len];
+      const clear = after ? nearEdge > sp.hi : nearEdge < sp.lo;
+      const past = (!fixed && clear) || (after ? centre >= at : centre < at);
       const facing = behind ? after : (past === after);
       side = k === 'x' ? (facing ? 'left' : 'right')
                        : (facing ? 'top' : 'bottom');
-      resting = {at, k, after, lead, fixed: !!fixed, spLo: sp.lo, spHi: sp.hi,
+      resting = {at, k, after, lead, fixed: !!fixed, spLo: sp.lo, spHi: sp.hi, clear,
                  towards: (SIDE_NORMAL[side][k] < 0) === after};
     }
   }
@@ -286,8 +300,24 @@ function amalgamGeometry(list, ports){
   if(resting && resting.fixed) barDist = (resting.at - port[resting.k]) * nrm[resting.k];
   else if(barDist < AMALGAM_GAP){
     barDist = rest + Math.ceil((AMALGAM_GAP - rest) / GRID - 1e-9) * GRID;
-    if(towards && Number.isFinite(nearest) && barDist > nearest - AMALGAM_SQUEEZE)
+    if(towards && Number.isFinite(nearest) && barDist > nearest - AMALGAM_SQUEEZE){
       barDist = Math.max(AMALGAM_GAP, nearest - AMALGAM_APPROACH);
+      /* Closer still, the merge shrinks to what the two lines unmerged
+         would need, and no further (the owner's list of 24.10, evening:
+         a merge could not be brought back to the length it had before).
+         The floor above was the arrow's comfortable length, and past it
+         the bar went behind the lineages. Now the lineage's drop goes
+         down to one corner (AMALGAM_SQUEEZE) and the arrow to its head
+         and bead (AMALGAM_CROWDED); with less room than both, they share
+         it in that proportion, so the bar never leaves the gap. Only for
+         an entry clear of its lineages by at least the arrow's length: one
+         in among them has no gap, and in less than that there is no merge
+         to draw, as there would be no arrow unmerged. */
+      if(resting && resting.clear && nearest >= AMALGAM_CROWDED && barDist > nearest - AMALGAM_SQUEEZE){
+        const share = AMALGAM_CROWDED / (AMALGAM_CROWDED + AMALGAM_SQUEEZE);
+        barDist = Math.max(Math.min(AMALGAM_CROWDED, nearest * share), nearest - AMALGAM_SQUEEZE);
+      }
+    }
   }
   return {b, ring, side, nrm, ux, uy, port, nearest, barDist,
           rest: restingNow(side, port, nrm, barDist, sx, sy),

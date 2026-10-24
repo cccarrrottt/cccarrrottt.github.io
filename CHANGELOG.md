@@ -39,6 +39,17 @@ Releases before 0.9.0 were not numbered.
 - A split's dot is the size of a callout's point, and a line goes on out
   of its middle; a split drawn before keeps its middle where it was
   (chart format 4).
+- A merge comes as close to its lineages as the same lines did unmerged:
+  with little room the bar squeezes in between them, down to a corner of
+  lineage and the arrow's head, where it used to go round to the far side
+  of the entry with the arrow pointing back. A bar can be put as close as
+  one corner (8 rather than 18).
+- A new line out of a split looks like the line the split was set on —
+  routed, dashed, waved and coloured the same, with its end — where it was
+  drawn in the default look.
+- A split keeps the corners its line was bent through by hand, each on the
+  half it stood on, and the line runs through the dot as it ran through
+  that place; they used to be dropped from both halves.
 - On a phone only the row of buttons is put away as the chart is carried
   up: the wordmark and the search stay, and nothing white shows while it
   goes.
