@@ -70,6 +70,7 @@ function borderHalfOf(n){
 function tabReachOf(n){
   const shape = n.shape || 'rect';
   if(isFreeShape(shape) || shape === 'array') return 0;
+  if(shape === 'link') return 0;
   const chips = !!n.multiLang && shape !== 'ellipse';
   const link = !!(n.link && safeUrl(n.link));
   return chips || link ? CHIP_TAB_H + NODE_BORDER_W / 2 : 0;
@@ -372,6 +373,10 @@ const drawOne = (n)=>{
   const liveN = ()=> nodes.get(n.id) || n;
   const shape = n.shape || 'rect';
   const isBio = shape==='ellipse';
+  /* A link node is drawn as a portrait's circle is, and is nothing else a
+     portrait is: no picture, no card, no words — see isLinkNode. */
+  const isLinkNode = shape==='link';
+  const isRound = isBio || isLinkNode;
   const isImage = shape==='image';
   const isTextbox = shape==='textbox';
   // A multiversal hub is an ordinary entry that something radiates out of,
@@ -385,8 +390,8 @@ const drawOne = (n)=>{
      something about a REALITY; on a character they say nothing, and the
      rectangles they are drawn as do not even follow the circle. */
   const isArray = shape==='array';
-  const isHub = !isFreeShape(shape) && !isBio && !isArray && nodeHasTag(n, HUB_TAG);
-  const isLocal = !isFreeShape(shape) && !isBio && !isArray && nodeHasTag(n, LOCAL_TAG);
+  const isHub = !isFreeShape(shape) && !isRound && !isArray && nodeHasTag(n, HUB_TAG);
+  const isLocal = !isFreeShape(shape) && !isRound && !isArray && nodeHasTag(n, LOCAL_TAG);
   /* A merge's entry, wearing its lineages' colours (see mergePainted). It
      is an ordinary box in every other way: the amalgam archetype it used
      to be is gone. */
@@ -400,7 +405,7 @@ const drawOne = (n)=>{
   // lineage — no connector edges, no ports, no link badge, no language tabs.
   const isFree = isImage || isTextbox;
   // Only a boxed entry can be divided into bands.
-  const isCard = !!n.card && !isBio && !isFree;
+  const isCard = !!n.card && !isRound && !isFree;
   /* Which of the six ways this entry's border is drawn, and whether that
      is the rippled one — the old pocket-reality edge, now a style any
      entry may wear. */
@@ -418,6 +423,9 @@ const drawOne = (n)=>{
   /* Behind every array drawn before it: those are the ones inside it. */
   if(isArray){ g.classList.add('node-array'); arrayLayer.insertBefore(g, arrayLayer.firstChild); }
   if(isBio) g.classList.add('node-bio');
+  /* Dressed as a portrait's circle is — the stylesheet's circle rules are
+     all written for that class — and known apart by its own. */
+  if(isLinkNode) g.classList.add('node-bio', 'node-link-node');
   if(isCallout) g.classList.add('node-callout');
   /* A drafting leader: the words stand on a shelf, with no card round
      them — see drawCalloutLeaders, which draws the shelf with the line. */
@@ -490,8 +498,9 @@ const drawOne = (n)=>{
      naturally produces. */
   const bioSide = isBio
     ? (manual ? Math.max(BIO_MIN_SIZE, Math.round((manual.w + manual.h) / 2)) : BIO_SIZE)
+    : isLinkNode ? LINK_NODE_SIZE
     : 0;
-  let w = isBio ? bioSide
+  let w = isRound ? bioSide
         : isImage ? (manual ? manual.w : IMAGE_DEFAULT_W)
         // A loose text block is a caption, not a boxed entry: it wants to
         // run on one line and can be much wider than a chart node before
@@ -536,7 +545,7 @@ const drawOne = (n)=>{
   /* A card that is a heading and nothing else (see below) is drawn the
      way an entry is, so it closes on its words the way an entry does. */
   const cardBare = isCard && !n.image && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
-  const closesOnInk = !isBio && !isImage && (!isCard || cardBare);
+  const closesOnInk = !isRound && !isImage && (!isCard || cardBare);
   const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
      inkCornerR. A card and a picture keep the old one. */
@@ -658,7 +667,7 @@ const drawOne = (n)=>{
      callout's floor follows the width it is being given, which is why it
      is read again after every step of a resize. */
   const inkW = maxInkW > 0 ? maxInkW + inkPad*2 : 0;
-  const minUpright = (isBio || isImage) ? null
+  const minUpright = (isRound || isImage) ? null
     : isCard ? {w: Math.max(GRID, Math.min(CARD_MAXW, Math.ceil(inkW))),
                 h: Math.max(GRID, cardHeadH + cardMedH + cardBodyH)}
     : !(maxInkW > 0) ? {w: GRID, h: GRID}
@@ -671,7 +680,7 @@ const drawOne = (n)=>{
      border. */
   if(manual && minUpright && w < minUpright.w){ n.w = w = minUpright.w; }
 
-  let h = isBio ? bioSide
+  let h = isRound ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
           : emptyBox ? GRID
           : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
@@ -704,7 +713,7 @@ const drawOne = (n)=>{
      See saveNodePositions, which adds it back. */
   n.growShift = 0;
   n.growShiftX = 0;
-  if(n.pos && !manual && !isBio && !isImage){
+  if(n.pos && !manual && !isRound && !isImage){
     /* Quantised to whole grid steps.
      *
      * Half the extra height is almost never a round number — a
@@ -1155,7 +1164,7 @@ const drawOne = (n)=>{
                 + (isWavy ? POCKET_LIFT + 1 : 0);
     const inner = BAND_HIT_DEFAULT/2;
     const T = outer + inner, c = (outer - inner)/2;
-    if(isBio){
+    if(isRound){
       /* A portrait's pad is the SQUARE, filled, not a ring around the
          circle. Its ports stand at the sides of that square and its grips
          at the corners, and a pad shaped like the circle meant the pointer
@@ -1312,12 +1321,12 @@ const drawOne = (n)=>{
     else borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:n.w-i*2, height:h-i*2, rx:rad(cornerR-i)}),
                paint, bgFillStyle);
     textFill = paint;
-  } else if(isBio){
+  } else if(isRound){
     // A portrait clipped to the circle, with the ring drawn over its edge
     // so the border stays crisp. Without an image the circle is simply
     // empty — the chart still reads, it just has no face yet.
     const cx = n.x+n.w/2, cy = n.y+h/2, r = n.w/2;
-    if(n.image){
+    if(n.image && isBio){
       const clipId = defId('bioclip-', n.id);
       const clip = el('clipPath', {id:clipId}, nodeDefs);
       // A rippled rim clips to its own ripple; the ring is drawn over the cut.
@@ -1342,12 +1351,27 @@ const drawOne = (n)=>{
       const grow = i*RING_STEP;
       if(rippled) borderRing('path',
         (ins)=>({d: rippledCirclePath(cx, cy, Math.max(0.5, r + grow - ins), rippleCount(r)), class:'bio-ring'}),
-        c, (i>0 || n.image) ? 'fill:none;' : bgFillStyle);
+        c, (i>0 || (n.image && isBio)) ? 'fill:none;' : bgFillStyle);
       else borderRing('circle',
         (ins)=>({cx, cy, r: Math.max(0.5, r + grow - ins), class:'bio-ring'}),
-        c, (i>0 || n.image) ? 'fill:none;' : bgFillStyle);
+        c, (i>0 || (n.image && isBio)) ? 'fill:none;' : bgFillStyle);
     });
-    if(!n.image){
+    if(isLinkNode){
+      /* The arrow of a link's tab, drawn to the circle: the mark that
+         already means "go there" on every entry carrying a link. Greyed
+         while it goes nowhere. */
+      const u = r / 9;
+      const goes = !!linkNodeTarget(n);
+      el('path', {d:`M${(cx-3.6*u).toFixed(2)},${(cy+3.6*u).toFixed(2)} L${(cx+3.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} ` +
+                    `M${(cx-1.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} L${(cx+3.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} ` +
+                    `L${(cx+3.2*u).toFixed(2)},${(cy+1.2*u).toFixed(2)}`,
+                  class: 'link-node-arrow' + (goes ? '' : ' nowhere'),
+                  style:`stroke:${textFill};stroke-width:${(1.6*u).toFixed(2)};`}, g);
+      const to = linkNodeTarget(n);
+      el('title', {}, g).textContent = to
+        ? 'Go to ' + (stripMarkup((nodes.get(to.id) || {}).label || '') || to.id)
+        : 'Goes nowhere yet — double-click to say where';
+    } else if(!n.image){
       /* A neutral silhouette so an empty portrait still reads as one — and
          drawn TO the circle rather than at a fixed size, so it stays
          inside it at every size the circle is dragged to. It used to be
@@ -1448,7 +1472,7 @@ const drawOne = (n)=>{
      out over the chart. The window is the box less its own padding, so the
      text stops exactly where every other entry's text stops — and it is
      only built for the entries that actually overflow (see clipText). */
-  if(clipText && !isBio && !isImage){
+  if(clipText && !isRound && !isImage){
     const clipId = defId('textclip-', n.id);
     const clip = el('clipPath', {id: clipId}, nodeDefs);
     const reach = closesOnInk ? borderReachIn(n) : NODE_PAD_X/2;
@@ -1459,7 +1483,7 @@ const drawOne = (n)=>{
   const fontOpts = {fontSize, family:fontFamily};
   // A bio circle shows a portrait, not words: its text belongs to the card
   // that opens beside it when clicked, so nothing is drawn inside.
-  if(isBio || isImage){ txt.remove(); }
+  if(isRound || isImage){ txt.remove(); }
   else {
     /* Centred on its INK, not on its line grid.
      *
@@ -1500,7 +1524,7 @@ const drawOne = (n)=>{
     }
   }
 
-  if(hasLangTabs && !isBio && !isFree){
+  if(hasLangTabs && !isRound && !isFree){
     // Tiny clickable "symbol" chips — one for the default/main text ("•")
     // plus one per language tab, using that tab's own short tag as its
     // symbol — tucked into the node's top-left corner, the same
@@ -1781,7 +1805,7 @@ const drawOne = (n)=>{
     });
   });
 
-  if(n.link && safeUrl(n.link) && !isFree){
+  if(n.link && safeUrl(n.link) && !isFree && !isLinkNode){
     // A real SVG <a> (not a JS window.open() call) — the artifact host
     // renders this page inside a sandboxed iframe, which silently blocks
     // script-initiated window.open() but allows a genuine user-clicked
@@ -1879,6 +1903,18 @@ const drawOne = (n)=>{
        other entry answers to. Opening the card on the first click meant a
        reader could not simply select a callout to move or delete it
        without a form appearing over the drawing each time. */
+    /* A link node goes where it points — once it is plain the press was
+       not the first half of a double click, which opens its settings. One
+       that goes nowhere is picked up as any entry is, to be told where. */
+    if(isLinkNode && linkNodeTarget(liveN())){
+      clearTimeout(nodeClickTimer);
+      nodeClickTimer = setTimeout(()=>{
+        nodeClickTimer = null;
+        const to = linkNodeTarget(liveN());
+        if(to) openEntryOn(to.id, to.tab);
+      }, DOUBLE_CLICK_GRACE);
+      return;
+    }
     if(isCallout || isArray){
       selectNode(n.id, {quiet:true});
       paintMultiSelection();
@@ -1973,6 +2009,8 @@ const drawOne = (n)=>{
        a reader wants from an image is the settings — the file, the crop,
        the size, the side its card hangs on. */
     if(isBio){ openEntrySettings(n.id); return; }
+    /* A link node has no words either: its settings hold where it goes. */
+    if(isLinkNode){ selectNode(n.id); paintMultiSelection(); openEntrySettings(n.id); return; }
     /* Everywhere else: on the entry itself, where the words are. The
        settings are the fallback for the one archetype that has no words to
        write — a picture — and for a reader who cannot write at all. */

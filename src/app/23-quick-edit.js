@@ -97,6 +97,14 @@ function validateEdgeStyles(val){
 /* What an entry's border is drawn in, as the colours field writes it:
    its own colours, its tags', or the default ink. */
 function drawnColorText(n){
+  /* A merge's entry with no colours of its own wears its lineages' — and
+     shows them here, as any entry shows the colour it is drawn in (the
+     owner's list of 24.10). The box said the default ink, which is the one
+     colour the entry is not drawn in. */
+  if(mergePainted(n)){
+    const cs = amalgamInheritedColors(n);
+    if(cs && cs.length) return cs.join(', ');
+  }
   return (n.colors && n.colors.length) ? n.colors.join(', ') : (n.color || DEFAULT_NODE_COLOR);
 }
 // Newlines have to be escaped, not emitted raw: a JavaScript string
@@ -311,6 +319,17 @@ function syncTextColorVisibility(){
 function syncColorFieldVisibility(){
   const field = document.getElementById('editColorsField');
   if(field) field.hidden = false;
+  /* A link node's link is where it goes, and says so — an entry of this
+     chart, by a copied link or its id, rather than a page elsewhere. Asked
+     here because this is what every change of the entry's kind asks. */
+  const link = document.getElementById('editLinkInput');
+  const shape = document.getElementById('editShapeInput');
+  if(link && shape){
+    const goes = shape.value === 'link';
+    const label = document.querySelector('label[for="editLinkInput"]');
+    if(label) label.textContent = goes ? 'Goes to' : 'Link URL';
+    link.placeholder = goes ? 'A link to an entry, or its id' : 'https://…';
+  }
 }
 const editMultiLangCheck = document.getElementById('editMultiLangCheck');
 const editLangTabsField = document.getElementById('editLangTabsField');

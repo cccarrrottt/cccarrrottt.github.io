@@ -201,6 +201,7 @@ function closeEdgePopover(){
   }
   edgePopover.classList.remove('open');
   currentEdgeStyleTarget = null;
+  edgeSelection.clear();
   edgeEditUndoPushed = false;
   redrawEdges();
   applyVisibility();
@@ -276,6 +277,9 @@ document.addEventListener('click', e=>{
      from under the hand — a double-click to delete a bend never reached
      its second click, because there was nothing left to click on. */
   if(e.target && e.target.closest && e.target.closest('#bendLayer')) return;
+  /* Nor is Shift or Ctrl on another connector: that picks it beside this
+     one (see edgeSelection), and the panel stays to work on both. */
+  if((e.shiftKey || e.ctrlKey || e.metaKey) && e.target && e.target.closest && e.target.closest('.edge-hit')) return;
   closeEdgePopover();
 }, true);
 
@@ -285,9 +289,10 @@ function deleteOpenConnector(){
   if(!currentEdgeStyleTarget) return false;
   const {from,to} = currentEdgeStyleTarget;
   // The merged arrow goes with its merge, never on its own.
-  if(isMergedArrow(from, to)) return false;
+  const list = edgeGroupFor(from, to).filter(t=> !isMergedArrow(t.from, t.to));
+  if(!list.length) return false;
   clearStyleStatus();
-  if(deleteEdge(from, to)) closeEdgePopover();
+  if(deleteEdges(list)) closeEdgePopover();
   return true;
 }
 

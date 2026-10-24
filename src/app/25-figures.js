@@ -1005,7 +1005,7 @@ const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
   const restoreIfEmpty = ()=>{
     if(hexFieldValue(field.value) !== '') return;
     const n = selectedId && nodes.get(selectedId);
-    field.value = (n && n.color) || DEFAULT_NODE_COLOR;
+    field.value = n ? drawnColorText(n) : DEFAULT_NODE_COLOR;
     if(paintEditSwatches) paintEditSwatches();
     field.dispatchEvent(new Event('input', {bubbles:true}));
   };

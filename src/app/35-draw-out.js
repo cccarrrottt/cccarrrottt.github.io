@@ -221,16 +221,22 @@ function unmergeEdge(from, to){
   });
   return true;
 }
-function deleteEdge(sourceId, targetId){
-  const found = workingEntry(targetId);
-  if(!found){ setStyleStatus('err', 'That node could not be found.'); return false; }
+/* Several at once, as one step of undo — the connectors picked together
+   (see edgeSelection). Each is looked up as it goes, since taking one
+   parent off an entry rewrites that entry for the next. */
+function deleteEdges(list){
+  if(!list.every(t=> workingEntry(t.to))){ setStyleStatus('err', 'That node could not be found.'); return false; }
   applyEdit(()=>{
-    const parents = resolveExplicitParents(found.entry).filter(p=>p!==sourceId);
-    recentreAfterLoss(found, parents);
-    found.entry[2] = parents.length===0 ? undefined : (parents.length===1 ? parents[0] : parents);
-    putEntry(found.index, found.entry, entryOpts(found.entry));
-    const idx = EDGE_STYLES.findIndex(s=>s.from===sourceId && s.to===targetId);
-    if(idx>=0) EDGE_STYLES.splice(idx,1);
+    list.forEach(({from: sourceId, to: targetId})=>{
+      const found = workingEntry(targetId);
+      if(!found) return;
+      const parents = resolveExplicitParents(found.entry).filter(p=>p!==sourceId);
+      recentreAfterLoss(found, parents);
+      found.entry[2] = parents.length===0 ? undefined : (parents.length===1 ? parents[0] : parents);
+      putEntry(found.index, found.entry, entryOpts(found.entry));
+      const idx = EDGE_STYLES.findIndex(s=>s.from===sourceId && s.to===targetId);
+      if(idx>=0) EDGE_STYLES.splice(idx,1);
+    });
   });
   return true;
 }

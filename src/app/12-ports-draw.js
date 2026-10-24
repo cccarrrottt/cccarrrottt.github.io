@@ -42,7 +42,7 @@ function ringOutlinePath(n, ring){
   const grow = (ring || 0) * ringStepFor(n);
   const x = n.x - grow, y = n.y - grow, w = n.w + grow*2, h = n.h + grow*2;
   if(isWavyBorder(n)) return wavyRectPath(x, y, w, h, grow);
-  if((n.shape || '') === 'ellipse'){
+  if(isRoundShape(n)){
     const r = w/2, cx = x + w/2, cy = y + h/2;
     return `M${cx-r},${cy} a${r},${r} 0 1 0 ${r*2},0 a${r},${r} 0 1 0 ${-r*2},0 Z`;
   }
@@ -236,14 +236,14 @@ function trimForHeads(pts, headIn, headOut, portIn, portOut, cutIn, cutOut){
   return out;
 }
 // The merged arrow of an amalgam, which has no single source entry.
-function drawAmalgamArrow(port, cx, cy, ring, paint, toId){
+function drawAmalgamArrow(port, cx, cy, ring, paint, toId, open){
   const tip = portTip(port);
   /* Cut off at the border it arrives at, exactly as an ordinary arrowhead
      is. A merged lineage landing on a pocket reality used to be the one
      head on the chart that was allowed through the ripple. */
   drawArrowHead(arrowLayerFor(ring, port), tip.x, tip.y,
                 Math.atan2(port.y - cy, port.x - cx) * 180/Math.PI, paint, '', toId,
-                (port && port.wavy) ? toId : null, (port && port.ring) || 0);
+                (port && port.wavy) ? toId : null, (port && port.ring) || 0, open);
 }
 /* Everything OUTSIDE an entry's own outline, as a clip path.
  *
@@ -288,16 +288,37 @@ function outsideClipId(nodeId, ring){
   outsideClips.set(key, id);
   return id;
 }
-function drawArrowHead(parent, x, y, angleDeg, fill, from, to, clipTo, clipRing){
+/* `open` draws the same head as two strokes, a ">" with nothing between
+   them — see OPEN_CUT. */
+function drawArrowHead(parent, x, y, angleDeg, fill, from, to, clipTo, clipRing, open){
   const a = angleDeg * Math.PI / 180;
   const cos = Math.cos(a), sin = Math.sin(a);
   const at = (lx, ly)=> `${(x + lx*cos - ly*sin).toFixed(2)},${(y + lx*sin + ly*cos).toFixed(2)}`;
-  const attrs = {class:'edge-arrow', 'data-from': from || '', 'data-to': to || ''};
+  const attrs = {class: open ? 'edge-arrow edge-open' : 'edge-arrow', 'data-from': from || '', 'data-to': to || ''};
   const clip = clipTo ? outsideClipId(clipTo, clipRing || 0) : null;
   if(clip) attrs['clip-path'] = `url(#${clip})`;
   const g = el('g', attrs, parent);
-  el('path', {d:`M${at(0,0)} L${at(-ARROW_LEN,-ARROW_HALF)} L${at(-ARROW_LEN,ARROW_HALF)} z`, fill}, g);
+  if(open){
+    /* Stroked, in the line's own weight, and with its point set back by
+       half that weight: a round join reaches exactly as far as a filled
+       head's tip, so an open head meets the border where a filled one
+       does. */
+    const v = -OPEN_CUT;
+    el('path', {d:`M${at(v - ARROW_LEN, -ARROW_HALF)} L${at(v, 0)} L${at(v - ARROW_LEN, ARROW_HALF)}`,
+                fill: 'none', stroke: fill}, g);
+  } else {
+    el('path', {d:`M${at(0,0)} L${at(-ARROW_LEN,-ARROW_HALF)} L${at(-ARROW_LEN,ARROW_HALF)} z`, fill}, g);
+  }
   return g;
+}
+/* How much of its line an open head gives up: none of it but the half of
+   the line's weight its point is set back by. The line runs on into the
+   point, as a hand-drawn "->" does; there is no fill for a gradient to
+   show through, which is all a filled head's cut is for. */
+const OPEN_CUT = 0.8;
+/* What an end gives up of its line, whatever is drawn there. */
+function endCutFor(tee, open, port, id){
+  return tee ? TEE_CUT + teeBack(port, id) : open ? OPEN_CUT : headCut(port);
 }
 /* A T: a bar across the line instead of an arrowhead.
  *

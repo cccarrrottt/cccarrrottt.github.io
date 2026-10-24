@@ -281,7 +281,7 @@ function hexColors(list){
 }
 
 const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, arrowIn: false,
-                             teeOut: false, teeIn: false, barEnd: null,
+                             teeOut: false, teeIn: false, openOut: false, openIn: false, barEnd: null,
                              sinusoid: false, note: '', notePos: 'above', noteAt: 0.5,
                              noteBg: null, bends: null, bendSides: null,
                              noteDir: null, noteLen: null,
@@ -305,12 +305,17 @@ function edgeStyleFor(from, to){
        mark at all. */
     teeOut: !!o.teeOut && o.arrow !== false,
     teeIn: !!o.teeIn && !!o.arrowIn,
+    /* …or an OPEN arrowhead, the two strokes of a ">" with nothing
+       between them (the owner's list of 24.10): the same arrow, drawn
+       rather than filled. A T wins where both were somehow set. */
+    openOut: !!o.openOut && o.arrow !== false && !o.teeOut,
+    openIn: !!o.openIn && !!o.arrowIn && !o.teeIn,
     /* What a lineage of a merge ends in where it meets the bar: nothing
        (absent), an arrowhead ('out') or a T ('tout'). A field of its own
        rather than `arrow`, because `arrow` is on by default and a lineage
        has always come down onto its bar bare — read as that, every merge
        on every chart would have grown a head on each of its lineages. */
-    barEnd: (o.barEnd === 'out' || o.barEnd === 'tout') ? o.barEnd : null,
+    barEnd: ['out', 'tout', 'oout'].includes(o.barEnd) ? o.barEnd : null,
     sinusoid: !!o.sinusoid,
     note: typeof o.note === 'string' ? o.note : '',
     // 'above' | 'on' | 'below'. 'on' lays the note across the connector,

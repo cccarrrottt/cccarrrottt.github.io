@@ -212,9 +212,11 @@ function paintSelectionHighlight(id, opts){
        joint answers to its own pair; the bead at the junction, which every
        lineage feeds, still answers to the merge. */
     const pair = p.dataset.pair ? p.dataset.pair.split('\u0000') : null;
+    /* …and to every lineage whose way to the junction runs through it. */
+    const via = p.dataset.via ? p.dataset.via.split('\u0000') : [];
     const pairLit = pair && (multi
-      ? multiSelection.has(dst) || pair.some(x=> multiSelection.has(x))
-      : dst===id || pair.includes(id));
+      ? multiSelection.has(dst) || pair.some(x=> multiSelection.has(x)) || via.some(x=> multiSelection.has(x))
+      : dst===id || pair.includes(id) || via.includes(id));
     const lit = pair ? pairLit
       : multi ? (src ? related.has(src) && related.has(dst) : related.has(dst)) ||
                 pickedAbout.has(src + '\u0000' + dst)
@@ -616,6 +618,14 @@ function entryLinkTarget(raw){
   if(!want || !nodes.has(want.id)) return null;
   const here = u.origin + u.pathname === location.origin + location.pathname;
   return (here || raw.trim().startsWith('#') || SITE_ORIGINS.includes(u.origin)) ? want : null;
+}
+/* Where a link node goes: the entry its link names — a copied link, a bare
+   `#entry=…`, or the entry's id typed as it is — unless that is itself. */
+function linkNodeTarget(n){
+  const raw = n && typeof n.link === 'string' ? n.link.trim() : '';
+  if(!raw) return null;
+  const to = (nodes.has(raw) ? {id: raw, tab: null} : null) || entryLinkTarget(raw);
+  return to && to.id !== n.id ? to : null;
 }
 /* Whether a link points into this chart at all, whatever entry it names —
    one whose entry has since been deleted is still not a link to elsewhere. */

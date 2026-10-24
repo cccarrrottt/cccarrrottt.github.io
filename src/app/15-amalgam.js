@@ -790,6 +790,89 @@ function drawAmalgam(list, ports){
      it was given (see noteAimOf). The apparatus had become an elaborate
      way of computing an answer nobody reads. */
 
+  /* Where the beads will stand — worked out before anything is drawn,
+     because a lineage's own end at the bar has to stop at the edge of the
+     bead it runs into rather than under it (see barEndOf). The beads
+     themselves are still painted last. */
+  const joints = [];
+  for(let i = 0; i < n - 1; i++){
+    const jAt = bounds[i].hi;                       // == bounds[i+1].lo
+    if(Math.abs(jAt - junction) < AMALGAM_BEAD_CLEAR) continue;
+    /* Never the same point twice. Evenly spaced lineages hand the bar over
+       at one and the same place — the middle — so every seam between them
+       resolved to that one point and the bar carried two or three beads
+       stacked on the same pixel, each drawn over the last. */
+    if(joints.some(j=> Math.abs(j.at - jAt) < 0.75)) continue;
+    const pairAt = [amalgamMemberColor(members[i]), amalgamMemberColor(members[i+1])];
+    /* And nothing at all at the MIDDLE of the bar unless something really
+       changes there. The middle is where the arithmetic puts every seam of
+       an evenly spaced merge, so a bead there was not marking a hand-over
+       the reader could see — it was a dot in the centre of a plain line.
+       The middle is worth knowing when you are lining the entry up on it,
+       and that is a guide: it is drawn while the entry is carried with
+       Shift held, and at no other time. */
+    if(Math.abs(jAt - seam) < 0.75 && pairAt[0] === pairAt[1]) continue;
+    joints.push({at: jAt, pair: pairAt, i});
+  }
+  const junctionBead = !edgeStyleFor('', b.id).arrowIn;
+  /* The lineage next to the junction runs on into it — see the reach
+     below — so that is where its line, and its end, are. */
+  const reachK = Math.abs(junction - seam) <= 0.5 ? -1
+    : junction > seam ? bounds.findIndex(r=> Math.abs(r.hi - seam) < 1e-6 && r.lo < seam)
+                      : bounds.findIndex(r=> Math.abs(r.lo - seam) < 1e-6 && r.hi > seam);
+  /* What a lineage's end at the bar is, given where along the bar its line
+     ends and which way it was going: the tip of its head, which way the
+     head points, and where the line under it stops.
+   *
+     The head used to be drawn where the lineage LANDS, pointing down into
+     the bar — at the first bead it passes, while its colour ran on along
+     the bar past the head to where it really hands over (the owner's list
+     of 24.10). A lineage's end is where its line ends: the far end of its
+     stretch, or the junction for the one that runs on into it. The tip
+     stops at the edge of the bead standing there, and the line stops under
+     the head, as everywhere else on the chart — run on under it, a colour
+     with any transparency showed the line through the head, and the head
+     read as washed out. */
+  const beadAround = (off)=>{
+    if(junctionBead && Math.abs(off - junction) < AMALGAM_BEAD_R + 1) return {c: junction, r: AMALGAM_BEAD_R};
+    const j = joints.find(j=> Math.abs(j.at - off) < 0.75);
+    return j ? {c: j.at, r: AMALGAM_JOINT_R} : {c: off, r: 0};
+  };
+  const barEndCut = (style)=> style.barEnd === 'tout' ? TEE_CUT : style.barEnd === 'oout' ? OPEN_CUT : ARROW_TRIM;
+  const barEndOf = (style, from, endOff)=>{
+    if(!style.barEnd) return null;
+    const s = Math.sign(endOff - from);
+    if(!s) return null;
+    const {c, r} = beadAround(endOff);
+    let tipOff = c - s*r;
+    // A stretch too short to hold the head before the bead: at its end.
+    if(s * (tipOff - from) < ARROW_LEN) tipOff = endOff;
+    const tip = barPt(tipOff);
+    return {x: tip.x, y: tip.y, ang: Math.atan2(uy*s, ux*s) * 180 / Math.PI,
+            line: barPt(tipOff - s*barEndCut(style)), cut: s*(endOff - tipOff) + barEndCut(style)};
+  };
+  /* …and one arriving at a point rather than along the bar: the end of a
+     route, or a straight line to the bar's end or the junction. */
+  const pointEndOf = (style, prev, at, off)=>{
+    if(!style.barEnd) return null;
+    const len = Math.hypot(at.x - prev.x, at.y - prev.y);
+    if(len < 0.5) return null;
+    const dx = (at.x - prev.x) / len, dy = (at.y - prev.y) / len;
+    const {r} = typeof off === 'number' ? beadAround(off) : {r: 0};
+    const back = len - r > ARROW_LEN ? r : 0;
+    return {x: at.x - dx*back, y: at.y - dy*back, ang: Math.atan2(dy, dx) * 180 / Math.PI,
+            cut: back + barEndCut(style)};
+  };
+  const lastBefore = (pts, at)=>{
+    let k = pts.length - 1;
+    while(k > 0 && Math.hypot(pts[k].x - at.x, pts[k].y - at.y) < 0.5) k--;
+    return pts[k];
+  };
+  const barEnds = new Map();
+  /* Each piece of the bar as drawn, and where along the bar each lineage
+     sets off from — what the way through below is laid from. */
+  const spans = [], starts = [];
+
   /* Each middle lineage's run along the bar, as drawn — the reach below
      has to lie on exactly the same line where it crosses one. */
   const stretches = [];
@@ -876,9 +959,19 @@ function drawAmalgam(list, ports){
        arrowhead or a T where it leaves its entry, cut back from the line
        as everywhere else, and one where it meets the bar. */
     const cutIn = mergeMemberCutIn(style, p1, e.from);
-    const ptsD = (cutIn && !style.sinusoid) ? trimForHeads(pts, true, false, p1, null, cutIn) : pts;
-    const joined = (bar && onEnd) ? ptsD.concat([bar]) : ptsD;
-    let d = style.sinusoid ? wavyPath(joined, cutIn) : roundedPath(joined, edgeCornerR(style));
+    /* Its end at the bar: along its stretch, at the junction for the one
+       that runs on into it (which is drawn with the reach, below), or at
+       its landing for one that owns no bar. */
+    const tail = i === reachK ? barEndOf(style, o, junction)
+      : bar ? barEndOf(style, o, inward)
+      : pointEndOf(style, lastBefore(pts, land), land, o);
+    if(tail) barEnds.set(i, tail);
+    const own = i === reachK ? null : tail;
+    let ptsD = (cutIn && !style.sinusoid) ? trimForHeads(pts, true, false, p1, null, cutIn) : pts;
+    if(own && !bar && !style.sinusoid) ptsD = trimForHeads(ptsD, false, true, null, null, null, own.cut);
+    const joined = (bar && onEnd) ? ptsD.concat([own && !style.sinusoid ? own.line : bar]) : ptsD;
+    let d = style.sinusoid ? wavyPath(joined, cutIn, own && (onEnd || !bar) ? own.cut : 0)
+                           : roundedPath(joined, edgeCornerR(style));
     /* A wavy lineage waves along its stretch of the bar too. The stretch
        is its own run, started afresh at the landing, so the T stays a T:
        the upright arrives at the bar and the ripple sets off along it,
@@ -888,12 +981,11 @@ function drawAmalgam(list, ports){
        a plain line. A wave fits whole lengths into its run and so ends on
        the bar's own line, where the next colour picks up. */
     if(bar && !onEnd){
-      d += style.sinusoid ? ' ' + wavyPath([land, bar], 0, 0, true)
-                          : ` L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
+      const stop = own ? own.line : bar;
+      d += style.sinusoid ? ' ' + wavyPath([land, bar], 0, own ? own.cut : 0, true)
+                          : ` L${stop.x.toFixed(2)},${stop.y.toFixed(2)}`;
       stretches[i] = {land, bar, wavy: !!style.sinusoid};
     }
-    if(bar) barPieces.push({from: e.from, d: style.sinusoid ? wavyPath([land, bar], 0, 0, true)
-                              : `M${land.x.toFixed(2)},${land.y.toFixed(2)} L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`});
     /* What the reader sees, whichever way the corner was drawn. `joined`
        carries the bar leg only for the two end lineages, so anchoring a
        note on it put a note on a MIDDLE lineage back on the short routed
@@ -902,6 +994,13 @@ function drawAmalgam(list, ports){
     const notePts = bar ? pts.concat([bar]) : pts;
     // A gradient runs the length of the lineage, bar stretch and all.
     const paint = style.gradient ? makeEdgeGradient(style.gradient, notePts) : color;
+    if(bar){
+      const piece = style.sinusoid ? wavyPath([land, bar], 0, 0, true)
+        : `M${land.x.toFixed(2)},${land.y.toFixed(2)} L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
+      barPieces.push({from: e.from, d: piece});
+      spans.push({lo: Math.min(o, inward), hi: Math.max(o, inward), d: piece, stroke: paint, style, from: e.from});
+    }
+    starts.push({from: e.from, at: o});
     const attrs = {class:'edge struct amalgam-member', d, stroke: paint,
                    'data-from':e.from, 'data-to':e.to};
     if(dash){
@@ -910,7 +1009,7 @@ function drawAmalgam(list, ports){
     }
     edgePath(attrs, style, edgeLayer);
     drawRingCap(pts[0], paint, dash, e.from, e.to, isDoubleDash(style), d);
-    drawMergeMemberEnds(e, style, pts, p1, land, paint);
+    drawMergeMemberEnds(e, style, pts, p1, paint, tail);
     /* The note is anchored on the line the reader actually sees, bar leg
        and all. It used to be anchored on the routed part alone, so a point
        picked halfway along a merged lineage landed halfway along a shorter
@@ -947,13 +1046,15 @@ function drawAmalgam(list, ports){
    * near side of the junction carries its own line on to it. Its stretch,
    * and so the seam and anything anchored on the stretch, is unchanged;
    * this is only the last few units of line, drawn over its neighbour's. */
-  if(Math.abs(junction - seam) > 0.5){
-    const k = junction > seam ? bounds.findIndex(r=> Math.abs(r.hi - seam) < 1e-6 && r.lo < seam)
-                              : bounds.findIndex(r=> Math.abs(r.lo - seam) < 1e-6 && r.hi > seam);
-    const e = k >= 0 ? members[k] : null;
+  if(reachK >= 0){
+    const k = reachK;
+    const e = members[k];
     if(e){
       const style = edgeStyleFor(e.from, e.to);
-      const from = barPt(seam), to = barPt(junction);
+      /* Its end, if it has one, is at the junction, and the line stops
+         under it. */
+      const tail = barEnds.get(k);
+      const from = barPt(seam), to = tail ? tail.line : barPt(junction);
       /* Drawn over its neighbour's stretch, so it takes that stretch's
          shape: where the neighbour ripples, this is the same ripple cut
          to the few units between the seam and the junction — a straight
@@ -967,7 +1068,7 @@ function drawAmalgam(list, ports){
          of its waves and the dot it feeds is the style giving out a few
          units short of where the line ends. */
       const d = style.sinusoid
-        ? wavyPath([from, to], 0, 0, true)
+        ? wavyPath([from, barPt(junction)], 0, tail ? tail.cut : 0, true)
         : (under && under.wavy)
         ? wavyPath([under.land, under.bar], Math.hypot(under.land.x - to.x, under.land.y - to.y), 0, true)
         : `M${from.x.toFixed(2)},${from.y.toFixed(2)} L${to.x.toFixed(2)},${to.y.toFixed(2)}`;
@@ -978,6 +1079,8 @@ function drawAmalgam(list, ports){
       if(dash) attrs['stroke-dasharray'] = dash;
       edgePath(attrs, Object.assign({}, style, {sinusoid: false}), edgeLayer);
       barPieces.push({from: e.from, d});
+      spans.push({lo: Math.min(seam, junction), hi: Math.max(seam, junction), d,
+                  stroke: amalgamMemberColor(e), style, from: e.from});
     }
   }
   /* The lineages that left the bar: one straight line each, from the port
@@ -995,9 +1098,23 @@ function drawAmalgam(list, ports){
     const pts = [start, end];
     const p1 = ports.get(e).p1;
     const cutIn = mergeMemberCutIn(style, p1, e.from);
+    /* Its end where it meets the bar: off the bead standing there, which
+       for one running to the bar's end is that end's own (drawn below)
+       unless the junction's is already on it. */
+    const nearJunction = Math.hypot(end.x - dimple.x, end.y - dimple.y) < AMALGAM_BEAD_CLEAR;
+    const tail = pointEndOf(style, start, end, nearJunction ? junction : null);
+    if(tail && how === 'end' && !nearJunction){
+      const len = Math.hypot(end.x - start.x, end.y - start.y);
+      if(len - AMALGAM_JOINT_R > ARROW_LEN){
+        tail.x -= (end.x - start.x) / len * AMALGAM_JOINT_R;
+        tail.y -= (end.y - start.y) / len * AMALGAM_JOINT_R;
+        tail.cut += AMALGAM_JOINT_R;
+      }
+    }
     const s0 = cutIn && !style.sinusoid ? arrowTrimmed(end, start, cutIn) : start;
-    const d = style.sinusoid ? wavyPath(pts, cutIn)
-                             : `M${s0.x.toFixed(2)},${s0.y.toFixed(2)} L${end.x.toFixed(2)},${end.y.toFixed(2)}`;
+    const e0 = tail && !style.sinusoid ? arrowTrimmed(start, end, tail.cut) : end;
+    const d = style.sinusoid ? wavyPath(pts, cutIn, tail ? tail.cut : 0)
+                             : `M${s0.x.toFixed(2)},${s0.y.toFixed(2)} L${e0.x.toFixed(2)},${e0.y.toFixed(2)}`;
     const paint = style.gradient ? makeEdgeGradient(style.gradient, pts) : color;
     const attrs = {class:'edge struct amalgam-member amalgam-direct', d, stroke: paint,
                    'data-from':e.from, 'data-to':e.to};
@@ -1007,21 +1124,46 @@ function drawAmalgam(list, ports){
     }
     edgePath(attrs, style, edgeLayer);
     drawRingCap(p1, paint, dash, e.from, e.to, isDoubleDash(style), d);
-    drawMergeMemberEnds(e, style, pts, p1, end, paint);
+    drawMergeMemberEnds(e, style, pts, p1, paint, tail);
     drawEdgeNote(style.note, pts, style.notePos, e.from, e.to, style.noteAt, color, style.noteBg);
     drawCalloutLeaders(e.from, e.to, pts, color);
     edgeHit(d, e.from, e.to);
     barPieces.push({from: e.from, d});
+    if(how === 'end') starts.push({from: e.from, at: landings[allMembers.indexOf(e) === 0 ? 0 : n - 1]});
     if(how === 'end') departedEnds.push({at: end, pair: [color,
       amalgamMemberColor(allMembers.indexOf(e) === 0 ? members[0] : members[n - 1])],
       from: e.from, to: (allMembers.indexOf(e) === 0 ? members[0] : members[n - 1]).from});
   });
   amalgamBars.get(b.id).pieces = barPieces;
+  /* The way through.
+   *
+     A lineage's colour runs along the bar only as far as its neighbour's
+     landing; from there to the junction the bar is other lineages'. So
+     picking an outer parent lit its line, its own stretch, the merged
+     arrow — and between them, on the very path it was picked to show,
+     stretches of bar stepped back with the rest of the chart: the lit way
+     broke at the seam (the owner's list of 24.10). Each lineage therefore
+     carries a tracing of every piece of bar between it and the junction,
+     in that piece's own colour and line, unseen unless the lineage is lit
+     — and lit, it is the path. The joints it passes say so too (data-via),
+     so a dimmed bead does not stand in the middle of a lit way. */
+  starts.forEach(({from, at})=>{
+    const lo = Math.min(at, junction) - 0.5, hi = Math.max(at, junction) + 0.5;
+    spans.forEach(sp=>{
+      if(sp.from === from || sp.lo < lo || sp.hi > hi) return;
+      const attrs = {class:'edge struct amalgam-through', d: sp.d, stroke: sp.stroke,
+                     'data-from': from, 'data-to': b.id};
+      const dash = DASH_PATTERNS[sp.style.dash];
+      if(dash) attrs['stroke-dasharray'] = dash;
+      edgePath(attrs, Object.assign({}, sp.style, {sinusoid: false}), edgeLayer);
+    });
+  });
+  const viaOf = (off)=> starts.filter(s=> (s.at - off) * (junction - off) < 0).map(s=> s.from);
   const colors = allMembers.map(amalgamMemberColor);
   // It leaves from a point ON the bar, so the bar and the arrow are one
   // continuous shape rather than a line crossing another line.
   const stem = amalgamStem(geo, dimple, allMembers.map(e=> nodes.get(e.from)).filter(Boolean));
-  drawMergedArrow(b, stem, colors, ring);
+  drawMergedArrow(b, stem, colors, ring, geo.side);
 
   /* The bead over the junction.
    *
@@ -1067,28 +1209,9 @@ function drawAmalgam(list, ports){
   /* The grip on the bar goes in before the beads, which stay the last
      thing painted — they cover the seams — and take no pointer. */
   drawBarGrip(b.id, barPt(landings[0]), barPt(landings[n-1]), ux);
-  const drawnAt = [];
-  for(let i = 0; i < n - 1; i++){
-    const jAt = bounds[i].hi;                       // == bounds[i+1].lo
-    if(Math.abs(jAt - junction) < AMALGAM_BEAD_CLEAR) continue;
-    /* Never the same point twice. Evenly spaced lineages hand the bar over
-       at one and the same place — the middle — so every seam between them
-       resolved to that one point and the bar carried two or three beads
-       stacked on the same pixel, each drawn over the last. */
-    if(drawnAt.some(v=> Math.abs(v - jAt) < 0.75)) continue;
-    const pairAt = [amalgamMemberColor(members[i]), amalgamMemberColor(members[i+1])];
-    /* And nothing at all at the MIDDLE of the bar unless something really
-       changes there. The middle is where the arithmetic puts every seam of
-       an evenly spaced merge, so a bead there was not marking a hand-over
-       the reader could see — it was a dot in the centre of a plain line.
-       The middle is worth knowing when you are lining the entry up on it,
-       and that is a guide: it is drawn while the entry is carried with
-       Shift held, and at no other time. */
-    if(Math.abs(jAt - seam) < 0.75 && pairAt[0] === pairAt[1]) continue;
-    drawnAt.push(jAt);
+  joints.forEach(({at: jAt, pair, i})=>{
     const jp = barPt(jAt);
     const r = AMALGAM_JOINT_R;
-    const pair = pairAt;
     /* A seam is marked whether or not the colour changes across it.
      *
        0.9.17 skipped the ones where the two lineages meeting are the same
@@ -1105,8 +1228,9 @@ function drawAmalgam(list, ports){
     beadGround(jp, r);
     el('circle', {class:'amalgam-bead amalgam-joint', cx:jp.x.toFixed(2), cy:jp.y.toFixed(2),
                   r, fill:jointPaint, 'data-from':'', 'data-to':b.id,
-                  'data-pair': members[i].from + '\u0000' + members[i+1].from}, edgeLayer);
-  }
+                  'data-pair': members[i].from + '\u0000' + members[i+1].from,
+                  'data-via': viaOf(jAt).join('\u0000')}, edgeLayer);
+  });
 
   /* A lineage that runs to the end of the bar joins it there, and the join
      is marked like every other hand-over on the bar — unless the junction's
@@ -1136,29 +1260,24 @@ function drawAmalgam(list, ports){
    T's worth, as on any connector (see redrawEdges), or nothing. */
 function mergeMemberCutIn(style, port, fromId){
   if(!style.arrowIn) return 0;
-  return style.teeIn ? TEE_CUT + teeBack(port, fromId) : headCut(port);
+  return endCutFor(style.teeIn, style.openIn, port, fromId);
 }
 /* A lineage's two ends: the one at its entry, which is an ordinary end,
-   and the one at the bar — barEnd, an arrowhead or a T pointing into the
-   bar along the way the lineage arrives. A T at the bar stands its gap
-   off the bar, the way a T at an entry stands off the border. */
-function drawMergeMemberEnds(e, style, pts, port, land, paint){
+   and the one at the bar — barEnd, an arrowhead, an open one or a T,
+   pointing the way the line was going where it ends (see barEndOf). A T
+   at the bar stands its gap off the bead, the way a T at an entry stands
+   off the border. */
+function drawMergeMemberEnds(e, style, pts, port, paint, tail){
   if(style.arrowIn && pts.length >= 2 && port){
     const tip = portTip(Object.assign({}, port, {x: pts[0].x, y: pts[0].y}));
     if(style.teeIn) drawTeeHead(arrowLayer, tip.x, tip.y, startAngleDeg(pts), paint, e.from, e.to,
                                 teeBack(port, e.from));
     else drawArrowHead(arrowLayerFor(port.ring, port), tip.x, tip.y, startAngleDeg(pts), paint,
-                       e.from, e.to, port.wavy ? e.from : null, port.ring || 0);
+                       e.from, e.to, port.wavy ? e.from : null, port.ring || 0, style.openIn);
   }
-  if(style.barEnd && pts.length >= 2){
-    /* The way it arrives: from the last point of its route that is not the
-       landing itself. */
-    let k = pts.length - 1;
-    while(k > 0 && Math.hypot(pts[k].x - land.x, pts[k].y - land.y) < 0.5) k--;
-    const from = pts[k];
-    const ang = Math.atan2(land.y - from.y, land.x - from.x) * 180 / Math.PI;
-    if(style.barEnd === 'tout') drawTeeHead(arrowLayer, land.x, land.y, ang, paint, e.from, e.to, 0);
-    else drawArrowHead(arrowLayer, land.x, land.y, ang, paint, e.from, e.to);
+  if(tail){
+    if(style.barEnd === 'tout') drawTeeHead(arrowLayer, tail.x, tail.y, tail.ang, paint, e.from, e.to, 0);
+    else drawArrowHead(arrowLayer, tail.x, tail.y, tail.ang, paint, e.from, e.to, null, 0, style.barEnd === 'oout');
   }
 }
 /* The merged arrow, in whatever look it has been given.
@@ -1171,10 +1290,25 @@ function drawMergeMemberEnds(e, style, pts, port, land, paint){
  * and the route: square with turns by default, as the owner asked, or
  * straight or curved where somebody chose that for it. Only its paint is
  * not its own: it carries every lineage's colour, which is what it means. */
-function drawMergedArrow(b, stem, colors, ring){
+/* Where the merged arrow's two ends are, by the entry it feeds — what a
+   bend dragged on it is laid between (see beginBendDrag), since it is no
+   connector of structEdges for resolvePorts to answer for. */
+const mergedArrowPorts = new Map();
+function drawMergedArrow(b, stem, colors, ring, side){
   const os = edgeStyleFor('', b.id);
   const head = stem.port;
-  const route = os.routing === 'straight' ? [stem.pts[0], stem.pts[stem.pts.length - 1]] : stem.pts;
+  /* It may be bent by hand like any connector (the owner's list of 24.10):
+     its corners are the route, from the bar — leaving it away from the
+     lineages, square, as the stem does — to the port the stem chose. A
+     route the corners cannot make is drawn without them, as anywhere. */
+  const start = {x: stem.pts[0].x, y: stem.pts[0].y, side: OPPOSITE_SIDE[side] || side, ring: 0,
+                 stub: AMALGAM_APPROACH};
+  mergedArrowPorts.set(b.id, {p1: start, p2: head});
+  let route = os.routing === 'straight' ? [stem.pts[0], stem.pts[stem.pts.length - 1]] : stem.pts;
+  if(os.routing !== 'straight' && os.bends && os.bends.length){
+    const bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
+    if(!bent.ignored && bent.pts.length >= 2) route = bent.pts;
+  }
   /* Every lineage's colour unless it has been given its own: a colour or a
      gradient set on it, as on any connector (the owner's ask, 23.10). */
   const paint = os.gradient ? makeEdgeGradient(os.gradient, route)
@@ -1185,8 +1319,8 @@ function drawMergedArrow(b, stem, colors, ring){
      or nothing; and at the bar, where it starts, an arrowhead or a T
      pointing back at the bar, or nothing as it always was. */
   const headOut = os.arrow !== false, teeOut = headOut && os.teeOut;
-  const cutOut = !headOut ? 0 : teeOut ? TEE_CUT + teeBack(head, b.id) : ARROW_TRIM;
-  const cutIn = !os.arrowIn ? 0 : os.teeIn ? TEE_CUT : ARROW_TRIM;
+  const cutOut = !headOut ? 0 : teeOut ? TEE_CUT + teeBack(head, b.id) : os.openOut ? OPEN_CUT : ARROW_TRIM;
+  const cutIn = !os.arrowIn ? 0 : os.teeIn ? TEE_CUT : os.openIn ? OPEN_CUT : ARROW_TRIM;
   let d, from;
   if(os.sinusoid){
     d = wavyPath(route, cutIn, cutOut, false, edgeCornerR(os));
@@ -1215,11 +1349,11 @@ function drawMergedArrow(b, stem, colors, ring){
     const tip = portTip(head);
     drawTeeHead(arrowLayer, tip.x, tip.y, Math.atan2(head.y - from.y, head.x - from.x) * 180/Math.PI,
                 paint, '', b.id, teeBack(head, b.id));
-  } else if(headOut) drawAmalgamArrow(head, from.x, from.y, ring, paint, b.id);
+  } else if(headOut) drawAmalgamArrow(head, from.x, from.y, ring, paint, b.id, os.openOut);
   if(os.arrowIn){
     const at = route[0];
     if(os.teeIn) drawTeeHead(arrowLayer, at.x, at.y, startAngleDeg(route), paint, '', b.id, 0);
-    else drawArrowHead(arrowLayer, at.x, at.y, startAngleDeg(route), paint, '', b.id);
+    else drawArrowHead(arrowLayer, at.x, at.y, startAngleDeg(route), paint, '', b.id, null, 0, os.openIn);
   }
   drawEdgeNote(os.note, route, os.notePos, '', b.id, os.noteAt, ink, os.noteBg);
   drawCalloutLeaders('', b.id, route, ink);

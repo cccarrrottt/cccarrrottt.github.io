@@ -51,7 +51,7 @@
         "note": {"type": "string", "description": "The entry's longer text, shown when it is opened."},
         "shape": {
           "type": "string",
-          "description": "Absent is a box. Otherwise ellipse (a character with a portrait), callout, image, textbox or array (a frame round its members). Older charts may carry shapes that are migrated on reading, amalgam among them (now a box with merge: true)."
+          "description": "Absent is a box. Otherwise ellipse (a character with a portrait), link (a small circle that goes to the entry its link names), callout, image, textbox or array (a frame round its members). Older charts may carry shapes that are migrated on reading, amalgam among them (now a box with merge: true)."
         },
         "pos": {"$ref": "#/definitions/point", "description": "Where it was put by hand, [x, y] in chart units."},
         "size": {"$ref": "#/definitions/point", "description": "[w, h], when it was sized by hand."},
@@ -111,8 +111,10 @@
         "routing": {"enum": ["orthogonal", "straight", "curve"]},
         "dash": {"enum": ["solid", "dashed", "dotted", "dashdot", "double"]},
         "arrow": {"type": "boolean"}, "arrowIn": {"type": "boolean"},
-        "barEnd": {"enum": ["out", "tout"], "description": "What a merged lineage ends in at its bar: an arrowhead or a T. Absent is nothing."},
+        "barEnd": {"enum": ["out", "tout", "oout"], "description": "What a merged lineage ends in at its bar: an arrowhead, a T or an open arrowhead. Absent is nothing."},
         "teeOut": {"type": "boolean"}, "teeIn": {"type": "boolean"},
+        "openOut": {"type": "boolean", "description": "The arrowhead at the end is open, a > rather than a filled triangle."},
+        "openIn": {"type": "boolean", "description": "The arrowhead at the start is open."},
         "sinusoid": {"type": "boolean"},
         "note": {"type": "string"},
         "notePos": {"enum": ["above", "on", "below"]},

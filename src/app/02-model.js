@@ -7,6 +7,15 @@ const COLW = 210, ROWH = 118, BOXW = 178, ROOTMARGIN = 70;
 /* Half again the shortest a default entry may be — a portrait beside a
    row of entries, not a medallion twice their height. */
 const BIO_SIZE = 36;
+/* A link node: a small round entry that stands for another one somewhere
+   else on the chart, and goes there when pressed (the owner's list of
+   24.10) — so two entries a long way apart can be joined by a connector
+   to a link beside each. Half a portrait across, with nothing written in
+   it: what it says is the arrow, and where it goes. */
+const LINK_NODE_SIZE = BIO_SIZE / 2;
+function isLinkNode(n){ return !!n && (n.shape || '') === 'link'; }
+/* Round, and so met by connectors and outlined as a circle is. */
+function isRoundShape(n){ const s = n && (n.shape || ''); return s === 'ellipse' || s === 'link'; }
 /* Archetypes whose drawing already carries a second layer — the echo, the
    stack — take one border colour and no more. A second ring would have to
    thread between the rings of the echo or the edges of the sheets, where it
@@ -90,7 +99,7 @@ function decorStyleOf(n){
    instead of one ink, and a ripple round it is the same ripple. The owner
    asked for it, so its rippled outline is the plain one with the paint
    swapped (see renderNodes). */
-const WAVY_BORDER_SHAPES = ['ellipse', 'image', 'textbox'];
+const WAVY_BORDER_SHAPES = ['ellipse', 'image', 'textbox', 'link'];
 function isWavyBorder(n){
   return !!n && borderStyleOf(n) === 'wavy' &&
          !WAVY_BORDER_SHAPES.includes(n.shape || '');
@@ -112,7 +121,7 @@ function isWavyBorder(n){
  *
  * A portrait's circle has no corners, but the card that opens beside it
  * does; see bioCardSquare. */
-const SQUARE_CORNER_SHAPES = ['ellipse', 'image', 'textbox'];
+const SQUARE_CORNER_SHAPES = ['ellipse', 'image', 'textbox', 'link'];
 function hasSquareCorners(n){
   if(!n || isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(n.shape || '')) return false;
   return !!n.square;
@@ -929,7 +938,7 @@ workingNodes.forEach(item=>{
        cut loose from its connector — which is still a perfectly good
        comment card, just one that points at nothing. */
     leader: calloutAnchorOf(opts),
-    w: (shape==='ellipse' ? BIO_SIZE : BOXW), h:56,
+    w: (shape==='ellipse' ? BIO_SIZE : shape==='link' ? LINK_NODE_SIZE : BOXW), h:56,
     children:[],
     link: (opts && opts.link) || null,
     colors, ownColors,

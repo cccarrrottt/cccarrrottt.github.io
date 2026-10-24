@@ -258,9 +258,9 @@ function borderProfileOf(n, ring){
     return {kind:'ripple', amp: o.amp, structural: false,
             offsetAt: (side, px, py)=> o.offsetAt(side, px, py)};
   }
-  if((n.shape || '') === 'ellipse'){
+  if(isRoundShape(n)){
     /* A portrait is a circle drawn inside the square the chart reasons
-       with. On the middle of a side the two touch; anywhere else the rim
+       with — and so is a link node. On the middle of a side the two touch; anywhere else the rim
        is inside the square, by more the further along the side you go. */
     const step = ringStepFor(n);
     const rr = n.w/2 + (ring || 0) * step;

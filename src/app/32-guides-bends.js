@@ -147,8 +147,10 @@ function drawBendHandles(){
   if(edgeStyleFor(target.from, target.to).routing === 'straight') return;
   /* A lineage feeding a merge is not bent by hand — the merge decides
      where it runs, so a handle here would offer a point that the next
-     redraw ignores. See the note in drawAmalgam. */
-  if(isMergePart(target.from, target.to)) return;
+     redraw ignores. See the note in drawAmalgam. The merged arrow is: it
+     is the merge's connector into its entry, and is routed as one (see
+     drawMergedArrow). */
+  if(isAmalgamMember(target.from, target.to)) return;
   const rec = drawnRoutes.get(calloutEdgeKey(target.from, target.to));
   if(!rec || !rec.pts || rec.pts.length < 2) return;
   const bends = bendListOf(target.from, target.to);
@@ -294,9 +296,13 @@ function paintEdgePick(){
   const t = edgePopover.classList.contains('open') ? currentEdgeStyleTarget : null;
   qEdges('.edge-picked').forEach(p=> p.classList.remove('edge-picked'));
   if(!t) return;
-  const sel = `[data-from="${CSS.escape(t.from)}"][data-to="${CSS.escape(t.to)}"]`;
-  // Its note too: the note is the connector's words.
-  qEdges(`.edge${sel}:not(.dbl-inner), .edge-arrow${sel}, .edge-note${sel}`).forEach(p=> p.classList.add('edge-picked'));
+  // Every connector picked with it — see edgeSelection.
+  edgeGroupFor(t.from, t.to).forEach(({from, to})=>{
+    const sel = `[data-from="${CSS.escape(from)}"][data-to="${CSS.escape(to)}"]`;
+    // Its note too: the note is the connector's words.
+    qEdges(`.edge${sel}:not(.dbl-inner):not(.amalgam-through), .edge-arrow${sel}, .edge-note${sel}`)
+      .forEach(p=> p.classList.add('edge-picked'));
+  });
 }
 /* What a dragged bend may line itself up with: the OTHER connectors.
  *
@@ -464,7 +470,8 @@ function beginBendDrag(ev, target, at, index, pts){
   ev.stopPropagation(); ev.preventDefault();
   const p = clientToWorld(ev.clientX, ev.clientY);
   const e = structEdges.find(x=> x.from === target.from && x.to === target.to);
-  const ports = e ? resolvePorts(structEdges).get(e) : null;
+  const ports = e ? resolvePorts(structEdges).get(e)
+    : target.from === '' ? mergedArrowPorts.get(target.to) : null;
   if(!ports || !ports.p1 || !ports.p2) return;
   /* The arms of the line as it is drawn now, with its two ends put back on
      their ports — the drawing sinks them into a rippled border. */

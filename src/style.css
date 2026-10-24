@@ -979,6 +979,12 @@
   }
   /* See markViewMoving: no shadows while a finger moves the view. */
   body.touch-input.view-moving #viewport *{filter:none !important;}
+  /* …but a picture's filter in the dark is not a shadow: it is the second
+     turn that puts it back the right way round under the drawing's (see
+     the theme above). Taken off with the shadows, every picture on the
+     chart came out as its negative for as long as the view moved (the
+     owner's list of 24.10). */
+  :root[data-theme="dark"] body.touch-input.view-moving #viewport image{filter:invert(1) hue-rotate(180deg) !important;}
   .connector-rubber{
     fill:none;stroke:var(--accent);stroke-width:1.8;stroke-dasharray:5 4;
     pointer-events:none;
@@ -1109,6 +1115,10 @@
      read as one solid line; that must not also make them the only thing
      on the chart that refuses to step back. */
   .edge.amalgam-member.dim, .edge.amalgam-reach.dim, .edge.amalgam-out.dim{opacity:0.05;}
+  /* A lineage's way through to the junction is seen only while it is lit
+     — see drawAmalgam. */
+  .edge.amalgam-through{stroke-linecap:butt;}
+  .edge.struct.amalgam-through:not(.lit){opacity:0;}
   /* A note riding on a connector: small type on a plate the colour of the
      canvas, so it stays readable where it crosses the grid or another line. */
   .edge-note-plate{fill:var(--paper);stroke:var(--ink);stroke-width:0.8;}
@@ -1140,6 +1150,9 @@
      selecting an entry fades the chart and leaves the heads floating over
      it at full strength. */
   .edge-arrow.dim, .amalgam-bead.dim{opacity:0.05;}
+  /* An open head is the line's own two strokes, at the line's weight. */
+  .edge-open > path{stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;}
+  .edge-open.lit > path{stroke-width:2.4;}
   .edge-arrow.lit, .amalgam-bead.lit{opacity:1;}
 
 
@@ -2523,9 +2536,18 @@
     height:1.5em;width:auto;vertical-align:-0.32em;margin:0 1px;
     object-fit:contain;
   }
+  /* …except in the field typed on an entry, which has to set its words as
+     the entry draws them or the field outgrows the box it stands on (the
+     owner's list of 24.10): there a sticker is the square the drawing
+     gives it, STICKER_CAP of an em, sitting where the drawing sits it —
+     a fifth of itself below the line. */
+  .node-editor .sticker-inline{width:0.78em;height:0.78em;margin:0;vertical-align:-0.156em;}
   .sticker-missing-inline{color:var(--ink-faint);opacity:0.6;}
   .sticker-missing{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:2 2;}
   .sticker-glyph{pointer-events:none;}
+  /* A link node's arrow — see isLinkNode. */
+  .link-node-arrow{fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
+  .link-node-arrow.nowhere{opacity:0.35;}
   .free-menu .editor-field{gap:5px;}
   .free-menu-row{display:flex;gap:6px;margin-top:5px;}
   .free-menu-row .editor-btn{flex:1;padding:5px 4px;font-size:10px;}
@@ -2829,6 +2851,7 @@
   .key-cite{font-size:7px;font-family:Arial, Helvetica, sans-serif;}
   .key-line{stroke:var(--ink);stroke-width:1.5;fill:none;}
   .key-head{fill:var(--ink);}
+  .key-open{stroke-linejoin:round;stroke-linecap:round;}
   .key-weave{stroke:#e9c46a;stroke-width:1.6;opacity:0.7;}
   .key-ruled{stroke:var(--ink-faint);stroke-width:0.8;opacity:0.7;}
   .key-words{flex:1;min-width:0;}
@@ -3124,13 +3147,14 @@
     box-shadow:var(--shadow);
   }
   .style-bar[hidden], .style-bar-group[hidden]{display:none;}
+  .style-bar.dropping{z-index:98;}
   .style-bar-group{display:flex;gap:2px;align-items:center;}
   .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
   /* A moving picture's player, over its foot while the pointer is on it
      — see 37-style-bar.js. Dark glass whatever the theme, as a player's
      buttons are, since what is under them is a picture, not the page. */
   .picture-player{
-    position:absolute;z-index:31;display:flex;gap:3px;padding:3px;
+    position:absolute;z-index:31;transform-origin:0 0;display:flex;gap:3px;padding:3px;
     background:rgba(20,22,26,0.62);border-radius:14px;
     backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
   }
@@ -3217,7 +3241,8 @@
     .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
     .search-wrap svg{top:9px;}
     .topbar > .icon-btn{order:3;width:34px;height:34px;}
-    .save-btn, .view-badge, .owner-avatar, .owner-btn{order:4;margin-left:auto;}
+    .save-btn, .view-badge{order:4;margin-left:auto;}
+    .owner-avatar, .owner-btn{order:6;margin-left:auto;}
     /* On the site a reader has both the badge and the owner's way in, and
        beside the buttons there is room for one. The badge goes: no Save
        button already says the same thing. */
@@ -3225,12 +3250,13 @@
     /* The status pill says why a save or an edit was refused, so it is
        given a row of its own while it has something to say rather than
        being cut to fit beside the buttons. */
-    .save-state{order:5;flex:1 1 100%;margin-left:0;white-space:normal;}
+    .save-state{order:7;flex:1 1 100%;margin-left:0;white-space:normal;}
     .topbar-stats{display:none;}
     /* The counts go; undo, redo and the guides stay, a fingertip's size,
-       on a row of their own under Save — beside the buttons a phone has
-       no room left for them. */
-    .topbar-end{order:6;flex:1 1 100%;margin-left:0;}
+       at the start of the row the account sits at the end of — that row
+       was the empty space a row of their own left under it (the owner's
+       list of 24.10). */
+    .topbar-end{order:5;flex:0 0 auto;margin-left:0;}
     .topbar-tools button{height:28px;}
     .touch-tools button, .guide-toggle{width:32px;}
     .topbar-tools svg{width:16px;height:16px;}

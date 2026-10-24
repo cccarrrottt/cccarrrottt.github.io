@@ -6824,7 +6824,8 @@ async function main(){
     });
     await wait(750);
     const drops = ()=> [...document.querySelectorAll('#edgeLayer path.edge')]
-      .filter(p=> p.dataset.to === 'qm' && /^q[123]$/.test(p.dataset.from || ''))
+      .filter(p=> p.dataset.to === 'qm' && /^q[123]$/.test(p.dataset.from || '') &&
+                  !p.classList.contains('amalgam-through'))
       .map(p=>{ const L = p.getTotalLength();
                 const a = p.getPointAtLength(Math.min(18, L*0.4));
                 return p.dataset.from + '@' + Math.round(a.x); })
@@ -7507,7 +7508,7 @@ async function main(){
     const merge = ()=>{
       const drops = [...document.querySelectorAll('#edgeLayer path.edge')]
         .filter(p=> p.dataset.to === 'sam' && /^sp\d$/.test(p.dataset.from || '') &&
-                    !p.classList.contains('amalgam-reach'))
+                    !p.classList.contains('amalgam-reach') && !p.classList.contains('amalgam-through'))
         .map(p=>{ const a = p.getPointAtLength(0);
                   return p.dataset.from + '@' + Math.round(a.x) + ',' + Math.round(a.y); })
         .sort().join(' ');
@@ -8373,7 +8374,7 @@ async function main(){
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
   check('the + picks an archetype by its picture',
-        r39.pickCount === 4 && r39.picksDrawn && r39.pickWrites,
+        r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
@@ -13974,7 +13975,7 @@ async function main(){
       out.fabShutAtRest = !shown() && turned() === 'none';
       document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
-      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 4 &&
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
@@ -15235,7 +15236,7 @@ async function main(){
         const n = nodes.get('rdM'), bar = amalgamBars.get('rdM');
         return bar ? +(n.x + n.w/2 - (bar.lo + bar.hi)/2).toFixed(2) : null;
       };
-      deleteEdge('rdC', 'rdM');
+      deleteEdges([{from:'rdC', to:'rdM'}]);
       await wait(400);
       const afterEdge = centred();
       applyEdit(()=>{
@@ -19074,7 +19075,9 @@ async function main(){
         workingNodes.push(['js_b', 'B', 'js_a', null, null, 'callout', {pos:[4300, 3000], leader:{from:'js_a', to:'js_c', at:0.25, line:'dashed'}}]);
         workingNodes.push(['js_c', 'C', ['js_a', 'js_b'], null, null, null, {merge:true, bar:{k:'x', lead:40}}]);
         workingNodes.push(['js_d', 'Frame', null, null, null, 'array', {members:['js_a', 'js_b'], hatch:'vert'}]);
-        EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true,
+        workingNodes.push(['js_e', '', null, null, null, 'link', {pos:[4600, 3000], link:'#entry=js_a'}]);
+        EDGE_STYLES.push({from:'js_a', to:'js_c', barEnd:'oout', openIn:true, arrowIn:true});
+        EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true, openOut:true,
                           note:'on it', notePos:'on', noteAt:0.3, bends:[[4100, 2950]], bendSides:['right', 'left'],
                           color:'#123456', fromSide:'right', toSide:'left', fromRing:1, square:false});
       });
@@ -19751,6 +19754,292 @@ async function main(){
     await new Promise(ok=> setTimeout(ok, 200));
   });
   check('the guides button stands in for Shift under a mouse too', guided > 0, String(guided));
+  });
+  await scenario("the owner's list of 24.10: connector ends, merges, picks and a link node", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 78000, Y = 78000;
+    const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    try{
+      applyEdit(()=>{
+        workingNodes.push(['tf_a','A',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['tf_b','B','tf_a',null,null,null,{pos:[X + 400, Y + 160]}]);
+        workingNodes.push(['tf_c','C','tf_a',null,null,null,{pos:[X + 400, Y + 360]}]);
+        workingNodes.push(['tf_p','P',null,null,null,null,{pos:[X, Y + 700], colors:['#c23b22']}]);
+        workingNodes.push(['tf_q','Q',null,null,null,null,{pos:[X + 300, Y + 700], colors:['#2f6fb5']}]);
+        workingNodes.push(['tf_r','R',null,null,null,null,{pos:[X + 600, Y + 700], colors:['#1d7a5f']}]);
+        workingNodes.push(['tf_m','M',['tf_p','tf_q','tf_r'],null,null,null,{pos:[X + 300, Y + 1000], merge:true}]);
+        workingNodes.push(['tf_l','',null,null,null,'link',{pos:[X - 300, Y], link:'#entry=tf_r'}]);
+        workingNodes.push(['tf_n','',null,null,null,'link',{pos:[X - 300, Y + 100]}]);
+      });
+      await wait(350);
+      flyToNode('tf_b'); await wait(250);
+
+      /* 1. A menu of the bar opened over a connector's panel is above
+         the panel, so what it lists can be pressed. */
+      const hitB = document.querySelector('.edge-hit[data-from="tf_a"][data-to="tf_b"]');
+      const hb = hitB.getBoundingClientRect();
+      hitB.dispatchEvent(new MouseEvent('click', {clientX: hb.left + hb.width / 2, clientY: hb.top + hb.height / 2, bubbles:true}));
+      await wait(150);
+      openStyleBar({kind:'edge', from:'tf_a', to:'tf_b', x: hb.left + hb.width / 2, y: hb.top + hb.height / 2}); await wait(100);
+      const face = styleBar.querySelector('[data-group="endOut"] .style-bar-drop-face');
+      if(face) face.click();
+      await wait(80);
+      out.dropping = styleBar.classList.contains('dropping') &&
+                     +getComputedStyle(styleBar).zIndex > +getComputedStyle(edgePopover).zIndex;
+      const oout = styleBar.querySelector('[data-group="endOut"] button[data-value="oout"]');
+      out.openOffered = !!oout && !!styleBar.querySelector('[data-group="endIn"] button[data-value="oin"]');
+      if(oout){
+        const b = oout.getBoundingClientRect();
+        const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        out.pressable = !!at && (at === oout || oout.contains(at));
+        if(!out.pressable) out.atInstead = [at && (at.id || at.className.baseVal || at.className), b.left, b.top, styleBar.getBoundingClientRect().top];
+        oout.click();
+      }
+      await wait(250);
+      /* An open head: drawn as a stroke, saved as such, and the line
+         reaches into it rather than stopping at a filled head's base. */
+      out.openStored = edgeStyleFor('tf_a','tf_b').openOut === true && /openOut:true/.test(chartDataOnly());
+      const head = document.querySelector('.edge-arrow.edge-open[data-from="tf_a"][data-to="tf_b"]');
+      out.openDrawn = !!head && head.querySelector('path') && head.querySelector('path').getAttribute('fill') === 'none';
+      closeStyleBar();
+      closeEdgePopover();
+
+      /* 3. Shift picks a second connector beside the first: a change and
+         Delete do both, in one step of undo. */
+      const hitC = document.querySelector('.edge-hit[data-from="tf_a"][data-to="tf_c"]');
+      const hc = hitC.getBoundingClientRect();
+      const hitB2 = document.querySelector('.edge-hit[data-from="tf_a"][data-to="tf_b"]');
+      const hb2 = hitB2.getBoundingClientRect();
+      hitB2.dispatchEvent(new MouseEvent('click', {clientX: hb2.left + hb2.width / 2, clientY: hb2.top + hb2.height / 2, bubbles:true}));
+      await wait(100);
+      hitC.dispatchEvent(new MouseEvent('click', {clientX: hc.left + hc.width / 2, clientY: hc.top + hc.height / 2, shiftKey:true, bubbles:true}));
+      await wait(150);
+      out.picked = edgeSelection.size === 2 && edgePopover.classList.contains('open');
+      openStyleBar({kind:'edge', from:'tf_a', to:'tf_c'}); await wait(100);
+      const dashed = styleBar.querySelector('[data-group="edgeLine"] button[data-value="dashed"]');
+      if(dashed) dashed.click();
+      await wait(250);
+      out.bothDashed = edgeStyleFor('tf_a','tf_b').dash === 'dashed' && edgeStyleFor('tf_a','tf_c').dash === 'dashed';
+      closeStyleBar();
+      const hitC2 = document.querySelector('.edge-hit[data-from="tf_a"][data-to="tf_c"]');
+      const hc2 = hitC2.getBoundingClientRect();
+      if(!edgeSelection.size){
+        hitC2.dispatchEvent(new MouseEvent('click', {clientX: hc2.left + hc2.width / 2, clientY: hc2.top + hc2.height / 2, bubbles:true}));
+        const hb3 = document.querySelector('.edge-hit[data-from="tf_a"][data-to="tf_b"]').getBoundingClientRect();
+        document.querySelector('.edge-hit[data-from="tf_a"][data-to="tf_b"]').dispatchEvent(new MouseEvent('click',
+          {clientX: hb3.left + hb3.width / 2, clientY: hb3.top + hb3.height / 2, shiftKey:true, bubbles:true}));
+        await wait(150);
+      }
+      out.stillPicked = edgeSelection.size === 2;
+      deleteOpenConnector();
+      await wait(250);
+      out.bothGone = !(nodes.get('tf_b').parents || []).includes('tf_a') && !(nodes.get('tf_c').parents || []).includes('tf_a');
+      out.letGo = edgeSelection.size === 0;
+      // One undo brings both back: they went as one step.
+      undoLastEdit(); await wait(250);
+      out.oneStep = (nodes.get('tf_b').parents || []).includes('tf_a') && (nodes.get('tf_c').parents || []).includes('tf_a');
+
+      /* 2. On a merged stretch, the head at the bar stands at the end of
+         the stretch, clear of every bead, and the line stops under it
+         rather than showing through it. */
+      applyEdit(()=>{
+        setEdgeStyleOverride('tf_p','tf_m', Object.assign({}, edgeStyleFor('tf_p','tf_m'), {barEnd:'out', color:'#22cc2288', colorFixed:true}));
+      });
+      await wait(300);
+      flyToNode('tf_m'); await wait(250);
+      const barHead = [...document.querySelectorAll('.edge-arrow[data-from="tf_p"][data-to="tf_m"]')].pop();
+      const beads = [...document.querySelectorAll('.amalgam-bead')].map(b=> b.getBoundingClientRect());
+      out.barHead = !!barHead;
+      if(barHead){
+        const hr = barHead.getBoundingClientRect();
+        out.clearOfBeads = beads.every(b=> !overlap(b, hr));
+        const member = document.querySelector('.amalgam-member[data-from="tf_p"]');
+        if(member){
+          const L = member.getTotalLength();
+          const ends = [member.getPointAtLength(0), member.getPointAtLength(L)];
+          const m = member.getScreenCTM();
+          const inHead = ends.map(p=> new DOMPoint(p.x, p.y).matrixTransform(m))
+                             .filter(p=> p.x > hr.left + 1 && p.x < hr.right - 1 && p.y > hr.top + 1 && p.y < hr.bottom - 1);
+          const c = {x:(hr.left + hr.right) / 2, y:(hr.top + hr.bottom) / 2};
+          // An end that does fall in the head is at its base, not past its middle to the tip.
+          out.lineUnderHead = inHead.every(p=> Math.hypot(p.x - c.x, p.y - c.y) >= Math.min(hr.width, hr.height) * 0.2);
+        }
+      }
+
+      /* 7. Selecting an outer parent lights the whole way to the merged
+         arrow, through the seams, beads included. */
+      selectNode('tf_p'); await wait(200);
+      const through = [...document.querySelectorAll('.amalgam-through[data-from="tf_p"]')];
+      out.throughLit = through.length > 0 && through.every(p=> p.classList.contains('lit'));
+      const out_ = document.querySelector('.amalgam-out[data-to="tf_m"]');
+      out.outLit = !!out_ && out_.classList.contains('lit');
+      out.viaLit = [...document.querySelectorAll('.amalgam-joint[data-via~="tf_p"]')].every(b=> !b.classList.contains('dim'));
+      // Hidden again once let go, when the fade a selection change takes is over.
+      deselect(); await wait(700);
+      out.throughHidden = through.every(p=> !document.contains(p) || getComputedStyle(p).opacity === '0');
+
+      /* …the merged arrow has a style bar and bends of its own, and the
+         merge's colour field shows the colours it inherits. */
+      openStyleBar({kind:'edge', from:'', to:'tf_m'}); await wait(100);
+      out.mergedBar = !styleBar.hidden && !!styleBar.querySelector('[data-group="edgeLine"]') &&
+                      !!styleBar.querySelector('[data-group="corners"]');
+      closeStyleBar();
+      out.mergedPort = mergedArrowPorts.has('tf_m');
+      out.inherited = drawnColorText(nodes.get('tf_m'));
+      out.inheritedWant = amalgamInheritedColors(nodes.get('tf_m')).join(', ');
+
+      /* 8. A link node: half a portrait, round, an arrow, and it goes
+         where it points once a double click is plainly not coming. */
+      const ln = nodes.get('tf_l');
+      out.linkSize = [ln.w, ln.h];
+      out.linkArrow = !!document.querySelector('.node[data-id="tf_l"] .link-node-arrow:not(.nowhere)') &&
+                      !!document.querySelector('.node[data-id="tf_n"] .link-node-arrow.nowhere');
+      out.linkTarget = (linkNodeTarget(ln) || {}).id;
+      out.bareId = (linkNodeTarget(Object.assign({}, ln, {link:'tf_q'})) || {}).id;
+      out.notItself = linkNodeTarget(Object.assign({}, ln, {link:'tf_l'})) == null;
+      out.names = [textViewName(ln), textViewName(nodes.get('tf_n'))];
+      flyToNode('tf_l'); await wait(250);
+      const lg = document.querySelector('.node[data-id="tf_l"]');
+      const lr = lg.getBoundingClientRect();
+      lg.dispatchEvent(new MouseEvent('click', {clientX: lr.left + lr.width / 2, clientY: lr.top + lr.height / 2, bubbles:true}));
+      out.notAtOnce = selectedId !== 'tf_r';
+      await wait(DOUBLE_CLICK_GRACE + 150);
+      out.went = selectedId === 'tf_r';
+      deselect();
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      refill(EDGE_STYLES, beforeStyles); });
+      closeStyleBar();
+      closeEdgePopover();
+      await wait(200);
+    }
+    return out;
+  });
+  check('a style bar menu opened over a connector’s panel stands above it, and what it lists can be pressed',
+        r.dropping && r.pressable, JSON.stringify({d:r.dropping, p:r.pressable, at:r.atInstead}));
+  check('either end of a connector may be an open arrowhead, drawn as a stroke and saved as such',
+        r.openOffered && r.openStored && r.openDrawn, JSON.stringify({o:r.openOffered, s:r.openStored, d:r.openDrawn}));
+  check('Shift picks a second connector, and a change from the bar is made to both',
+        r.picked && r.bothDashed, JSON.stringify({p:r.picked, d:r.bothDashed}));
+  check('…and Delete removes every picked connector in one step of undo, letting the picks go',
+        r.stillPicked && r.bothGone && r.oneStep && r.letGo,
+        JSON.stringify({s:r.stillPicked, g:r.bothGone, o:r.oneStep, l:r.letGo}));
+  check('a head at the bar stands clear of every bead, with the line stopped under it',
+        r.barHead && r.clearOfBeads && r.lineUnderHead, JSON.stringify({h:r.barHead, c:r.clearOfBeads, u:r.lineUnderHead}));
+  check('a selected parent of a merge lights the whole way to the merged arrow',
+        r.throughLit && r.outLit && r.viaLit && r.throughHidden,
+        JSON.stringify({t:r.throughLit, o:r.outLit, v:r.viaLit, h:r.throughHidden}));
+  check('the merged arrow has a style bar and a route of its own', r.mergedBar && r.mergedPort,
+        JSON.stringify({b:r.mergedBar, p:r.mergedPort}));
+  check('a merge’s colour field shows the colours it inherits',
+        !!r.inheritedWant && r.inherited === r.inheritedWant, JSON.stringify([r.inherited, r.inheritedWant]));
+  check('a link node is half a portrait across, with an arrow, faint while it goes nowhere',
+        r.linkSize[0] === 18 && r.linkSize[1] === 18 && r.linkArrow, JSON.stringify(r.linkSize));
+  check('…it points by a link or a bare id, never at itself, and the text view says where',
+        r.linkTarget === 'tf_r' && r.bareId === 'tf_q' && r.notItself &&
+        r.names[0] === 'Link to R' && r.names[1] === 'Link to nowhere', JSON.stringify(r.names));
+  check('…and a click on it goes there, once a double click is plainly not coming', r.notAtOnce && r.went);
+
+  /* 5, 6 and 9: the picture player, a picture in the dark while the view
+     moves, and a sticker in the in-entry field. */
+  const p = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const GIF = 'data:image/gif;base64,R0lGODlhBAAEAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAABAAEAAAICQABCBxIsCCAgAAh+QQBFAABACwAAAAABAAEAIEAAP8AAAAAAAAAAAAICQABCBxIsCCAgAA7';
+    const out = {};
+    const X = 80000, Y = 80000;
+    const theme = document.documentElement.dataset.theme;
+    try{
+      applyEdit(()=>{
+        workingNodes.push(['tg_i','',null,null,null,'image',{pos:[X, Y], image: GIF, size:[200, 200]}]);
+        workingNodes.push(['tg_t','Some words',null,null,null,null,{pos:[X + 400, Y]}]);
+      });
+      await wait(300);
+      const rv = svg.getBoundingClientRect();
+      vs = 1; vx = rv.width / 2 - (X + 100); vy = rv.height / 2 - (Y + 100); applyTransform();
+      await wait(150);
+      openPicturePlayer('tg_i'); await wait(60);
+      const before = picturePlayer.getBoundingClientRect();
+      vx += 40; applyTransform(); await wait(60);
+      const after = picturePlayer.getBoundingClientRect();
+      out.follows = !picturePlayer.hidden && Math.abs(after.left - before.left - 40) < 1;
+      vs = 0.7; applyTransform(); await wait(60);
+      const small = picturePlayer.getBoundingClientRect();
+      out.shrinks = !picturePlayer.hidden && Math.abs(small.width - after.width * 0.7) < 1;
+      vs = 0.1; applyTransform(); await wait(60);
+      out.closedSmall = picturePlayer.hidden;
+      vs = 1; vx = rv.width / 2 - (X + 100); vy = rv.height / 2 - (Y + 100); applyTransform();
+      await wait(100);
+
+      document.documentElement.dataset.theme = 'dark';
+      document.body.classList.add('touch-input', 'view-moving');
+      await wait(50);
+      const img = document.querySelector('.node[data-id="tg_i"] > image');
+      out.darkMoving = img ? getComputedStyle(img).filter : 'none';
+      document.body.classList.remove('view-moving');
+      out.darkStill = img ? getComputedStyle(img).filter : 'none';
+      document.body.classList.remove('touch-input');
+
+      openNodeEditor('tg_t'); await wait(150);
+      const surface = richFields.get('nodeEditorText').surface;
+      const s = document.createElement('img');
+      s.className = 'sticker-inline';
+      s.src = GIF;
+      surface.appendChild(s);
+      await wait(50);
+      const fs = parseFloat(getComputedStyle(surface).fontSize);
+      out.stickerEm = +(s.getBoundingClientRect().height / fs).toFixed(2);
+      s.remove();
+      closeNodeEditor && closeNodeEditor(false);
+    } finally {
+      if(theme == null) delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme;
+      document.body.classList.remove('touch-input', 'view-moving');
+      closePicturePlayer();
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x)); });
+      await wait(200);
+    }
+    return out;
+  });
+  check('a moving picture’s player follows the view, shrinks with the chart, and goes when too small to press',
+        p.follows && p.shrinks && p.closedSmall, JSON.stringify(p));
+  check('in the dark a picture keeps its colours while the view moves under a finger',
+        /invert/.test(p.darkMoving) && p.darkMoving === p.darkStill, JSON.stringify([p.darkMoving, p.darkStill]));
+  check('a sticker in the in-entry field is the height it is in the entry', p.stickerEm > 0.6 && p.stickerEm < 0.9,
+        String(p.stickerEm));
+
+  /* 4. On a phone, undo, redo and the guides share the row of the
+     sign-in button, which the site always shows, rather than taking a
+     row of their own under it. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    const ph = await pp.evaluate(()=>{
+      document.getElementById('ownerBtn').hidden = false;
+      const sb = document.getElementById('ownerBtn').getBoundingClientRect();
+      const tools = document.querySelector('.topbar-tools').getBoundingClientRect();
+      const bar = document.querySelector('.topbar').getBoundingClientRect();
+      const out = {sameRow: tools.height > 0 && tools.top < sb.bottom && tools.bottom > sb.top,
+                   leftOfIt: tools.right <= sb.left + 0.5, fits: bar.right <= innerWidth + 0.5,
+                   tools:[tools.left, tools.top, tools.right, tools.bottom].map(Math.round),
+                   sign:[sb.left, sb.top, sb.right, sb.bottom].map(Math.round)};
+      document.getElementById('ownerBtn').hidden = true;
+      return out;
+    });
+    check('on a phone, undo, redo and the guides sit on the sign-in button’s row', ph.sameRow && ph.leftOfIt && ph.fits,
+          JSON.stringify(ph));
+  } finally {
+    await phone.close();
+  }
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
