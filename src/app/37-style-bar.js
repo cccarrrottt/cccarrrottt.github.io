@@ -96,6 +96,10 @@ const STYLE_BAR_END_IN = [['none', 'No', 'Nothing at the start'],
 const STYLE_BAR_END_OUT = [['none', 'No', 'Nothing at the end'],
                            ['out', '►', 'Arrowhead at the end'],
                            ['tout', '⊣', 'T at the end, stopped short of the entry — broad strokes']];
+// What the same three say on a merged lineage, whose end is at the bar.
+const STYLE_BAR_END_BAR = {none: 'Nothing where it joins the bar',
+                           out: 'Arrowhead where it joins the bar',
+                           tout: 'T where it joins the bar'};
 /* The rows that are one choice out of several looks — a border, a
    hatching, a line, an end — are menus: one button showing what is
    chosen, the rest unfolding under it when pressed (the owner's ask: the
@@ -103,7 +107,7 @@ const STYLE_BAR_END_OUT = [['none', 'No', 'Nothing at the end'],
    over). A toggle stays a button, since it has nothing to unfold. */
 const STYLE_BAR_MENUS = {
   border: 'Border', hatch: 'Hatching', decor: 'Scenery', edgeLine: 'Line',
-  leader: 'Leader line', endIn: 'The start', endOut: 'The end', anim: 'How the picture moves'
+  leader: 'Leader line', endIn: 'The start', endOut: 'The end'
 };
 /* Which side of its line a note rides. */
 /* An array's ground may be hatched as well as coloured — see
@@ -119,11 +123,14 @@ const STYLE_BAR_NOTE_SIDE = [
 ];
 /* Level on a plate, or written along the line and bending with it. */
 /* Its face is the owner's sketch: a line arching over and ending in an
-   arrow — drawn, since no character in the bar's font is that shape. */
+   arrow — drawn, since no character in the bar's font is that shape, and
+   drawn as the font draws its own arrows beside it: a hairline with
+   round ends and an open head, not a heavy stroke with a filled one (the
+   owner's list of 23.10). */
 const STYLE_BAR_NOTE_ALONG = [['along',
-  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" ' +
-  'stroke-width="1.9" stroke-linecap="butt" stroke-linejoin="miter"><path d="M1.6 11.2C4.6 7.4 9.2 6.6 14 9.2"/>' +
-  '<path d="M11.6 5.4L14.2 9.4L9.8 10.6"/></svg>', 'Written along the line, bending with it']];
+  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 11.6C4.8 6.6 9.6 5.6 13.4 8.8"/>' +
+  '<path d="M10.2 8.6L13.4 8.8L12.6 5.7"/></svg>', 'Written along the line, bending with it']];
 /* How a moving picture moves (see wearPicture): one menu of the three,
    drawn, since a font's ▶ and ⏸ come out as coloured emoji on a phone. */
 const STYLE_BAR_ANIM = [
@@ -187,7 +194,6 @@ const styleBar = (()=>{
   group('leaderForm', STYLE_BAR_LEADER_FORM);
   group('noteSide', STYLE_BAR_NOTE_SIDE);
   group('noteAlong', STYLE_BAR_NOTE_ALONG);
-  group('anim', STYLE_BAR_ANIM);
   /* A colour on the bar is a square, as every colour on the page is (see
      squareForHexInput); pressed, it opens the code to type. Blank is the
      paper. Typing is one step of undo however long it runs. */
@@ -412,10 +418,6 @@ function syncStyleBarRows(){
     });
   };
   const isArr = isArrayNode(n);
-  /* Offered only on an entry wearing a picture that moves; a still one
-     has nothing to stop. */
-  rows.anim.hidden = !(n && !decorOn && t.kind === 'node' && n.image && pictureMoves(n.image));
-  if(!rows.anim.hidden) light(rows.anim, n.anim || 'play');
   rows.hatch.hidden = rows.arrayInk.hidden = !isArr;
   rows.link.hidden = !isArr || HOSTED;
   // An array is as big as what it holds and stands the way that does.
@@ -464,19 +466,20 @@ function syncStyleBarRows(){
     light(rows.corners, style.square ? '' : 'round',
           ()=> style.sinusoid || style.routing === 'curve' || style.routing === 'straight');
     rows.corners.querySelector('button').title = 'Rounded elbows — press again for square ones';
-    /* A lineage feeding an amalgam has no arrowhead of its own: it runs
-       into the shared bar, and the single arrow into the entry belongs to
-       the merge as a whole. Greyed rather than hidden, so the row still
-       explains itself. */
-    const merged = isMergePart(t.from, t.to);
-    const out = isMergedArrow(t.from, t.to);
-    light(rows.endIn, style.arrowIn ? (style.teeIn ? 'tin' : 'in') : 'none', ()=> merged);
-    light(rows.endOut, style.arrow !== false ? (style.teeOut ? 'tout' : 'out') : 'none', ()=> merged);
+    /* A lineage feeding a merge ends at the shared bar, not at the entry,
+       so its end is the head it wears THERE — `barEnd`, kept apart from
+       `arrow` because `arrow` is on unless said otherwise and every merge
+       saved before had it. Its start, and both ends of the merged arrow,
+       are ends like any connector's. */
+    const member = isAmalgamMember(t.from, t.to);
+    const endOut = member ? (style.barEnd || 'none')
+                 : style.arrow !== false ? (style.teeOut ? 'tout' : 'out') : 'none';
+    light(rows.endIn, style.arrowIn ? (style.teeIn ? 'tin' : 'in') : 'none');
+    light(rows.endOut, endOut);
     [[rows.endIn, STYLE_BAR_END_IN], [rows.endOut, STYLE_BAR_END_OUT]].forEach(([row, list])=>{
       row.querySelectorAll('button[data-value]').forEach(b=>{
-        b.title = out ? 'Set by the amalgam: this is the one arrow its lineages share'
-                : merged ? 'Set by the amalgam: merged lineages share one arrow into the entry'
-                         : list.find(e=> e[0] === b.dataset.value)[2];
+        const own = list.find(e=> e[0] === b.dataset.value)[2];
+        b.title = member && row === rows.endOut ? STYLE_BAR_END_BAR[b.dataset.value] : own;
       });
     });
     styleBar.hidden = false;
@@ -515,12 +518,14 @@ function syncStyleBarRows(){
   } else {
     rows.border.hidden = true;
     rows.frame.hidden = false;
-    /* Words written along the line have no plate, so nothing to frame and
-       no corners: both are greyed while they are. */
-    light(rows.frame, style.noteFrame === false ? '' : 'frame', ()=> style.noteAlong);
+    /* Words written along the line are framed by a band that bends with
+       them, and bare unless asked (see drawNoteAlong) — so the button
+       there reads noteAlongFrame, not the plate's own noteFrame. */
+    const framed = style.noteAlong ? style.noteAlongFrame : style.noteFrame !== false;
+    light(rows.frame, framed ? 'frame' : '');
     /* A note with its frame taken off has no corners left to choose: the
        button is greyed rather than left to look as if it did nothing. */
-    light(rows.corners, style.noteSquare ? '' : 'round', ()=> style.noteFrame === false || style.noteAlong);
+    light(rows.corners, style.noteSquare ? '' : 'round', ()=> !framed);
     light(rows.noteSide, style.notePos || 'above');
     light(rows.noteAlong, style.noteAlong ? 'along' : '');
     showHex(rows.noteBg, style.noteBg);
@@ -650,9 +655,6 @@ function applyStyleBar(group, value){
         if(opts.square === false) delete opts.square; else opts.square = false;
       } else if(group === 'hatch'){
         if(value === 'none') delete opts.hatch; else opts.hatch = value;
-      } else if(group === 'anim'){
-        // Moving is the absence of the field, as a picture arrives.
-        if(pictureAnimOf(value)) opts.anim = value; else delete opts.anim;
       } else if(group === 'leader'){
         if(!opts.leader) return;
         // Solid is the absence of the field, as everywhere else.
@@ -677,6 +679,8 @@ function applyStyleBar(group, value){
     } else if(group === 'endIn'){
       change.arrowIn = value !== 'none' || undefined;
       change.teeIn = value === 'tin' || undefined;
+    } else if(group === 'endOut' && isAmalgamMember(t.from, t.to)){
+      change.barEnd = value === 'none' ? undefined : value;
     } else if(group === 'endOut'){
       change.arrow = value !== 'none';
       change.teeOut = value === 'tout' || undefined;
@@ -688,6 +692,9 @@ function applyStyleBar(group, value){
       if(!o) return;
       if(group === 'noteSide'){
         o.notePos = value;
+      } else if(group === 'frame' && o.noteAlong){
+        // Along the line, bare is the absence of the flag.
+        if(o.noteAlongFrame) delete o.noteAlongFrame; else o.noteAlongFrame = true;
       } else if(group === 'frame'){
         // A toggle: framed is the absence of the flag.
         if(o.noteFrame === false) delete o.noteFrame; else o.noteFrame = false;
@@ -770,3 +777,120 @@ function applyStyleBar(group, value){
   });
   svg.addEventListener('wheel', ()=> closeStyleBar(), {passive: true});
 }
+
+
+/* =========================================================================
+   THE PICTURE'S PLAYER
+   -----------------------------------------------------------------------
+   How a moving picture moves — always, never, or while the pointer is on
+   it — is chosen on the picture itself, by three buttons laid over its
+   foot when the pointer is on it, as a player's are (the owner's list of
+   23.10). They were a row of the style bar, among the borders and the
+   corners, which made a picture's playing look like one more thing about
+   the entry's frame.
+
+   Only for whoever may edit: the choice is written into the chart. A
+   reader's picture still plays on hover where that was chosen.
+   ========================================================================= */
+const picturePlayer = (()=>{
+  const bar = document.createElement('div');
+  bar.className = 'picture-player';
+  bar.id = 'picturePlayer';
+  bar.hidden = true;
+  STYLE_BAR_ANIM.forEach(([value, glyph, title])=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.value = value;
+    b.innerHTML = glyph;
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    bar.appendChild(b);
+  });
+  // A press on a button is not a press on the chart beneath it.
+  bar.addEventListener('mousedown', ev=> ev.stopPropagation());
+  bar.addEventListener('dblclick', ev=> ev.stopPropagation());
+  document.querySelector('.app > .main').appendChild(bar);
+  return bar;
+})();
+let picturePlayerFor = null;
+let picturePlayerTimer = null;
+/* The picture an entry wears, as drawn: its card's band, its portrait's
+   disc or the picture standing on its own. */
+function pictureElementOf(id){
+  return qNode(`.node[data-id="${CSS.escape(id)}"] > image`);
+}
+function pictureWantsPlayer(n){
+  return !!(n && n.image && !readOnlyView && pictureMoves(n.image));
+}
+function openPicturePlayer(id){
+  clearTimeout(picturePlayerTimer);
+  const n = nodes.get(id);
+  const img = pictureElementOf(id);
+  if(!pictureWantsPlayer(n) || !img){ closePicturePlayer(); return; }
+  picturePlayerFor = id;
+  const mode = n.anim || 'play';
+  picturePlayer.querySelectorAll('button').forEach(b=> b.classList.toggle('on', b.dataset.value === mode));
+  picturePlayer.hidden = false;
+  placePicturePlayer();
+}
+/* Over the foot of the picture, in its middle: where a player keeps its
+   buttons, and clear of the words a card writes under its picture. */
+function placePicturePlayer(){
+  if(!picturePlayerFor || picturePlayer.hidden) return;
+  const img = pictureElementOf(picturePlayerFor);
+  if(!img){ closePicturePlayer(); return; }
+  const host = document.querySelector('.app > .main').getBoundingClientRect();
+  const r = img.getBoundingClientRect();
+  const w = picturePlayer.offsetWidth, h = picturePlayer.offsetHeight;
+  picturePlayer.style.left = (r.left - host.left + r.width / 2 - w / 2).toFixed(1) + 'px';
+  picturePlayer.style.top = (r.bottom - host.top - h - Math.min(8, r.height * 0.06)).toFixed(1) + 'px';
+}
+function closePicturePlayer(){
+  clearTimeout(picturePlayerTimer);
+  picturePlayerFor = null;
+  picturePlayer.hidden = true;
+}
+function setPictureAnim(id, value){
+  applyEdit(()=>{
+    const found = workingEntry(id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    // Moving is the absence of the field, as a picture arrives.
+    if(pictureAnimOf(value)) opts.anim = value; else delete opts.anim;
+    putEntry(found.index, found.entry, opts);
+  });
+}
+picturePlayer.addEventListener('click', (ev)=>{
+  const b = ev.target.closest('button[data-value]');
+  if(!b || !picturePlayerFor) return;
+  ev.stopPropagation();
+  const id = picturePlayerFor;
+  setPictureAnim(id, b.dataset.value);
+  openPicturePlayer(id);
+});
+/* Followed by where the pointer is, not by entering and leaving the
+   picture: a portrait's picture lies under the pad that catches the
+   pointer, so it is the point that is asked, against the picture's box.
+   Leaving waits a moment, as the style bar does, so the buttons can be
+   reached across the edge of the picture. */
+document.addEventListener('pointermove', (ev)=>{
+  if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')){
+    clearTimeout(picturePlayerTimer);
+    return;
+  }
+  const g = ev.target && ev.target.closest ? ev.target.closest('g.node') : null;
+  const id = g && g.dataset.id;
+  const img = id && pictureWantsPlayer(nodes.get(id)) ? pictureElementOf(id) : null;
+  if(img){
+    const r = img.getBoundingClientRect();
+    if(ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom){
+      if(picturePlayerFor !== id || picturePlayer.hidden) openPicturePlayer(id);
+      else { clearTimeout(picturePlayerTimer); placePicturePlayer(); }
+      return;
+    }
+  }
+  if(picturePlayerFor && !picturePlayer.hidden){
+    clearTimeout(picturePlayerTimer);
+    picturePlayerTimer = setTimeout(closePicturePlayer, STYLE_BAR_LINGER);
+  }
+}, {passive: true});

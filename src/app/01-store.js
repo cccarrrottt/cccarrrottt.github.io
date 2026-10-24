@@ -281,13 +281,14 @@ function hexColors(list){
 }
 
 const DEFAULT_EDGE_STYLE = { routing: 'orthogonal', dash: 'solid', arrow: true, arrowIn: false,
-                             teeOut: false, teeIn: false,
+                             teeOut: false, teeIn: false, barEnd: null,
                              sinusoid: false, note: '', notePos: 'above', noteAt: 0.5,
                              noteBg: null, bends: null, bendSides: null,
                              noteDir: null, noteLen: null,
                              fromSide: null, toSide: null,
                              fromRing: 0, toRing: 0, gradient: null, square: true,
-                             noteFrame: true, noteSquare: true, noteAlong: false };
+                             noteFrame: true, noteSquare: true, noteAlong: false,
+                             noteAlongFrame: false };
 function edgeStyleFor(from, to){
   const o = EDGE_STYLES.find(s=>s.from===from && s.to===to);
   if(!o) return DEFAULT_EDGE_STYLE;
@@ -304,6 +305,12 @@ function edgeStyleFor(from, to){
        mark at all. */
     teeOut: !!o.teeOut && o.arrow !== false,
     teeIn: !!o.teeIn && !!o.arrowIn,
+    /* What a lineage of a merge ends in where it meets the bar: nothing
+       (absent), an arrowhead ('out') or a T ('tout'). A field of its own
+       rather than `arrow`, because `arrow` is on by default and a lineage
+       has always come down onto its bar bare — read as that, every merge
+       on every chart would have grown a head on each of its lineages. */
+    barEnd: (o.barEnd === 'out' || o.barEnd === 'tout') ? o.barEnd : null,
     sinusoid: !!o.sinusoid,
     note: typeof o.note === 'string' ? o.note : '',
     // 'above' | 'on' | 'below'. 'on' lays the note across the connector,
@@ -376,6 +383,11 @@ function edgeStyleFor(from, to){
     noteSquare: o.noteSquare !== false,
     // Written along the line, bending with it, rather than level on a plate.
     noteAlong: !!o.noteAlong,
+    /* And framed there, which is its own field rather than noteFrame: a
+       plate is framed unless told otherwise, and every note written along
+       its line before 0.16.0 was drawn bare, so the absence has to keep
+       meaning bare here. */
+    noteAlongFrame: !!o.noteAlongFrame,
     // Two hex colours to sweep between along the connector, or null.
     gradient: (Array.isArray(o.gradient) && o.gradient.length===2 &&
                o.gradient.every(isHexColor)) ? o.gradient.slice() : null

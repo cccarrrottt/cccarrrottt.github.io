@@ -240,7 +240,7 @@
   }
   /* The stats block used to be the element pushed to the right; the pill
      takes that job now, so the two sit together at the end of the bar. */
-  .save-state + .topbar-stats{margin-left:14px;}
+  .save-state + .topbar-end{margin-left:14px;}
   .save-btn{
     margin-left:10px;flex:0 0 auto;
     background:var(--accent);border:1px solid var(--accent);color:var(--accent-ink);
@@ -252,7 +252,7 @@
     background:var(--panel-2);border-color:var(--line);color:var(--ink-faint);
     cursor:default;
   }
-  .save-btn + .topbar-stats{margin-left:14px;}
+  .save-btn + .topbar-end{margin-left:14px;}
   /* Shown instead of the Save button once the platform has told us this
      viewer cannot write. */
   .view-badge{
@@ -983,6 +983,9 @@
     fill:none;stroke:var(--accent);stroke-width:1.8;stroke-dasharray:5 4;
     pointer-events:none;
   }
+  .connector-refused{pointer-events:none;}
+  .connector-refused circle{fill:var(--paper);stroke:var(--accent);stroke-width:1.6;}
+  .connector-refused path{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;}
   /* An entry being aimed at during a connector drag says so by the EDGE
      the connector would arrive at — the band under the pointer firms up,
      which is the thing being chosen. Repainting the whole border in the
@@ -1126,6 +1129,8 @@
      it never runs through the words — what the plate does for a level one.
      The ring is a copy of the words underneath them; see drawNoteAlong. */
   .edge-note-text.edge-note-along{pointer-events:visiblePainted;}
+  .edge-note-along-frame{stroke:var(--ink);}
+  .edge-note-along-ground{stroke:var(--paper);}
   .edge-note-text.edge-note-along-ring{
     fill:none;stroke:var(--paper);stroke-width:3px;stroke-linejoin:round;pointer-events:none;
   }
@@ -1839,33 +1844,26 @@
   }
   .add-fab-styles .node-style-btn{box-shadow:var(--shadow);background:var(--panel);}
 
-  /* Guides for a finger: see 38-touch.js. Off the corner the add button
-     stands in, because on a phone that corner is under the entry sheet the
-     moment an entry is tapped — and tapping an entry is how carrying one
-     begins. */
-  .guide-toggle{
-    display:none;position:absolute;top:10px;right:10px;z-index:25;
-    width:40px;height:40px;border-radius:50%;padding:0;
-    align-items:center;justify-content:center;
-    background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);
-    box-shadow:var(--shadow);cursor:pointer;
+  /* Undo, redo and the guides, small, under the counts at the end of the
+     bar (the owner's list of 23.10): they stood as two big round buttons
+     in the corner of the chart, and only once the page had been touched.
+     They are for whoever edits, whatever they edit with. */
+  .topbar-end{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;}
+  .topbar-tools{display:flex;align-items:center;gap:4px;}
+  body.read-only .topbar-tools{display:none;}
+  .topbar-tools button{
+    height:18px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);cursor:pointer;
   }
-  .guide-toggle svg{width:22px;height:22px;display:block;}
-  body.touch-input:not(.read-only) .guide-toggle{display:flex;}
+  .topbar-tools button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
+  .topbar-tools svg{width:12px;height:12px;display:block;}
+  .guide-toggle{width:22px;border-radius:4px;}
   .guide-toggle[aria-pressed="true"]{color:var(--paper);background:var(--accent);border-color:var(--accent);}
-  /* Undo and redo, as one button in two halves under the guides button. */
-  .touch-tools{
-    display:none;position:absolute;top:58px;right:10px;z-index:25;
-    flex-direction:column;width:40px;border-radius:20px;overflow:hidden;
-    background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);
-  }
-  body.touch-input:not(.read-only) .touch-tools{display:flex;}
-  .touch-tools button{
-    width:40px;height:40px;padding:0;border:0;background:none;
-    display:flex;align-items:center;justify-content:center;
-    font-size:19px;line-height:1;color:var(--ink-dim);cursor:pointer;
-  }
-  .touch-tools button + button{border-top:1px solid var(--line);}
+  /* Undo and redo, as one button in two halves. */
+  .touch-tools{display:flex;}
+  .touch-tools button{width:22px;}
+  .touch-tools button:first-child{border-radius:4px 0 0 4px;}
+  .touch-tools button + button{border-left:0;border-radius:0 4px 4px 0;}
   .touch-tools button:disabled{opacity:0.35;cursor:default;}
   /* What a long press on the selection brings up — a phone's own menu
      over selected text: a row of words just above the finger. */
@@ -3128,6 +3126,22 @@
   .style-bar[hidden], .style-bar-group[hidden]{display:none;}
   .style-bar-group{display:flex;gap:2px;align-items:center;}
   .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
+  /* A moving picture's player, over its foot while the pointer is on it
+     — see 37-style-bar.js. Dark glass whatever the theme, as a player's
+     buttons are, since what is under them is a picture, not the page. */
+  .picture-player{
+    position:absolute;z-index:31;display:flex;gap:3px;padding:3px;
+    background:rgba(20,22,26,0.62);border-radius:14px;
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  }
+  .picture-player[hidden]{display:none;}
+  .picture-player button{
+    width:24px;height:22px;padding:0;display:inline-flex;align-items:center;justify-content:center;
+    background:transparent;border:0;border-radius:11px;color:rgba(255,255,255,0.82);cursor:pointer;
+  }
+  .picture-player button:hover{color:#fff;background:rgba(255,255,255,0.16);}
+  .picture-player button.on{color:#14161a;background:rgba(255,255,255,0.92);}
+  body.read-only .picture-player{display:none;}
   /* A menu: its face on the bar, its choices unfolding under it, one per
      line, over whatever is below. */
   .style-bar-drop{position:relative;}
@@ -3213,6 +3227,13 @@
        being cut to fit beside the buttons. */
     .save-state{order:5;flex:1 1 100%;margin-left:0;white-space:normal;}
     .topbar-stats{display:none;}
+    /* The counts go; undo, redo and the guides stay, a fingertip's size,
+       on a row of their own under Save — beside the buttons a phone has
+       no room left for them. */
+    .topbar-end{order:6;flex:1 1 100%;margin-left:0;}
+    .topbar-tools button{height:28px;}
+    .touch-tools button, .guide-toggle{width:32px;}
+    .topbar-tools svg{width:16px;height:16px;}
     .search-results{max-height:min(320px, 55dvh);}
 
     .side-tabs{top:8px;bottom:8px;}

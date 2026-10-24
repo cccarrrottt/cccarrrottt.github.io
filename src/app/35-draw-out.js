@@ -77,6 +77,8 @@ function connectNodes(sourceId, targetId, geom){
   if(!found){ flashStatus('That entry could not be found.'); return; }
   const parents = resolveExplicitParents(found.entry);
   if(parents.includes(sourceId)){ flashStatus('Those entries are already connected.'); return; }
+  const refused = connectRefusal(sourceId, targetId);
+  if(refused){ flashStatus(refused === 'itself' ? 'An entry is not connected to itself.' : refused); return; }
   /* An amalgam is brought to its lineages every time one is drawn in.
    *
    * The bar spans the ground the lineages cover and the merged arrow
@@ -85,7 +87,9 @@ function connectNodes(sourceId, targetId, geom){
    * landings all clamp to one end and the arrow strikes off across the
    * chart. And each lineage after that moves the middle of the bar, which
    * is where the entry is meant to stand — see bringAmalgamToItsLineages. */
-  const willMerge = (found.entry[5] === 'amalgam') && parents.length >= 1;
+  /* A merge of all its lineages takes a new one in as it arrives, as an
+     amalgam always did; a merge that names its lineages does not. */
+  const willMerge = entryOpts(found.entry).merge === true && mergeShapeOk(found.entry[5]) && parents.length >= 1;
   applyEdit(()=>{
     parents.push(sourceId);
     if(willMerge) bringAmalgamToItsLineages(found, parents);
@@ -159,7 +163,63 @@ function dropEdgesOnMissingRings(nodeId, rings){
    the middle of anything. The same placement as a lineage arriving; with
    one lineage left there is no bar, and nothing to centre on. */
 function recentreAfterLoss(found, remaining){
-  if(found.entry[5] === 'amalgam' && remaining.length >= 2) bringAmalgamToItsLineages(found, remaining);
+  const opts = entryOpts(found.entry);
+  /* A lineage that leaves is no longer one of the merge's: a merge naming
+     its lineages forgets it, and one left naming fewer than two is not a
+     merge any more. */
+  if(Array.isArray(opts.merge)){
+    const kept = opts.merge.filter(id=> remaining.includes(id));
+    if(kept.length >= 2) opts.merge = kept; else delete opts.merge;
+    putEntry(found.index, found.entry, opts);
+  }
+  const members = opts.merge === true ? remaining : (opts.merge || []);
+  if(opts.merge && mergeShapeOk(found.entry[5]) && members.length >= 2) bringAmalgamToItsLineages(found, members);
+}
+/* Merging, from a connector's menu (the owner's rework, 23.10).
+ *
+ * Two lineages running into the same entry can be made one: they come down
+ * onto one bar, and one arrow leaves it for the entry, which wears their
+ * colours. Merge on a lineage that is not in a merge yet merges every
+ * lineage of the entry, as an amalgam did; on one left out of a merge that
+ * stands, it joins that merge. Unmerge takes one lineage out, and on the
+ * merged arrow ends the merge altogether. Each is one step of undo. */
+function mergeOffersFor(from, to){
+  const found = workingEntry(to);
+  const n = nodes.get(to);
+  if(!found || !n || !mergeShapeOk(found.entry[5])) return {merge: false, unmerge: false};
+  if(from === '') return {merge: false, unmerge: isMergeNode(n)};
+  const parents = resolveExplicitParents(found.entry);
+  if(!parents.includes(from)) return {merge: false, unmerge: false};
+  const inMerge = isMergeNode(n) && mergeMembersOf(n).includes(from);
+  return {merge: !inMerge && parents.length >= 2, unmerge: inMerge};
+}
+function mergeEdge(from, to){
+  if(!mergeOffersFor(from, to).merge) return false;
+  const found = workingEntry(to);
+  applyEdit(()=>{
+    const opts = entryOpts(found.entry);
+    const parents = resolveExplicitParents(found.entry);
+    const named = Array.isArray(opts.merge) ? opts.merge.filter(id=> parents.includes(id)) : [];
+    /* A merge that names its lineages takes this one in; with nothing
+       standing, every lineage merges — and every one drawn in later. */
+    opts.merge = named.length >= 2 ? named.concat([from]) : true;
+    putEntry(found.index, found.entry, opts);
+    bringAmalgamToItsLineages(found, opts.merge === true ? parents : opts.merge);
+  });
+  return true;
+}
+function unmergeEdge(from, to){
+  if(!mergeOffersFor(from, to).unmerge) return false;
+  const found = workingEntry(to);
+  const n = nodes.get(to);
+  applyEdit(()=>{
+    const opts = entryOpts(found.entry);
+    const kept = from === '' ? [] : mergeMembersOf(n).filter(id=> id !== from);
+    if(kept.length >= 2) opts.merge = kept;
+    else { delete opts.merge; delete opts.bar; }
+    putEntry(found.index, found.entry, opts);
+  });
+  return true;
 }
 function deleteEdge(sourceId, targetId){
   const found = workingEntry(targetId);

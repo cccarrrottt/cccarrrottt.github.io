@@ -11,22 +11,22 @@
 
 // One flat list of entries — no grouping structure above this; organize and
 // filter with tags instead (tags below), not by list position.
-// Each entry is a record with its fields named (the form SETTINGS.format: 2
+// Each entry is a record with its fields named (the form SETTINGS.format
 // says; a chart written before that used a list by position, [id, label,
 // parent, edgeLabel, note, shape, opts], and is still read):
 //   {id:'…', label:'…', parent?, edgeLabel?, note?, shape?, …}
 // parent: omitted => root (no parent). a string => one parent.
-// an array of strings => multiple parents (also how an 'amalgam' node gets
-// the 2+ incoming connectors its merge visual needs).
-// shape (optional): 'rect' (default) | 'ellipse' (character bio) | 'amalgam'
-// (gradient border + text from colors — needs 2+ colors to show a gradient)
-// | 'callout' | 'image' | 'textbox'.
+// an array of strings => multiple parents.
+// shape (optional): 'rect' (default) | 'ellipse' (character bio)
+// | 'callout' | 'image' | 'textbox' | 'array'.
 // Everything else stands beside those fields, for example:
+//   merge: true | ['id', ...]  — its lineages (all, or the ones named) run
+//                                 into one bar and one arrow, and the entry
+//                                 wears their colours unless it has its own
 //   link: 'https://…'          — a small ↗ badge on the box that opens a URL
 //   colors: ['#hex', ...]      — the node's own border color(s); one entry is
 //                                 a plain single-color outline, more draws
-//                                 nested rings and also feeds the amalgam
-//                                 gradient above. Blank/omitted = default ink.
+//                                 nested rings. Blank/omitted = default ink.
 //   tags: ['tag', ...]         — free-form, user-defined; filter/organize
 //                                 with these from the legend instead of a
 //                                 fixed grouping.

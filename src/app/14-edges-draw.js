@@ -200,13 +200,13 @@ function redrawEdges(){
      single arrow carrying all those colours as a gradient runs from the
      middle of that bar into the entry. Two arrows meeting the same edge of
      an ordinary entry stay two arrows; merging only happens where the
-     archetype says these lineages combine into one thing. */
+     entry says these lineages combine into one thing (see mergeOf). */
   const amalgamGroups = new Map();   // "to|side|ring" -> [edge, ...]
   const merged = new Set();
   amalgamMemberKeys.clear();
   structEdges.forEach(e=>{
     const b = nodes.get(e.to);
-    if(!b || (b.shape||'') !== 'amalgam') return;
+    if(!b || !isMergeNode(b) || !mergeMembersOf(b).includes(e.from)) return;
     const rec = ports.get(e);
     if(!rec || !rec.p2) return;
     /* Grouped by the entry and the border ring, NOT by which side each

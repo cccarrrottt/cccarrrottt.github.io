@@ -202,6 +202,22 @@ function refreshSaveUI(){
   else setSaveState(null);
   /* …and keeps the copy that outlives a power cut in step. */
   scheduleDraft();
+  syncUndoButtons();
+}
+/* Undo and redo on the toolbar, greyed when there is nothing to step to.
+   Asked after every edit, undo and save, by whatever made it — the keys
+   included, now that the buttons stand where a mouse sees them too. Found
+   by id each time: this runs from the first edit of start-up, before the
+   part that wires the buttons has. */
+function syncUndoButtons(){
+  const tools = document.getElementById('touchTools');
+  if(!tools) return;
+  const set = (act, on)=>{
+    const b = tools.querySelector(`[data-act="${act}"]`);
+    if(b) b.disabled = !on;
+  };
+  set('undo', undoStack.length > 0);
+  set('redo', redoStack.length > 0);
 }
 
 // The single wrapper every edit goes through: snapshot for undo, mutate,

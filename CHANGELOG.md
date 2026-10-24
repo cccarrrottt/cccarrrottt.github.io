@@ -8,6 +8,36 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+## 0.16.0 — "Merged by hand" (2026-10-23)
+
+- A merge is no longer a kind of entry. Two connectors running into one
+  entry are merged from the connector's menu (press and hold, or a right
+  click: Merge), and the entry they meet in becomes the merge: one bar,
+  one arrow, its border and words in the lineages' colours. Unmerge on a
+  lineage takes it out; on the merged arrow it ends the merge. The
+  Amalgam kind is gone from the + and from the entry's form, and a chart
+  that has amalgams opens with them as merges, drawn as before.
+- A merge's entry may be given a border colour of its own; left alone it
+  wears the gradient of its lineages, as before.
+- Each stretch of a merge is a connector like any other: its own line,
+  colour, gradient and ends — an arrowhead or a T where it leaves its
+  entry, and one where it meets the bar. The merged arrow takes a colour,
+  a gradient and both ends of its own; left alone it carries every
+  lineage's colour.
+- A moving picture's three ways of moving are a player's buttons, over
+  the foot of the picture while the pointer is on it, rather than a row of
+  the style bar.
+- Undo, redo and the guides are small buttons on the toolbar under the
+  counts, for whoever edits with a mouse too, and the guides button means
+  Shift to a mouse as well as to a finger. Undo lights after any edit.
+- Words written along a line can be framed, by a band that bends with
+  them, from the frame button on the note's bar; and they stay level with
+  the point they ride on when moved above, onto or below the line. The
+  button for writing along the line is drawn like the bar's other arrows.
+- An entry in an array cannot be connected to that array, nor an array to
+  what it holds, and a cross at the pointer says so while a connector is
+  aimed anywhere it cannot end.
+- Pasting a merge that names its lineages names the copies.
 - Words written along a line no longer break on an elbowed connector:
   every letter stands clear of the line and goes round the outside of a
   corner at its full distance, the paper ring under the words no longer
@@ -18,7 +48,7 @@ Releases before 0.9.0 were not numbered.
   as everything else on the chart does.
 - A moving picture (a GIF, an animated WebP or PNG) on a picture,
   a card or a portrait can move always, stand still on its first frame,
-  or move only while the pointer is on it, chosen on its style bar. A
+  or move only while the pointer is on it, chosen over the picture. A
   sticker can do the same, from its cell in the sticker library, and an
   animated WebP or PNG sticker is kept as it came so it keeps moving.
 - The app's icon on a phone's home screen is the R·P, not the old

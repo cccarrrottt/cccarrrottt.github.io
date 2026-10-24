@@ -59,7 +59,7 @@ const TOUCH_NATIVE = 'input, textarea, select, [contenteditable="true"]';
    its route's corners, a callout swings to eighths, a connector's end
    comes to its marks. A finger has no Shift, and the hold that stands in
    for keys is already spoken for on an entry (it means Ctrl, a carry free
-   of the grid). So the button in the chart's corner holds Shift down for
+   of the grid). So the button on the toolbar holds Shift down for
    it: while it is lit, every finger that MOVES something moves it with
    Shift held. Only the moves and the release — never the press, because
    a press with Shift on open canvas is the selection box, and a finger
@@ -71,19 +71,20 @@ if(guideToggle) guideToggle.addEventListener('click', ()=>{
   touchGuides = !touchGuides;
   guideToggle.setAttribute('aria-pressed', touchGuides ? 'true' : 'false');
 });
+/* The button stands on the toolbar now, where a mouse reaches it too, and
+   it means the same under a mouse: a carry made while it is lit is made
+   with Shift held. Again the moves and the release only, and only with
+   the button down — never the press, never the pointer merely passing. */
+['mousemove', 'mouseup'].forEach(type=> window.addEventListener(type, (ev)=>{
+  if(!touchGuides || ev.shiftKey || !ev.isTrusted) return;
+  if(type === 'mousemove' && !(ev.buttons & 1)) return;
+  Object.defineProperty(ev, 'shiftKey', {value: true});
+}, true));
 /* Undo and redo, which a phone has not got as keys: one button in two
    halves. Greyed when there is nothing to step to, asked again after
    every touch. */
 const touchTools = document.getElementById('touchTools');
-function syncTouchTools(){
-  if(!touchTools) return;
-  const set = (act, on)=>{
-    const b = touchTools.querySelector(`[data-act="${act}"]`);
-    if(b) b.disabled = !on;
-  };
-  set('undo', undoStack.length > 0);
-  set('redo', redoStack.length > 0);
-}
+function syncTouchTools(){ syncUndoButtons(); }
 if(touchTools){
   touchTools.addEventListener('mousedown', ev=> ev.stopPropagation());
   touchTools.addEventListener('click', ev=>{
@@ -111,7 +112,8 @@ const touchMenu = (()=>{
   m.id = 'touchMenu';
   m.hidden = true;
   m.setAttribute('role', 'menu');
-  [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['array', 'Array'], ['delete', 'Delete']].forEach(([act, label])=>{
+  [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['array', 'Array'],
+   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['delete', 'Delete']].forEach(([act, label])=>{
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.act = act;
@@ -131,6 +133,11 @@ const touchMenu = (()=>{
     else if(act === 'copy') copySelectedNode();
     else if(act === 'paste') pasteClipboardNode();
     else if(act === 'array') makeArrayOfSelection();
+    else if((act === 'merge' || act === 'unmerge') && currentEdgeStyleTarget){
+      const {from, to} = currentEdgeStyleTarget;
+      closeEdgePopover();
+      if(act === 'merge') mergeEdge(from, to); else unmergeEdge(from, to);
+    }
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
@@ -139,12 +146,21 @@ const touchMenu = (()=>{
   return m;
 })();
 /* `kind` is what was held: 'selection' (or true) offers everything, a
-   connector ('edge') only Delete, and anything else only Paste. */
+   connector ('edge') Delete and whichever of Merge and Unmerge it can take,
+   and anything else only Paste. The merged arrow is not deleted on its
+   own; Unmerge is how it goes. */
 function openTouchMenu(x, y, kind, byMouse){
-  const offers = (kind === true || kind === 'selection') ? null
-    : kind === 'edge' ? ['delete'] : ['paste'];
+  let offers = (kind === true || kind === 'selection') ? ['cut', 'copy', 'paste', 'array', 'delete']
+    : kind === 'edge' ? [] : ['paste'];
+  if(kind === 'edge'){
+    const t = currentEdgeStyleTarget;
+    const can = t ? mergeOffersFor(t.from, t.to) : {};
+    if(t && t.from !== '') offers.push('delete');
+    if(can.merge) offers.push('merge');
+    if(can.unmerge) offers.push('unmerge');
+  }
   touchMenu.querySelectorAll('button').forEach(b=>{
-    b.hidden = !!offers && !offers.includes(b.dataset.act);
+    b.hidden = !offers.includes(b.dataset.act);
   });
   /* An array is made round two entries or more (see makeArrayOfSelection);
      with fewer picked there is nothing for it to hold. */
@@ -186,7 +202,7 @@ function touchMenuFor(st){
     return (selectedId === id || multiSelection.has(id)) ? 'selection' : 'add';
   }
   const line = st.target.closest && st.target.closest('.edge-hit');
-  if(line && line.dataset.to && !isMergedArrow(line.dataset.from, line.dataset.to)) return 'edge';
+  if(line && line.dataset.to) return 'edge';
   const thing = '.edge-hit, .amalgam-bar-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
   return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
