@@ -70,7 +70,7 @@ function borderHalfOf(n){
 function tabReachOf(n){
   const shape = n.shape || 'rect';
   if(isFreeShape(shape) || shape === 'array') return 0;
-  if(shape === 'link') return 0;
+  if(shape === 'link' || shape === 'split') return 0;
   const chips = !!n.multiLang && shape !== 'ellipse';
   const link = !!(n.link && safeUrl(n.link));
   return chips || link ? CHIP_TAB_H + NODE_BORDER_W / 2 : 0;
@@ -376,7 +376,10 @@ const drawOne = (n)=>{
   /* A link node is drawn as a portrait's circle is, and is nothing else a
      portrait is: no picture, no card, no words — see isLinkNode. */
   const isLinkNode = shape==='link';
-  const isRound = isBio || isLinkNode;
+  /* A split is the same circle again, smaller, and filled with its colour:
+     a dot on the line, which is what it is — see isSplitNode. */
+  const isSplit = shape==='split';
+  const isRound = isBio || isLinkNode || isSplit;
   const isImage = shape==='image';
   const isTextbox = shape==='textbox';
   // A multiversal hub is an ordinary entry that something radiates out of,
@@ -426,6 +429,7 @@ const drawOne = (n)=>{
   /* Dressed as a portrait's circle is — the stylesheet's circle rules are
      all written for that class — and known apart by its own. */
   if(isLinkNode) g.classList.add('node-bio', 'node-link-node');
+  if(isSplit) g.classList.add('node-bio', 'node-split');
   if(isCallout) g.classList.add('node-callout');
   /* A drafting leader: the words stand on a shelf, with no card round
      them — see drawCalloutLeaders, which draws the shelf with the line. */
@@ -499,6 +503,7 @@ const drawOne = (n)=>{
   const bioSide = isBio
     ? (manual ? Math.max(BIO_MIN_SIZE, Math.round((manual.w + manual.h) / 2)) : BIO_SIZE)
     : isLinkNode ? LINK_NODE_SIZE
+    : isSplit ? SPLIT_SIZE
     : 0;
   let w = isRound ? bioSide
         : isImage ? (manual ? manual.w : IMAGE_DEFAULT_W)
@@ -932,7 +937,8 @@ const drawOne = (n)=>{
   /* An array has no ground: the paper shows through it, because the
      chart under the frame is still the chart. Its colour is its frame's
      and its hatching's. */
-  const bgFillStyle = isArray ? 'fill:none;' : bgPaint ? `fill:${bgPaint};` : '';
+  const bgFillStyle = isArray ? 'fill:none;' : isSplit ? `fill:${(n.colors && n.colors[0]) || 'var(--ink)'};`
+                    : bgPaint ? `fill:${bgPaint};` : '';
   /* One ring of the border, drawn in whatever style the entry wears.
      `make(inset)` gives the geometry for an outline that far inside the
      ring's own line. A DOUBLE border is two rails either side of that
@@ -1371,6 +1377,8 @@ const drawOne = (n)=>{
       el('title', {}, g).textContent = to
         ? 'Go to ' + (stripMarkup((nodes.get(to.id) || {}).label || '') || to.id)
         : 'Goes nowhere yet — double-click to say where';
+    } else if(isSplit){
+      el('title', {}, g).textContent = 'A split: connectors go on from here';
     } else if(!n.image){
       /* A neutral silhouette so an empty portrait still reads as one — and
          drawn TO the circle rather than at a fixed size, so it stays
@@ -1805,7 +1813,7 @@ const drawOne = (n)=>{
     });
   });
 
-  if(n.link && safeUrl(n.link) && !isFree && !isLinkNode){
+  if(n.link && safeUrl(n.link) && !isFree && !isLinkNode && !isSplit){
     // A real SVG <a> (not a JS window.open() call) — the artifact host
     // renders this page inside a sandboxed iframe, which silently blocks
     // script-initiated window.open() but allows a genuine user-clicked
@@ -2011,6 +2019,9 @@ const drawOne = (n)=>{
     if(isBio){ openEntrySettings(n.id); return; }
     /* A link node has no words either: its settings hold where it goes. */
     if(isLinkNode){ selectNode(n.id); paintMultiSelection(); openEntrySettings(n.id); return; }
+    /* A split has nothing to write and nothing to set but its colour,
+       which is on its bar; a double click picks it up, as one click does. */
+    if(isSplit){ selectNode(n.id); paintMultiSelection(); return; }
     /* Everywhere else: on the entry itself, where the words are. The
        settings are the fallback for the one archetype that has no words to
        write — a picture — and for a reader who cannot write at all. */

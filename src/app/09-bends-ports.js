@@ -698,7 +698,12 @@ function resolvePorts(edgesList, sideOverrides){
      * neither land on a lineage nor bunch up on one side of it. */
     const mergedEnds = list.filter(en=> en.merged);
     const plainEnds = list.filter(en=> !en.merged);
-    if(mergedEnds.length && plainEnds.length){
+    /* A split is one point of a line: every connector on a side of it
+       meets it at that side's middle, so the lines going on from it leave
+       from where the line came in, as one line forking. */
+    if(isSplitNode(list[0].node)){
+      list.forEach(en=> seat(en, 0, 1));
+    } else if(mergedEnds.length && plainEnds.length){
       const total = list.length;
       const outward = [...Array(total).keys()]
         .sort((p,q)=> Math.abs((q+1)/(total+1) - 0.5) - Math.abs((p+1)/(total+1) - 0.5));

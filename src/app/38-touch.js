@@ -113,7 +113,7 @@ const touchMenu = (()=>{
   m.hidden = true;
   m.setAttribute('role', 'menu');
   [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['array', 'Array'],
-   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['delete', 'Delete']].forEach(([act, label])=>{
+   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['split', 'Split'], ['branch', 'New line'], ['delete', 'Delete']].forEach(([act, label])=>{
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.act = act;
@@ -138,6 +138,16 @@ const touchMenu = (()=>{
       closeEdgePopover();
       if(act === 'merge') mergeEdge(from, to); else unmergeEdge(from, to);
     }
+    /* Split where the menu was asked for, then the next entry picked is
+       where the new line goes; New line on a split asks for another. */
+    else if(act === 'split' && currentEdgeStyleTarget){
+      const {from, to} = currentEdgeStyleTarget;
+      const f = splitFractionAt(from, to, touchMenu.at.x, touchMenu.at.y);
+      closeEdgePopover();
+      const id = f == null ? null : splitEdgeAt(from, to, f);
+      if(id){ selectNode(id); beginSplitBranch(id); }
+    }
+    else if(act === 'branch' && selectedId) beginSplitBranch(selectedId);
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
@@ -158,7 +168,11 @@ function openTouchMenu(x, y, kind, byMouse){
     if(t && t.from !== '') offers.push('delete');
     if(can.merge) offers.push('merge');
     if(can.unmerge) offers.push('unmerge');
+    if(t && splitOffered(t.from, t.to)) offers.push('split');
   }
+  /* A split, held on its own, offers a new line out of it. */
+  if((kind === true || kind === 'selection') && multiSelection.size <= 1 && isSplitNode(nodes.get(selectedId))) offers.push('branch');
+  touchMenu.at = {x, y};
   touchMenu.querySelectorAll('button').forEach(b=>{
     b.hidden = !offers.includes(b.dataset.act);
   });

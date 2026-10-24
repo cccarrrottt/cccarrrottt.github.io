@@ -27,10 +27,11 @@ const textViewToggle = document.getElementById('textViewToggle');
 var textViewStale = true;
 
 function textViewListed(n){
-  return !!n && !isArrayNode(n) && !isFreeShape(n.shape) && (n.shape || '') !== 'callout';
+  return !!n && !isArrayNode(n) && !isFreeShape(n.shape) && (n.shape || '') !== 'callout' && !isSplitNode(n);
 }
 function textViewName(n){
   const own = stripMarkup(n.label || '').replace(/\s+/g, ' ').trim();
+  if(!own && isSplitNode(n)) return 'Split';
   /* A link node writes nothing in itself; it is named for where it goes. */
   if(!own && isLinkNode(n)){
     const to = linkNodeTarget(n), there = to && nodes.get(to.id);
@@ -82,9 +83,12 @@ function textViewItem(n, under, drawn){
      the note written on the connector, which are the two places the chart
      says how one work came from another. The parent it is listed under
      comes first and is not linked again; it is the list item it sits in. */
-  const parents = Array.from(new Set(n.parents)).filter(p=> nodes.has(p));
+  /* A split on the way is looked through: the line from it is the line
+     from what went into it (lineageParentsOf). */
+  const parents = lineageParentsOf(n);
   parents.forEach(p=>{
-    const words = [n.edgeLabel, edgeStyleFor(p, n.id).note]
+    const via = (n.parents || []).includes(p) ? p : (n.parents || []).find(q=> isSplitNode(nodes.get(q))) || p;
+    const words = [n.edgeLabel, edgeStyleFor(via, n.id).note]
       .map(t=> stripMarkup(t || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
     if(p === under && !words.length) return;
     const line = document.createElement('p');
@@ -125,8 +129,8 @@ function textViewItem(n, under, drawn){
     li.appendChild(p);
   }
   drawn.add(n.id);
-  const kids = Array.from(new Set(n.children)).map(id=> nodes.get(id))
-    .filter(c=> textViewListed(c) && !drawn.has(c.id) && c.parents.find(p=> nodes.has(p)) === n.id);
+  const kids = lineageChildrenOf(n).map(id=> nodes.get(id))
+    .filter(c=> textViewListed(c) && !drawn.has(c.id) && lineageParentsOf(c)[0] === n.id);
   if(kids.length){
     const ul = document.createElement('ul');
     ul.className = 'tv-list';
@@ -144,7 +148,7 @@ function buildTextView(){
   /* The roots are the entries with no parent on the chart; whatever a
      loop of parents leaves unreached goes after them, so nothing is left
      out of the text that is on the drawing. */
-  listed.filter(n=> !n.parents.some(p=> nodes.has(p)))
+  listed.filter(n=> !lineageParentsOf(n).length)
         .forEach(n=> ul.appendChild(textViewItem(n, null, drawn)));
   listed.filter(n=> !drawn.has(n.id))
         .forEach(n=>{ if(!drawn.has(n.id)) ul.appendChild(textViewItem(n, null, drawn)); });

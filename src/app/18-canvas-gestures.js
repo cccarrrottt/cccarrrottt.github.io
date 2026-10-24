@@ -205,6 +205,7 @@ function computeBounds(){
 function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
   markViewMoving();
+  followWithPhoneBar();
   syncAlignGrid();
   positionSwapButton();
   // Far enough out, the entries give way to patches; see syncLod.
@@ -323,6 +324,59 @@ function markViewMoving(){
   clearTimeout(markViewMoving.timer);
   markViewMoving.timer = setTimeout(()=> b.classList.remove('view-moving'), 160);
 }
+/* On a phone the top bar gives the chart its rows back while the chart is
+ * being read, the way the sheet tabs of a spreadsheet app on a phone do:
+ * a finger carrying the chart up, to see what is below, slides the bar
+ * away, and carrying it down again brings it back (the owner's ask,
+ * 24.10). Only a pan does it — a pinch is looking closer, not onward.
+ *
+ * The bar slides out first and only then gives up its place, and the
+ * chart is moved down by exactly what that gave in the same frame, so what
+ * is under the finger stays under it: the drawing's origin is the top of
+ * the canvas, and the canvas has just grown upward. The state lives on
+ * the function, since applyTransform runs during boot. */
+function followWithPhoneBar(){
+  const f = followWithPhoneBar;
+  const moved = f.vs === vs && f.vy != null ? vy - f.vy : 0;
+  f.vy = vy; f.vs = vs;
+  if(!moved || !dragging || !document.body.classList.contains('touch-input')) return;
+  if(!f.narrow) f.narrow = window.matchMedia('(max-width: 720px)');
+  if(!f.narrow.matches) return;
+  // A run of moves the same way, so a finger that wavers does not flicker it.
+  f.run = (Math.sign(f.run || 0) === Math.sign(moved) ? f.run : 0) + moved;
+  if(f.run < -28) setPhoneBarHidden(true);
+  else if(f.run > 28) setPhoneBarHidden(false);
+}
+function setPhoneBarHidden(hide){
+  const f = setPhoneBarHidden;
+  const bar = document.querySelector('.topbar');
+  if(!bar || !!f.hidden === !!hide) return;
+  f.hidden = !!hide;
+  clearTimeout(f.timer);
+  /* What the bar gives up or takes back, moved into the view at once, the
+     pan under way included, so nothing on the chart jumps. Measured as the
+     canvas moves rather than as the bar's height: the bar may have changed
+     while it was away (a reader's bar is a row shorter than an editor's). */
+  const settle = (change)=>{
+    const before = svg.getBoundingClientRect().top;
+    change();
+    const h = before - svg.getBoundingClientRect().top;
+    vy += h;
+    if(dragStart) dragStart.vy += h;
+    followWithPhoneBar.vy = vy;
+    applyTransform();
+  };
+  if(hide){
+    bar.classList.add('slid');
+    f.timer = setTimeout(()=> settle(()=> bar.classList.add('gone')), 200);
+  } else {
+    if(bar.classList.contains('gone')) settle(()=> bar.classList.remove('gone'));
+    // Back in the layout first, then slid in, the next frame.
+    requestAnimationFrame(()=> bar.classList.remove('slid'));
+  }
+}
+/* A bar put away on a phone is back when the window is no longer one. */
+window.matchMedia('(max-width: 720px)').addEventListener('change', (q)=>{ if(!q.matches) setPhoneBarHidden(false); });
 function fitToView(padding){
   padding = padding||60;
   const rect = svg.getBoundingClientRect();

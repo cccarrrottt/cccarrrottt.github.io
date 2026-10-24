@@ -634,6 +634,19 @@ the chart are tied together without a connector across all of it. One
 that goes nowhere draws its arrow faint, and the text view names it by
 where it goes.
 
+## Splits
+
+A split is an entry of shape `'split'` (`isSplitNode`, `SPLIT_SIZE`): a
+coloured dot set on a connector from its menu (`splitEdgeAt`,
+`35-draw-out.js`), where the connector was pointed at or at the place on
+offer near it (`splitFractionAt`, the same places `connectorSnaps`
+offers a remark). The connector becomes two, into the dot and out of it,
+each keeping the ends and look it had, and the next entry picked takes a
+new line out of the dot (`beginSplitBranch`). Every connector on a side of
+a dot meets it at that side's middle, so the lines leave as one line
+forking. Read as a lineage a dot is looked through (`lineageParentsOf`,
+`lineageChildrenOf`); deleting one hands its children to its parents.
+
 ## On a phone
 
 The chart's gestures were all written for a mouse, and they were left that way.
@@ -649,8 +662,11 @@ up by holding them, so a finger that just moves scrolls the list.
 Handles a hovering pointer would wake are shown on the tapped or selected entry
 once the page has been touched (`body.touch-input`). Below 720 pixels the top
 bar becomes two rows, an open tab takes the screen and the entry drawer is a
-sheet from the bottom. The suite's "a phone" scenario drives all of it with
-raw touch points.
+sheet from the bottom. While a finger carries the chart up the top bar slides
+away, and it comes back as the chart is carried down (`followWithPhoneBar`,
+`18-canvas-gestures.js`); the view is moved by the height the bar gives up or
+takes back in the same frame, so the chart does not jump under the finger.
+The suite's "a phone" scenario drives all of it with raw touch points.
 
 ### On the home screen, with no signal
 
@@ -769,7 +785,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 131 named scenarios, and they are independent of one
+The browser suite is 132 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
