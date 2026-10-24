@@ -205,9 +205,25 @@ function levelWithPorts(bends, p1, p2){
   let arrives;
   if(last > 0) arrives = Math.abs(out[last - 1][k2] - out[last][k2]) < 0.5 ? c2 : k2;
   else arrives = Math.abs(p1[k1] - out[0][k1]) > 0.5 ? k1 : c1;
-  if(leaves === c1) out[0][c1] = p1[c1];
-  if(arrives === c2) out[last][c2] = p2[c2];
-  return out;
+  /* A corner put level with its port can land a hair from the corner
+     before it, and the stretch between them is then a nick a pixel or two
+     long in front of the port (the bughunt of 24.10). The stretch beyond
+     that corner comes to the port's level with it — the nick is less than
+     a grid step, and nobody set it on purpose — and the two corners that
+     now stand together are one. */
+  const settle = (i, j, k, c, lvl)=>{
+    const nb = out[j];
+    if(!nb || Math.abs(nb[k] - out[i][k]) > 0.5) return;
+    const step = Math.abs(nb[c] - lvl);
+    if(step < 0.01 || step > BEND_ABSORB) return;
+    const was = nb[c];
+    nb[c] = lvl;
+    const far = out[2 * j - i];
+    if(far && Math.abs(far[c] - was) < 0.5) far[c] = lvl;
+  };
+  if(leaves === c1){ out[0][c1] = p1[c1]; settle(0, 1, k1, c1, p1[c1]); }
+  if(arrives === c2){ out[last][c2] = p2[c2]; settle(last, last - 1, k2, c2, p2[c2]); }
+  return out.filter((b, i)=> !i || Math.abs(b.x - out[i - 1].x) > 0.01 || Math.abs(b.y - out[i - 1].y) > 0.01);
 }
 function pinnedHandBends(style, p1, p2){
   let list = handBends(style);

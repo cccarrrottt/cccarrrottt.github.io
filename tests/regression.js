@@ -4931,6 +4931,7 @@ async function main(){
       .forEach(el=>{
         const st = edgeStyleFor(el.dataset.from || '', el.dataset.to || '');
         if(st && st.routing === 'straight') return;      // a slant is the point of these
+        if(st && st.routing === 'curve') return;         // and a curve is drawn as a fine polyline
         if(el.classList.contains('amalgam-out')) return; // and of a merge's own arrow
         const toks = el.getAttribute('d').match(/[MLQ][^MLQZ]*/g) || [];
         const pts = [];
@@ -19085,6 +19086,8 @@ async function main(){
         workingNodes.push(['js_e', '', null, null, null, 'link', {pos:[4600, 3000], link:'#entry=js_a'}]);
         workingNodes.push(['js_f', '', 'js_a', null, null, 'split', {pos:[4700, 3000], colors:['#123456']}]);
         EDGE_STYLES.push({from:'js_a', to:'js_c', barEnd:'oout', openIn:true, arrowIn:true});
+        // The merged arrow's own look: a style with no entry at its start.
+        EDGE_STYLES.push({from:'', to:'js_c', color:'#7a3fb0', colorFixed:true, arrowIn:true});
         EDGE_STYLES.push({from:'js_a', to:'js_b', routing:'curve', dash:'dotted', arrow:true, arrowIn:true, openOut:true,
                           note:'on it', notePos:'on', noteAt:0.3, bends:[[4100, 2950]], bendSides:['right', 'left'],
                           color:'#123456', fromSide:'right', toSide:'left', fromRing:1, square:false});
@@ -19103,6 +19106,8 @@ async function main(){
       const newer = JSON.parse(text); newer.format = DATA_FORMAT + 1;
       try{ importChartFromText(JSON.stringify(newer)); out.newer = 'taken'; }catch(e){ out.newer = e.message; }
       try{ importChartFromText('{"nodes": 3}'); out.notChart = 'taken'; }catch(e){ out.notChart = e.message; }
+      const noEnd = JSON.parse(text); noEnd.edgeStyles.push({from: 'js_a', to: ''});
+      try{ importChartFromText(JSON.stringify(noEnd)); out.noEnd = 'taken'; }catch(e){ out.noEnd = e.message; }
       try{ importChartFromText('{"nodes": ['); out.broken = 'taken'; }catch(e){ out.broken = e.message; }
     } finally {
       applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
@@ -19123,10 +19128,14 @@ async function main(){
   check('a JSON chart from a newer page is refused', /newer version/.test(r.newer), r.newer);
   check('and JSON that is not a chart, or does not parse, says so', /no Rhizome Project chart/.test(r.notChart) && /not a chart/.test(r.broken),
         JSON.stringify([r.notChart, r.broken]));
+  check('a merged arrow\'s style, with no entry at its start, is read back, and a style with no end is not',
+        r.back && JSON.parse(r.full).edgeStyles.some(st=> st.from === '' && st.to === 'js_c') && /needs the ids/.test(r.noEnd),
+        r.noEnd);
   check('and the schema refuses what the page would refuse',
         !validate({format: 2, nodes: []}) && !validate({format: 2, nodes: [{id: 'a'}]}) &&
         !validate({format: 2, nodes: [{id: 'a', label: 'A', pos: [1]}]}) &&
-        !validate({format: 2, nodes: [{id: 'a', label: 'A'}], edgeStyles: [{from: 'a', to: 'b', bends: [[1, 'x']]}]}));
+        !validate({format: 2, nodes: [{id: 'a', label: 'A'}], edgeStyles: [{from: 'a', to: 'b', bends: [[1, 'x']]}]}) &&
+        !validate({format: 2, nodes: [{id: 'a', label: 'A'}], edgeStyles: [{from: 'a', to: ''}]}));
   });
   await scenario("a chart that opens with a coloured tag and a picture from the web", async () => {
   /* Both are asked about while the first chart is built, in part 02 — and
@@ -20184,6 +20193,146 @@ async function main(){
   } finally {
     await phone.close();
   }
+  });
+  await scenario("the owner's list of 24.10, afternoon: solid ends, a merged arrow that keeps its corners, no nicks", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 90000, Y = 90000;
+    const pts = (from, to)=> drawnRoutes.get(calloutEdgeKey(from, to)).pts;
+    const move = (id, x, y)=>{ applyEdit(()=>{ const f = workingEntry(id), o = entryOpts(f.entry);
+                                              o.pos = [x, y]; putEntry(f.index, f.entry, o); }); rebuildChart(); };
+    /* A bend dragged as a hand drags it: taken hold of at `at` (a corner
+       when `index` is not -1), carried by dx, dy in chart units. */
+    const dragBend = (from, to, at, index, dx, dy)=>{
+      const c0 = clientToWorld(0, 0), c1 = clientToWorld(100, 100), k = (c1.x - c0.x) / 100;
+      const cx = (at.x - c0.x) / k, cy = (at.y - c0.y) / k;
+      beginBendDrag({button:0, clientX:cx, clientY:cy, stopPropagation(){}, preventDefault(){}},
+                    {from, to}, at, index, pts(from, to));
+      for(let s = 1; s <= 6; s++)
+        window.dispatchEvent(new MouseEvent('mousemove', {clientX: cx + dx / k * s / 6, clientY: cy + dy / k * s / 6}));
+      window.dispatchEvent(new MouseEvent('mouseup', {}));
+    };
+    // The shortest stretch between two turns, the two ends' own run-outs aside.
+    const nick = (P)=>{
+      const A = routeArms(P);
+      let least = Infinity;
+      for(let i = 2; i < A.length - 1; i++) least = Math.min(least, Math.hypot(A[i].x - A[i-1].x, A[i].y - A[i-1].y));
+      return +least.toFixed(2);
+    };
+    try{
+      vs = 1; vx = -X + 400; vy = -Y + 300; applyTransform();
+      /* 1. An end is solid in a see-through colour: its paint is what the
+            line looks on the paper, with nothing of the paper in it. */
+      applyEdit(()=>{
+        workingNodes.push(['sl_p','Pale',null,null,null,null,{pos:[X - 2000, Y], colors:['#22cc']}]);
+        workingNodes.push(['sl_q','Below','sl_p',null,null,null,{pos:[X - 2000, Y + 200]}]);
+        EDGE_STYLES.push({from:'sl_p', to:'sl_q', arrowIn:true, teeIn:true});
+      });
+      rebuildChart();
+      const fills = [...document.querySelectorAll('.edge-arrow[data-from="sl_p"][data-to="sl_q"] path')].map(p=> p.getAttribute('fill'));
+      out.solid = fills.length === 2 && fills.every(f=> rgbaOf(f).a === 1) && fills[0] === solidInk('#22cc');
+
+      /* 2–4. A merge whose bar has been put somewhere. */
+      applyEdit(()=>{
+        workingNodes.push(['sl_a','Amalgam 1',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['sl_b','Amalgam 2',null,null,null,null,{pos:[X + 250, Y]}]);
+        workingNodes.push(['sl_m','Amalgam 3',['sl_a','sl_b'],null,null,null,{merge:true, pos:[X + 120, Y + 160]}]);
+      });
+      rebuildChart(); fixAmalgamBars(['sl_m']); rebuildChart();
+      const bar = amalgamBars.get('sl_m');
+      /* Carried onto its bar, the entry is still reached by a whole arrow,
+         from the side of the bar it is on — never one shorter than its
+         head, nor one running through the box. */
+      out.crowded = [Y + 62, Y + 56, Y + 50, Y + 46, Y + 40, Y + 34, Y + 30, Y + 26, Y + 20].map(y=>{
+        move('sl_m', X + 120, y);
+        const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
+        const last = Math.hypot(P[m].x - P[m-1].x, P[m].y - P[m-1].y);
+        const inside = P.slice(0, -1).some(p=> p.x > n.x + 0.5 && p.x < n.x + n.w - 0.5 && p.y > n.y + 0.5 && p.y < n.y + n.h - 0.5);
+        return last >= ARROW_LEN && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
+      });
+      move('sl_m', X + 120, Y + 160);
+      out.barBack = Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
+
+      /* The stretch out of the bar, dragged sideways, takes its foot along
+         the bar with it — no step off the bar. */
+      const P0 = pts('', 'sl_m');
+      dragBend('', 'sl_m', {x: P0[0].x, y: (P0[0].y + P0[P0.length-1].y) / 2}, -1, -60, 0);
+      const P1 = pts('', 'sl_m');
+      out.bent = bendListOf('', 'sl_m').length > 0;
+      out.footMoved = Math.abs(P1[0].x - (P0[0].x - 60)) < GRID && Math.abs(P1[0].y - P0[0].y) < 0.01;
+      out.footSquare = Math.abs(P1[1].x - P1[0].x) < 0.01;
+      /* Bent, the merged arrow keeps its foot where it was when the entry
+         is carried along the bar… */
+      move('sl_m', X + 200, Y + 160);
+      const P2 = pts('', 'sl_m');
+      out.footKept = Math.abs(P2[0].x - P1[0].x) < 0.01;
+      out.reachesEntry = Math.abs(P2[P2.length-1].y - nodes.get('sl_m').y) < 1;
+      /* …and carried across the bar, its corners are kept for when it comes
+         back, and it arrives at the face it had. */
+      const kept = JSON.stringify(bendListOf('', 'sl_m'));
+      move('sl_m', X + 120, Y - 120);
+      out.bendsKept = JSON.stringify(bendListOf('', 'sl_m')) === kept;
+      move('sl_m', X + 200, Y + 160);
+      out.cameBack = JSON.stringify(pts('', 'sl_m')) === JSON.stringify(P2);
+
+      /* 5. A stretch dragged to within a step of the port's level is put
+            on it: no stair a pixel or two high in front of the head. */
+      applyEdit(()=>{
+        workingNodes.push(['sl_c','Alpha entry',null,null,null,null,{pos:[X + 2000, Y]}]);
+        workingNodes.push(['sl_d','Beta','sl_c',null,null,null,{pos:[X + 2300, Y]}]);
+      });
+      rebuildChart();
+      // A route over the top of both, its last corners a step off the line.
+      const ox = X + 2000, oy = Y;
+      setBendList('sl_c', 'sl_d', [[ox + 77.29, oy + 70.49], [ox + 129.93, oy + 70.49], [ox + 274.43, oy + 30.21],
+                                   [ox + 284.5, oy - 50.35]], ['right', 'left']);
+      rebuildChart();
+      // The short stretch over the top, pulled down to a little short of the port's level.
+      dragBend('sl_c', 'sl_d', {x: ox + 279.465, y: oy - 50.35}, -1, 43, 64);
+      out.stairBends = bendListOf('sl_c', 'sl_d').length;
+      out.noStair = nick(pts('sl_c', 'sl_d'));
+
+      /* 6. A corner let go a hair off the run-out its end steps out at. */
+      applyEdit(()=>{
+        workingNodes.push(['sl_e','Alpha entry',null,null,null,null,{pos:[X + 4000, Y]}]);
+        workingNodes.push(['sl_f','Beta','sl_e',null,null,null,{pos:[X + 4200, Y + 200]}]);
+      });
+      rebuildChart();
+      const pe = pts('sl_e', 'sl_f');
+      setBendList('sl_e', 'sl_f', [[pe[0].x, pe[0].y + 15.5], [X + 4140, Y + 151.05]], ['bottom', 'top']);
+      rebuildChart();
+      const ae = routeArms(pts('sl_e', 'sl_f'));
+      const corner = ae.length - 2;
+      dragBend('sl_e', 'sl_f', ae[corner], corner, -30, 44);
+      out.noNick = nick(pts('sl_e', 'sl_f'));
+
+      /* 7. A corner levelled with its port when the entry is carried does
+            not leave a nick against the corner before it. */
+      const lv = levelWithPorts([{x: 100, y: 200}, {x: 100, y: 70.5}, {x: 20, y: 70.5}, {x: 20, y: 112}],
+                                {x: 10, y: 40, side: 'bottom'}, {x: 0, y: 72, side: 'right'});
+      out.levelled = JSON.stringify(lv);
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+      await wait(100);
+    }
+    return out;
+  });
+  check('an end in a see-through colour is painted solid, in the shade its line has on the paper', r.solid);
+  check('an entry carried onto its merge\'s bar, which stays put, is still fed by a whole arrow, never through the box', r.crowded.every(Boolean) && r.barBack,
+        JSON.stringify([r.crowded, r.barBack]));
+  check('the merged arrow\'s stretch out of the bar, dragged, takes its foot along the bar', r.bent && r.footMoved && r.footSquare,
+        JSON.stringify([r.bent, r.footMoved, r.footSquare]));
+  check('…and bent, its foot stays where it was when the entry is carried', r.footKept && r.reachesEntry, JSON.stringify([r.footKept, r.reachesEntry]));
+  check('…and carried across the bar and back, its corners are kept', r.bendsKept && r.cameBack, JSON.stringify([r.bendsKept, r.cameBack]));
+  check('a stretch dragged to within a step of its port\'s level leaves no stair', r.noStair >= 3, String(r.noStair));
+  check('a corner let go a hair off the run-out leaves no nick', r.noNick >= 3, String(r.noNick));
+  check('a corner levelled with its port takes the nick before it away', r.levelled === JSON.stringify([{x:100, y:200}, {x:100, y:72}, {x:20, y:72}]),
+        r.levelled);
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

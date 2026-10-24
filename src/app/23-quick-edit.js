@@ -78,14 +78,18 @@ function validateNodes(val){
    what it cannot use, so what is refused here is only what would make a
    style nobody's: a style that is not a record, or whose ends are not
    named. Left in, such a style is written back out with every save, and
-   matches no connector, ever. */
+   matches no connector, ever. A merge's merged arrow is the one connector
+   with no entry at its start — it leaves the bar — and its style is
+   written with an empty source (see isMergedArrow); refusing that refused
+   every chart whose merged arrow had been given a look or a bend, the
+   owner's own among them, at Import and wherever a chart is read in. */
 function validateEdgeStyles(val){
   if(!Array.isArray(val)) throw new Error('the connector styles must be a list.');
   val.forEach((st, j)=>{
     if(!st || typeof st !== 'object' || Array.isArray(st)){
       throw new Error(`connector style #${j+1} is not a record.`);
     }
-    if(typeof st.from !== 'string' || typeof st.to !== 'string' || !st.from || !st.to){
+    if(typeof st.from !== 'string' || typeof st.to !== 'string' || !st.to){
       throw new Error(`connector style #${j+1} needs the ids of both its ends (from, to).`);
     }
   });
