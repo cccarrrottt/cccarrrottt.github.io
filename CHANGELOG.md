@@ -17,11 +17,31 @@ Releases before 0.9.0 were not numbered.
   arrives by the faces it had when the corners were set, and carried
   across the bar and back it finds them again. Its stretch out of the bar,
   dragged sideways, takes its foot along the bar.
-- An entry carried right up to, or onto, a merge's bar that has been put
-  somewhere is fed by a whole arrow from the side: the bar stays where it
-  was put and the arrow's foot steps along it to just past the entry,
-  where it used to be drawn shorter than its head, pointing back at the
-  bar, or from inside the box.
+- An entry carried onto a merge's bar that has been put somewhere is fed
+  from the side: the bar stays where it was put and the arrow's foot steps
+  along it to just past the entry, where it used to be drawn shorter than
+  its head, pointing back at the bar, or from inside the box.
+- An entry wholly on one side of its merge's bar is fed by the face
+  towards the bar, at its middle — the top below the bar, the bottom once
+  it is carried above it, however close — and carried past the end of the
+  bar it keeps that face, with a knee from the first step off the middle.
+  It used to slide along the face until a quarter in from the corner and
+  then take an end face.
+- A merge's junction can be taken hold of like a callout's point: carried
+  along the bar, the entry and its arrow go with it, no further than the
+  bar reaches.
+- A merge whose lineages are all deleted is no longer a merge: connectors
+  drawn into the entry afterwards are ordinary ones, where they used to
+  merge at once.
+- A curve that ends a U — round under an entry and up into it — comes in
+  along its port, where it rode the long leg and turned in its last few
+  units, a hook with the head askew.
+- A split's dot is the size of a callout's point, and a line goes on out
+  of its middle; a split drawn before keeps its middle where it was
+  (chart format 4).
+- On a phone only the row of buttons is put away as the chart is carried
+  up: the wordmark and the search stay, and nothing white shows while it
+  goes.
 - Bends: a stretch or a corner let go within a step of the line next to
   it, or of its port's level, is put on it, and a shape that would fold
   back on itself is not taken — no more stairs a pixel or two high in
