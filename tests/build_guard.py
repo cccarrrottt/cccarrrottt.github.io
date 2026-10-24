@@ -371,9 +371,17 @@ def main():
     import build as built_by
     os.environ.setdefault('ESBUILD', str(ESBUILD))
     sources = {'js': built_by.read_app(), 'css': (tmp / 'src' / 'style.css').read_text(encoding='utf-8')}
+    # The program goes out without its version log, which is a file of its
+    # own beside it; the program names it where the log stood.
+    lifted, log_name, log_text = built_by.lift_version_log(sources['js'])
+    check('the version log is beside the program, named by its bytes, and is the log as written',
+          (tmp / 'dist' / 'site' / log_name).read_text(encoding='utf-8') == log_text
+          and log_text.startswith('[') and log_text.endswith(']') and "v:'" in log_text
+          and lifted.replace(f'"{log_name}"', log_text) == sources['js'], log_name)
+    site_sources = {'js': lifted, 'css': sources['css']}
     minified = all(
         (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8').split('\n//# sourceMappingURL=')[0].rstrip('\n')
-        == built_by.minify_for_site(sources[n.rsplit('.', 1)[1]], n.rsplit('.', 1)[1])[0].rstrip('\n')
+        == built_by.minify_for_site(site_sources[n.rsplit('.', 1)[1]], n.rsplit('.', 1)[1])[0].rstrip('\n')
         for n in files)
     check('they are the program and the stylesheet, minified and nothing else', minified)
     js_name = next(n for n in files if n.endswith('.js'))

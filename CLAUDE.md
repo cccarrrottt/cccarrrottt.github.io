@@ -194,7 +194,10 @@ site") and `build_guard`:
   `style.<hash>.css`, named by the sha-256 of their bytes, and minified
   by esbuild (pinned in `package.json`; whitespace and syntax only, so
   every name — and every stack trace — stays readable), with
-  `app.<hash>.map` beside the program. A build without esbuild writes
+  `app.<hash>.map` beside the program — and without its version log,
+  which is `versions.<hash>.js` beside it, fetched the first time the
+  history in About is unfolded (`lift_version_log`; 207 KB gzipped
+  became 177). A build without esbuild writes
   them unminified and says so; CI sets `RHIZOME_MINIFY=required`, so a
   publish cannot. 491 KB gzipped became 200, and the first drawing on a
   cold load 588 ms → 269 together with the fonts below. A Save changes
@@ -438,8 +441,12 @@ asked for. Two things took it away:
 | of which `buildSideTabs` | ~52 ms | ~9 ms |
 
 What is left is `renderNodes` drawing everything to compare it (~33 ms)
-and `redrawEdges` (~15). Keeping edges the same way is the next candidate,
-and should be measured first.
+and `redrawEdges` (~15). Keeping edges the same way was measured next: on
+the chain with a label on every fourth connector, an edit is ~92 ms, and
+what drawing the connectors afresh costs beyond routing them is ~15 of it
+in script and ~6 in the layout that follows — about a sixth at best, for a
+second copy of the mechanism above over code that draws arrowheads,
+labels and bends. Left until a chart that needs it.
 
 ### What a reader waits for before the chart is drawn
 
@@ -453,6 +460,11 @@ so no frame shows neither, and an export leaves it out. Slow 4G (1.6 Mbit,
 | --- | ---: | ---: |
 | the chart on screen | ~2.5 s | ~0.6 s |
 | the program running | ~2.7 s | ~2.8 s |
+
+The program itself is a seventh lighter on the site: `VERSION_LOG` was
+~86 KB of it, 30 KB gzipped, for a panel almost nobody unfolds. An export
+from the site holds it again (`inlineSiteFiles` puts the file back where
+its name stands), and the service worker keeps it once it has been read.
 
 Two things were measured here and are not worth doing:
 

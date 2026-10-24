@@ -448,6 +448,32 @@ def minify_for_site(text, kind):
     return mini, smap
 
 
+VERSION_LOG_OPEN = 'const VERSION_LOG = ['
+VERSION_LOG_CLOSE = '\n];\n'   # the first line that is only a closing bracket
+
+
+def lift_version_log(app_js):
+    """The program with its version log taken out, and the log as a file.
+
+    The log is ~86 KB of the program, 30 KB of it gzipped — a seventh of
+    what a reader downloads before the chart can be touched — and it is
+    shown only when someone unfolds the history in About. So on the site
+    it is a file beside the program, named by its bytes like the program,
+    and the program holds that name in its place (renderVersionInfo,
+    20-about.js). The file is the literal exactly as the source writes it;
+    an export puts it back where the name stands (inlineSiteFiles).
+    """
+    start = app_js.find(VERSION_LOG_OPEN)
+    end = app_js.find(VERSION_LOG_CLOSE, start)
+    if start < 0 or end < 0 or app_js.find(VERSION_LOG_OPEN, start + 1) >= 0:
+        sys.exit('build: 20-about.js has no single `const VERSION_LOG = [` closed by a line '
+                 'of its own, so the site cannot carry the log beside the program')
+    end += 2
+    literal = app_js[start + len(VERSION_LOG_OPEN) - 1:end]
+    name = f'versions.{hashlib.sha256(literal.encode("utf-8")).hexdigest()[:16]}.js'
+    return (app_js[:start] + f'const VERSION_LOG = "{name}"' + app_js[end:], name, literal)
+
+
 def build_site(head_rest, css, body, data_js, app_js, data_sha):
     """dist/site/: the published site, as CI puts it on Pages.
 
@@ -471,6 +497,8 @@ def build_site(head_rest, css, body, data_js, app_js, data_sha):
     out.mkdir(parents=True)
     sizes = {}
     names = {}
+    app_js, log_name, log_text = lift_version_log(app_js)
+    (out / log_name).write_text(log_text, encoding='utf-8')
     for kind, text in (('app', app_js), ('style', css)):
         ext = 'js' if kind == 'app' else 'css'
         text, smap = minify_for_site(text, ext)
