@@ -89,8 +89,19 @@ function connectNodes(sourceId, targetId, geom){
    * is where the entry is meant to stand — see bringAmalgamToItsLineages. */
   /* A merge of all its lineages takes a new one in as it arrives, as an
      amalgam always did; a merge that names its lineages does not. */
-  const willMerge = entryOpts(found.entry).merge === true && mergeShapeOk(found.entry[5]) && parents.length >= 1;
+  /* …but only a merge that stands. One left `true` on an entry with fewer
+     than two lineages is what deleting them used to leave behind (see
+     recentreAfterLoss), and it merged the next connectors drawn in at
+     once; it is forgotten here instead, so a chart saved like that comes
+     right too. */
+  const stale = entryOpts(found.entry).merge === true && parents.length < 2;
+  const willMerge = !stale && entryOpts(found.entry).merge === true && mergeShapeOk(found.entry[5]);
   applyEdit(()=>{
+    if(stale){
+      const o = entryOpts(found.entry);
+      delete o.merge; delete o.bar;
+      putEntry(found.index, found.entry, o);
+    }
     parents.push(sourceId);
     if(willMerge) bringAmalgamToItsLineages(found, parents);
     found.entry[2] = parents.length===1 ? parents[0] : parents;
@@ -268,6 +279,7 @@ function dropEdgesOnMissingRings(nodeId, rings){
     const found = workingEntry(e.to);
     if(found){
       const parents = resolveExplicitParents(found.entry).filter(p=> p !== e.from);
+      recentreAfterLoss(found, parents);
       found.entry[2] = parents.length === 0 ? undefined
                      : (parents.length === 1 ? parents[0] : parents);
       putEntry(found.index, found.entry, entryOpts(found.entry));
@@ -289,7 +301,15 @@ function recentreAfterLoss(found, remaining){
      merge any more. */
   if(Array.isArray(opts.merge)){
     const kept = opts.merge.filter(id=> remaining.includes(id));
-    if(kept.length >= 2) opts.merge = kept; else delete opts.merge;
+    if(kept.length >= 2) opts.merge = kept; else { delete opts.merge; delete opts.bar; }
+    putEntry(found.index, found.entry, opts);
+  } else if(opts.merge === true && remaining.length < 2){
+    /* …and so is a merge of every lineage left with fewer than two. It
+       used to stay `true` on an entry with one parent or none, drawing
+       nothing — until connectors were drawn into it again, when they
+       merged at once, as if the merge deleted along with its lines had
+       been waiting for them (the owner's list of 24.10, evening). */
+    delete opts.merge; delete opts.bar;
     putEntry(found.index, found.entry, opts);
   }
   const members = opts.merge === true ? remaining : (opts.merge || []);

@@ -453,10 +453,25 @@ function amalgamStem(geo, from, pnodes){
     return portOnSide(b, s, 2*t - 1, 1, ring);
   };
   const toward = (dir)=> ux ? (dir > 0 ? 'left' : 'right') : (dir > 0 ? 'top' : 'bottom');
-  // In front of the junction: one straight run.
-  if(jA >= aLo + mA && jA <= aHi - mA && jP > pHi){
-    const port = portAt(side, ux ? from.x : from.y);
-    return {pts: [from, {x: port.x, y: port.y}], port};
+  /* The entry wholly on one side of the bar: in by the side facing it, at
+     its MIDDLE, wherever the foot is (the owner's list of 24.10, evening).
+   *
+     It used to come in straight at the foot's own place along that side,
+     anywhere in the side's middle half — which is right while the foot
+     stands in front of the entry's middle, as it does until the entry is
+     carried past the end of the bar. Then the foot stays at the end, and
+     the arrow slid along the side under it until a quarter in from the
+     corner, where a knee appeared at last; carried further, it gave the
+     side up for the end face. A step off the middle is a knee at once,
+     and the face is the one towards the bar however far along the entry
+     goes. Carried across the bar, `side` is the face on the other side,
+     so it is that one. */
+  const facing = portOnSide(b, side, 0, 1, ring);
+  if(jP > pHi + 0.5){
+    const fA = along(facing), fP = perp(facing);
+    if(Math.abs(jA - fA) < 0.5) return {pts: [from, {x: facing.x, y: facing.y}], port: facing};
+    const mid = (jP + fP) / 2;
+    return {pts: [from, pt(jA, mid), pt(fA, mid), {x: facing.x, y: facing.y}], port: facing};
   }
   const dir = cA >= jA ? 1 : -1;
   const lineagesBeyond = pnodes.length &&
@@ -731,7 +746,14 @@ function drawAmalgam(list, ports){
      steps along the bar to just past the entry's end, and the arrow comes
      in by its side (see amalgamStem). Only where the bar reaches that far;
      otherwise it stays in front, as it always did. */
-  if(!footBend && geo.barDist < AMALGAM_CROWDED){
+  /* …and only while the bar runs THROUGH the entry. An entry wholly on
+     one side of it, however close, is fed by the face towards the bar
+     (the owner's list of 24.10, evening: the face it had, or the one
+     opposite once it is carried across), with as much arrow as there is
+     room for; the side was the wrong port for it. */
+  const across = [[b.x, b.y], [b.x + b.w, b.y + b.h]].map(([x, y])=> (x - cx) * nrm.x + (y - cy) * nrm.y);
+  const straddles = Math.min(...across) < 0.5 && Math.max(...across) > -0.5;
+  if(!footBend && straddles){
     const lo = ux ? b.x - cx : b.y - cy, hi = lo + (ux ? b.w : b.h);
     const clear = 2 * EDGE_CORNER_R + AMALGAM_JOINT_R + 2;
     const room = [lo - clear, hi + clear].filter(v=> v >= landings[0] && v <= landings[n-1]);
@@ -1277,6 +1299,7 @@ function drawAmalgam(list, ports){
                   r, fill:paint, 'data-from':'', 'data-to':b.id, 'data-pair': from + '\u0000' + to}, edgeLayer);
   });
 
+  drawJunctionGrip(b.id, dimple, ux);
   /* The merged arrow given an end of its own at the bar marks the joint
      itself, and a bead laid over it would hide it. */
   if(edgeStyleFor('', b.id).arrowIn) return;
@@ -1662,6 +1685,32 @@ function drawBarGrip(id, a, z, ux){
     }
     openBarStretch(id, ev);
   });
+}
+/* The junction is taken hold of like a callout's point (the owner's list
+   of 24.10, evening): carried along the bar, and the entry and its arrow
+   go with it. It is the entry that moves — the junction stands in front
+   of it by construction — so this is a carry of the entry held to the
+   bar's own axis (see `alongBar` in beginNodeDrag's mousemove), and an
+   arrow bent by hand has its corners carried the same way, since its
+   first corner is what the foot stands under. The beads take no pointer,
+   so this lies over them; without it a press there took the bar. */
+function drawJunctionGrip(id, at, ux){
+  if(readOnlyView) return;
+  const hit = el('circle', {class:'amalgam-junction-hit ' + (ux ? 'along-x' : 'along-y'),
+                            cx: at.x.toFixed(2), cy: at.y.toFixed(2), r: 7, 'data-amalgam': id}, edgeLayer);
+  hit.addEventListener('mousedown', ev=>{
+    const n = nodes.get(id), g = qNode(`.node[data-id="${CSS.escape(id)}"]`);
+    if(!n || !g) return;
+    beginNodeDrag(ev, n, g);
+    const st = nodeDragState;
+    if(!st || st.node !== n) return;
+    ev.stopPropagation();
+    st.alongBar = ux ? 'x' : 'y';
+    const out = EDGE_STYLES.find(o=> o.from === '' && o.to === id);
+    if(out && Array.isArray(out.bends) && out.bends.length && !st.bendCarry.some(c=> c.style === out))
+      st.bendCarry.push({style: out, bends: out.bends.map(q=> [q[0], q[1]])});
+  });
+  hit.addEventListener('click', ev=>{ ev.stopPropagation(); setBarFocus(id); });
 }
 var barPressedPicked = null;
 // Which lineage's stretch of the bar a point on the screen is on.
