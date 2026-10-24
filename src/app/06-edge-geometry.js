@@ -462,7 +462,7 @@ const CURVE_STEP = 2;
 /* `ends` says which ends carry a head ({start, end}): only those are laid
    straight (see straightenTail). */
 function curveThrough(raw, step, ends){
-  const P = mergeCollinear(raw);
+  const P = reachOut(mergeCollinear(raw));
   if(P.length < 3) return P.map(q=> ({x:q.x, y:q.y}));
   let c = bsplineOver(P, step);
   if(ends && ends.end) c = straightenTail(c);
@@ -529,6 +529,43 @@ function straightenTail(c){
     const t = i / runs;
     out.push({x: base.x + (tip.x - base.x) * t, y: base.y + (tip.y - base.y) * t});
   }
+  return out;
+}
+/* A port's run-out, lengthened as a control point to match the leg
+   across from it.
+ *
+   The route's first and last legs are the router's run-out, a stub of a
+   few units, and the legs beyond are whatever the chart made them. A
+   spline is pulled towards its control points by how far apart they are,
+   so where the run-out is short and the leg it turns off is long, it rode
+   that leg nearly to the end and turned into the port in the stub's few
+   units: a hook, and the head set on the chord of that hook stood askew
+   (the owner's list of 24.10, evening: a line out of a split, round under
+   an entry and up into it). So the run-out is pushed out along its own
+   direction to as long as the other arm of the U it ends, and no
+   further than half the leg between them, so
+   the curve has room to come round. Every point stays inside the box the
+   route already spans, and a spline keeps inside its points, so the bow
+   still lies within the bracket the elbowed route would draw. The end and
+   the way it leaves are the same, and the route this is drawn from is
+   not touched. */
+function reachOut(P){
+  if(P.length < 4) return P;
+  const out = P.map(q=> ({x: q.x, y: q.y}));
+  const len = (a, b)=> Math.hypot(out[b].x - out[a].x, out[b].y - out[a].y);
+  const push = (end, near, far, farther)=>{
+    // Only the arm of a U: in a Z the curve already has its room.
+    const ux = out[end].x - out[near].x, uy = out[end].y - out[near].y;
+    if(ux * (out[far].x - out[farther].x) + uy * (out[far].y - out[farther].y) >= 0) return;
+    const s = len(end, near);
+    const want = Math.min(len(far, farther), len(near, far) / 2);
+    if(!(s > 0.01) || want <= s) return;
+    const k = want / s;
+    out[near] = {x: out[end].x + (out[near].x - out[end].x) * k, y: out[end].y + (out[near].y - out[end].y) * k};
+  };
+  const n = out.length - 1;
+  push(n, n - 1, n - 2, n - 3);
+  push(0, 1, 2, 3);
   return out;
 }
 function bsplineOver(P, step){

@@ -3388,11 +3388,12 @@ async function main(){
       workingNodes.length = 0;
       workingNodes.push(['bp','Q0',null,null,null,null,{pos:[0,0]}]);
       workingNodes.push(['bq','Q1',null,null,null,null,{pos:[200,0]}]);
-      workingNodes.push(['bx','FAR',null,null,null,null,{merge:true, pos:[3000,2400]}]);
+      workingNodes.push(['bx','FAR',null,null,null,null,{pos:[3000,2400]}]);
     });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
     connectNodes('bp','bx'); await new Promise(r=> setTimeout(r, 260));
-    connectNodes('bq','bx'); await new Promise(r=> setTimeout(r, 460));
+    connectNodes('bq','bx'); await new Promise(r=> setTimeout(r, 260));
+    mergeEdge('bp','bx'); await new Promise(r=> setTimeout(r, 460));
     const kid = nodes.get('bx');
     const mid = (nodes.get('bp').x + nodes.get('bp').w/2 + nodes.get('bq').x + nodes.get('bq').w/2)/2;
     out.broughtHome = Math.abs((kid.x + kid.w/2) - mid) < 30 &&
@@ -10627,8 +10628,8 @@ async function main(){
       : 'media/' + sha256(Buffer.from(b64, 'base64')) + '.' + EXT[mime.toLowerCase()]);
   /* …and for the settings of a chart written before entries were records,
      which gain the number of the form they are now written in. */
-  const formed = (n, t) => n !== 'SETTINGS' ? t : /\bformat:/.test(t) ? t.replace(/\bformat: \d+/, 'format: 3')
-                                                 : t.replace('const SETTINGS = {', 'const SETTINGS = {format: 3, ');
+  const formed = (n, t) => n !== 'SETTINGS' ? t : /\bformat:/.test(t) ? t.replace(/\bformat: \d+/, 'format: 4')
+                                                 : t.replace('const SETTINGS = {', 'const SETTINGS = {format: 4, ');
   const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
     .filter(n => first.parts[n] !== formed(n, lifted(regionOf(html, n)))) : ['everything'];
   check('what it sends for an untouched region is that region, byte for byte, but for its pictures', same.length === 0, same.join(', '));
@@ -17268,12 +17269,12 @@ async function main(){
       out.trips = workingNodes.filter(it=> norm(entryOfRecord(recordOfEntry(it))) !== norm(it)).map(it=> [norm(it), norm(entryOfRecord(recordOfEntry(it)))]);
       out.named = out.lines[1] === "  {id:'fb', label:'Second', parent:'fa', edgeLabel:'via', shape:'callout', pos:[200, 0], leader:{from:'fa', to:'fc', at:0.5}},";
       const file = chartDataOnly();
-      out.settingsSay = /const SETTINGS = \{format: 3,/.test(file);
+      out.settingsSay = /const SETTINGS = \{format: 4,/.test(file);
       // Read back as this file, as the list form older pages wrote, and from a newer page.
       const listForm = file.replace(/(@@EDIT:NODES:START@@ \*\/\n)[\s\S]*?(\n\/\* @@EDIT:NODES:END)/,
         (m0, a, b)=> a + 'const NODES = [\n' + workingNodes.map(it=> '  ' + JSON.stringify(it.slice(0, 7)) + ',').join('\n') + '\n];' + b)
-        .replace('{format: 3, ', '{');
-      const newer = file.replace('{format: 3,', '{format: 4,');
+        .replace('{format: 4, ', '{');
+      const newer = file.replace('{format: 4,', '{format: 5,');
       const wanted = JSON.stringify(workingNodes.map(norm));
       applyEdit(()=>{ workingNodes.length = 0; workingNodes.push(['zz', 'Empty']); });
       importChartFromText(file);
@@ -18213,7 +18214,7 @@ async function main(){
     const route = drawnRoutes.get(calloutEdgeKey('ck_a', 'ck_b'));
     const line = document.querySelector('.edge[data-from="ck_a"][data-to="ck_b"]');
     const pts = (line.getAttribute('d').match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
-    const plain = bsplineOver(mergeCollinear(route.pts), CURVE_STEP);
+    const plain = bsplineOver(reachOut(mergeCollinear(route.pts)), CURVE_STEP);
     // The first dozen units, point for point.
     let gap = 0;
     for(let i = 0; i < 8 && i < pts.length; i++) gap = Math.max(gap, Math.hypot(pts[i].x - plain[i].x, pts[i].y - plain[i].y));
@@ -18990,7 +18991,7 @@ async function main(){
       out.opened = box.classList.contains('open') && document.getElementById('textViewToggle').getAttribute('aria-expanded') === 'true';
       out.focusInside = box.contains(document.activeElement);
       const heads = Array.from(box.querySelectorAll('.tv-head .tv-name')).map(a=> a.dataset.id);
-      const listed = Array.from(nodes.values()).filter(n=> !isArrayNode(n) && !isFreeShape(n.shape) && n.shape !== 'callout').map(n=> n.id);
+      const listed = Array.from(nodes.values()).filter(n=> !isArrayNode(n) && !isFreeShape(n.shape) && n.shape !== 'callout' && !isSplitNode(n)).map(n=> n.id);
       out.eachOnce = heads.length === listed.length && new Set(heads).size === heads.length && listed.every(id=> heads.includes(id));
       out.leftOut = ['tv_d', 'tv_e', 'tv_f'].filter(id=> heads.includes(id));
       const item = id=> box.querySelector(`.tv-head .tv-name[data-id="${id}"]`).closest('.tv-entry');
@@ -19122,7 +19123,7 @@ async function main(){
         JSON.stringify(errsOwners && errsOwners.slice(0, 3).map(e => [e.dataPath, e.message, JSON.stringify(e.dataPath.split(/[.[\]]+/).filter(Boolean).reduce((o, k) => o && o[k], owners))])));
   check('and so is one with every kind of thing a chart holds', okFull, JSON.stringify(errsFull && errsFull.slice(0, 3)));
   check('it names its schema and its form, at the top', full.$schema === 'https://cccarrrottt.github.io/chart.schema.json' &&
-        full.format === 3 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
+        full.format === 4 && !('format' in full.settings), JSON.stringify({s: full.$schema, f: full.format}));
   check('one entry to a line, so two exports compare line by line', r.oneToALine);
   check('Import reads it back to the same chart', r.back, JSON.stringify(r.diff));
   check('a JSON chart from a newer page is refused', /newer version/.test(r.newer), r.newer);
@@ -20182,13 +20183,18 @@ async function main(){
       await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
       await wait(250);
       const bar = await pp.evaluate(()=>{ const b = document.querySelector('.topbar');
-        return {gone: b.classList.contains('gone'), top: Math.round(svg.getBoundingClientRect().top)}; });
+        const shown = (sel)=>{ const e = b.querySelector(sel), r = e && e.getBoundingClientRect();
+                               return !!r && r.height > 0 && getComputedStyle(e).opacity === '1'; };
+        return {gone: b.classList.contains('gone'), top: Math.round(svg.getBoundingClientRect().top),
+                kept: shown('.brand') && shown('.search-wrap'), buttons: shown('#aboutToggle')}; });
       return {kept: Math.abs(was[0] - now[0]) < 0.6 && Math.abs(was[1] - now[1]) < 0.6, bar, was, now};
     };
     const up = await carry(-150);
     const down = await carry(150);
-    check('on a phone the top bar slides away as the chart is carried up, and back as it is carried down',
-          up.bar.gone && up.bar.top < 5 && !down.bar.gone && down.bar.top > 40, JSON.stringify({up:up.bar, down:down.bar}));
+    check('on a phone the top bar\'s buttons go as the chart is carried up, and come back as it is carried down',
+          up.bar.gone && !up.bar.buttons && !down.bar.gone && down.bar.buttons && down.bar.top - up.bar.top > 25,
+          JSON.stringify({up:up.bar, down:down.bar}));
+    check('…and the wordmark and the search stay', up.bar.kept && down.bar.kept, JSON.stringify({up:up.bar, down:down.bar}));
     check('…and what is under the finger stays under it', up.kept && down.kept, JSON.stringify({up, down}));
   } finally {
     await phone.close();
@@ -20243,15 +20249,27 @@ async function main(){
       });
       rebuildChart(); fixAmalgamBars(['sl_m']); rebuildChart();
       const bar = amalgamBars.get('sl_m');
-      /* Carried onto its bar, the entry is still reached by a whole arrow,
-         from the side of the bar it is on — never one shorter than its
-         head, nor one running through the box. */
-      out.crowded = [Y + 62, Y + 56, Y + 50, Y + 46, Y + 40, Y + 34, Y + 30, Y + 26, Y + 20].map(y=>{
+      /* Carried towards its bar and across it, the entry is fed by the
+         face towards the bar, at its middle — the top below the bar, the
+         bottom above it — and by a side only while the bar runs through
+         it; never through the box (the owner's list of 24.10, evening). */
+      out.crowded = [Y + 62, Y + 56, Y + 50, Y + 46, Y + 40, Y + 34, Y + 30, Y + 26, Y + 20, Y - 40].map(y=>{
         move('sl_m', X + 120, y);
         const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
-        const last = Math.hypot(P[m].x - P[m-1].x, P[m].y - P[m-1].y);
         const inside = P.slice(0, -1).some(p=> p.x > n.x + 0.5 && p.x < n.x + n.w - 0.5 && p.y > n.y + 0.5 && p.y < n.y + n.h - 0.5);
-        return last >= ARROW_LEN && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
+        const at = bar.cross, mid = n.x + n.w / 2;
+        const face = n.y > at + 0.5 ? Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - mid) < 0.01
+                   : n.y + n.h < at - 0.5 ? Math.abs(P[m].y - (n.y + n.h)) < 0.01 && Math.abs(P[m].x - mid) < 0.01
+                   : Math.abs(P[m].x - n.x) < 0.01 || Math.abs(P[m].x - (n.x + n.w)) < 0.01;
+        return face && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
+      });
+      /* …and carried along past the end of its bar, it keeps the face it
+         had, at its middle, with a knee from the first step off it. */
+      out.pastEnd = [140, 150, 160, 170, 200, 260].map(dx=>{
+        move('sl_m', X + 120 + dx, Y + 160);
+        const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
+        return Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - (n.x + n.w / 2)) < 0.01 &&
+               P.slice(1).every((p, i)=> Math.abs(p.x - P[i].x) < 0.01 || Math.abs(p.y - P[i].y) < 0.01);
       });
       move('sl_m', X + 120, Y + 160);
       out.barBack = Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
@@ -20323,8 +20341,9 @@ async function main(){
     return out;
   });
   check('an end in a see-through colour is painted solid, in the shade its line has on the paper', r.solid);
-  check('an entry carried onto its merge\'s bar, which stays put, is still fed by a whole arrow, never through the box', r.crowded.every(Boolean) && r.barBack,
+  check('an entry carried towards its merge\'s bar and across it, which stays put, is fed by the face towards the bar, never through the box', r.crowded.every(Boolean) && r.barBack,
         JSON.stringify([r.crowded, r.barBack]));
+  check('…and carried past the bar\'s end, by the face it had, at its middle', r.pastEnd.every(Boolean), JSON.stringify(r.pastEnd));
   check('the merged arrow\'s stretch out of the bar, dragged, takes its foot along the bar', r.bent && r.footMoved && r.footSquare,
         JSON.stringify([r.bent, r.footMoved, r.footSquare]));
   check('…and bent, its foot stays where it was when the entry is carried', r.footKept && r.reachesEntry, JSON.stringify([r.footKept, r.reachesEntry]));
@@ -20333,6 +20352,96 @@ async function main(){
   check('a corner let go a hair off the run-out leaves no nick', r.noNick >= 3, String(r.noNick));
   check('a corner levelled with its port takes the nick before it away', r.levelled === JSON.stringify([{x:100, y:200}, {x:100, y:72}, {x:20, y:72}]),
         r.levelled);
+  });
+  await scenario("the owner's list of 24.10, late: a junction carried, the face towards the bar, a curve into its port, a lighter split", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 95000, Y = 95000;
+    try{
+      vs = 1; vx = -X + 400; vy = -Y + 300; applyTransform();
+      /* 1. The junction is taken hold of and carried: the entry and its
+            arrow go along the bar, and nowhere else. */
+      applyEdit(()=>{
+        workingNodes.push(['lt_a','Amalgam 1',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['lt_b','Amalgam 2',null,null,null,null,{pos:[X + 250, Y]}]);
+        workingNodes.push(['lt_m','Amalgam 3',['lt_a','lt_b'],null,null,null,{merge:true, pos:[X + 120, Y + 160]}]);
+      });
+      rebuildChart();
+      const n0 = Object.assign({}, nodes.get('lt_m'));
+      const grip = document.querySelector('.amalgam-junction-hit[data-amalgam="lt_m"]');
+      const gr = grip.getBoundingClientRect(), gx = gr.x + gr.width / 2, gy = gr.y + gr.height / 2;
+      grip.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:gx, clientY:gy}));
+      for(let s = 1; s <= 6; s++)
+        window.dispatchEvent(new MouseEvent('mousemove', {clientX: gx + 60 * s / 6, clientY: gy + 40 * s / 6}));
+      window.dispatchEvent(new MouseEvent('mouseup', {clientX: gx + 60, clientY: gy + 40}));
+      await wait(50);
+      const n1 = nodes.get('lt_m');
+      const bead = document.querySelector('.amalgam-junction[data-to="lt_m"]');
+      out.carried = Math.abs(n1.x - n0.x - 60) < GRID && Math.abs(n1.y - n0.y) < 0.01 &&
+                    Math.abs(+bead.getAttribute('cx') - (n1.x + n1.w / 2)) < 0.01;
+      // …and no further than the bar reaches.
+      const g2 = document.querySelector('.amalgam-junction-hit[data-amalgam="lt_m"]').getBoundingClientRect();
+      const hx = g2.x + g2.width / 2, hy = g2.y + g2.height / 2;
+      document.querySelector('.amalgam-junction-hit[data-amalgam="lt_m"]')
+        .dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:hx, clientY:hy}));
+      for(let s = 1; s <= 6; s++) window.dispatchEvent(new MouseEvent('mousemove', {clientX: hx + 600 * s / 6, clientY: hy}));
+      window.dispatchEvent(new MouseEvent('mouseup', {clientX: hx + 600, clientY: hy}));
+      await wait(50);
+      const n2 = nodes.get('lt_m'), bar = amalgamBars.get('lt_m');
+      out.heldToBar = n2.x + n2.w / 2 <= bar.hi + 0.01 && n2.x + n2.w / 2 > bar.hi - GRID;
+
+      /* 2. A merge whose lineages are all deleted is no merge: connectors
+            drawn into the entry afterwards are connectors. */
+      deleteEdges([{from:'lt_a', to:'lt_m'}, {from:'lt_b', to:'lt_m'}]);
+      connectNodes('lt_a', 'lt_m'); connectNodes('lt_b', 'lt_m');
+      rebuildChart();
+      out.forgotten = !entryOpts(workingEntry('lt_m').entry).merge && !isMergeNode(nodes.get('lt_m'));
+      // …and so is one a chart was saved with, left on an entry with one lineage.
+      applyEdit(()=>{ workingNodes.push(['lt_s','Stale','lt_a',null,null,null,{merge:true, pos:[X, Y + 400]}]); });
+      connectNodes('lt_b', 'lt_s');
+      rebuildChart();
+      out.staleForgotten = !isMergeNode(nodes.get('lt_s'));
+
+      /* 3. A curve round under an entry and up into it comes in along the
+            port's own direction, not off a hook at the last few units. */
+      applyEdit(()=>{
+        workingNodes.push(['lt_p','Reading something',null,null,null,null,{pos:[X + 2000, Y]}]);
+        workingNodes.push(['lt_q','ghdlix','lt_p',null,null,null,{pos:[X + 1700, Y + 150]}]);
+        EDGE_STYLES.push({from:'lt_p', to:'lt_q', routing:'curve', fromSide:'bottom', toSide:'bottom'});
+      });
+      rebuildChart();
+      const route = drawnRoutes.get(calloutEdgeKey('lt_p', 'lt_q')).pts;
+      const c = curveThrough(route, CURVE_STEP, {end: true});
+      const tip = c[c.length - 1];
+      const back = cutAlong(c, 0, ARROW_LEN * 1.5);
+      const q = back[back.length - 1];
+      out.curveIn = q.y - tip.y > 3 * Math.abs(q.x - tip.x);
+      out.curveAt = [+(q.x - tip.x).toFixed(1), +(q.y - tip.y).toFixed(1)];
+
+      /* 4. A split is as big as a callout's point, and one drawn at the
+            old size keeps its middle where it was. */
+      const old = [['lt_d', '', null, null, null, 'split', {pos:[100, 200]}]];
+      migrateSplitDots(old);
+      out.splitSize = SPLIT_SIZE === 2 * LEADER_DOT_R &&
+                      Math.abs(old[0][6].pos[0] + SPLIT_SIZE / 2 - (100 + SPLIT_SIZE_WAS / 2)) < 0.01 &&
+                      Math.abs(old[0][6].pos[1] + SPLIT_SIZE / 2 - (200 + SPLIT_SIZE_WAS / 2)) < 0.01;
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+      await wait(100);
+    }
+    return out;
+  });
+  check('a merge\'s junction, carried, takes the entry and its arrow along the bar and nowhere else', r.carried);
+  check('…and no further than the bar reaches', r.heldToBar);
+  check('a merge whose lineages are all deleted merges nothing drawn in afterwards', r.forgotten && r.staleForgotten,
+        JSON.stringify([r.forgotten, r.staleForgotten]));
+  check('a curve round under an entry comes up into its port along the port, not off a hook', r.curveIn, JSON.stringify(r.curveAt));
+  check('a split is as big as a callout\'s point, and one drawn before keeps its middle', r.splitSize);
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

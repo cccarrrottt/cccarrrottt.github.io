@@ -324,13 +324,15 @@ function markViewMoving(){
   clearTimeout(markViewMoving.timer);
   markViewMoving.timer = setTimeout(()=> b.classList.remove('view-moving'), 160);
 }
-/* On a phone the top bar gives the chart its rows back while the chart is
+/* On a phone the top bar gives the chart a row back while the chart is
  * being read, the way the sheet tabs of a spreadsheet app on a phone do:
- * a finger carrying the chart up, to see what is below, slides the bar
- * away, and carrying it down again brings it back (the owner's ask,
- * 24.10). Only a pan does it — a pinch is looking closer, not onward.
+ * a finger carrying the chart up, to see what is below, puts the row of
+ * buttons away, and carrying it down again brings it back (the owner's
+ * ask, 24.10; the wordmark and the search stay, the owner's list of the
+ * same evening). Only a pan does it — a pinch is looking closer, not
+ * onward.
  *
- * The bar slides out first and only then gives up its place, and the
+ * The row fades first and only then gives up its place, and the
  * chart is moved down by exactly what that gave in the same frame, so what
  * is under the finger stays under it: the drawing's origin is the top of
  * the canvas, and the canvas has just grown upward. The state lives on
@@ -368,7 +370,7 @@ function setPhoneBarHidden(hide){
   };
   if(hide){
     bar.classList.add('slid');
-    f.timer = setTimeout(()=> settle(()=> bar.classList.add('gone')), 200);
+    f.timer = setTimeout(()=> settle(()=> bar.classList.add('gone')), 150);
   } else {
     if(bar.classList.contains('gone')) settle(()=> bar.classList.remove('gone'));
     // Back in the layout first, then slid in, the next frame.
@@ -988,6 +990,21 @@ window.addEventListener('mousemove', e=>{
   if(barHeld){ offX = barHeld.x; offY = barHeld.y; clearGuides(); }
   const leashed = applyBarLeash(st, offX, offY);
   if(leashed){ offX = leashed.x; offY = leashed.y; }
+  /* Carried by its junction, an entry goes along its bar and only along
+     it, and no further than the bar reaches: past its end the junction
+     would stay behind at the end while the entry went on. */
+  if(st.alongBar){
+    const bar = amalgamBars.get(st.node.id);
+    const k = st.alongBar, len = k === 'x' ? st.node.w : st.node.h;
+    if(k === 'x') offY = 0; else offX = 0;
+    if(bar){
+      const origin = k === 'x' ? st.originX : st.originY;
+      const centre = origin + (k === 'x' ? offX : offY) + len/2;
+      const kept = Math.max(bar.lo, Math.min(bar.hi, centre));
+      if(k === 'x') offX += kept - centre; else offY += kept - centre;
+    }
+    clearGuides();
+  }
   carryBends(st, offX, offY);
   st.members.forEach(m=>{
     m.node.x = m.originX + offX;

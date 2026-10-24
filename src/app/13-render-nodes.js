@@ -1379,6 +1379,9 @@ const drawOne = (n)=>{
         : 'Goes nowhere yet — double-click to say where';
     } else if(isSplit){
       el('title', {}, g).textContent = 'A split: connectors go on from here';
+      /* The dot is the size of a callout's point, too small to take hold
+         of by itself; the hand gets the same pad the point has. */
+      el('circle', {cx, cy, r: 8, class:'split-hit'}, g);
     } else if(!n.image){
       /* A neutral silhouette so an empty portrait still reads as one — and
          drawn TO the circle rather than at a fixed size, so it stays
