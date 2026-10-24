@@ -49,7 +49,7 @@ const NODES = [
   {id:'beast-wars-uprising-copy-6', label:'Beast Wars: Uprising', pos:[305.98, 297.28], colors:['#cccc'], square:true},
   {id:'beast-wars-uprising-copy-7', label:'Beast Wars: Uprising', parent:['beast-wars-uprising-copy', 'array'], pos:[-424.54, 297.21], colors:['#20242b'], square:true},
   {id:'callout-2', label:'sdafsdf', shape:'callout', pos:[-157.7, 378.84], leader:{from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', at:0.5397, line:'dashed', shelf:true}},
-  {id:'asdasd-1-copy', label:'Dghdhx', colors:['#20242b'], pos:[-16.16, 53.37], border:'double'},
+  {id:'asdasd-1-copy', label:'Dghdhx{{s:1000012050}}{{s:images}}', colors:['#20242b'], pos:[-16.16, 53.37], border:'double'},
   {id:'asdasd-1-copy-2', label:'a', colors:['#20242b'], pos:[-17.09, 187], tags:['local multiverse'], square:true},
   {id:'node', label:'asdsa', shape:'ellipse', pos:[-211.02, -11.79], colors:['#20242b'], image:'media/bad8aa8b4beebd4fcc4f408a73a108030482920fd3ce9b6305f2b1fd66acdc61.png', tags:['unreleased']},
   {id:'node-2', label:'фыв', shape:'textbox', pos:[-26.11, 244.11], rot:340},
@@ -59,16 +59,15 @@ const NODES = [
   {id:'node-6', label:'Гаягкягкч', parent:'node-5', pos:[-220.09, 198.94], size:[54.13, 12.05]},
   {id:'node-9', label:'TNSDM', pos:[-317.06, 519.6]},
   {id:'node-10', label:'SDWaY!', pos:[-379.64, 519.6]},
-  {id:'node-11', label:'', shape:'image', pos:[-300, 12], size:[30.21, 30.21], image:'media/ae476582910cbf9599d2d882d6725d1cb7a4edf5228b942d91135062b4ef718a.gif'},
-  {id:'node-copy-8', label:'Човьлы', pos:[-569.89, -17.22], colors:['#20242b'], card:true},
+  {id:'node-11', label:'', shape:'image', pos:[-300, 12], size:[30.21, 30.21], image:'media/ae476582910cbf9599d2d882d6725d1cb7a4edf5228b942d91135062b4ef718a.gif', anim:'hover'},
   {id:'node-12', label:'SD', pos:[-336.69, 548.05]},
   {id:'array', label:'', shape:'array', members:['node-9', 'node-10', 'node-12'], bg:['#c2c'], hatch:'diag-r', border:'dotted'},
   {id:'callout-3', label:'', shape:'callout', pos:[-83.14, 47.47], leader:{from:'asdasd-copy', to:'beast-wars-uprising-copy-4', at:0.2523}},
-  {id:'adjust-animation-toggler-on-gif-s-copy', label:'**Add:** miscellaneous decorative node shapes', pos:[312.17, 241.68]},
+  {id:'adjust-animation-toggler-on-gif-s-copy', label:'**Add:** miscellaneous decorative node shapes', pos:[302.1, 171.19]},
   {id:'array-2', label:'', shape:'array', members:['beast-wars-uprising-copy-4', 'beast-wars-uprising-copy-3', 'beast-wars-uprising-copy-2'], hatch:'diag-r', border:'dotted'},
   {id:'node-7', label:'Amalgam 1', pos:[-654.55, 214.58]},
   {id:'node-8', label:'Amalgam 2', pos:[-569.89, 214.58]},
-  {id:'node-13', label:'Amalgam 3', parent:['node-7', 'node-8'], pos:[-612.53, 268.66], merge:true},
+  {id:'node-13', label:'Amalgam 3', parent:['node-7', 'node-8'], pos:[-612.53, 268.66]},
 ];
 /* @@EDIT:NODES:END@@ */
 
@@ -101,6 +100,7 @@ const COMMENTS = [
 /* @@EDIT:STICKERS:START@@ */
 const STICKERS = [
   {key:'images', name:'images', src:'media/88dca481176dfc036576689788c3f7d740b50a61cf9f0726bd72ab1a24690603.png'},
+  {key:'1000012050', name:'1000012050', src:'media/45be8b64d0aa9535656e04c8c882598eeaa6172f63761a5d63b75f88d0c2d788.gif'},
 ];
 /* @@EDIT:STICKERS:END@@ */
 
@@ -152,7 +152,7 @@ const EDGE_STYLES = [
   {from:'uprising', to:'uprising-copy', routing:'orthogonal', dash:'solid', arrow:true, note:'гнгн', fromSide:'top', toSide:'top', square:true, noteSquare:true},
   {from:'uprising-copy', to:'uprising', routing:'curve', dash:'solid', arrow:true, bends:[[251.21, -9.9]], fromSide:'left', toSide:'right'},
   {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, color:'#c2c', colorFixed:true, fromSide:'bottom', toSide:'top'},
-  {from:'beast-wars-uprising-copy-2', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, arrowIn:true, barEnd:'out', fromSide:'bottom', toSide:'top', square:true},
+  {from:'beast-wars-uprising-copy-2', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, arrowIn:true, teeIn:true, barEnd:'tout', fromSide:'bottom', toSide:'top', square:true},
   {from:'beast-wars-uprising-copy-3', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
   {from:'beast-wars-uprising-copy-4', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
   {from:'beast-wars-uprising-copy-6', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top', square:true},
