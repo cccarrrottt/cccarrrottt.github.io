@@ -33,6 +33,10 @@ const AMALGAM_SQUEEZE = EDGE_CORNER_R + 2;
 const AMALGAM_JOINT_R = 3.1;
 // Wide enough to cover where the members, the bar and the arrow meet.
 const AMALGAM_BEAD_R = 3.6;
+/* Closer than this, a bar held where it was put leaves no room in front of
+   the entry for the merged arrow: its head and the bead it leaves from,
+   and nothing between (see drawAmalgam, where the foot steps aside). */
+const AMALGAM_CROWDED = ARROW_LEN + AMALGAM_BEAD_R + 0.5;
 /* How close two beads may come before they stop reading as two marks.
    A little more than the pair's own widths: touching is one mark, and a
    sliver of bar between two dots reads as a mistake rather than as two
@@ -458,12 +462,17 @@ function amalgamStem(geo, from, pnodes){
   const lineagesBeyond = pnodes.length &&
     pnodes.reduce((t, p)=> t + perp({x: p.x + p.w/2, y: p.y + p.h/2}), 0) / pnodes.length > jP;
   // Level with the bar: straight along its line into the near side.
-  if(jP >= pLo + mP && jP <= pHi - mP && (dir > 0 ? jA < aLo : jA > aHi)){
+  /* …and so does a bar that runs through the entry nearer its edge than
+     that, which only a bar held where it was put, with the entry carried
+     onto it, can do: two turns there had no room at all. */
+  const level = jP >= pLo + mP && jP <= pHi - mP || (geo.barDist < AMALGAM_CROWDED && jP > pLo + 1 && jP < pHi - 1);
+  if(level && (dir > 0 ? jA < aLo : jA > aHi)){
     const port = portAt(toward(dir), ux ? from.y : from.x);
     return {pts: [from, {x: port.x, y: port.y}], port};
   }
   const clear = dir > 0 ? jA <= aLo - 2*R : jA >= aHi + 2*R;
-  if(lineagesBeyond && clear && Math.abs(jP - cP) >= 2*R){
+  const crowded = geo.barDist < AMALGAM_CROWDED;
+  if(clear && ((lineagesBeyond && Math.abs(jP - cP) >= 2*R) || (crowded && Math.abs(jP - cP) > 1))){
     // Straight on from the bar to the entry's level, then in by its side.
     const port = portOnSide(b, toward(dir), 0, 1, ring);
     return {pts: [from, pt(jA, perp(port)), {x: port.x, y: port.y}], port};
@@ -704,7 +713,31 @@ function drawAmalgam(list, ports){
      would share one bead — is reverted: it moved the foot of the merged
      arrow away from the entry it belongs to, which is a worse thing than
      the doubled mark it was chasing. */
-  const junction = Math.max(landings[0], Math.min(landings[n-1], 0));
+  /* …unless the merged arrow has been bent by hand. Then its route is the
+     corners somebody set, and the first of them stands straight out from
+     where it leaves the bar — so that is where it leaves, wherever the
+     entry is put. Travelling with the entry, the foot slid along the bar
+     under corners that stayed where they were, and the route between them
+     folded back on itself (the owner's list of 24.10). */
+  const outStyle = edgeStyleFor('', b.id);
+  const footBend = outStyle.routing !== 'straight' && outStyle.bends && outStyle.bends.length
+    ? outStyle.bends[0] : null;
+  let foot = footBend ? (ux ? footBend[0] - cx : footBend[1] - cy) : 0;
+  /* A bar that has been put somewhere stays put however close the entry
+     is carried to it, or onto it — but in front of an entry closer to it
+     than the arrow's own head there is no room to leave from, and the
+     arrow was drawn shorter than its head, pointing back at the bar, and
+     then from inside the box (the owner's video of 24.10). So the foot
+     steps along the bar to just past the entry's end, and the arrow comes
+     in by its side (see amalgamStem). Only where the bar reaches that far;
+     otherwise it stays in front, as it always did. */
+  if(!footBend && geo.barDist < AMALGAM_CROWDED){
+    const lo = ux ? b.x - cx : b.y - cy, hi = lo + (ux ? b.w : b.h);
+    const clear = 2 * EDGE_CORNER_R + AMALGAM_JOINT_R + 2;
+    const room = [lo - clear, hi + clear].filter(v=> v >= landings[0] && v <= landings[n-1]);
+    if(room.length) foot = room.sort((u, v)=> Math.abs(u) - Math.abs(v))[0];
+  }
+  const junction = Math.max(landings[0], Math.min(landings[n-1], foot));
   /* Where the bar is, kept for the drag that wants to centre the entry on
      it — see alignGuides. In chart coordinates, along the bar's own axis. */
   amalgamBars.set(b.id, {
@@ -1296,19 +1329,38 @@ function drawMergeMemberEnds(e, style, pts, port, paint, tail){
 const mergedArrowPorts = new Map();
 function drawMergedArrow(b, stem, colors, ring, side){
   const os = edgeStyleFor('', b.id);
-  const head = stem.port;
   /* It may be bent by hand like any connector (the owner's list of 24.10):
      its corners are the route, from the bar — leaving it away from the
      lineages, square, as the stem does — to the port the stem chose. A
-     route the corners cannot make is drawn without them, as anywhere. */
-  const start = {x: stem.pts[0].x, y: stem.pts[0].y, side: OPPOSITE_SIDE[side] || side, ring: 0,
-                 stub: AMALGAM_APPROACH};
-  mergedArrowPorts.set(b.id, {p1: start, p2: head});
+     route the corners cannot make is drawn without them, as anywhere.
+   *
+     …and, like any connector, a route pinned by hand is pinned at both
+     ends: it leaves the bar and arrives at the entry by the sides it had
+     when its corners were set (bendSides; see resolvePorts). Asked of the
+     stem instead, the sides turned over the moment the entry was carried
+     across the bar, the corners could no longer be reached from either
+     end, and the line fell back to the stem — its bends seemingly gone,
+     arriving at a face nobody had chosen. */
+  const pinned = os.routing !== 'straight' && os.bends && os.bends.length && os.bendSides ? os.bendSides : null;
+  /* Bent, it arrives at the middle of its side, as any connector does: the
+     stem's own port stands in front of the foot, and with the foot under
+     the first corner that put the head wherever the corner was — a stretch
+     dragged across the entry pulled the head along the border after it,
+     and the drag was refused as a shape it had not asked for. */
+  const hasBends = os.routing !== 'straight' && os.bends && os.bends.length;
+  let head = hasBends ? portOnSide(b, pinned ? pinned[1] : stem.port.side, 0, 1, ring) : stem.port;
+  /* `slides`: the one end of any connector that is not a fixed point. It
+     stands on the bar, and a bend drag that moves the stretch out of it
+     carries it along the bar instead of stepping off it (see shiftArm). */
+  const start = {x: stem.pts[0].x, y: stem.pts[0].y, side: pinned ? pinned[0] : (OPPOSITE_SIDE[side] || side), ring: 0,
+                 stub: AMALGAM_APPROACH, slides: true};
   let route = os.routing === 'straight' ? [stem.pts[0], stem.pts[stem.pts.length - 1]] : stem.pts;
-  if(os.routing !== 'straight' && os.bends && os.bends.length){
+  if(hasBends){
     const bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
     if(!bent.ignored && bent.pts.length >= 2) route = bent.pts;
+    else head = stem.port;
   }
+  mergedArrowPorts.set(b.id, {p1: start, p2: head});
   /* Every lineage's colour unless it has been given its own: a colour or a
      gradient set on it, as on any connector (the owner's ask, 23.10). */
   const paint = os.gradient ? makeEdgeGradient(os.gradient, route)

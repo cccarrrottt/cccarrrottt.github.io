@@ -288,9 +288,71 @@ function outsideClipId(nodeId, ring){
   outsideClips.set(key, id);
   return id;
 }
+/* An end is solid, whatever its line is (the owner's list of 24.10).
+ *
+ * A colour can carry its own see-through — '#22cc' is a blue at four
+ * fifths — and a line in it reads as a lighter blue, which is what was
+ * chosen. A head in the same paint is see-through too, and a head is
+ * where things meet: the line it caps, the bar a T stands across, the
+ * border of an array it points into. Each showed through as a darker
+ * patch, so the ends of a merge looked half there. A head is therefore
+ * painted in the colour its line LOOKS on the paper — the same shade,
+ * with nothing beneath it showing — and a gradient's stops the same way.
+ * The paper is the drawing's own, which on the dark ground is the shade
+ * the drawing is inverted from (see setTheme, which draws again). */
+var headPaper = null;
+const solidStops = new WeakMap();
+function solidInk(paint){
+  if(typeof paint !== 'string' || !paint) return paint;
+  const grad = /^url\(#([^)]+)\)$/.exec(paint);
+  if(grad){
+    const g = document.getElementById(grad[1]);
+    if(!g) return paint;
+    if(solidStops.has(g)) return solidStops.get(g);
+    const stops = [...g.querySelectorAll('stop')];
+    let out = paint;
+    if(stops.some(st=> rgbaOf(st.getAttribute('stop-color')).a < 1)){
+      const copy = g.cloneNode(true);
+      copy.id = g.id + '-solid';
+      copy.querySelectorAll('stop').forEach(st=> st.setAttribute('stop-color', solidInk(st.getAttribute('stop-color'))));
+      g.parentNode.appendChild(copy);
+      out = `url(#${copy.id})`;
+    }
+    solidStops.set(g, out);
+    return out;
+  }
+  const c = rgbaOf(paint);
+  if(c.a >= 1) return paint;
+  if(!headPaper){
+    const svg = document.getElementById('canvas');
+    headPaper = rgbaOf((svg && getComputedStyle(svg).getPropertyValue('--paper').trim()) || '#ffffff');
+  }
+  const mix = k=> Math.round(c[k] * c.a + headPaper[k] * (1 - c.a));
+  return `rgb(${mix('r')},${mix('g')},${mix('b')})`;
+}
+/* Any colour CSS takes, as numbers: the browser reads it, so a name, a
+   short hex with its see-through or an rgba() all come out the same. */
+const rgbaCache = new Map();
+function rgbaOf(color){
+  if(rgbaCache.has(color)) return rgbaCache.get(color);
+  if(!rgbaOf.ctx) rgbaOf.ctx = document.createElement('canvas').getContext('2d');
+  const ctx = rgbaOf.ctx;
+  ctx.fillStyle = '#000';
+  ctx.fillStyle = String(color || '#000');
+  const v = ctx.fillStyle;
+  let out;
+  if(v[0] === '#') out = {r: parseInt(v.slice(1, 3), 16), g: parseInt(v.slice(3, 5), 16), b: parseInt(v.slice(5, 7), 16), a: 1};
+  else {
+    const m = v.match(/[\d.]+/g) || [0, 0, 0, 1];
+    out = {r: +m[0], g: +m[1], b: +m[2], a: m.length > 3 ? +m[3] : 1};
+  }
+  rgbaCache.set(color, out);
+  return out;
+}
 /* `open` draws the same head as two strokes, a ">" with nothing between
    them — see OPEN_CUT. */
 function drawArrowHead(parent, x, y, angleDeg, fill, from, to, clipTo, clipRing, open){
+  fill = solidInk(fill);
   const a = angleDeg * Math.PI / 180;
   const cos = Math.cos(a), sin = Math.sin(a);
   const at = (lx, ly)=> `${(x + lx*cos - ly*sin).toFixed(2)},${(y + lx*sin + ly*cos).toFixed(2)}`;
@@ -347,6 +409,7 @@ function teeBack(port, id){
   return portClearance(port) + (n ? borderHalfOf(n) : NODE_BORDER_W / 2);
 }
 function drawTeeHead(parent, x, y, angleDeg, fill, from, to, back){
+  fill = solidInk(fill);
   const a = angleDeg * Math.PI / 180;
   const cos = Math.cos(a), sin = Math.sin(a);
   const at = (lx, ly)=> `${(x + lx*cos - ly*sin).toFixed(2)},${(y + lx*sin + ly*cos).toFixed(2)}`;

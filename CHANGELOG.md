@@ -8,6 +8,28 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A connector's ends are solid in a see-through colour: a head or a T is
+  painted in the shade its line has on the paper, so the line it caps, a
+  bar it stands across or a border it points into no longer shows through
+  it. A merge's ends were where it showed most.
+- The merged arrow, bent by hand, keeps the corners it was given: it
+  leaves the bar under its first corner wherever the entry is put, it
+  arrives by the faces it had when the corners were set, and carried
+  across the bar and back it finds them again. Its stretch out of the bar,
+  dragged sideways, takes its foot along the bar.
+- An entry carried right up to, or onto, a merge's bar that has been put
+  somewhere is fed by a whole arrow from the side: the bar stays where it
+  was put and the arrow's foot steps along it to just past the entry,
+  where it used to be drawn shorter than its head, pointing back at the
+  bar, or from inside the box.
+- Bends: a stretch or a corner let go within a step of the line next to
+  it, or of its port's level, is put on it, and a shape that would fold
+  back on itself is not taken — no more stairs a pixel or two high in
+  front of a head. A corner kept level with a carried entry's port takes
+  the nick before it away too.
+- A chart whose merged arrow had been given a look or a bend was refused
+  at Import, and by the page reading a merged save back.
+
 - A connector can be split: Split in its menu (a right click, or a held
   finger) sets a coloured dot on the line where it was pointed at — or at
   the place on offer nearby, the middle or a leg's middle — and the line

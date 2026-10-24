@@ -380,6 +380,13 @@ function shiftArm(P, k, v, p1, p2){
   const key = armIsVertical(P[k], P[k + 1]) ? 'x' : 'y';
   const Q = P.map(q=> Object.assign({}, q));
   const atStart = k === 0, atEnd = k + 1 === n - 1;
+  /* The merged arrow's start stands on its bar, and the bar is a line, not
+     a point: the stretch out of it moved sideways takes its foot along the
+     bar with it, as the stretch would be drawn (see drawAmalgam, which
+     stands the foot under the first corner). A step out of the foot would
+     be a shape the drawing never makes, and the move was refused. */
+  const slide = atStart && !!(p1 && p1.slides) && armIsVertical(P[0], P[1]) === sideIsVertical(p1.side);
+  if(slide) Q[0][key] = v;
   if(!atStart) Q[k][key] = v;
   if(!atEnd) Q[k + 1][key] = v;
   const jogAt = (port)=>{
@@ -402,7 +409,7 @@ function shiftArm(P, k, v, p1, p2){
      there is nothing to push. */
   const roomFor = (port, near, far)=>{
     const nrm = SIDE_NORMAL[port.side];
-    if(!nrm || far === 0 || far === Q.length - 1) return;
+    if(!nrm || far <= 0 || far >= Q.length - 1) return;
     const along = key === 'x' ? 'y' : 'x';
     const L = runOutFloor(port);
     const depth = (Q[near][along] - port[along]) * nrm[along];
@@ -412,11 +419,58 @@ function shiftArm(P, k, v, p1, p2){
     Q[near][along] = lvl;
     Q[far][along] = lvl;
   };
-  if(atStart && Math.abs(v - P[0][key]) > 0.5) roomFor(p1, 1, 2);
+  if(atStart && !slide && Math.abs(v - P[0][key]) > 0.5) roomFor(p1, 1, 2);
   if(atEnd && Math.abs(v - P[n - 1][key]) > 0.5) roomFor(p2, n - 2, n - 3);
   if(atEnd){ const [j, w] = jogAt(p2); Q.splice(n - 1, 0, w, j); }
-  if(atStart){ const [j, w] = jogAt(p1); Q.splice(1, 0, j, w); }
+  if(atStart && !slide){ const [j, w] = jogAt(p1); Q.splice(1, 0, j, w); }
   return Q;
+}
+/* A stair a pixel or two high, taken out of a set of arms.
+ *
+ * The step a stretch makes out of its port stands at the run-out (see
+ * shiftArm), and a corner dropped a hair to one side of that level left
+ * a stretch the width of the difference between the two: a nick, drawn
+ * and written down. Where two stretches running the same way are joined
+ * by one shorter than a grid step, the one that is free to move — neither
+ * end a port nor the start of a step out of one — is put on the other's
+ * line, and the nick is gone. A stretch that turns back (out and back
+ * again) is a shape, not a nick, and is left alone. */
+function squareNicks(Q){
+  let P = Q.map(q=> Object.assign({}, q));
+  const fixedPt = (i)=> i === 0 || i === P.length - 1 || !!P[i].jog;
+  for(let guard = 0; guard < 8; guard++){
+    let done = true;
+    for(let i = 1; i + 2 < P.length; i++){
+      const a = P[i], b = P[i + 1];
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      if(L < 0.01 || L > BEND_ABSORB) continue;
+      const before = P[i - 1], after = P[i + 2];
+      const vNick = armIsVertical(a, b);
+      if(armIsVertical(before, a) === vNick || armIsVertical(b, after) === vNick) continue;
+      const key = vNick ? 'x' : 'y';
+      if((a[key] - before[key]) * (after[key] - b[key]) <= 0) continue;
+      const across = vNick ? 'y' : 'x';
+      if(i - 1 >= 1 && !fixedPt(i - 1) && !fixedPt(i)){ P[i - 1][across] = b[across]; a[across] = b[across]; }
+      else if(!fixedPt(i + 1) && !fixedPt(i + 2)){ b[across] = a[across]; after[across] = a[across]; }
+      else continue;
+      P = P.filter((q, k)=> k === 0 || Math.hypot(q.x - P[k - 1].x, q.y - P[k - 1].y) > 0.01 || q.jog);
+      done = false;
+      break;
+    }
+    if(done) break;
+  }
+  return P;
+}
+function foldsBack(Q){
+  for(let i = 1; i + 2 < Q.length; i++){
+    const a = Q[i], b = Q[i + 1], before = Q[i - 1], after = Q[i + 2];
+    if(Math.hypot(b.x - a.x, b.y - a.y) > BEND_ABSORB) continue;
+    const v = armIsVertical(a, b) && Math.abs(b.y - a.y) > 0.01;
+    const key = v ? 'x' : 'y';
+    const d1 = a[key] - before[key], d2 = after[key] - b[key];
+    if(Math.abs(d1) > 0.5 && Math.abs(d2) > 0.5 && d1 * d2 < 0) return true;
+  }
+  return false;
 }
 // What is written down for a set of arms: every corner, but the two ends
 // and the start of a step out of a port.
@@ -591,6 +645,25 @@ window.addEventListener('mousemove', ev=>{
     if(st.arm === 0) hug(0, st.p1);
     if(st.arm === lastArm) hug(lastArm, st.p2);
   }
+  /* …and the same for a stretch brought within a step of the line of the
+     stretch two along from it, which runs the same way: between them is a
+     stretch a pixel or two long, a nick in the line, and nobody drags a
+     corner that small on purpose. Left as asked, it was written down and
+     kept — a connector pulled down onto the level of its port ended with
+     a two-pixel stair in front of the arrowhead (the bughunt of 24.10).
+     Put ON that line, the two become one and the nick is not made. */
+  const level = (k)=>{
+    if(k < 0 || k > lastArm) return;
+    const vertical = armIsVertical(st.P[k], st.P[k + 1]);
+    [k - 2, k + 2].forEach(j=>{
+      if(j < 0 || j > lastArm) return;
+      const c = vertical ? st.P[j].x : st.P[j].y;
+      if(vertical){ if(Math.abs(x - c) <= BEND_ABSORB) x = c; }
+      else if(Math.abs(y - c) <= BEND_ABSORB) y = c;
+    });
+  };
+  if(st.corner > 0){ level(st.corner - 1); level(st.corner); }
+  else level(st.arm);
   if(!movesX) x = st.at.x;
   if(!movesY) y = st.at.y;
   if(x === st.at.x && y === st.at.y && st.tried) return;
@@ -609,6 +682,13 @@ window.addEventListener('mousemove', ev=>{
     const v = armIsVertical(st.P[st.arm], st.P[st.arm + 1]) ? x : y;
     Q = shiftArm(st.P, st.arm, v, st.p1, st.p2);
   }
+  Q = squareNicks(Q);
+  /* A shape that folds back on itself a step away from where it came — out
+     along a line and straight back along the next one over, a pixel or
+     two from it — is not taken: it draws as a line laid on itself with a
+     nick at the end, and the route matched it closely enough to be kept
+     (the bughunt of 24.10). The line stays as it last was. */
+  if(foldsBack(Q)) return;
   const list = bendsFromArms(Q);
   // Live, without a step of undo per frame: the drawn style is set, and
   // the drop below is what writes it down.

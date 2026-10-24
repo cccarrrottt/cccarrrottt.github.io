@@ -28,6 +28,10 @@
     "settings": {"$ref": "#/definitions/settings"}
   },
   "definitions": {
+    "fromEnd": {
+      "description": "Where a connector starts: an entry's id, or nothing for a merge's merged arrow, which starts at its bar and is named by the entry it feeds.",
+      "anyOf": [{"$ref": "#/definitions/id"}, {"const": ""}]
+    },
     "id": {
       "description": "An entry's name to everything that points at it. Any script; no control characters or line breaks; not blank.",
       "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
@@ -77,7 +81,7 @@
           "description": "A callout's anchor: the connector it points at and how far along it.",
           "type": "object", "required": ["from", "to"],
           "properties": {
-            "from": {"$ref": "#/definitions/id"}, "to": {"$ref": "#/definitions/id"},
+            "from": {"$ref": "#/definitions/fromEnd"}, "to": {"$ref": "#/definitions/id"},
             "at": {"type": "number", "minimum": 0, "maximum": 1},
             "snap": {"$ref": "#/definitions/snap"},
             "line": {"enum": ["dashed", "dotted", "dashdot", "double", "sinusoid"]},
@@ -107,7 +111,7 @@
       "type": "object",
       "required": ["from", "to"],
       "properties": {
-        "from": {"$ref": "#/definitions/id"}, "to": {"$ref": "#/definitions/id"},
+        "from": {"$ref": "#/definitions/fromEnd"}, "to": {"$ref": "#/definitions/id"},
         "routing": {"enum": ["orthogonal", "straight", "curve"]},
         "dash": {"enum": ["solid", "dashed", "dotted", "dashdot", "double"]},
         "arrow": {"type": "boolean"}, "arrowIn": {"type": "boolean"},

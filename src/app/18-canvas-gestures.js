@@ -585,7 +585,9 @@ function themeIsDark(){ return document.documentElement.getAttribute('data-theme
   try{ saved = localStorage.getItem(THEME_KEY); }catch(e){}
   setTheme(saved === 'dark');
   const btn = document.getElementById('themeToggle');
-  if(btn) btn.onclick = ()=> setTheme(!themeIsDark());
+  /* Drawn again, since a see-through colour's ends are mixed with the
+     paper they stand on (see solidInk), and the paper has changed. */
+  if(btn) btn.onclick = ()=>{ setTheme(!themeIsDark()); headPaper = null; rebuildChart(); };
 }
 
 
