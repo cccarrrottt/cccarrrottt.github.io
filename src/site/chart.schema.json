@@ -8,7 +8,7 @@
   "properties": {
     "$schema": {"type": "string"},
     "format": {
-      "description": "Which form the records are written in. 2 is records with their fields named; 3 has a merge as an entry's merge field rather than an amalgam shape. A page migrates an older form when it reads it, and refuses a newer one.",
+      "description": "Which form the records are written in. 2 is records with their fields named; 3 has a merge as an entry's merge field rather than an amalgam shape; 4 a split dot the size of a callout's point. A page migrates an older form when it reads it, and refuses a newer one.",
       "type": "integer", "minimum": 1
     },
     "nodes": {

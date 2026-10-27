@@ -21,7 +21,13 @@ function isLinkNode(n){ return !!n && (n.shape || '') === 'link'; }
    It is not a work: it is a junction, so wherever the chart is read as a
    lineage (the text view) what comes out of it is read as coming from
    whatever went into it — see lineageParentsOf. */
-const SPLIT_SIZE = 10;
+/* As big as a callout's point (LEADER_DOT_R, 2.6, written out because
+   this part runs first): the two are the same kind of mark, a point ON a
+   line, and the owner found the split's ten units too heavy beside it
+   (the owner's list of 24.10, evening). A split drawn before is moved so
+   its middle stays on its line — see migrateSplitDots. */
+const SPLIT_SIZE = 5.2;
+const SPLIT_SIZE_WAS = 10;
 function isSplitNode(n){ return !!n && (n.shape || '') === 'split'; }
 /* Round, and so met by connectors and outlined as a circle is. */
 function isRoundShape(n){ const s = n && (n.shape || ''); return s === 'ellipse' || s === 'link' || s === 'split'; }
@@ -650,9 +656,10 @@ const componentMeta = []; // [{ids, origin:{x,y}, bbox}]
  * DATA_FORMAT counts the forms, and is written into the chart's settings
  * with every save. 1 was the list, 2 is the record, 3 the merge as a
  * property of the entry the lineages join rather than a kind of entry (see
- * migrateAmalgams). A file from a page with a higher number is refused at
+ * migrateAmalgams), 4 a split the size of a callout's point (see
+ * migrateSplitDots). A file from a page with a higher number is refused at
  * import rather than half-read. */
-const DATA_FORMAT = 3;
+const DATA_FORMAT = 4;
 const ENTRY_FIELDS = ['id', 'label', 'parent', 'edgeLabel', 'note', 'shape'];
 function entryOfRecord(rec){
   if(Array.isArray(rec)) return rec.slice();
@@ -838,8 +845,25 @@ const MIGRATIONS = [
            migrateTagSpellings(workingNodes) + (typeof EDGE_STYLES !== 'undefined' ? migrateLeaderNotes() : 0);
   }},
   // The amalgam archetype, which became a merge on an ordinary entry.
-  {upTo: 2, run(){ return migrateAmalgams(workingNodes); }}
+  {upTo: 2, run(){ return migrateAmalgams(workingNodes); }},
+  // The split dot, made smaller about the same middle.
+  {upTo: 3, run(){ return migrateSplitDots(workingNodes); }}
 ];
+/* A split is kept by its corner, so making it smaller would move its
+   middle off the line it stands on; the corner moves in by half of what
+   it lost. */
+function migrateSplitDots(list){
+  let moved = 0;
+  const by = (SPLIT_SIZE_WAS - SPLIT_SIZE) / 2;
+  (list || []).forEach(item=>{
+    if(!Array.isArray(item) || item[5] !== 'split') return;
+    const opts = item[6];
+    if(!opts || !Array.isArray(opts.pos) || opts.pos.length < 2) return;
+    opts.pos = [round2(opts.pos[0] + by), round2(opts.pos[1] + by)];
+    moved++;
+  });
+  return moved;
+}
 function chartFormatOf(settings){
   const f = settings && settings.format;
   return Number.isInteger(f) && f >= 1 ? f : 1;
@@ -861,11 +885,14 @@ migrateChart(chartFormatOf(SETTINGS));
    theirs, moving a parent takes it along, and moving the amalgam moves
    nothing but the merged arrow. Absent until a drag first fixes it; until
    then amalgamGeometry works the place out as it always has. */
-/* The nearest a bar may be put to its lineages: the run-up a lineage needs
-   to come down and turn onto it with a full corner (AMALGAM_APPROACH, two
-   corner radii and a little) and a hair more. Written out rather than
-   derived, because this part runs before the geometry's. */
-const AMALGAM_LEAD_MIN = 18;
+/* The nearest a bar may be put to its lineages: one corner and a little
+   straight (AMALGAM_SQUEEZE), the least a lineage needs to come down and
+   turn onto it. It was a comfortable run-up of 18, more than an unmerged
+   connector needs, so a merge could not be brought as close to its
+   lineages as the same lines unmerged had stood (the owner's list of
+   24.10). Written out rather than derived, because this part runs before
+   the geometry's. */
+const AMALGAM_LEAD_MIN = 8;
 function amalgamBarOf(opts){
   const v = opts && opts.bar;
   if(!v || typeof v !== 'object' || (v.k !== 'x' && v.k !== 'y')) return null;

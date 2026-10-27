@@ -1102,6 +1102,10 @@
   .amalgam-bar-hit{fill:none;stroke:transparent;stroke-width:14px;pointer-events:stroke;cursor:pointer;}
   .amalgam-bar-hit.across-y{cursor:ns-resize;}
   .amalgam-bar-hit.across-x{cursor:ew-resize;}
+  .split-hit{fill:transparent;stroke:none;pointer-events:all;}
+  .amalgam-junction-hit{fill:transparent;stroke:none;pointer-events:all;cursor:move;}
+  .amalgam-junction-hit.along-x{cursor:ew-resize;}
+  .amalgam-junction-hit.along-y{cursor:ns-resize;}
   /* Paper, so only its glow is seen — the same glow as .edge-picked. */
   .amalgam-bar-focus{
     fill:none;stroke:var(--paper);stroke-width:1.6;pointer-events:none;
@@ -1109,7 +1113,7 @@
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
   body.bar-carrying, body.bar-carrying *{cursor:grabbing !important;}
-  body.read-only .amalgam-bar-hit, body.read-only .amalgam-bar-focus{display:none;}
+  body.read-only .amalgam-bar-hit, body.read-only .amalgam-junction-hit, body.read-only .amalgam-bar-focus{display:none;}
   /* …except when something else on the chart is being looked at. The two
      rules above pin the bar and the merged arrow to full strength so they
      read as one solid line; that must not also make them the only thing
@@ -3247,14 +3251,17 @@
   @media (max-width: 720px){
     body, .app{height:100dvh;}
     .topbar{flex-wrap:wrap;gap:6px 6px;padding:7px 10px;}
-    /* Slid away while the chart is carried up, back when it is carried
-       down (followWithPhoneBar). The slide is a transform, so it costs no
-       layout; the height is given up once it is out of sight. */
-    .topbar{transition:transform 0.2s ease;}
-    .topbar.slid{transform:translateY(-100%);pointer-events:none;}
-    /* Out of the flow altogether while away, so whatever height it has
-       then takes nothing from the chart. */
-    .topbar.gone{visibility:hidden;position:absolute;top:0;left:0;right:0;}
+    /* The row of buttons is put away while the chart is carried up, and
+       back when it is carried down (followWithPhoneBar). The wordmark and
+       the search stay: they are where a reader is and how they get
+       anywhere (the owner's list of 24.10, evening). The whole bar used to
+       slide up out of sight, and until it had gone and given its rows up,
+       what it uncovered was the page behind the chart — a white band the
+       drawing had not reached. The row fades where it stands instead, the
+       bar behind it still the bar, and then gives its height up. */
+    .topbar > *{transition:opacity 0.15s ease;}
+    .topbar.slid > :not(.brand):not(.search-wrap){opacity:0;pointer-events:none;}
+    .topbar.gone > :not(.brand):not(.search-wrap), .topbar.gone::after{display:none !important;}
     .brand{order:0;margin-right:2px;}
     .brand .mark{font-size:19px;}
     .search-wrap{order:1;flex:1 1 120px;min-width:0;}
