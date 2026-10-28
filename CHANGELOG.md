@@ -102,6 +102,27 @@ Releases before 0.9.0 were not numbered.
   finger.
 - Stickers in the in-entry field are the size they are in the entry, so
   the field and its words no longer spill out of the entry.
+- Every point on a merge's bar — the junction and the joints — is the
+  size of a callout's point and a split's dot.
+- An entry carried across a merge's bar that has been put somewhere is fed
+  by the face towards the bar from the first step, beside a lineage at
+  the bar's end too, where it used to come in by a side face; a merged
+  arrow bent by hand goes there too, without its corners, and takes them
+  up again back on the side they were set on.
+- On a phone the row of buttons folds away and back over a few frames,
+  the drawers down the side growing with the room, and a carry along a
+  diagonal neither puts it away nor brings it back. A drawer goes back
+  into its tab as it shuts, as it came out.
+- A connector squeezed short comes out of its port as far as a squeezed
+  lineage comes down to its bar (8 rather than 6).
+- The field typed over an entry is in the ink the words will be drawn in —
+  the entry's own or the one it inherits — before there are any words to
+  read it from, and a reading in it stands where and as large as the
+  drawing puts it.
+- A link node is set on its bar, like an array: its colour and where it
+  goes, with no drawer. Its arrow points at where it goes, and pointed at,
+  it shows a faint copy of the entry it stands for — through a link node
+  joined to an entry, that entry.
 
 ## 0.16.0 — "Merged by hand" (2026-10-23)
 

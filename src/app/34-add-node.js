@@ -123,12 +123,9 @@ function addEntryOfStyle(style){
   selectNode(id);
   /* Words go in where they will stand. A portrait and a picture have a
      picture to choose before anything else, which their settings ask for;
-     a link has where it goes, which its settings ask for too. */
-  if(style === 'link'){
-    openEntrySettings(id);
-    const field = document.getElementById('editLinkInput');
-    if(field) field.focus();
-  } else if(style !== 'ellipse' && style !== 'image') openNodeEditor(id);
+     a link has where it goes, which its bar asks for. */
+  if(style === 'link') askWhereLinkGoes(id);
+  else if(style !== 'ellipse' && style !== 'image') openNodeEditor(id);
   return id;
 }
 

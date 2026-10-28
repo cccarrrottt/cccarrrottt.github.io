@@ -450,6 +450,7 @@ function syncNodeEditorLook(){
     rec.surface.style.fontSize = (EDGE_NOTE_FS * vs).toFixed(2) + 'px';
     rec.surface.dataset.lineH = (EDGE_NOTE_LINE_H * vs).toFixed(2);
     rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
+    rec.surface.style.color = '';
     return finishNodeEditorLook(rec);
   }
   const n = nodes.get(nodeEditorTarget.id);
@@ -461,6 +462,11 @@ function syncNodeEditorLook(){
   rec.surface.style.fontSize = (size * vs).toFixed(2) + 'px';
   rec.surface.dataset.lineH = (LINE_H * (size / NODE_FS) * vs).toFixed(2);
   rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
+  /* …and the ink: the entry's own, or the one it inherits — a callout
+     the connector's, an amalgam its lineages'. Typed into an entry with
+     no words yet, the field used to show the default ink until the words
+     were saved and drawn (the owner's list of 28.10). */
+  rec.surface.style.color = n.labelInk || '';
   return finishNodeEditorLook(rec);
 }
 function finishNodeEditorLook(rec){
