@@ -287,6 +287,9 @@ function selectNode(id, opts){
      lineage, no tags — so it is picked the way a callout is, and its look
      is on the bar. */
   if(isArrayNode(n)) opts = Object.assign({}, opts, {quiet: true});
+  /* …and so is a link node, whose colour and destination are on its bar
+     and which has no words, notes or lineage of its own to show. */
+  if(isLinkNode(n)) opts = Object.assign({}, opts, {quiet: true});
   // A picture or a loose block of text has no lineage, no tags and no note
   // — the entry panel would be almost entirely empty for it — so it is
   // selected (draggable, resizable, deletable) without opening one.
@@ -487,6 +490,10 @@ function sideTabsOpen(){
    closing. The coordinates box stays put: the column ends above it. */
 function setSideTab(panel, open){
   if(!panel) return;
+  /* Shut, it is drawn a moment longer, going back into its tab. */
+  clearTimeout(panel.shutTimer);
+  panel.classList.toggle('shutting', !open && panel.classList.contains('open'));
+  if(!open) panel.shutTimer = setTimeout(()=> panel.classList.remove('shutting'), 200);
   panel.classList.toggle('open', !!open);
   const handle = panel.querySelector('.side-tab-handle');
   if(handle) handle.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -626,6 +633,59 @@ function linkNodeTarget(n){
   if(!raw) return null;
   const to = (nodes.has(raw) ? {id: raw, tab: null} : null) || entryLinkTarget(raw);
   return to && to.id !== n.id ? to : null;
+}
+/* What a link node stands for, for its preview: the entry at the end of
+ * where it goes (the owner's list of 28.10).
+ *
+   Two link nodes are how two entries far apart are joined: each stands
+   beside its own entry, joined to it by a connector, and goes to the
+   other. A link going to such a link stands for the entry ON THE FAR
+   SIDE of it, not for the little circle — so a link node reached is
+   asked which entry it is joined to, and failing one, where it goes in
+   turn. A circle of links stands for nothing. */
+function linkShownTarget(n){
+  const seen = new Set([n && n.id]);
+  let to = linkNodeTarget(n);
+  while(to){
+    const t = nodes.get(to.id);
+    if(!t || seen.has(t.id)) return null;
+    if(!isLinkNode(t)) return t;
+    seen.add(t.id);
+    const joined = lineageParentsOf(t).concat(lineageChildrenOf(t))
+      .map(id=> nodes.get(id)).find(q=> q && !isLinkNode(q) && !isArrayNode(q));
+    if(joined) return joined;
+    to = linkNodeTarget(t);
+  }
+  return null;
+}
+/* A faint, smaller copy of that entry beside a link node while the
+   pointer is on it, so where it goes can be seen without going. Copied
+   from the entry's own drawing, so it is the entry as it stands; a copy
+   carries none of its handles, names or ids, which belong to the entry. */
+const LINK_PREVIEW_SCALE = 0.5, LINK_PREVIEW_GAP = 10;
+const linkPreviewLayer = el('g', {id:'linkPreviewLayer', style:'pointer-events:none;'}, viewport);
+function showLinkPreview(id){
+  linkPreviewLayer.replaceChildren();
+  const n = id != null ? nodes.get(id) : null;
+  if(!n || !isLinkNode(n) || typeof nodeDragState !== 'undefined' && nodeDragState) return;
+  const t = linkShownTarget(n);
+  const drawn = t && nodeLayer.querySelector(`.node[data-id="${CSS.escape(t.id)}"]`);
+  if(!drawn) return;
+  const copy = drawn.cloneNode(true);
+  copy.removeAttribute('data-id');
+  /* Still an entry's drawing to the stylesheet, which fills its box, but
+     not picked or lit, whatever the entry is. */
+  copy.classList.remove('selected', 'multi-picked', 'lit', 'dim', 'related');
+  copy.classList.add('link-preview-copy');
+  copy.querySelectorAll('[id]').forEach(e=> e.removeAttribute('id'));
+  copy.querySelectorAll('[data-id]').forEach(e=> e.removeAttribute('data-id'));
+  copy.querySelectorAll('.node-handle, .node-resize, title').forEach(e=> e.remove());
+  const k = LINK_PREVIEW_SCALE;
+  const x = n.x + n.w + LINK_PREVIEW_GAP, y = n.y + n.h / 2 - t.h * k / 2;
+  const g = el('g', {class:'link-preview',
+                     transform:`translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${k}) translate(${(-t.x).toFixed(2)} ${(-t.y).toFixed(2)})`},
+               linkPreviewLayer);
+  g.appendChild(copy);
 }
 /* Whether a link points into this chart at all, whatever entry it names —
    one whose entry has since been deleted is still not a link to elsewhere. */

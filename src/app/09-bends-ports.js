@@ -421,7 +421,7 @@ function bentRoute(p1, p2, handBendsList){
  * (heldRoute), so a pass made while something is carried does not take
  * part. */
 const ROUTE_BLIND = new Set(['label', 'note', 'tags', 'link', 'langTabs', 'multiLang', 'medium', 'image',
-                             'font', 'fontSize', 'color', 'colors', 'ownColors', 'bg']);
+                             'font', 'fontSize', 'color', 'colors', 'ownColors', 'bg', 'labelInk']);
 let routePass = null, routeLast = null;
 function routeWorldKey(){
   const parts = [];

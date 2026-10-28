@@ -271,6 +271,55 @@ const styleBar = (()=>{
     putEntry(found.index, found.entry, opts);
     rebuildChart();
   }, true);
+  /* A link node's whole make-up, on its bar as an array's is (the owner's
+     list of 28.10): it has no words, no notes and no drawer of its own —
+     a colour, and where it goes. The place is a copied link to an entry or
+     the entry's id, written down when the field is left or Enter pressed. */
+  hexGroup('linkInk', 'The colour of the link — blank is the default ink', (t, v)=>{
+    if(t.kind !== 'node') return;
+    const found = workingEntry(t.id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    if(v) opts.colors = [v]; else delete opts.colors;
+    putEntry(found.index, found.entry, opts);
+    rebuildChart();
+  }, true);
+  const goesRow = group('linkGoes', []);
+  goesRow.classList.add('style-bar-goes');
+  const goes = document.createElement('input');
+  goes.type = 'text';
+  goes.className = 'link-goes-input';
+  goes.placeholder = 'Goes to: a copied link or an id';
+  goes.title = 'Where the link goes: a link copied from an entry, or the entry’s id';
+  goes.spellcheck = false;
+  goesRow.appendChild(goes);
+  goes.addEventListener('mousedown', ev=> ev.stopPropagation());
+  goes.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); goes.blur(); }
+    if(ev.key === 'Escape'){ ev.preventDefault(); goes.dataset.cancel = '1'; goes.blur(); }
+  });
+  /* Written to the link the caret went into, whatever the bar is on by
+     the time it leaves: a press elsewhere may have moved or shut the bar
+     before the field hears it has lost the caret. */
+  goes.addEventListener('focus', ()=>{
+    goes.dataset.for = styleBarTarget && styleBarTarget.kind === 'node' ? styleBarTarget.id : '';
+  });
+  goes.addEventListener('blur', ()=>{
+    const id = goes.dataset.for, cancel = goes.dataset.cancel;
+    delete goes.dataset.cancel; delete goes.dataset.for;
+    if(cancel || !id || readOnlyView) return;
+    const found = workingEntry(id);
+    if(!found || !isLinkNode(nodes.get(id))) return;
+    const v = goes.value.trim();
+    const opts = entryOpts(found.entry);
+    if((opts.link || '') === v) return;
+    applyEdit(()=>{
+      const o = entryOpts(found.entry);
+      if(v) o.link = v; else delete o.link;
+      putEntry(found.index, found.entry, o);
+    });
+  });
   /* A link to an array, as an entry has one in its drawer: an array has no
      drawer, and its bar is where everything else about it is. Not inside
      claude.ai, where the address is the viewer's sandbox (see entryLink). */
@@ -289,6 +338,8 @@ const styleBar = (()=>{
   bar.addEventListener('dblclick', ev=> ev.stopPropagation());
   bar.addEventListener('mouseenter', ()=> clearTimeout(styleBarTimer));
   bar.addEventListener('mouseleave', ()=> letStyleBarGo());
+  // …and once a field typed into is left, with the pointer already gone.
+  bar.addEventListener('focusout', ()=>{ if(!bar.matches(':hover')) letStyleBarGo(); });
   bar.addEventListener('click', ev=>{
     ev.stopPropagation();
     const b = ev.target.closest('button');
@@ -315,6 +366,15 @@ const styleBar = (()=>{
   if(host) host.appendChild(bar);
   return bar;
 })();
+/* A link node is told where to go on its bar: the bar is opened on it
+   and the field given the caret. */
+function askWhereLinkGoes(id){
+  if(readOnlyView || !isLinkNode(nodes.get(id))) return false;
+  openStyleBar({kind:'node', id});
+  const input = styleBar.querySelector('.link-goes-input');
+  if(input && !styleBar.hidden) input.focus();
+  return true;
+}
 /* What the bar is open on: {kind:'node', id}, {kind:'note', from, to},
    {kind:'leader', id} — a callout's leader line, by the callout's id — or
    {kind:'edge', from, to, x, y}, a connector, with where on the screen the
@@ -369,7 +429,13 @@ function followStyleBar(){
 }
 function letStyleBarGo(){
   clearTimeout(styleBarTimer);
-  styleBarTimer = setTimeout(closeStyleBar, STYLE_BAR_LINGER);
+  /* Not while something is being typed into it: the pointer goes off to
+     rest while the hand types, and the field went with the bar. */
+  styleBarTimer = setTimeout(()=>{
+    const a = document.activeElement;
+    if(a && a.tagName === 'INPUT' && styleBar.contains(a)) return;
+    closeStyleBar();
+  }, STYLE_BAR_LINGER);
 }
 function closeStyleBar(){
   clearTimeout(styleBarTimer);
@@ -420,6 +486,12 @@ function syncStyleBarRows(){
   const rows = {};
   styleBar.querySelectorAll('.style-bar-group').forEach(r=> rows[r.dataset.group] = r);
   rows.decor.hidden = !decorOn;
+  const isLink = t.kind === 'node' && isLinkNode(n);
+  rows.linkInk.hidden = rows.linkGoes.hidden = !isLink;
+  if(isLink){
+    const input = rows.linkGoes.querySelector('input');
+    if(document.activeElement !== input) input.value = n.link || '';
+  }
   const light = (row, value, off)=>{
     /* A greyed button still shows whether it is pressed. Greying says
        the choice does nothing just now — the wave is drawn through the
@@ -523,6 +595,7 @@ function syncStyleBarRows(){
     light(rows.border, borderStyleOf(n), (v)=> v === 'wavy' && !portrait && WAVY_BORDER_SHAPES.includes(shape));
     light(rows.corners, n.square ? '' : 'round',
           ()=> portrait ? isWavyPortrait(n) : (isWavyBorder(n) || SQUARE_CORNER_SHAPES.includes(shape)));
+    if(isLink) showHex(rows.linkInk, n.ownColors && n.ownColors.length ? n.ownColors[0] : '');
     if(isArr){
       light(rows.hatch, n.hatch || 'none');
       showHex(rows.arrayInk, n.ownColors && n.ownColors.length ? n.ownColors[0] : '');

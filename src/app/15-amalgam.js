@@ -27,12 +27,14 @@ const AMALGAM_APPROACH = EDGE_CORNER_R * 2 + 4;
    Only closer than that does the bar leave the step and settle between
    the lineages and the entry. */
 const AMALGAM_SQUEEZE = EDGE_CORNER_R + 2;
-// The joint beads between neighbouring stretches of the bar. A shade
-// smaller than the junction's, so the point the merged arrow leaves from
-// still reads as the principal one.
-const AMALGAM_JOINT_R = 3.1;
-// Wide enough to cover where the members, the bar and the arrow meet.
-const AMALGAM_BEAD_R = 3.6;
+/* The joint beads between neighbouring stretches of the bar, and the
+   junction the merged arrow leaves from: both the size of a callout's
+   point and a split's dot (the owner's list of 28.10). They were 3.1 and
+   3.6, the junction a shade bigger to read as the principal one — and
+   beside the other points on the chart they read as a different kind of
+   mark. The junction is told apart by the arrow leaving it. */
+const AMALGAM_JOINT_R = LEADER_DOT_R;
+const AMALGAM_BEAD_R = LEADER_DOT_R;
 /* Closer than this, a bar held where it was put leaves no room in front of
    the entry for the merged arrow: its head and the bead it leaves from,
    and nothing between (see drawAmalgam, where the foot steps aside). */
@@ -226,7 +228,12 @@ function amalgamGeometry(list, ports){
       const nearEdge = after ? b[k] : b[k] + b[len];
       const clear = after ? nearEdge > sp.hi : nearEdge < sp.lo;
       const past = (!fixed && clear) || (after ? centre >= at : centre < at);
-      const facing = behind ? after : (past === after);
+      /* A bar put somewhere by hand does not move for anything, so the
+         entry simply faces it from whichever side it is on — a lineage
+         behind the entry included. Turned to the lineages regardless, it
+         came in by a side face while the entry stood above a held bar and
+         beside the lineage at its end (the owner's list of 28.10). */
+      const facing = (behind && !fixed) ? after : (past === after);
       side = k === 'x' ? (facing ? 'left' : 'right')
                        : (facing ? 'top' : 'bottom');
       resting = {at, k, after, lead, fixed: !!fixed, spLo: sp.lo, spHi: sp.hi, clear,
@@ -1394,13 +1401,22 @@ function drawMergedArrow(b, stem, colors, ring, side){
      across the bar, the corners could no longer be reached from either
      end, and the line fell back to the stem — its bends seemingly gone,
      arriving at a face nobody had chosen. */
-  const pinned = os.routing !== 'straight' && os.bends && os.bends.length && os.bendSides ? os.bendSides : null;
+  /* …but only while the entry is on the side of the bar they were set
+     on. Carried across, its face towards the bar is the other one, and
+     the arrow goes to that face like an unbent one (the owner's list of
+     28.10: perpendicular across the bar is the opposite port, along it no
+     change). Pinned to the old faces it wandered from side to side as it
+     went, wherever the corners could still be reached from, or looped
+     back through corners left behind on the other side. The corners are
+     kept, unused, and taken up again on the side they were set on. */
+  const set = os.routing !== 'straight' && os.bends && os.bends.length && os.bendSides ? os.bendSides : null;
+  const pinned = set && set[1] === stem.port.side ? set : null;
   /* Bent, it arrives at the middle of its side, as any connector does: the
      stem's own port stands in front of the foot, and with the foot under
      the first corner that put the head wherever the corner was — a stretch
      dragged across the entry pulled the head along the border after it,
      and the drag was refused as a shape it had not asked for. */
-  const hasBends = os.routing !== 'straight' && os.bends && os.bends.length;
+  const hasBends = os.routing !== 'straight' && os.bends && os.bends.length && !(set && !pinned);
   let head = hasBends ? portOnSide(b, pinned ? pinned[1] : stem.port.side, 0, 1, ring) : stem.port;
   /* `slides`: the one end of any connector that is not a fixed point. It
      stands on the bar, and a bend drag that moves the stretch out of it

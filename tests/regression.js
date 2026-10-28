@@ -20071,6 +20071,12 @@ async function main(){
       const tags = document.getElementById('tagsPanel');
       setSideTab(tags, true);
       out.rises = getComputedStyle(tags.querySelector('.side-tab-body')).animationName === 'side-tab-rise';
+      // …and goes back into it as it shuts, and is gone once it has.
+      setSideTab(tags, false);
+      const body = tags.querySelector('.side-tab-body');
+      out.falls = getComputedStyle(body).animationName === 'side-tab-fall' && getComputedStyle(body).visibility === 'visible';
+      await wait(260);
+      out.fallen = getComputedStyle(body).visibility === 'hidden';
       setSideTab(tags, false);
 
       applyEdit(()=>{
@@ -20143,6 +20149,7 @@ async function main(){
     return out;
   });
   check('a drawer rises out of its tab as it opens', r.rises);
+  check('…and goes back into it as it shuts', r.falls && r.fallen, JSON.stringify([r.falls, r.fallen]));
   check('a connector’s menu offers Split, at the place on offer when the pointer is near one',
         r.offered && r.snapped, JSON.stringify({o:r.offered, s:r.snapped}));
   check('a split is a dot on the line, and the line goes on out of it to where it went',
@@ -20169,33 +20176,51 @@ async function main(){
     await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
     await wait(900);
     const cdp = await phone.newCDPSession(pp);
-    const under = (y)=> pp.evaluate((y)=>{ const r = svg.getBoundingClientRect();
-      return [+((200 - r.left - vx) / vs).toFixed(1), +((y - r.top - vy) / vs).toFixed(1)]; }, y);
-    const carry = async (dy)=>{
+    const under = (y, x)=> pp.evaluate(([y, x])=>{ const r = svg.getBoundingClientRect();
+      return [+((x - r.left - vx) / vs).toFixed(1), +((y - r.top - vy) / vs).toFixed(1)]; }, [y, x == null ? 200 : x]);
+    const carry = async (dy, dx)=>{
+      dx = dx || 0;
       const was = await under(500);
+      await pp.evaluate(()=>{ const b = document.querySelector('.topbar'); window.__barHeights = [];
+        const look = ()=>{ window.__barHeights.push(b.getBoundingClientRect().height);
+                           if(window.__barHeights.length < 60) requestAnimationFrame(look); };
+        requestAnimationFrame(look); });
       await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:200, y:500}]});
       for(let i = 1; i <= 12; i++){
-        await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:200, y:500 + dy * i / 12}]});
+        await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:200 + dx * i / 12, y:500 + dy * i / 12}]});
         await wait(40);
       }
       await wait(320);
-      const now = await under(500 + dy);
+      const now = await under(500 + dy, 200 + dx);
       await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
       await wait(250);
       const bar = await pp.evaluate(()=>{ const b = document.querySelector('.topbar');
         const shown = (sel)=>{ const e = b.querySelector(sel), r = e && e.getBoundingClientRect();
                                return !!r && r.height > 0 && getComputedStyle(e).opacity === '1'; };
+        const hs = window.__barHeights, lo = Math.min(...hs), hi = Math.max(...hs);
         return {gone: b.classList.contains('gone'), top: Math.round(svg.getBoundingClientRect().top),
-                kept: shown('.brand') && shown('.search-wrap'), buttons: shown('#aboutToggle')}; });
+                kept: shown('.brand') && shown('.search-wrap'), buttons: shown('#aboutToggle'),
+                folded: hs.some(h=> h > lo + 2 && h < hi - 2)}; });
       return {kept: Math.abs(was[0] - now[0]) < 0.6 && Math.abs(was[1] - now[1]) < 0.6, bar, was, now};
     };
     const up = await carry(-150);
     const down = await carry(150);
+    // Along a diagonal it stays as it is, whichever way.
+    const slantUp = await carry(-150, 150);
+    const slantDown = await carry(150, -150);
+    await carry(-150);
+    const slantDownHidden = await carry(150, 150);
+    await carry(150);
     check('on a phone the top bar\'s buttons go as the chart is carried up, and come back as it is carried down',
           up.bar.gone && !up.bar.buttons && !down.bar.gone && down.bar.buttons && down.bar.top - up.bar.top > 25,
           JSON.stringify({up:up.bar, down:down.bar}));
     check('…and the wordmark and the search stay', up.bar.kept && down.bar.kept, JSON.stringify({up:up.bar, down:down.bar}));
     check('…and what is under the finger stays under it', up.kept && down.kept, JSON.stringify({up, down}));
+    check('…folding away and back over several frames rather than at once', up.bar.folded && down.bar.folded,
+          JSON.stringify({up:up.bar.folded, down:down.bar.folded}));
+    check('…and a carry along a diagonal neither puts it away nor brings it back',
+          !slantUp.bar.gone && !slantDown.bar.gone && slantDownHidden.bar.gone,
+          JSON.stringify([slantUp.bar.gone, slantDown.bar.gone, slantDownHidden.bar.gone]));
   } finally {
     await phone.close();
   }
@@ -20499,6 +20524,140 @@ async function main(){
         r.splitBends, JSON.stringify(r.splitBendsAt));
   check('a new line out of a split looks like the line the split was set on', r.branchLook);
   });
+  await scenario("the owner's list of 28.10: one size of point, the face towards a held bar, the field's ink and reading, a link that shows where it goes", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {};
+    const X = 99000, Y = 99000;
+    try{
+      vs = 1; vx = -X + 400; vy = -Y + 300; applyTransform();
+      /* 1. Every point on a merge's bar is a callout's point. */
+      applyEdit(()=>{
+        workingNodes.push(['ol_a','Alpha',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['ol_b','Beta',null,null,null,null,{pos:[X + 200, Y]}]);
+        workingNodes.push(['ol_c','Gamma',null,null,null,null,{pos:[X + 400, Y]}]);
+        workingNodes.push(['ol_m','Merged',['ol_a','ol_b','ol_c'],null,null,null,{merge:true, pos:[X + 200, Y + 320],
+                           bar:{k:'y', after:true, lead:200}}]);
+      });
+      rebuildChart();
+      const beads = [...document.querySelectorAll('.amalgam-bead[data-to="ol_m"]')];
+      out.beads = beads.length >= 1 && AMALGAM_JOINT_R === LEADER_DOT_R &&
+                  beads.every(c=> Math.abs(+c.getAttribute('r') - LEADER_DOT_R) < 1e-6);
+      out.beadsAt = beads.map(c=> c.getAttribute('r'));
+
+      /* 2. Carried across a held bar, the merged arrow — bent by hand or
+            not — comes into the face towards the bar, beside a lineage too. */
+      const sideAt = (x, y)=>{
+        applyEdit(()=>{ const f = workingEntry('ol_m'); const o = entryOpts(f.entry); o.pos = [x, y]; putEntry(f.index, f.entry, o); });
+        rebuildChart();
+        return mergedArrowPorts.get('ol_m') ? mergedArrowPorts.get('ol_m').p2.side : drawnRoutes.get(calloutEdgeKey('', 'ol_m'));
+      };
+      const portSide = (x, y)=>{
+        sideAt(x, y);
+        const m = nodes.get('ol_m'), d = document.querySelector('path.amalgam-out[data-to="ol_m"]').getAttribute('d');
+        const nums = d.match(/-?[0-9.]+/g).map(Number), ex = nums[nums.length - 2], ey = nums[nums.length - 1];
+        return Math.abs(ey - (m.y + m.h)) < 14 ? 'bottom' : Math.abs(ey - m.y) < 14 ? 'top'
+             : Math.abs(ex - m.x) < 14 ? 'left' : 'right';
+      };
+      out.plain = [portSide(X + 200, Y + 320), portSide(X + 200, Y + 120), portSide(X + 330, Y + 120), portSide(X + 395, Y + 120)];
+      applyEdit(()=>{ EDGE_STYLES.push({from:'', to:'ol_m', routing:'orthogonal', dash:'solid', arrow:true,
+                                        bends:[[X + 227, Y + 260], [X + 300, Y + 260], [X + 300, Y + 300], [X + 227, Y + 300]],
+                                        bendSides:['bottom', 'top']}); });
+      out.bent = [portSide(X + 200, Y + 120), portSide(X + 330, Y + 120)];
+      sideAt(X + 200, Y + 320);
+      out.bentBack = document.querySelectorAll('path.amalgam-out[data-to="ol_m"]').length === 1 &&
+                     drawnRoutes.size >= 0 && (mergedArrowPorts.get('ol_m').p2.side === 'top');
+
+      /* 3. A connector squeezed as short as it goes comes out of its port
+            as far as a squeezed lineage comes down to its bar. */
+      out.stub = STUB_MIN === AMALGAM_LEAD_MIN;
+
+      /* 4. The field typed into is in the entry's ink — its own or the one
+            it inherits — when it has no words yet, and a reading in it sits
+            where the drawing puts it. */
+      applyEdit(()=>{
+        workingNodes.push(['ol_e','',null,null,null,null,{pos:[X, Y + 900], colors:['#2233cc']}]);
+        workingNodes.push(['ol_k','','',null,null,'callout',{pos:[X + 120, Y + 1000], leader:{from:'ol_a', to:'ol_b', at:0.5}}]);
+        EDGE_STYLES.push({from:'ol_a', to:'ol_b', routing:'orthogonal', dash:'solid', arrow:true, color:'#11aa44', colorFixed:true});
+        workingNodes.push(['ol_r','A [[漢字|かんじ]] b',null,null,null,null,{pos:[X + 600, Y + 900]}]);
+      });
+      applyEdit(()=>{ const f = workingEntry('ol_b'); f.entry[2] = 'ol_a'; putEntry(f.index, f.entry, entryOpts(f.entry)); });
+      rebuildChart();
+      const inkOf = (id)=>{ openNodeEditor(id, {focus:false}); const c = getComputedStyle(richFields.get('nodeEditorText').surface).color; closeNodeEditor(false); return c; };
+      out.inks = [inkOf('ol_e'), inkOf('ol_k')];
+      vs = 3; applyTransform(); rebuildChart();
+      openNodeEditor('ol_r', {focus:false});
+      await wait(50);
+      const surf = richFields.get('nodeEditorText').surface;
+      const rt = surf.querySelector('rt').getBoundingClientRect(), rb = surf.querySelector('ruby').getBoundingClientRect();
+      const g = document.querySelector('.node[data-id="ol_r"]');
+      const anno = g.querySelector('.ruby-anno').getBoundingClientRect();
+      const base = [...g.querySelectorAll('tspan')].find(t=> t.textContent === '漢字').getBoundingClientRect();
+      out.ruby = [+(rb.top - rt.top).toFixed(1), +(base.top - anno.top).toFixed(1), +rt.height.toFixed(1), +anno.height.toFixed(1)];
+      closeNodeEditor(false);
+      vs = 1; applyTransform();
+
+      /* 5. A link node: its colour and where it goes on its bar, no drawer;
+            its arrow turned to where it goes; and, pointed at, a faint copy
+            of the entry it stands for — through a link joined to one. */
+      applyEdit(()=>{
+        workingNodes.push(['ol_far','Far away',null,null,null,null,{pos:[X + 1500, Y + 1600]}]);
+        workingNodes.push(['ol_l2','',null,null,null,'link',{pos:[X + 1400, Y + 1500], link:'ol_l1'}]);
+        workingNodes.push(['ol_j','Joined',['ol_l2'],null,null,null,{pos:[X + 1500, Y + 1400]}]);
+        workingNodes.push(['ol_l1','',null,null,null,'link',{pos:[X, Y + 1400], link:'ol_l2'}]);
+        workingNodes.push(['ol_l3','',null,null,null,'link',{pos:[X, Y + 1500]}]);
+      });
+      rebuildChart();
+      openEntrySettings('ol_l3');
+      const goes = document.querySelector('.link-goes-input');
+      out.bar = !styleBar.hidden && document.activeElement === goes &&
+                !document.getElementById('detail').classList.contains('open');
+      goes.value = 'ol_far'; goes.blur();
+      await wait(50);
+      out.written = entryOpts(workingEntry('ol_l3').entry).link === 'ol_far';
+      closeStyleBar();
+      const turnOf = (id)=>{ const t = document.querySelector(`.node[data-id="${id}"] .link-node-arrow`).getAttribute('transform') || '';
+                             const m = t.match(/rotate\(([-0-9.]+)/); return m ? +m[1] : 0; };
+      const l3 = nodes.get('ol_l3'), far = nodes.get('ol_far');
+      const want = Math.atan2(far.y + far.h/2 - l3.y - l3.h/2, far.x + far.w/2 - l3.x - l3.w/2) * 180 / Math.PI + 45;
+      out.turned = Math.abs(turnOf('ol_l3') - want) < 0.2;
+      showLinkPreview('ol_l3');
+      const p1 = document.querySelector('#linkPreviewLayer .link-preview-copy');
+      out.preview = !!p1 && p1.textContent.includes('Far');
+      showLinkPreview('ol_l1');
+      const p2 = document.querySelector('#linkPreviewLayer .link-preview-copy');
+      out.through = !!p2 && p2.textContent.includes('Joined') && !p2.querySelector('[id]') && !p2.hasAttribute('data-id');
+      showLinkPreview(null);
+      out.gone = !document.querySelector('#linkPreviewLayer *');
+    } finally {
+      closeNodeEditor(false); closeStyleBar(); showLinkPreview(null);
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      deselect();
+      rebuildChart();
+      await wait(100);
+    }
+    return out;
+  });
+  check('every point on a merge\'s bar is the size of a callout\'s point', r.beads, JSON.stringify(r.beadsAt));
+  check('carried across a held bar, the merged arrow comes into the face towards the bar, beside a lineage too',
+        r.plain.join() === 'top,bottom,bottom,bottom', JSON.stringify(r.plain));
+  check('…bent by hand as well, keeping its corners for the side they were set on',
+        r.bent.join() === 'bottom,bottom' && r.bentBack, JSON.stringify([r.bent, r.bentBack]));
+  check('a connector squeezed short comes out of its port as far as a squeezed lineage comes to its bar', r.stub);
+  check('the field typed into an entry with no words yet is in the ink it will be drawn in',
+        r.inks[0] === 'rgb(34, 51, 204)' && r.inks[1] === 'rgb(17, 170, 68)', JSON.stringify(r.inks));
+  check('a reading in the field sits where the drawing puts it, at its size',
+        Math.abs(r.ruby[0] - r.ruby[1]) < 1.5 && Math.abs(r.ruby[2] - r.ruby[3]) < 2, JSON.stringify(r.ruby));
+  check('a link node is set on its bar — colour and where it goes — with no drawer', r.bar && r.written,
+        JSON.stringify([r.bar, r.written]));
+  check('…its arrow points at where it goes', r.turned);
+  check('…and pointed at, it shows a faint copy of the entry it stands for, through a link joined to one',
+        r.preview && r.through && r.gone, JSON.stringify([r.preview, r.through, r.gone]));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

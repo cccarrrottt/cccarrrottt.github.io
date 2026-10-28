@@ -241,9 +241,12 @@ function nodeControlsOn(id){
 let nodeUnderPointer = null;
 svg.addEventListener('pointerover', ev=>{
   const g = ev.target && ev.target.closest && ev.target.closest('.node');
+  const was = nodeUnderPointer;
   nodeUnderPointer = g ? g.dataset.id : null;
   if(g) nodeControlsOn(g.dataset.id);
+  if(was !== nodeUnderPointer) showLinkPreview(nodeUnderPointer);
 });
+svg.addEventListener('pointerleave', ()=>{ nodeUnderPointer = null; showLinkPreview(null); });
 /* The drawing the site was published with (tools/prerender.js), shown
    while the program was still on its way. It goes the moment this draws
    its own — in the same task, so no frame shows neither, and none shows
@@ -1367,13 +1370,21 @@ const drawOne = (n)=>{
          already means "go there" on every entry carrying a link. Greyed
          while it goes nowhere. */
       const u = r / 9;
-      const goes = !!linkNodeTarget(n);
-      el('path', {d:`M${(cx-3.6*u).toFixed(2)},${(cy+3.6*u).toFixed(2)} L${(cx+3.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} ` +
+      const to = linkNodeTarget(n);
+      const goes = !!to;
+      /* …turned to face the entry it goes to (the owner's list of 28.10),
+         so the circle says which way to look as well as that it goes
+         somewhere. Drawn pointing up and right; one going nowhere stays
+         so. */
+      const there = to && nodes.get(to.id);
+      const turn = there
+        ? Math.atan2(there.y + there.h/2 - cy, there.x + there.w/2 - cx) * 180 / Math.PI + 45 : 0;
+      const arrow = el('path', {d:`M${(cx-3.6*u).toFixed(2)},${(cy+3.6*u).toFixed(2)} L${(cx+3.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} ` +
                     `M${(cx-1.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} L${(cx+3.2*u).toFixed(2)},${(cy-3.2*u).toFixed(2)} ` +
                     `L${(cx+3.2*u).toFixed(2)},${(cy+1.2*u).toFixed(2)}`,
                   class: 'link-node-arrow' + (goes ? '' : ' nowhere'),
                   style:`stroke:${textFill};stroke-width:${(1.6*u).toFixed(2)};`}, g);
-      const to = linkNodeTarget(n);
+      if(turn) arrow.setAttribute('transform', `rotate(${turn.toFixed(1)} ${cx.toFixed(2)} ${cy.toFixed(2)})`);
       el('title', {}, g).textContent = to
         ? 'Go to ' + (stripMarkup((nodes.get(to.id) || {}).label || '') || to.id)
         : 'Goes nowhere yet — double-click to say where';
@@ -1429,6 +1440,11 @@ const drawOne = (n)=>{
    * takes the plain contrasting ink instead, so the old archetype comes
    * out of the new properties looking exactly as it did. */
   if(!isFree) textFill = readableOn(textFill, (n.bg && n.bg.length) ? n.bg[0] : null);
+  /* The ink the words are drawn in, kept for the field typed over them
+     (syncNodeEditorLook): an entry with no words yet has no text on the
+     drawing to read it from. A gradient is no ink a field can take, so
+     the first of its colours stands in. */
+  n.labelInk = /^url\(/.test(textFill) ? (paintColors[0] || null) : textFill;
 
   /* An array is taken hold of anywhere inside it and on a band along its
      frame. It used to be the band alone, so the paper inside belonged to
@@ -2020,8 +2036,8 @@ const drawOne = (n)=>{
        a reader wants from an image is the settings — the file, the crop,
        the size, the side its card hangs on. */
     if(isBio){ openEntrySettings(n.id); return; }
-    /* A link node has no words either: its settings hold where it goes. */
-    if(isLinkNode){ selectNode(n.id); paintMultiSelection(); openEntrySettings(n.id); return; }
+    /* A link node has no words either: where it goes is on its bar. */
+    if(isLinkNode){ selectNode(n.id); paintMultiSelection(); askWhereLinkGoes(n.id); return; }
     /* A split has nothing to write and nothing to set but its colour,
        which is on its bar; a double click picks it up, as one click does. */
     if(isSplit){ selectNode(n.id); paintMultiSelection(); return; }

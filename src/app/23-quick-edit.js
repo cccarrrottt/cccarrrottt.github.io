@@ -730,6 +730,13 @@ function defId(prefix, raw){
  * itself, so what is left is the half that was always the point: pick the
  * entry out and show everything about it that is not its text. */
 function openEntrySettings(id){
+  /* A link node has no drawer: everything it is is on its bar (the
+     owner's list of 28.10), wherever it is asked to be opened from. */
+  if(isLinkNode(nodes.get(id))){
+    if(selectedId !== id){ selectNode(id); paintMultiSelection(); }
+    askWhereLinkGoes(id);
+    return;
+  }
   if(selectedId !== id){ selectNode(id); paintMultiSelection(); }
   if(detailEditForm.style.display === 'none' || !detailEditForm.style.display){
     detailEditToggle.onclick({stopPropagation(){}});

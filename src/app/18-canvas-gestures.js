@@ -332,18 +332,24 @@ function markViewMoving(){
  * same evening). Only a pan does it — a pinch is looking closer, not
  * onward.
  *
- * The row fades first and only then gives up its place, and the
- * chart is moved down by exactly what that gave in the same frame, so what
- * is under the finger stays under it: the drawing's origin is the top of
- * the canvas, and the canvas has just grown upward. The state lives on
- * the function, since applyTransform runs during boot. */
+ * The row fades first and only then folds its place away, and the chart
+ * is moved down by exactly what that gave in each frame, so what is under
+ * the finger stays under it: the drawing's origin is the top of the
+ * canvas, and the canvas grows upward. The state lives on the function,
+ * since applyTransform runs during boot. */
 function followWithPhoneBar(){
   const f = followWithPhoneBar;
-  const moved = f.vs === vs && f.vy != null ? vy - f.vy : 0;
-  f.vy = vy; f.vs = vs;
+  const same = f.vs === vs && f.vy != null;
+  const moved = same ? vy - f.vy : 0, across = same && f.vx != null ? vx - f.vx : 0;
+  f.vy = vy; f.vx = vx; f.vs = vs;
   if(!moved || !dragging || !document.body.classList.contains('touch-input')) return;
   if(!f.narrow) f.narrow = window.matchMedia('(max-width: 720px)');
   if(!f.narrow.matches) return;
+  /* Only a carry that is mostly up or down says anything about the bar
+     (the owner's list of 28.10, to be tried): one along a diagonal is
+     reading across the chart, and neither brings the bar back nor puts it
+     away. It does not count towards a run either way. */
+  if(Math.abs(moved) < 2 * Math.abs(across)) return;
   // A run of moves the same way, so a finger that wavers does not flicker it.
   f.run = (Math.sign(f.run || 0) === Math.sign(moved) ? f.run : 0) + moved;
   if(f.run < -28) setPhoneBarHidden(true);
@@ -355,26 +361,68 @@ function setPhoneBarHidden(hide){
   if(!bar || !!f.hidden === !!hide) return;
   f.hidden = !!hide;
   clearTimeout(f.timer);
-  /* What the bar gives up or takes back, moved into the view at once, the
-     pan under way included, so nothing on the chart jumps. Measured as the
-     canvas moves rather than as the bar's height: the bar may have changed
-     while it was away (a reader's bar is a row shorter than an editor's). */
-  const settle = (change)=>{
-    const before = svg.getBoundingClientRect().top;
-    change();
-    const h = before - svg.getBoundingClientRect().top;
+  cancelAnimationFrame(f.frame);
+  /* What the bar gives up or takes back is put into the view as it goes,
+     frame by frame, the pan under way included, so nothing on the chart
+     moves under the finger. Measured as the canvas moves rather than as
+     the bar's height: the bar may have changed while it was away (a
+     reader's bar is a row shorter than an editor's). */
+  let top = svg.getBoundingClientRect().top;
+  const settle = ()=>{
+    const now = svg.getBoundingClientRect().top;
+    const h = top - now;
+    top = now;
+    if(!h) return;
     vy += h;
     if(dragStart) dragStart.vy += h;
     followWithPhoneBar.vy = vy;
     applyTransform();
   };
+  /* The row folds away and unfolds, rather than giving its height up or
+     taking it back in one frame (the owner's list of 28.10): put away,
+     the buttons fade and then the bar closes over them; brought back, it
+     opens and then they fade in, the same thing run backwards. What is
+     below the bar — the drawers down the side among it — follows the
+     bar's edge as it goes, so a drawer grows with the room it is given
+     instead of jumping to its new place. */
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const FADE = reduced ? 0 : 150, FOLD = reduced ? 0 : 200;
+  const heightOf = (gone)=>{
+    const had = bar.classList.contains('gone');
+    bar.classList.toggle('gone', gone);
+    const h = bar.getBoundingClientRect().height;
+    bar.classList.toggle('gone', had);
+    return h;
+  };
+  const fold = (from, to, done)=>{
+    bar.style.height = from + 'px';
+    bar.classList.add('folding');
+    bar.getBoundingClientRect();
+    bar.style.transition = FOLD ? `height ${FOLD}ms ease` : 'none';
+    bar.style.height = to + 'px';
+    const until = performance.now() + FOLD;
+    const step = ()=>{
+      settle();
+      if(performance.now() < until){ f.frame = requestAnimationFrame(step); return; }
+      bar.style.height = ''; bar.style.transition = '';
+      bar.classList.remove('folding');
+      done();
+      settle();
+    };
+    f.frame = requestAnimationFrame(step);
+  };
   if(hide){
     bar.classList.add('slid');
-    f.timer = setTimeout(()=> settle(()=> bar.classList.add('gone')), 150);
+    f.timer = setTimeout(()=>{
+      top = svg.getBoundingClientRect().top;
+      fold(heightOf(false), heightOf(true), ()=> bar.classList.add('gone'));
+    }, FADE);
   } else {
-    if(bar.classList.contains('gone')) settle(()=> bar.classList.remove('gone'));
-    // Back in the layout first, then slid in, the next frame.
-    requestAnimationFrame(()=> bar.classList.remove('slid'));
+    const from = bar.getBoundingClientRect().height;
+    bar.classList.remove('gone');
+    const to = bar.getBoundingClientRect().height;
+    fold(from, to, ()=>{});
+    f.timer = setTimeout(()=> bar.classList.remove('slid'), FOLD);
   }
 }
 /* A bar put away on a phone is back when the window is no longer one. */

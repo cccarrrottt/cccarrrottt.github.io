@@ -525,12 +525,16 @@ function joinCandidates(s1, s2, extraLanes, remembered){
    neighbour. Letting the stub shrink with the distance keeps the run-out
    long enough to leave the border cleanly while giving the elbow somewhere
    to go, so a short connector stays a plain step instead of breaking. */
-const STUB_MIN = 6;
+/* The same least run-out a lineage has above a merge's bar (the owner's
+   list of 28.10, to be tried): a connector squeezed as short as it will go
+   comes out of its port as far as a squeezed lineage comes down to its
+   bar, so the two read as the same kind of line. It was 6. */
+const STUB_MIN = AMALGAM_LEAD_MIN;
 /* …and never shorter than the entry's own border is deep.
  *
  * A run-out is measured against how much room lies in front of the port,
  * which for two ports facing away from each other is none — so it collapses
- * to STUB_MIN and the route turns six pixels out. Six pixels is outside a
+ * to STUB_MIN and the route turns that close. Six pixels was outside a
  * plain box and INSIDE a pocket reality, whose edge wanders three either
  * side of its baseline, and inside the outer borders of an entry drawn with
  * more than one. The turn then happened within the entry's own decoration,
