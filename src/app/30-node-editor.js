@@ -337,12 +337,26 @@ function alignEditorOnInk(){
       : qNode(`.node[data-id="${cssEscape(n.id)}"]`);
     if(g) drawn = [...g.querySelectorAll(':scope > .node-label-text, :scope .node-label-text')];
   }
+  /* A sticker in the words is drawn beside the text, not in it (an
+     <image> cannot live in a <text>), so the line's ink runs on past the
+     text to the last sticker. Measured from the text alone, the line's
+     middle was short of the drawing's by half the stickers, and the field
+     was moved that far off its entry (the owner's screenshot of 29.10:
+     "Dghdhx" and two stickers, the field a sticker's width to the left).
+     They count across only; up and down the words are the line. */
+  const glyphs = drawn.length ? [...new Set(drawn.map(e=> e.parentNode))]
+    .flatMap(h=> [...h.querySelectorAll(':scope > .sticker-glyph, :scope > .sticker-missing')]) : [];
   let l = Infinity, tp = Infinity, r = -Infinity, b = -Infinity;
   drawn.forEach(e=>{
     const q = e.getBoundingClientRect();
     if(!q.width || !q.height) return;
     l = Math.min(l, q.left); tp = Math.min(tp, q.top);
     r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+  });
+  glyphs.forEach(e=>{
+    const q = e.getBoundingClientRect();
+    if(!q.width) return;
+    l = Math.min(l, q.left); r = Math.max(r, q.right);
   });
   if(!(r > l)) return;
   const range = document.createRange();

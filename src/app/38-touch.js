@@ -217,7 +217,7 @@ function touchMenuFor(st){
   }
   const line = st.target.closest && st.target.closest('.edge-hit');
   if(line && line.dataset.to) return 'edge';
-  const thing = '.edge-hit, .amalgam-bar-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
+  const thing = '.edge-hit, .amalgam-bar-hit, .amalgam-junction-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
   return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
 /* Open paper: on the chart, and on nothing that answers to a tap of its
@@ -648,17 +648,27 @@ svg.addEventListener('contextmenu', ev=>{
   if(touchGesture || readOnlyView) return;
   const t = ev.target;
   if(t.closest && t.closest('[contenteditable="true"], [contenteditable="plaintext-only"], input, textarea')) return;
-  const st = {held: true, target: t};
-  const kind = touchMenuFor(st);
-  if(!kind) return;
+  /* Nothing on the chart gets the browser's menu (the owner's list of
+     29.10): a right click on a merge's bar, a corner or a callout's point
+     used to fall through to Back, Reload and Print, because the menu
+     below only knew entries, connectors and paper. Each of those things
+     stands for an entry or a connector, and the menu is that one's. */
   ev.preventDefault();
+  const st = {held: true, target: t};
+  let kind = touchMenuFor(st), id = null;
+  if(kind === 'add') id = t.closest('.node').dataset.id;
+  if(!kind){
+    const held = rightClickHolds(t, ev);
+    if(!held) return;
+    kind = held.kind; id = held.id;
+  }
   closeTouchMenu();
   const click = ()=> t.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true,
                                                               clientX: ev.clientX, clientY: ev.clientY, button: 0}));
+  if(kind === 'add' && id && (selectedId === id || multiSelection.has(id))) kind = 'selection';
   if(kind === 'add'){
     /* Picked quietly: the menu is what was asked for, not the entry's
        panel, which a left click would open. */
-    const id = t.closest('.node').dataset.id;
     selectNode(id, {quiet: true});
     paintMultiSelection();
     openTouchMenu(ev.clientX, ev.clientY, 'selection', true);
@@ -666,10 +676,38 @@ svg.addEventListener('contextmenu', ev=>{
     click();
     if(!edgePopover.classList.contains('open')) return;
     openTouchMenu(ev.clientX, ev.clientY, 'edge', true);
+  } else if(kind === 'held-edge'){
+    // Already taken hold of by rightClickHolds.
+    if(!edgePopover.classList.contains('open')) return;
+    openTouchMenu(ev.clientX, ev.clientY, 'edge', true);
   } else {
     openTouchMenu(ev.clientX, ev.clientY, kind, true);
   }
 });
+/* What a right click on a thing that is not an entry, a connector or
+   paper stands for, taken hold of as the menu needs it: a stretch of a
+   merge's bar is its lineage, a note on a line and the corners of the
+   picked line are that line, a callout's point and leader are the
+   callout, a merge's junction is the merged entry, and an entry's glow
+   or picture card is the entry. */
+function rightClickHolds(t, ev){
+  if(!t.closest) return null;
+  const note = t.closest('.edge-note');
+  if(note){
+    openEdgeStylePopover(note.dataset.from, note.dataset.to, ev);
+    return {kind: 'held-edge'};
+  }
+  const bar = t.closest('.amalgam-bar-hit');
+  if(bar){
+    openBarStretch(bar.dataset.amalgam, ev);
+    return {kind: 'held-edge'};
+  }
+  if(t.closest('#bendLayer')) return currentEdgeStyleTarget ? {kind: 'held-edge'} : {kind: 'canvas'};
+  const one = t.closest('.amalgam-junction-hit, .leader-line-hit, .leader-dot-hit, .node-aura, .node-aura-hit, .bio-card-g');
+  const id = one && (one.dataset.amalgam || one.dataset.id);
+  if(id && nodes.has(id)) return {kind: 'add', id};
+  return svg.contains(t) ? {kind: 'canvas'} : null;
+}
 /* A mouse puts the menu away the way a finger does: by pressing anywhere
    else, or with Escape. */
 document.addEventListener('mousedown', ev=>{

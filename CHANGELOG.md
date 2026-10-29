@@ -8,6 +8,28 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- A right click anywhere on the chart is the chart's own menu: on a
+  merge's bar it is that lineage's, on its junction the merged entry's,
+  on a note or a corner its connector's. The browser's menu came up there
+  before.
+- A merge carried with all its lineages keeps the corners its arrow was
+  bent through; they stayed behind and pulled the arrow out of shape.
+- A merge's junction carried with Shift lines its entry up with the
+  others, with a guide, as an entry carried anywhere does.
+- Only lines into one port of an entry merge; Merge is not offered on a
+  line that comes in by another side. A connector's end, on a line under
+  the pointer, is a square grip: carried onto another port of its entry,
+  the line comes in there.
+- The field typed into an entry with stickers in its words stands on the
+  words and the stickers together. It stood a sticker's width aside.
+- A curve turns its corners on a radius of its own, three of an elbow's,
+  and runs along the elbowed route between them, rather than bowing
+  across the whole route.
+- The wheel zooms the chart over its menus too. A note written along a
+  bend has its bar where the pointer met it and keeps it while the hand
+  crosses the note's own line. A callout turned to a shelf, or back, keeps
+  its bar under the hand. A comment's ground square shows the ground it
+  is drawn on, and a ⟲ beside it gives the default back.
 - A connector's ends are solid in a see-through colour: a head or a T is
   painted in the shade its line has on the paper, so the line it caps, a
   bar it stands across or a border it points into no longer shows through
