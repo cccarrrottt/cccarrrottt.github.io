@@ -19,7 +19,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app/         the program, 41 files, one per subsystem — see "One scope, many
+  app/         the program, 42 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
   site/        published beside the page on the site only: the manifest, the
                icons and the service worker that make it an app a phone keeps
@@ -66,7 +66,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 41 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 42 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -214,14 +214,22 @@ on the site it is a reader unless the service says otherwise.
 
 ### Setting up the write service
 
-Done once. Until it is, `SITE_API` points at nothing and the site is
-read-only for everybody, the owner included.
+Done once. Until it is, `api` in `src/app/00-config.js` points at nothing
+and the site is read-only for everybody, the owner included.
+
+The site's three addresses — `site`, the published origin; `api`, this
+service; `repo`, the repository — are said once, in `src/app/00-config.js`,
+and the build, the program and the suite all read them from there. The
+service keeps its own copy in `worker/wrangler.toml` (`REPO`,
+`ALLOWED_ORIGINS`), because Cloudflare deploys it from that file;
+`tests/build_guard.py` fails if the two disagree. Publishing the chart from
+another account or repository is a matter of changing those two files.
 
 1. **Cloudflare.** Make a free account and open *Workers & Pages* once, which
    gives the account its `*.workers.dev` subdomain. The service will live at
    `https://<worker name>.<subdomain>.workers.dev` — here
    `https://cccarrrottt-github-io.wowwodptr2.workers.dev`, which is what
-   `SITE_API` in `src/app/01-store.js` names. Another account or Worker name
+   `api` in `src/app/00-config.js` names. Another account or Worker name
    means changing it there and `name` in `worker/wrangler.toml`.
 2. **A GitHub App** (GitHub → Settings → Developer settings → GitHub Apps →
    New). Homepage: the site. Callback URL:

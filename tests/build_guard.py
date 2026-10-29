@@ -536,6 +536,48 @@ def main():
           r.returncode == 0 and 'new' not in [l for l in r.stdout.splitlines() if 'dist/media' in l][0],
           r.stdout)
 
+    # The site's addresses are said once, in src/app/00-config.js. The write
+    # service cannot read that file — Cloudflare deploys it with what
+    # worker/wrangler.toml says — so the two are held together here: an
+    # address changed in one and not the other would otherwise surface as a
+    # sign-in that fails on the live site.
+    config = dict(re.findall(r"^\s*(site|api|repo): '([^']*)',?\s*$",
+                             (ROOT / 'src' / 'app' / '00-config.js').read_text(encoding='utf-8'), re.M))
+    wrangler = dict(re.findall(r'^(\w+) = "([^"]*)"', (ROOT / 'worker' / 'wrangler.toml').read_text(encoding='utf-8'), re.M))
+    check('the config says site, api and repo', all(k in config for k in ('site', 'api', 'repo')), str(config))
+    check('the write service is deployed for the repository the config names',
+          wrangler.get('REPO') == config.get('repo'), f"{wrangler.get('REPO')} vs {config.get('repo')}")
+    check('and lets in the site the config names',
+          config.get('site') in [o.strip() for o in wrangler.get('ALLOWED_ORIGINS', '').split(',')],
+          f"{wrangler.get('ALLOWED_ORIGINS')} vs {config.get('site')}")
+
+    # And everything the build writes about where it lives follows the
+    # config: another address there is another address in the link preview,
+    # in the schema's name for itself and in the program — and nowhere the
+    # old one.
+    tmp = sandbox()
+    part = tmp / 'src' / 'app' / '00-config.js'
+    text = part.read_text(encoding='utf-8')
+    old_site = config.get('site', '')
+    part.write_text(text.replace(f"site: '{old_site}'", "site: 'https://example.org'"), encoding='utf-8')
+    r = run(tmp)
+    site_page = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    schema = (tmp / 'dist' / 'site' / 'chart.schema.json').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    nexus = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    # Only the preview's own tags: the chart may well link to the site in
+    # its entries, and those are the chart's words, not the build's.
+    check('another site in the config is the site the preview names',
+          'og:url" content="https://example.org/"' in site_page
+          and 'og:image" content="https://example.org/og-image.png"' in site_page, r.stdout + r.stderr)
+    check('and the address the schema gives itself',
+          '"$id": "https://example.org/chart.schema.json"' in schema, schema[:300])
+    check('and the one the program asks',
+          "site: 'https://example.org'" in nexus and f"site: '{old_site}'" not in nexus)
+    part.write_text(text.replace("site: '", "site: \"").replace(f"{old_site}',", f'{old_site}",'), encoding='utf-8')
+    r = run(tmp)
+    check('a config the build cannot read stops it and says which file',
+          r.returncode != 0 and '00-config.js' in (r.stdout + r.stderr), r.stdout + r.stderr)
+
     # CLAUDE.md and README say how many scenarios the browser suite has,
     # and both had drifted (89 and 77, against 121) because nothing read
     # them back. The number is counted from the suite's own source rather

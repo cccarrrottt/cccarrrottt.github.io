@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 41 files. **They are not modules.** The page is a single
+`src/app/` holds 42 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -223,6 +223,13 @@ site") and `build_guard`:
   reader's browser meets go to `POST /report` (`reportFault`,
   `01-store.js`), at most five a load, never with the session, which the
   service writes to its log and nowhere else.
+- **Where the site lives is said once**, in `src/app/00-config.js`
+  (`SITE_CONFIG`: `site`, `api`, `repo`, one quoted string to a line, so
+  `build.py` and the suite read it as text). `SITE_ORIGINS`, `SITE_API` and
+  `SITE_REPO` in `01-store.js` are taken from it, the build writes the
+  site's address into the link preview and the schema's `$id`, and
+  `build_guard` holds `REPO`/`ALLOWED_ORIGINS` in `worker/wrangler.toml` to
+  it — the service is deployed from that file and cannot read ours.
 - **No part may contain a closing script tag**, in a string or a comment:
   the program is inside a `<script>` in every build but the site's, and the
   parser ends it there. The build refuses it and names the part.

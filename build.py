@@ -33,7 +33,7 @@ ONE OUTPUT
 
 There used to be four: editable or read-only, fragment or document, because
 whether a copy could be edited was decided here, at build time. It is decided
-when the page is opened now (see SITE_ORIGINS in src/app/01-store.js). On the
+when the page is opened now (see SITE_CONFIG in src/app/00-config.js). On the
 published site it is a reader until the owner signs in; opened off a disk or
 served from anywhere else it is that person's own copy and saves into their
 browser; on claude.ai it publishes itself through the artifact capability as
@@ -94,6 +94,7 @@ REGIONS = ['NODES', 'COMMENTS', 'STICKERS', 'MEDIA', 'EDGESTYLES', 'TAGCATS', 'R
 # is mechanical: the file this produces is byte for byte the file the single
 # app.js produced.
 APP_PARTS = [
+    '00-config.js',
     '01-store.js',
     '02-model.js',
     '03-markup.js',
@@ -380,12 +381,21 @@ def wrap(page, head_extra=''):
             '</body>\n</html>\n')
 
 
+def site_config():
+    """The site's addresses — site, api, repo — as src/app/00-config.js says
+    them. Read as text, one string to a line, so the build need not run the
+    program to learn where it will be published."""
+    text = read(SRC / 'app' / '00-config.js')
+    found = dict(re.findall(r"^\s*(site|api|repo): '([^']*)',?\s*$", text, re.M))
+    if not found.get('site') or 'repo' not in found or 'api' not in found:
+        sys.exit('build: src/app/00-config.js does not say site, api and repo '
+                 'as one quoted string to a line')
+    return found
+
+
 def site_origin():
     """The published site's address, as the program names it."""
-    m = re.search(r"const SITE_ORIGINS = \['([^']+)'", read(SRC / 'app' / '01-store.js'))
-    if not m:
-        sys.exit('build: could not find SITE_ORIGINS in src/app/01-store.js')
-    return m.group(1)
+    return site_config()['site']
 
 
 # The esbuild that minifies the site's program and stylesheet is pinned in
@@ -538,7 +548,15 @@ def build_site(head_rest, css, body, data_js, app_js, data_sha):
     (out / 'index.html').write_text(page, encoding='utf-8')
     site_files = SRC / 'site'
     for f in sorted(site_files.iterdir()):
-        if f.is_file():
+        if f.name == 'chart.schema.json':
+            # A schema names itself by where it is published, and that is
+            # the site's address in 00-config.js, not the one the file was
+            # written with — a copy published elsewhere names its own.
+            schema = re.sub(r'("\$id":\s*")[^"]*(/chart\.schema\.json")',
+                            lambda m: m.group(1) + origin + m.group(2),
+                            read(f), count=1)
+            (out / f.name).write_text(schema, encoding='utf-8')
+        elif f.is_file():
             shutil.copyfile(f, out / f.name)
     if not (out / OG_IMAGE).exists():
         sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')

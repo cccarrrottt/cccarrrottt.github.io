@@ -8,6 +8,11 @@ Releases before 0.9.0 were not numbered.
 
 ## Unreleased
 
+- The site's three addresses — the published site, the write service and
+  the repository — are said once, in `src/app/00-config.js`. The program,
+  the build (link preview, the schema's `$id`) and the suite read them from
+  there, and `build_guard` fails when `worker/wrangler.toml` names another
+  repository or does not let that site in.
 - A connector's ends are solid in a see-through colour: a head or a T is
   painted in the shade its line has on the paper, so the line it caps, a
   bar it stands across or a border it points into no longer shows through
