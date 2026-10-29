@@ -204,7 +204,7 @@ const styleBar = (()=>{
   /* A colour on the bar is a square, as every colour on the page is (see
      squareForHexInput); pressed, it opens the code to type. Blank is the
      paper. Typing is one step of undo however long it runs. */
-  const hexGroup = (name, title, apply, ink)=>{
+  const hexGroup = (name, title, apply, ink, ground)=>{
     const row = group(name, []);
     row.classList.add('style-bar-hex');
     const input = document.createElement('input');
@@ -220,8 +220,32 @@ const styleBar = (()=>{
        "no colour", which is not what a blank ground means here. */
     /* …except where blank is the default INK, which is what the square
        then shows. */
-    squareForHexInput(input, {title, fallback: ink ? ()=> ARRAY_INK : ()=>
-      getComputedStyle(document.body).getPropertyValue('--panel').trim() || '#ffffff'});
+    /* …or, where the bar can find it, the ground actually drawn under
+       the words (`ground`): the owner's list of 29.10 found a comment's
+       square showing a white it was not drawn on. */
+    const paper = ()=> getComputedStyle(document.body).getPropertyValue('--panel').trim() || '#ffffff';
+    squareForHexInput(input, {title, fallback: ink ? ()=> ARRAY_INK
+                                             : ()=> (ground && styleBarTarget && ground(styleBarTarget)) || paper()});
+    /* And a way back to it. Clearing the code did the same, but only once
+       the square had been opened and its field emptied by hand — nothing
+       on the bar said that was how. */
+    if(!ink){
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'hex-reset';
+      back.textContent = '\u27f2';
+      back.title = 'Back to the default ground';
+      row.appendChild(back);
+      back.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        if(!styleBarTarget || readOnlyView || !input.value) return;
+        pushUndo();
+        input.value = '';
+        apply(styleBarTarget, '');
+        refreshSaveUI();
+        syncStyleBar();
+      });
+    }
     input.addEventListener('mousedown', ev=> ev.stopPropagation());
     input.addEventListener('keydown', ev=> ev.stopPropagation());
     input.addEventListener('input', ()=>{
@@ -248,7 +272,8 @@ const styleBar = (()=>{
     if(!o) return;
     if(v) o.noteBg = v; else delete o.noteBg;
     redrawEdges();
-  });
+  }, false, t=> drawnGroundOf(t.kind === 'note' && document.querySelector(
+    `.edge-note[data-from="${CSS.escape(t.from)}"][data-to="${CSS.escape(t.to)}"] .edge-note-plate`)));
   /* And a callout's card, which is an entry's box and fills as one does —
      from opts.bg. A shelf has no card to fill, and is not offered it. */
   hexGroup('cardBg', 'What the callout is written on — blank is the paper', (t, v)=>{
@@ -259,6 +284,11 @@ const styleBar = (()=>{
     if(v) opts.bg = [v]; else delete opts.bg;
     putEntry(found.index, found.entry, opts);
     rebuildChart();
+  }, false, t=>{
+    const g = t.kind === 'node' && qNode(`.node[data-id="${CSS.escape(t.id)}"]`);
+    return drawnGroundOf(g && [...g.querySelectorAll('rect, path, ellipse, polygon')]
+      .find(e=> !/handle|hit|band/.test(e.getAttribute('class') || '') && (e.style.fill || '') !== 'none' &&
+                getComputedStyle(e).fill !== 'none'));
   });
   /* An array's frame. An entry is coloured in its settings, which an
      array has none of, so its colour is set here, beside its ground. */
@@ -360,7 +390,19 @@ const styleBar = (()=>{
       if(styleBarTarget.kind === 'node') copyEntryLink(styleBarTarget.id, b, 'Copy a link to this array');
       return;
     }
-    applyStyleBar(row.dataset.group, b.dataset.value);
+    /* The button pressed stays under the hand. A choice can take rows
+       off the bar or put them back — a callout's card taken down to a
+       shelf has no border to choose — and the button slid out from under
+       the pointer, which then left the bar and let it go. */
+    const was = b.getBoundingClientRect();
+    const group = row.dataset.group, value = b.dataset.value;
+    applyStyleBar(group, value);
+    const now = !bar.hidden && bar.querySelector(`.style-bar-group[data-group="${group}"] button[data-value="${CSS.escape(value)}"]`);
+    const at = now && now.getBoundingClientRect();
+    if(at && at.width && (Math.abs(at.left - was.left) > 0.5 || Math.abs(at.top - was.top) > 0.5)){
+      bar.style.left = (parseFloat(bar.style.left) + was.left - at.left).toFixed(2) + 'px';
+      bar.style.top = (parseFloat(bar.style.top) + was.top - at.top).toFixed(2) + 'px';
+    }
   });
   const host = document.querySelector('.app > .main');
   if(host) host.appendChild(bar);
@@ -379,7 +421,9 @@ function askWhereLinkGoes(id){
    {kind:'leader', id} — a callout's leader line, by the callout's id — or
    {kind:'edge', from, to, x, y}, a connector, with where on the screen the
    pointer met it, since a line has no corner to stand the bar over. */
-let styleBarTarget = null;
+// `var`: the bar's colour squares ask what it stands on as they are
+// first painted, which is while the bar is being built, above this line.
+var styleBarTarget = null;
 let styleBarTimer = null;
 
 /* A callout's leader is part of the callout: the bar on its line is the
@@ -411,12 +455,13 @@ function openStyleBar(target){
      along the same line: following it would move the buttons out from
      under the hand that is going for them. */
   const t = styleBarTarget;
-  if(target.kind === 'edge' && t && t.kind === 'edge' && t.from === target.from && t.to === target.to &&
-     !styleBar.hidden) return;
+  if((target.kind === 'edge' || target.kind === 'note') && t && t.kind === target.kind &&
+     t.from === target.from && t.to === target.to && !styleBar.hidden) return;
   /* A line's bar is placed where the pointer met the line — kept as a
      point on the chart, so it can follow the line when what it joins is
      carried (see followStyleBar). */
-  if(target.kind === 'edge' && typeof target.x === 'number') target.at = clientToWorld(target.x, target.y);
+  if((target.kind === 'edge' || target.kind === 'note') && typeof target.x === 'number')
+    target.at = clientToWorld(target.x, target.y);
   styleBarTarget = target;
   syncStyleBar();
 }
@@ -629,9 +674,18 @@ function syncStyleBarRows(){
 }
 /* Over the thing, on its left edge, clear of its outermost border; under
    it instead where there is no room above. */
+/* While the hand is on the bar, the bar stays where it is (the owner's
+   list of 29.10). A choice made on it can change the size of what it
+   stands on — a callout's card taken down to a shelf — and the bar, put
+   again over the new box, moved out from under the pointer, which it
+   then took for the hand leaving, and went. */
+let styleBarPlacedFor = '';
 function positionStyleBar(){
   const t = styleBarTarget;
   if(!t || styleBar.hidden) return;
+  const key = [t.kind, t.id, t.from, t.to].join('\u0001');
+  if(key === styleBarPlacedFor && styleBar.matches(':hover')) return;
+  styleBarPlacedFor = key;
   const host = document.querySelector('.app > .main').getBoundingClientRect();
   let left, top, bottom;
   if(t.kind === 'node' || t.kind === 'decor'){
@@ -676,10 +730,23 @@ function positionStyleBar(){
        unseen copy of the whole line for them to run on, and the group's
        box is that line's: the bar stood off at its far corner, nowhere
        near the note (the owner's report, 23.10). */
-    const r = (g.querySelector('text.edge-note-along') || g).getBoundingClientRect();
+    const along = g.querySelector('text.edge-note-along');
+    const r = (along || g).getBoundingClientRect();
     left = r.left - host.left;
     top = r.top - host.top;
     bottom = r.bottom - host.top;
+    /* Words run round a bend stand over a box as tall or as wide as the
+       bend, and a bar over that box was most of it away from the words the
+       hand was on: it went before the hand got there (the owner's list of
+       29.10). Such a note has its bar where the pointer met it, as a line
+       has. */
+    if(along && t.at){
+      const sr = svg.getBoundingClientRect();
+      const cx = sr.left + t.at.x * vs + vx, cy = sr.top + t.at.y * vs + vy;
+      left = cx - host.left - 18;
+      top = cy - host.top - 14;
+      bottom = cy - host.top + 14;
+    }
   }
   const h = styleBar.offsetHeight || 30;
   const above = top - h - 6;
@@ -805,6 +872,19 @@ function applyStyleBar(group, value){
   }
   syncStyleBar();
 }
+/* The colour a drawn ground is filled with, as a code — or null where
+   there is none to read (a gradient, nothing drawn yet). */
+function drawnGroundOf(e){
+  if(!e) return null;
+  const f = getComputedStyle(e).fill || '';
+  return /^#/.test(f) ? f : rgbToHex(f);
+}
+// Whether `line` is the connector of the note the bar is up for.
+function notesOwnLine(line){
+  const t = styleBarTarget;
+  return !!(line && t && t.kind === 'note' && !styleBar.hidden &&
+            line.dataset.from === t.from && line.dataset.to === t.to);
+}
 /* Reached by hovering, so it is wired to the layers rather than to each
    entry: every redraw replaces the entries, and a listener on the layer is
    still there afterwards. */
@@ -823,10 +903,15 @@ function applyStyleBar(group, value){
     }
     const note = ev.target.closest && ev.target.closest('.edge-note');
     if(note){
-      openStyleBar({kind:'note', from: note.dataset.from, to: note.dataset.to});
+      openStyleBar({kind:'note', from: note.dataset.from, to: note.dataset.to, x: ev.clientX, y: ev.clientY});
       return;
     }
     const line = ev.target.closest && ev.target.closest('.edge-hit');
+    /* The note's bar stays the note's while the hand crosses the note's
+       own line on the way to it (the owner's list of 29.10): a note
+       written along a bend has its line beside it on every side, and the
+       bar was taken by the line before the hand could reach it. */
+    if(line && notesOwnLine(line)){ clearTimeout(styleBarTimer); return; }
     if(line){
       /* Not on a line stepped back behind a selection: it is not the
          subject, and a click on it lets the selection go (see edgeHit). */
@@ -845,6 +930,7 @@ function applyStyleBar(group, value){
     if(!from) return;
     const to = ev.relatedTarget;
     if(to && (from.contains(to) || styleBar.contains(to))) return;
+    if(to && to.closest && notesOwnLine(to.closest('.edge-hit'))) return;
     /* From a line onto one of its own bend handles, or back, is still the
        line. */
     if(to && to.closest && styleBarTarget && styleBarTarget.kind === 'edge' &&

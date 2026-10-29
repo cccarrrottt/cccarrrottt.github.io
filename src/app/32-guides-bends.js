@@ -131,15 +131,17 @@ function drawBendHandles(){
   /* Everything this reaches for is declared further down the file than the
      first draw, so on the very first pass none of it exists yet — and a
      chart with no panel open has no handles to draw in any case. */
-  let host = null, target = null;
+  let host = null, target = null, picked = null;
   try{
     host = bendLayer;
     paintEdgePick();
     if(readOnlyView) return;
-    target = (edgePopover.classList.contains('open') && currentEdgeStyleTarget) || bendHoverTarget;
+    picked = edgePopover.classList.contains('open') && currentEdgeStyleTarget;
+    target = picked || bendHoverTarget;
   }catch(e){ return; }
   while(host.firstChild) host.removeChild(host.firstChild);
   if(!target) return;
+  if(picked === target) drawEndGrips(host, target);
   /* A straight connector is the one line between its two ends: a point
      it had to pass through would make it something other than straight,
      and the router throws such points away for it (see handBends). So it
@@ -243,6 +245,75 @@ function drawBendHandles(){
       applyEdit(()=>{ setBendList(target.from, target.to, list); });
     });
   });
+}
+/* The two ends of the picked connector, to be carried onto another port
+   of the same entry (the owner's list of 29.10). Drawn as squares, not
+   rounds: a round mark is a corner to bend, and an end is a different
+   thing to take hold of. Only on a picked line — a line under the pointer
+   on its way somewhere else would put a grip over a small entry's middle
+   — and not on a merge's lines, whose ends the merge decides. */
+function drawEndGrips(host, target){
+  if(target.from === '' || isAmalgamMember(target.from, target.to)) return;
+  const rec = drawnRoutes.get(calloutEdgeKey(target.from, target.to));
+  const line = drawnLineOf(target.from, target.to) || (rec && rec.pts);
+  if(!line || line.length < 2) return;
+  [['from', line[0]], ['to', line[line.length - 1]]].forEach(([end, q])=>{
+    const id = end === 'from' ? target.from : target.to;
+    if(!id || !nodes.has(id)) return;
+    const g = el('g', {class:'bend-end', 'data-end': end}, host);
+    el('circle', {cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:BEND_R + 2, class:'bend-hit'}, g);
+    el('rect', {x:(q.x - BEND_R + 0.6).toFixed(2), y:(q.y - BEND_R + 0.6).toFixed(2),
+                width:(2 * BEND_R - 1.2).toFixed(2), height:(2 * BEND_R - 1.2).toFixed(2),
+                class:'bend-end-mark'}, g);
+    el('title', {}, g).textContent = 'Drag onto another port of this entry to move this end there';
+    g.addEventListener('mousedown', ev=> beginPortMove(ev, target, end));
+    g.addEventListener('click', ev=> ev.stopPropagation());
+  });
+}
+/* Carrying one end of a connector to another port of its entry. The
+   port is where the end is let go, read as a connector being drawn reads
+   it (connectorDropTarget): a ring's handle if it is on one, else the
+   nearest side. Anywhere else, the end stays where it was. */
+var portMove = null;
+function beginPortMove(ev, target, end){
+  if(ev.button !== 0 || readOnlyView) return;
+  ev.stopPropagation();
+  ev.preventDefault();
+  const id = end === 'from' ? target.from : target.to;
+  nodeControlsOn(id);
+  portMove = {from: target.from, to: target.to, end, id, hit: null};
+  svg.classList.add('port-moving');
+}
+window.addEventListener('mousemove', ev=>{
+  if(!portMove) return;
+  const hit = connectorDropTarget(ev.clientX, ev.clientY);
+  qNodes('.node.connect-target').forEach(g=> g.classList.remove('connect-target'));
+  qNodes('.node-handle.drop-target').forEach(h=> h.classList.remove('drop-target'));
+  portMove.hit = hit && hit.node.id === portMove.id ? hit : null;
+  if(portMove.hit){
+    portMove.hit.g.classList.add('connect-target');
+    if(portMove.hit.handle) portMove.hit.handle.classList.add('drop-target');
+  }
+});
+window.addEventListener('mouseup', ()=>{
+  const st = portMove;
+  if(!st) return;
+  portMove = null;
+  svg.classList.remove('port-moving');
+  qNodes('.node.connect-target').forEach(g=> g.classList.remove('connect-target'));
+  qNodes('.node-handle.drop-target').forEach(h=> h.classList.remove('drop-target'));
+  if(!st.hit) return;
+  movePortTo(st.from, st.to, st.end, st.hit.side, st.hit.ring);
+});
+function movePortTo(from, to, end, side, ring){
+  if(!SIDES.includes(side)) return false;
+  const kept = edgeStyleFor(from, to);
+  const sideKey = end === 'from' ? 'fromSide' : 'toSide', ringKey = end === 'from' ? 'fromRing' : 'toRing';
+  if(kept[sideKey] === side && (kept[ringKey] || 0) === (ring || 0)) return false;
+  applyEdit(()=>{
+    setEdgeStyleOverride(from, to, Object.assign({}, kept, {[sideKey]: side, [ringKey]: ring || undefined}));
+  });
+  return true;
 }
 /* The connector the pointer is on, whose handles show without its panel
    being open. They used to wait for a click, which meant finding out that
@@ -1052,7 +1123,10 @@ function paintBarPlaces(st){
     });
   });
 }
-function alignGuides(st, offX, offY, free){
+/* `only`, when given, is the one axis the thing carried can move along
+   (a merge's entry carried by its junction): the other axis offers
+   nothing, since nothing could be lined up on it. */
+function alignGuides(st, offX, offY, free, only){
   clearGuides();
   if(free || !st || !st.members || !st.members.length) return {x: offX, y: offY, hitX:false, hitY:false};
   const moving = new Set(st.members.map(m=> m.id));
@@ -1100,6 +1174,8 @@ function alignGuides(st, offX, offY, free){
   if(conn.x) offer({d: conn.x.d, at: conn.x.b.x, span:[conn.x.a, conn.x.b]}, 'x');
   if(conn.y) offer({d: conn.y.d, at: conn.y.b.y, span:[conn.y.a, conn.y.b]}, 'y');
   if(barA) offer({d: barA.d, at: barA.at, bar: barA.bar}, barA.axis);
+  if(only === 'x'){ gy = null; py = null; }
+  if(only === 'y'){ gx = null; px = null; }
   const outX = offX + (gx ? gx.d : (px ? px.d : 0));
   const outY = offY + (gy ? gy.d : (py ? py.d : 0));
   // Drawn against the boxes as they will be once the snap is applied.

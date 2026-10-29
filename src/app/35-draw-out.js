@@ -405,7 +405,35 @@ function mergeOffersFor(from, to){
   const parents = resolveExplicitParents(found.entry);
   if(!parents.includes(from)) return {merge: false, unmerge: false};
   const inMerge = isMergeNode(n) && mergeMembersOf(n).includes(from);
-  return {merge: !inMerge && parents.length >= 2, unmerge: inMerge};
+  return {merge: !inMerge && mergeFellowsOf(from, to, parents).length >= 2, unmerge: inMerge};
+}
+/* Which side of an entry a connector comes into, as drawn: the side of
+   the box its last point is nearest. */
+function edgeEntrySide(from, to){
+  const n = nodes.get(to);
+  const rec = drawnRoutes.get(calloutEdgeKey(from, to));
+  const pts = rec && (rec.line || rec.pts);
+  if(!n || !pts || !pts.length) return null;
+  const q = pts[pts.length - 1];
+  const d = {top: Math.abs(q.y - n.y), bottom: Math.abs(q.y - (n.y + n.h)),
+             left: Math.abs(q.x - n.x), right: Math.abs(q.x - (n.x + n.w))};
+  return Object.keys(d).reduce((a, b)=> d[b] < d[a] ? b : a);
+}
+/* The lineages a connector would merge with: only those coming into the
+   same port of the entry (the owner's list of 29.10). Two lines meeting
+   an entry on different sides have no bar to share, and a merge made of
+   them pulled one of them round the box to reach it. Into an entry that
+   is already a merge, the port is the one its arrow comes into. */
+function mergeFellowsOf(from, to, parents){
+  const n = nodes.get(to);
+  const side = edgeEntrySide(from, to);
+  if(isMergeNode(n)){
+    const arrow = mergedArrowPorts.get(to);
+    const at = arrow && arrow.p2 ? arrow.p2.side : edgeEntrySide('', to);
+    return (!side || !at || side === at) ? mergeMembersOf(n).concat([from]) : [];
+  }
+  if(!side) return parents.slice();
+  return parents.filter(p=> edgeEntrySide(p, to) === side);
 }
 function mergeEdge(from, to){
   if(!mergeOffersFor(from, to).merge) return false;
@@ -415,8 +443,11 @@ function mergeEdge(from, to){
     const parents = resolveExplicitParents(found.entry);
     const named = Array.isArray(opts.merge) ? opts.merge.filter(id=> parents.includes(id)) : [];
     /* A merge that names its lineages takes this one in; with nothing
-       standing, every lineage merges — and every one drawn in later. */
-    opts.merge = named.length >= 2 ? named.concat([from]) : true;
+       standing, every lineage on this one's port merges — and, when that
+       is all of them, every one drawn in later. */
+    const fellows = mergeFellowsOf(from, to, parents);
+    opts.merge = named.length >= 2 ? named.concat([from])
+               : fellows.length === parents.length ? true : fellows;
     putEntry(found.index, found.entry, opts);
     bringAmalgamToItsLineages(found, opts.merge === true ? parents : opts.merge);
   });

@@ -15205,9 +15205,14 @@ async function main(){
                                     head: heads && +heads.out.toFixed(1)});
       /* The same points as an elbowed connector — so the same handles —
          and drawn through them as one sweep. */
+      /* …turning each corner wider than an elbow does and no wider than
+         its own radius: a corner rounded on r passes it at r(√2 − 1). */
+      const cut = (r)=> r * (Math.SQRT2 - 1);
       out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && d.indexOf('Q') < 0 &&
-                        line.length > 20 && nearest > 4 * EDGE_CORNER_R;
-      out.curveSketch = ptsS.length >= 4 && bowOut < routeOut - 4 && slant > 5 && slant < 85;
+                        line.length > 20 && nearest > cut(EDGE_CORNER_R) + 1 && nearest < cut(CURVE_TURN_R) + 0.5;
+      /* The owner's list of 29.10: the sketch keeps to the bracket — out
+         as far as the elbowed route goes — and its head comes in square. */
+      out.curveSketch = ptsS.length >= 4 && Math.abs(bowOut - routeOut) < 1 && (slant < 1 || slant > 89);
       /* The stretch the head stands on, and the few units the line runs
          before it, lie on the head's own axis — plain and wavy alike — and
          the line's last step points the way the head does, so it meets the
@@ -15328,9 +15333,9 @@ async function main(){
                         wavy:rR.leaderWavy, only:rR.leaderRowOnlyOnCallouts, solid:rR.leaderSolidIsAbsence}));
   check('a callout and a note are edited in a field their own size, in their own type',
         rR.remarkFieldFits, rR.remarkFieldAt);
-  check('a curve is one sweep through the elbowed route, and bends at the same handles',
+  check('a curve is the elbowed route turned on a wider radius, and bends at the same handles',
         rR.curveSmooth && rR.curveOffered, rR.curveAt + rR.curvePts);
-  check('a curve from one entry\'s side to the one under it is a bow inside the bracket, met at a slant',
+  check('a curve from one entry\'s side to the one under it keeps to the bracket, its head square',
         rR.curveSketch, rR.curveAt);
   check('a curve arrives along its head\'s axis, so the head meets the line without a notch',
         rR.curveTailOnHead, rR.curveTailAt);
@@ -15708,8 +15713,12 @@ async function main(){
       const rec = drawnRoutes.get(calloutEdgeKey('fvC', 'fvD'));
       openEdgeStylePopover('fvC', 'fvD', {clientX:500, clientY:400, stopPropagation(){}});
       await wait(150);
-      out.straightAt = JSON.stringify({pts: rec && rec.pts.length, handles: bendLayer.childNodes.length});
-      out.straight = !!rec && rec.pts.length === 2 && bendLayer.childNodes.length === 0;
+      /* Its two ends are offered, to be carried to another port; a
+         corner, nothing. */
+      const bends = bendLayer.querySelectorAll(':scope > :not(.bend-end)').length;
+      const ends = bendLayer.querySelectorAll(':scope > .bend-end').length;
+      out.straightAt = JSON.stringify({pts: rec && rec.pts.length, handles: bends, ends});
+      out.straight = !!rec && rec.pts.length === 2 && bends === 0 && ends === 2;
       closeEdgePopover();
     }
 
@@ -18214,7 +18223,7 @@ async function main(){
     const route = drawnRoutes.get(calloutEdgeKey('ck_a', 'ck_b'));
     const line = document.querySelector('.edge[data-from="ck_a"][data-to="ck_b"]');
     const pts = (line.getAttribute('d').match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
-    const plain = bsplineOver(reachOut(mergeCollinear(route.pts)), CURVE_STEP);
+    const plain = roundedThrough(mergeCollinear(route.pts), CURVE_STEP);
     // The first dozen units, point for point.
     let gap = 0;
     for(let i = 0; i < 8 && i < pts.length; i++) gap = Math.max(gap, Math.hypot(pts[i].x - plain[i].x, pts[i].y - plain[i].y));
@@ -18236,7 +18245,7 @@ async function main(){
     });
     return out;
   });
-  check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
+  check('a curve leaves a bare end along its own rounded route', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
   });
   await scenario("ends without a rule, a picture's cross, and defaults that say so", async () => {
@@ -19531,6 +19540,9 @@ async function main(){
         workingNodes.push(['mg_b','B',null,null,null,null,{pos:[X + 300, Y], colors:['#2f6fb5']}]);
         workingNodes.push(['mg_c','C',null,null,null,null,{pos:[X + 600, Y], colors:['#1d7a5f']}]);
         workingNodes.push(['mg_m','M',['mg_a','mg_b','mg_c'],null,null,null,{pos:[X + 300, Y + 300]}]);
+        /* All three into the top: only lines into one port merge (the
+           owner's list of 29.10), and A and C would come in by the sides. */
+        ['mg_a', 'mg_b', 'mg_c'].forEach(f=> EDGE_STYLES.push({from: f, to: 'mg_m', routing:'orthogonal', dash:'solid', arrow:true, toSide:'top'}));
       });
       await wait(300);
       out.notYet = !isMergeNode(nodes.get('mg_m')) && mergeOffersFor('mg_a','mg_m').merge;
@@ -20465,9 +20477,19 @@ async function main(){
         });
         rebuildChart();
         const h = nodes.get('lt_g' + i + 'a').h;
-        applyEdit(()=>{ workingNodes.push(['lt_g' + i + 'm','Child',['lt_g' + i + 'a','lt_g' + i + 'b'],null,null,null,{pos:[X + 120, y0 + h + gap]}]); });
+        /* Merged as a chart holds it, not through the menu: this close the
+           two lines come into the entry by its two sides, and the menu only
+           merges lines into one port (the owner's list of 29.10). */
+        applyEdit(()=>{
+          workingNodes.push(['lt_g' + i + 'm','Child',['lt_g' + i + 'a','lt_g' + i + 'b'],null,null,null,{pos:[X + 120, y0 + h + gap]}]);
+        });
         rebuildChart();
-        mergeEdge('lt_g' + i + 'a', 'lt_g' + i + 'm');
+        applyEdit(()=>{
+          const f = workingEntry('lt_g' + i + 'm'), o = entryOpts(f.entry);
+          o.merge = true;
+          putEntry(f.index, f.entry, o);
+          bringAmalgamToItsLineages(f, ['lt_g' + i + 'a', 'lt_g' + i + 'b']);
+        });
         rebuildChart();
         const pa = nodes.get('lt_g' + i + 'a'), m = nodes.get('lt_g' + i + 'm'), bar = amalgamBars.get('lt_g' + i + 'm');
         out.squeezed.push(!!bar && bar.cross > pa.y + pa.h + 0.5 && bar.cross < m.y - 0.5);
@@ -20656,6 +20678,264 @@ async function main(){
   check('…its arrow points at where it goes', r.turned);
   check('…and pointed at, it shows a faint copy of the entry it stands for, through a link joined to one',
         r.preview && r.through && r.gone, JSON.stringify([r.preview, r.through, r.gone]));
+  });
+
+  await scenario("the owner's list of 29.10: a right click's menu everywhere, a merge carried whole, one port to a merge, a field on its stickers, the wheel over menus", async () => {
+  await page.evaluate(()=>{
+    window.__keep29 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    return true;
+  });
+  const X = 99000, Y = 99000;
+  const out = {};
+  const centreOf = (sel)=> page.evaluate((sel)=>{
+    const e = document.querySelector(sel); if(!e) return null;
+    const b = e.getBoundingClientRect(); return {x: b.x + b.width/2, y: b.y + b.height/2, w: b.width, h: b.height};
+  }, sel);
+  try{
+    await page.mouse.move(5, 940);
+    /* 1. A right click on a merge's bar and on its junction is the chart's
+          own menu, never the browser's. */
+    await page.evaluate(([X, Y])=>{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      applyEdit(()=>{
+        workingNodes.push(['tn_a','Amalgam 1',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['tn_b','Amalgam 2',null,null,null,null,{pos:[X + 200, Y]}]);
+        workingNodes.push(['tn_c','Amalgam 3',null,null,null,null,{pos:[X + 400, Y]}]);
+        workingNodes.push(['tn_m','Merged',['tn_a','tn_b','tn_c'],null,null,null,{merge:true, pos:[X + 380, Y + 200]}]);
+        workingNodes.push(['tn_z','Zed',null,null,null,null,{pos:[X + 163, Y + 450]}]);
+        EDGE_STYLES.push({from:'', to:'tn_m', routing:'orthogonal', dash:'solid', arrow:true,
+                          bends:[[X + 260, Y + 120], [X + 420, Y + 120]], bendSides:['bottom','top']});
+      });
+      rebuildChart();
+      window.__menu29 = [];
+      document.addEventListener('contextmenu', ev=> setTimeout(()=> window.__menu29.push(ev.defaultPrevented && !touchMenu.hidden), 0));
+    }, [X, Y]);
+    const menus = [];
+    for(const sel of ['.amalgam-bar-hit[data-amalgam="tn_m"]', '.amalgam-junction-hit[data-amalgam="tn_m"]']){
+      const c = await centreOf(sel);
+      if(!c){ menus.push('missing ' + sel); continue; }
+      await page.mouse.click(c.x, c.y, {button: 'right'});
+      await new Promise(ok=> setTimeout(ok, 80));
+      menus.push(await page.evaluate(()=> window.__menu29.slice(-1)[0]));
+      await page.keyboard.press('Escape');
+      await page.evaluate(()=>{ closeTouchMenu(); closeEdgePopover(); deselect(); });
+    }
+    out.menus = menus;
+
+    /* 2. Carried as a group with its lineages, a merge's arrow keeps the
+          corners it was bent through, relative to it. */
+    const shapeOf = ()=> page.evaluate(()=>{
+      const m = nodes.get('tn_m'), d = document.querySelector('path.amalgam-out[data-to="tn_m"]').getAttribute('d');
+      return d.match(/-?[0-9.]+/g).map(Number).map((v, i)=> Math.round(i % 2 ? v - m.y : v - m.x)).join(',');
+    });
+    const shape0 = await shapeOf();
+    await page.evaluate(()=> setSelection(['tn_a','tn_b','tn_c','tn_m'], 'tn_a'));
+    const a = await centreOf('.node[data-id="tn_a"]');
+    await page.mouse.move(a.x, a.y); await page.mouse.down();
+    const during = [];
+    for(let i = 1; i <= 6; i++){ await page.mouse.move(a.x + i * 31, a.y + i * 13); during.push(await shapeOf()); }
+    await page.mouse.up();
+    await new Promise(ok=> setTimeout(ok, 150));
+    out.carried = [shape0, ...during, await shapeOf()];
+    await page.evaluate(()=>{ deselect(); setSelection([], null); });
+
+    /* 3. The junction carried with Shift lines its entry up on another's
+          middle, and the guide says so. */
+    // Zed is put where the junction can reach it: beside the bar's middle.
+    await page.evaluate(()=>{
+      const bar = amalgamBars.get('tn_m'), z = nodes.get('tn_z');
+      applyEdit(()=>{ const f = workingEntry('tn_z'), o = entryOpts(f.entry);
+                      o.pos = [+((bar.lo + bar.hi)/2 - 37.3 - z.w/2).toFixed(2), z.y]; putEntry(f.index, f.entry, o); });
+      rebuildChart();
+    });
+    const j = await centreOf('.amalgam-junction-hit[data-amalgam="tn_m"]');
+    const zmid = await page.evaluate(()=>{ const z = nodes.get('tn_z'); return z.x + z.w/2; });
+    const mid0 = await page.evaluate(()=>{ const m = nodes.get('tn_m'); return m.x + m.w/2; });
+    await page.mouse.move(j.x, j.y); await page.mouse.down(); await page.keyboard.down('Shift');
+    let lined = null;
+    for(let i = 1; i <= 40 && !lined; i++){
+      await page.mouse.move(j.x + (zmid - mid0) * i / 32, j.y);
+      lined = await page.evaluate((zmid)=>{
+        const m = nodes.get('tn_m');
+        return Math.abs(m.x + m.w/2 - zmid) < 0.01 && guideLayer.querySelectorAll('.align-guide').length > 0 ? true : null;
+      }, zmid);
+    }
+    await page.keyboard.up('Shift'); await page.mouse.up();
+    out.junctionGuide = !!lined;
+    await new Promise(ok=> setTimeout(ok, 100));
+
+    /* 4. Lines into different ports of an entry do not merge; an end is
+          carried to another port. */
+    out.ports = await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['tp_a','Alpha',null,null,null,null,{pos:[X + 1200, Y]}]);
+        workingNodes.push(['tp_b','Beta',null,null,null,null,{pos:[X + 800, Y + 300]}]);
+        workingNodes.push(['tp_d','Delta',null,null,null,null,{pos:[X + 1300, Y]}]);
+        workingNodes.push(['tp_c','Gamma',['tp_a','tp_b','tp_d'],null,null,null,{pos:[X + 1200, Y + 300]}]);
+      });
+      rebuildChart();
+      const r = {sides: ['tp_a','tp_b','tp_d'].map(p=> edgeEntrySide(p, 'tp_c')),
+                 a: mergeOffersFor('tp_a', 'tp_c').merge, b: mergeOffersFor('tp_b', 'tp_c').merge};
+      mergeEdge('tp_a', 'tp_c');
+      rebuildChart();
+      r.merged = entryOpts(workingEntry('tp_c').entry).merge;
+      vs = 1; vx = -(X + 1200) + 300; vy = -Y + 200; applyTransform();
+      // Picked, as the ends are offered only on a picked line.
+      openEdgeStylePopover('tp_b', 'tp_c', {clientX: 600, clientY: 700, stopPropagation(){}});
+      drawBendHandles();
+      return r;
+    }, [X, Y]);
+    const grip = await centreOf('#bendLayer .bend-end[data-end="to"] .bend-hit');
+    const under = await page.evaluate(()=>{ const b = document.querySelector('.node[data-id="tp_c"]').getBoundingClientRect(); return {x: b.x + b.width/2, y: b.y + b.height - 2}; });
+    if(grip){
+      await page.mouse.move(grip.x, grip.y); await page.mouse.down();
+      await page.mouse.move((grip.x + under.x)/2, (grip.y + under.y)/2 + 20);
+      await page.mouse.move(under.x, under.y);
+      await page.mouse.up();
+      await new Promise(ok=> setTimeout(ok, 150));
+    }
+    out.ports.grip = !!grip;
+    await page.evaluate(()=> closeEdgePopover());
+    out.ports.moved = await page.evaluate(()=> [edgeStyleFor('tp_b', 'tp_c').toSide, edgeEntrySide('tp_b', 'tp_c')]);
+
+    /* 5. The field over words with stickers in them stands on the words
+          and the stickers together, not on the words alone. */
+    out.field = await page.evaluate(async ([X, Y])=>{
+      const keys = [...stickerMap.keys()].slice(0, 2);
+      if(keys.length < 2) return {skipped: true};
+      applyEdit(()=>{ workingNodes.push(['tf_s', 'Dghdhx' + keys.map(k=> '{{s:' + k + '}}').join(''), null, null, null, null, {pos:[X + 2000, Y]}]); });
+      rebuildChart();
+      const n = nodes.get('tf_s');
+      vs = 2.5; vx = -n.x * vs + 500; vy = -n.y * vs + 400; applyTransform();
+      const g = qNode('.node[data-id="tf_s"]');
+      const parts = [...g.querySelectorAll('.node-label-text, .sticker-glyph')].map(e=> e.getBoundingClientRect()).filter(q=> q.width);
+      const l = Math.min(...parts.map(q=> q.left)), r = Math.max(...parts.map(q=> q.right));
+      selectNode('tf_s'); openNodeEditor('tf_s');
+      await new Promise(ok=> setTimeout(ok, 300));
+      const range = document.createRange(); range.selectNodeContents(richFields.get('nodeEditorText').surface);
+      const f = range.getBoundingClientRect();
+      closeNodeEditor(true);
+      return {dx: +(((f.left + f.right) - (l + r)) / 2).toFixed(2), dw: +((f.right - f.left) - (r - l)).toFixed(2)};
+    }, [X, Y]);
+
+    /* 6. The wheel turned over a menu zooms the chart under it. */
+    await page.evaluate(([X, Y])=>{ vs = 1; vx = -(X + 1200) + 300; vy = -Y + 200; applyTransform(); deselect(); }, [X, Y]);
+    const tp = await centreOf('.node[data-id="tp_a"]');
+    await page.mouse.move(tp.x, tp.y + 40); await page.mouse.move(tp.x, tp.y);
+    await new Promise(ok=> setTimeout(ok, 150));
+    const barAt = await centreOf('#styleBar:not([hidden])');
+    if(barAt){
+      await page.mouse.move(tp.x, (tp.y + barAt.y)/2); await page.mouse.move(barAt.x, barAt.y);
+      const vs0 = await page.evaluate(()=> vs);
+      await page.mouse.wheel(0, -200);
+      await new Promise(ok=> setTimeout(ok, 100));
+      out.wheel = [vs0, await page.evaluate(()=> vs)];
+    } else out.wheel = ['no bar'];
+    await page.mouse.move(5, 940);
+    await page.evaluate(()=> closeStyleBar());
+
+    /* 7. A note written along a bend keeps its bar while the hand crosses
+          the note's own line to reach it. */
+    await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['tl_a','Alpha',null,null,null,null,{pos:[X + 3000, Y]}]);
+        workingNodes.push(['tl_b','Beta','tl_a',null,null,null,{pos:[X + 3300, Y + 200]}]);
+        EDGE_STYLES.push({from:'tl_a', to:'tl_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          note:'Along the bend here', noteAlong:true, noteAt:0.45});
+        workingNodes.push(['tl_k','A remark here','',null,null,'callout',{pos:[X + 3450, Y + 380], leader:{from:'tl_a', to:'tl_b', at:0.95}}]);
+      });
+      vs = 1.5; vx = -(X + 3000) * vs + 300; vy = -Y * vs + 250; applyTransform();
+      rebuildChart();
+    }, [X, Y]);
+    const glyph = await page.evaluate(()=>{
+      const e = document.querySelector('.edge-note[data-from="tl_a"] text.edge-note-along');
+      if(!e) return null;
+      const p = e.getStartPositionOfChar(Math.floor(e.getNumberOfChars() / 2)), m = e.getScreenCTM();
+      return {x: p.x * m.a + m.e, y: p.y * m.d + m.f - 3};
+    });
+    const kinds = [];
+    if(glyph){
+      await page.mouse.move(glyph.x + 30, glyph.y); await page.mouse.move(glyph.x, glyph.y);
+      await new Promise(ok=> setTimeout(ok, 120));
+      const bar = await centreOf('#styleBar:not([hidden])');
+      if(bar) for(let i = 1; i <= 10; i++){
+        await page.mouse.move(glyph.x + (bar.x - glyph.x) * i / 10, glyph.y + (bar.y - glyph.y) * i / 10);
+        await new Promise(ok=> setTimeout(ok, 30));
+        kinds.push(await page.evaluate(()=> styleBar.hidden ? 'hidden' : styleBarTarget.kind));
+      }
+      await new Promise(ok=> setTimeout(ok, 400));
+      kinds.push(await page.evaluate(()=> styleBar.hidden ? 'hidden' : styleBarTarget.kind));
+    }
+    out.along = kinds;
+
+    /* 8. A note's ground square shows the ground it is drawn on, and the
+          ⟲ beside it gives the default back. */
+    const bgRow = '#styleBar [data-group="noteBg"]';
+    await page.evaluate(()=>{
+      const o = EDGE_STYLES.find(s=> s.from === 'tl_a' && s.to === 'tl_b');
+      applyEdit(()=>{ o.noteBg = '#ffee88'; });
+    });
+    const reset = await centreOf(bgRow + ' .hex-reset');
+    out.ground = {before: await page.evaluate((sel)=> document.querySelector(sel + ' .hex-square').style.background, bgRow)};
+    if(reset){
+      await page.mouse.move(reset.x, reset.y); await page.mouse.click(reset.x, reset.y);
+      await new Promise(ok=> setTimeout(ok, 120));
+    }
+    Object.assign(out.ground, await page.evaluate((sel)=>{
+      const sq = document.querySelector(sel + ' .hex-square');
+      const o = EDGE_STYLES.find(s=> s.from === 'tl_a' && s.to === 'tl_b');
+      return {after: sq.style.background, inherited: sq.classList.contains('inherited'), kept: !!(o && o.noteBg)};
+    }, bgRow));
+    await page.mouse.move(5, 940);
+    await page.evaluate(()=> closeStyleBar());
+
+    /* 9. A callout's card turned to a shelf from its bar leaves the bar,
+          and the button pressed, under the hand. */
+    const card = await centreOf('.node[data-id="tl_k"]');
+    await page.mouse.move(card.x - 30, card.y + 60); await page.mouse.move(card.x, card.y);
+    await new Promise(ok=> setTimeout(ok, 150));
+    const shelf = await centreOf('#styleBar [data-group="leaderForm"] button[data-value="shelf"]');
+    const shelfOut = [];
+    if(shelf && shelf.w){
+      await page.mouse.move(card.x, (card.y + shelf.y)/2); await page.mouse.move(shelf.x, shelf.y);
+      await page.mouse.click(shelf.x, shelf.y);
+      await new Promise(ok=> setTimeout(ok, 500));
+      shelfOut.push(await page.evaluate(()=> !styleBar.hidden && !!(nodes.get('tl_k').leader || {}).shelf));
+      await page.mouse.click(shelf.x, shelf.y);
+      await new Promise(ok=> setTimeout(ok, 500));
+      shelfOut.push(await page.evaluate(()=> !styleBar.hidden && !(nodes.get('tl_k').leader || {}).shelf));
+    }
+    out.shelf = shelfOut;
+  } finally {
+    await page.mouse.move(5, 940);
+    await page.evaluate(()=>{
+      closeStyleBar(); closeTouchMenu(); closeNodeEditor(false);
+      const k = window.__keep29;
+      applyEdit(()=>{ workingNodes.length = 0; k.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; k.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      deselect(); rebuildChart();
+    });
+  }
+  check('a right click on a merge\'s bar or junction opens the chart\'s menu, not the browser\'s',
+        out.menus.length === 2 && out.menus.every(m=> m === true), JSON.stringify(out.menus));
+  check('a merge carried with its lineages keeps its arrow\'s corners where they were on it',
+        new Set(out.carried).size === 1, JSON.stringify(out.carried));
+  check('a merge carried by its junction with Shift lines up on another entry\'s middle, with a guide', out.junctionGuide);
+  check('only lines into one port of an entry merge, and only those',
+        out.ports.sides.join() === 'top,left,top' && out.ports.a && !out.ports.b &&
+        JSON.stringify(out.ports.merged) === '["tp_a","tp_d"]', JSON.stringify(out.ports));
+  check('a connector\'s end is carried onto another port of its entry',
+        out.ports.grip && out.ports.moved.join() === 'bottom,bottom', JSON.stringify(out.ports));
+  check('the field over words with stickers stands on the words and the stickers together',
+        out.field.skipped || (Math.abs(out.field.dx) < 1 && Math.abs(out.field.dw) < 2), JSON.stringify(out.field));
+  check('the wheel over a menu zooms the chart', out.wheel.length === 2 && out.wheel[1] > out.wheel[0] * 1.1,
+        JSON.stringify(out.wheel));
+  check('a note along a bend keeps its bar while the hand crosses its line to it',
+        out.along.length > 5 && out.along.every(k=> k === 'note'), JSON.stringify(out.along));
+  check('a note\'s ground square shows the ground drawn, and its ⟲ gives the default back',
+        /255, 238, 136/.test(out.ground.before) && out.ground.inherited && !out.ground.kept, JSON.stringify(out.ground));
+  check('a callout turned to a shelf from its bar, and back, keeps the bar under the hand',
+        out.shelf.length === 2 && out.shelf.every(Boolean), JSON.stringify(out.shelf));
   });
 
   await scenario("nothing threw along the way", async () => {

@@ -570,7 +570,25 @@ svg.addEventListener('pointerdown', ev=>{
   if(a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) a.blur();
 }, true);
 
-svg.addEventListener('wheel', e=>{
+svg.addEventListener('wheel', e=> chartWheel(e), {passive:false});
+/* The wheel zooms the chart over its menus too (the owner's list of
+   29.10). A menu stands over the chart and is part of working on it; the
+   wheel turned over one did nothing at all, so a zoom stopped dead
+   whenever the pointer crossed a panel on its way. What in a menu scrolls
+   still scrolls, as far as it goes. */
+const WHEEL_OVER_MENUS = '#styleBar, #edgePopover, #freeMenu, #touchMenu, #nodeEditor, .sticker-picker, #editTagsMenu';
+document.addEventListener('wheel', e=>{
+  const t = e.target;
+  if(!t || !t.closest || svg.contains(t)) return;
+  const pop = t.closest(WHEEL_OVER_MENUS);
+  if(!pop) return;
+  for(let n = t; n && n !== pop.parentElement; n = n.parentElement){
+    if(!/(auto|scroll)/.test(getComputedStyle(n).overflowY) || n.scrollHeight <= n.clientHeight + 1) continue;
+    if(e.deltaY < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1) return;
+  }
+  chartWheel(e);
+}, {passive:false});
+function chartWheel(e){
   e.preventDefault();
   const rect = svg.getBoundingClientRect();
   const mx = e.clientX-rect.left, my = e.clientY-rect.top;
@@ -601,7 +619,7 @@ svg.addEventListener('wheel', e=>{
     window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:e.clientX, clientY:e.clientY,
       buttons:e.buttons, shiftKey:e.shiftKey, ctrlKey:e.ctrlKey, metaKey:e.metaKey, altKey:e.altKey}));
   }
-},{passive:false});
+}
 
 /* Touch — one finger as the mouse, two as pan and zoom — is in
    38-touch.js. It used to be here as a pan on one finger and a pinch on
@@ -855,11 +873,23 @@ function beginNodeDrag(ev, n, g){
        barLeashFor. */
     barLeash: group.length === 1 ? barLeashFor(n.id, {x: n.x + n.w/2, y: n.y + n.h/2}) : [],
     bendCarry: EDGE_STYLES
-      .filter(o=> Array.isArray(o.bends) && o.bends.length &&
-                  group.includes(o.from) && group.includes(o.to))
+      .filter(o=> Array.isArray(o.bends) && o.bends.length && group.includes(o.to) &&
+                  (group.includes(o.from) || (o.from === '' && mergeCarriedWhole(o.to, group))))
       .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])})),
     moved: false
   };
+}
+/* A merge's arrow starts on its bar, and the bar stands where its
+   lineages are: with the merged entry and every one of them in the group,
+   the arrow is carried whole like any connector between two members, and
+   its bends go with it. Left out of that, a group carry dragged the arrow
+   back through corners that stayed where they were (the owner's video of
+   29.10). */
+function mergeCarriedWhole(id, group){
+  const m = nodes.get(id);
+  if(!m || !isMergeNode(m)) return false;
+  const members = mergeMembersOf(m);
+  return members.length > 0 && members.every(p=> group.includes(p));
 }
 /* Everything that has to travel when one entry moves, gathered once. */
 function dragPiece(id){
@@ -1048,13 +1078,23 @@ window.addEventListener('mousemove', e=>{
     const bar = amalgamBars.get(st.node.id);
     const k = st.alongBar, len = k === 'x' ? st.node.w : st.node.h;
     if(k === 'x') offY = 0; else offX = 0;
+    /* Lined up along the bar as an entry is lined up anywhere (the
+       owner's list of 29.10): with Shift, the guides of the one axis the
+       junction can go along, weighed at the hand. */
+    let lined = false;
+    if(e.shiftKey && !free){
+      const g = alignGuides(st, k === 'x' ? rawX - st.originX : 0, k === 'y' ? rawY - st.originY : 0, free, k);
+      if(k === 'x' && g.hitX){ offX = g.x; lined = true; }
+      if(k === 'y' && g.hitY){ offY = g.y; lined = true; }
+    }
     if(bar){
       const origin = k === 'x' ? st.originX : st.originY;
       const centre = origin + (k === 'x' ? offX : offY) + len/2;
       const kept = Math.max(bar.lo, Math.min(bar.hi, centre));
+      if(Math.abs(kept - centre) > 1e-6) lined = false;
       if(k === 'x') offX += kept - centre; else offY += kept - centre;
     }
-    clearGuides();
+    if(!lined) clearGuides();
   }
   carryBends(st, offX, offY);
   st.members.forEach(m=>{
