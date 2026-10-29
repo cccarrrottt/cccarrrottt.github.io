@@ -70,15 +70,15 @@ const HOSTED = typeof claude !== 'undefined' && claude && typeof claude.use === 
    server — the page is that person's own copy and edits into their own
    browser, exactly as it always has. SITE_API empty means the service is
    not set up yet: the site is then read-only for everybody, the owner
-   included, which is the safe way for that to be wrong.
+   included, which is the safe way for that to be wrong. The addresses
+   themselves are in 00-config.js.
    ------------------------------------------------------------------------- */
-const SITE_ORIGINS = ['https://cccarrrottt.github.io'];
-const SITE_API = 'https://cccarrrottt-github-io.wowwodptr2.workers.dev';
+const SITE_ORIGINS = [SITE_CONFIG.site];
+const SITE_API = SITE_CONFIG.api;
 /* The repository the site is published from, and where suggestions are
-   kept as issues. The same as REPO in worker/wrangler.toml: the page reads
-   the open ones from GitHub itself, so a reader who has not signed in sees
-   them too. */
-const SITE_REPO = 'cccarrrottt/cccarrrottt.github.io';
+   kept as issues. The page reads the open ones from GitHub itself, so a
+   reader who has not signed in sees them too. */
+const SITE_REPO = SITE_CONFIG.repo;
 const ON_SITE = !HOSTED && SITE_ORIGINS.indexOf(location.origin) >= 0;
 /* What goes wrong in a reader's browser, told to the write service, which
    writes it to its log (POST /report, worker/index.js). Until now a fault

@@ -10365,9 +10365,9 @@ async function main(){
     check('the site serves the built file, so there is nothing to check from src', true);
     return;
   }
-  const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
-  const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
-  const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
+  const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
+  const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
+  const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
   /* The site as CI stages it: dist/site/, whose page keeps its program and
      stylesheet beside it (build_site in build.py). */
   const SITE_BUILT = path.join(DIR, 'site');
@@ -10857,9 +10857,9 @@ async function main(){
     check('the site serves the built file, so there is nothing to check from src', true);
     return;
   }
-  const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
-  const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
-  const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
+  const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
+  const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
+  const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
   const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
   const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
   const dataSha = require('crypto').createHash('sha1')
@@ -11121,9 +11121,9 @@ async function main(){
     check('the site serves the built file, so there is nothing to check from src', true);
     return;
   }
-  const store = fs.readFileSync(path.join(ROOT, 'src', 'app', '01-store.js'), 'utf8');
-  const SITE_ORIGIN = /const SITE_ORIGINS = \['([^']+)'/.exec(store)[1];
-  const SITE_API = /const SITE_API = '([^']*)'/.exec(store)[1];
+  const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
+  const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
+  const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
   const appVersion = /const APP_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'src', 'app', '20-about.js'), 'utf8'))[1];
   const SITE_BUILT = path.join(DIR, 'site');
   const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
