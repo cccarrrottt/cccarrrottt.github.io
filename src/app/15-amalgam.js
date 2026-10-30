@@ -1417,14 +1417,19 @@ function drawMergedArrow(b, stem, colors, ring, side){
      dragged across the entry pulled the head along the border after it,
      and the drag was refused as a shape it had not asked for. */
   const hasBends = os.routing !== 'straight' && os.bends && os.bends.length && !(set && !pinned);
-  let head = hasBends ? portOnSide(b, pinned ? pinned[1] : stem.port.side, 0, 1, ring) : stem.port;
+  /* Its end carried onto another port of the entry (drawEndGrips) is a
+     side set by hand, as on any connector, and outranks the face the
+     stem would choose — corners pinned to their own faces aside. */
+  const handSide = SIDES.includes(os.toSide) && !pinned ? os.toSide : null;
+  let head = hasBends ? portOnSide(b, pinned ? pinned[1] : (handSide || stem.port.side), 0, 1, ring)
+    : handSide && handSide !== stem.port.side ? portOnSide(b, handSide, 0, 1, ring) : stem.port;
   /* `slides`: the one end of any connector that is not a fixed point. It
      stands on the bar, and a bend drag that moves the stretch out of it
      carries it along the bar instead of stepping off it (see shiftArm). */
   const start = {x: stem.pts[0].x, y: stem.pts[0].y, side: pinned ? pinned[0] : (OPPOSITE_SIDE[side] || side), ring: 0,
                  stub: AMALGAM_APPROACH, slides: true};
-  let route = os.routing === 'straight' ? [stem.pts[0], stem.pts[stem.pts.length - 1]] : stem.pts;
-  if(hasBends){
+  let route = os.routing === 'straight' ? [stem.pts[0], head === stem.port ? stem.pts[stem.pts.length - 1] : head] : stem.pts;
+  if(hasBends || (head !== stem.port && os.routing !== 'straight')){
     const bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
     if(!bent.ignored && bent.pts.length >= 2) route = bent.pts;
     else head = stem.port;

@@ -537,13 +537,19 @@ document.addEventListener('keydown', ev=>{
    that may disappear — but a full-size photo would bloat the page, so it
    is drawn onto a canvas at BIO_IMAGE_MAX first. A URL typed by hand is
    passed through untouched.
-   ------------------------------------------------------------------ */
-const BIO_IMAGE_MAX = 240;
+ *
+   240 pixels was a portrait's size, and a card's picture or a picture
+   element is far bigger than a portrait: drawn at that, it went soft
+   beside the type the moment the chart was looked at closely (the
+   owner's list of 30.10). A picture leaves the page as a file of its own
+   when it is saved (liftMedia), so its weight is no longer the page's;
+   a round portrait keeps a smaller cap, being small on the chart. */
+const BIO_IMAGE_MAX = 480, PICTURE_IMAGE_MAX = 1600;
 const bioImageFile = document.getElementById('bioImageFile');
 let bioImageTargetInput = null;
 
 // `crop` is a rect in the source image's own pixels, or null for all of it.
-function downscaleToDataURI(file, crop){
+function downscaleToDataURI(file, crop, max){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onerror = ()=> reject(new Error('could not read that file.'));
@@ -553,7 +559,7 @@ function downscaleToDataURI(file, crop){
       img.onload = ()=>{
         const sx = crop ? crop.x : 0, sy = crop ? crop.y : 0;
         const sw = crop ? crop.s : img.width, sh = crop ? crop.s : img.height;
-        const scale = Math.min(1, BIO_IMAGE_MAX/Math.max(sw, sh));
+        const scale = Math.min(1, (max || BIO_IMAGE_MAX)/Math.max(sw, sh));
         const w = Math.max(1, Math.round(sw*scale));
         const h = Math.max(1, Math.round(sh*scale));
         const canvas = document.createElement('canvas');
@@ -561,7 +567,7 @@ function downscaleToDataURI(file, crop){
         canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
         // JPEG unless the source had transparency worth keeping.
         const type = /png|webp|gif/i.test(file.type) ? 'image/png' : 'image/jpeg';
-        resolve(canvas.toDataURL(type, 0.82));
+        resolve(canvas.toDataURL(type, 0.92));
       };
       img.src = reader.result;
     };
@@ -596,7 +602,7 @@ bioImageFile.addEventListener('change', async ()=>{
     const crop = await openCropper(file, 'Choose the part of the picture to use',
                                    roundTarget ? 'circle' : 'square');
     if(crop === 'cancel') return;
-    target.value = await downscaleToDataURI(file, crop);
+    target.value = await downscaleToDataURI(file, crop, roundTarget ? BIO_IMAGE_MAX : PICTURE_IMAGE_MAX);
     target.dispatchEvent(new Event('input', {bubbles:true}));
   }catch(err){
     setEditStatus('err', 'Portrait: ' + err.message);

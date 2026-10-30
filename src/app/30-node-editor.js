@@ -418,7 +418,22 @@ function openEdgeNoteEditor(from, to, opts){
      emptiness alone cannot mean "there is a note here". */
   const starting = noteStarting && noteStarting.from === from && noteStarting.to === to;
   if(!st || (!st.note && !starting)) return false;
-  return openTextEditorOn({kind:'note', from, to}, opts);
+  const target = {kind:'note', from, to};
+  /* A note written along its line has no plate for the field to stand on
+     until somebody is writing in it (see drawEdgeNote), and the field
+     asked for the plate first — so it never opened, and the words could
+     not be changed (the owner's list of 30.10). It is marked as being
+     written first, and drawn level for the field. */
+  if(st.noteAlong && !(nodeEditorTarget && sameEditorTarget(nodeEditorTarget, target))){
+    if(nodeEditorTarget) closeNodeEditor(true);
+    nodeEditorTarget = target;
+    redrawEdges();
+    nodeEditorTarget = null;
+    const opened = openTextEditorOn(target, opts);
+    if(!opened){ redrawEdges(); applyVisibility(); }
+    return opened;
+  }
+  return openTextEditorOn(target, opts);
 }
 function openTextEditorOn(target, opts){
   if(readOnlyView) return false;

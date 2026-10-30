@@ -1015,7 +1015,7 @@ function buildCategoryBlock(group){
 function openTagColorBox(row, tag){
   const sw = row.querySelector('.swatch');
   if(!sw || row.querySelector('.hex-box')) return;
-  openHexBox(sw, {value: tagColorOf(tag) || '', placeholder: '#3a6fd8',
+  openHexBox(sw, {value: tagColorOf(tag) || '', placeholder: DEFAULT_NODE_COLOR, swatch: DEFAULT_NODE_COLOR,
     onCommit: v=>{ if(v !== tagColorOf(tag)) applyEdit(()=> setTagColorIn(tag, v)); }});
 }
 /* One of a ground's two colours, the same way; emptied, it gives that ink
@@ -1048,12 +1048,12 @@ function buildTagRow(tag, catName){
      they have none of their own. A tag that acts, and the Untagged bucket,
      give no colour, so they have no square: a square there promised a
      colour that could never be set. Pressed, it opens the colour to type
-     in; a tag with no colour yet shows an empty one to press. */
+     in; a tag with no colour yet shows the default ink, dashed. */
   const colorable = tag !== UNTAGGED && !tagIsSpecial(tag);
   const own = colorable ? tagColorOf(tag) : null;
   row.innerHTML =
     (colorable && (own || !readOnlyView)
-      ? `<div class="swatch${own ? '' : ' swatch-unset'}"${own ? ` style="background:${escapeHtml(own)}"` : ''}></div>`
+      ? `<div class="swatch${own ? '' : ' swatch-unset'}" style="background:${escapeHtml(own || DEFAULT_NODE_COLOR)}"></div>`
       : `<div class="swatch swatch-none"></div>`) +
     `<div class="name">${tagShapeHtml(displayName, {special: tagIsSpecial(tag),
                                                     reserved: tag === UNTAGGED,

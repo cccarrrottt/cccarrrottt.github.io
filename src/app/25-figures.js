@@ -759,7 +759,7 @@ function squareForHexInput(input, o){
                (o.onClick ? '; click to use it, double-click to change it' : '; press to change');
     input.style.setProperty('--swatch', ok ? v : (fb || 'transparent'));
   };
-  let was = null;
+  let was = null, prefilled = null;
   const isOpen = ()=> !input.classList.contains('hex-shut');
   const open = ()=>{
     if(isOpen()) return;
@@ -767,6 +767,15 @@ function squareForHexInput(input, o){
     if(cur && cur.box !== input) cur.close(true);
     openHexBox.current = {box: input, close: keep=> close(keep)};
     was = input.value;
+    /* An empty field opened as "#" — the square went blank under the
+       hand where it had shown the colour in use (the owner's list of
+       30.10). It opens on that colour instead, to be typed over; left as
+       it was, it is still the colour handed down, not one chosen. */
+    prefilled = null;
+    if(!HEX_RE.test(hexFieldValue(input.value)) && o.fallback){
+      const fb = o.fallback();
+      if(fb && HEX_RE.test(fb)){ prefilled = fb.toLowerCase(); input.value = fb; }
+    }
     sq.classList.add('hex-shut');
     input.classList.remove('hex-shut');
     input.focus();
@@ -777,6 +786,8 @@ function squareForHexInput(input, o){
     if(openHexBox.current && openHexBox.current.box === input) openHexBox.current = null;
     // Kept only when it is a colour, or empty; anything else is put back.
     const v = hexFieldValue(input.value);
+    if(prefilled && v.toLowerCase() === prefilled) input.value = was;
+    prefilled = null;
     if(keep && v !== '' && !HEX_RE.test(v)) keep = false;
     if(!keep && was !== null && input.value !== was){
       input.value = was;
@@ -900,7 +911,9 @@ function enableHexSquare(input, on){
    rather than one chosen here: the border field shows the colour an entry
    is drawn in even when that comes from its tags, and those squares wear
    the dashed edge every inherited square does (.inherited). */
-function wireSwatchStrip(inputId, stripId, inherited){
+/* `fallback` is the colour an empty list stands for, which its one
+   square then shows, dashed, rather than a blank to press. */
+function wireSwatchStrip(inputId, stripId, inherited, fallback){
   const input = document.getElementById(inputId);
   const strip = document.getElementById(stripId);
   if(!input || !strip) return;
@@ -940,13 +953,16 @@ function wireSwatchStrip(inputId, stripId, inherited){
        thing. It is the same dashed square that adds a colour to a list
        that has some, so there is always one place to press. */
     const add = document.createElement('span');
-    add.className = 'swatch-chip swatch-blank swatch-pick';
-    add.title = parts.length ? 'Add another colour' : 'No colour set — the default is used; press to set one';
+    const fb = !parts.length && fallback ? fallback() : null;
+    add.className = 'swatch-chip swatch-pick ' + (fb ? 'inherited' : 'swatch-blank');
+    if(fb) add.style.background = fb;
+    add.title = parts.length ? 'Add another colour'
+      : fb ? `${fb} — the default; press to set one` : 'No colour set — the default is used; press to set one';
     add.addEventListener('mousedown', ev=> ev.stopPropagation());
     add.addEventListener('click', ev=>{
       ev.stopPropagation();
       if(readOnlyView) return;
-      openHexBox(add, {value: '', placeholder: input.placeholder || '#20242b',
+      openHexBox(add, {value: '', placeholder: fb || input.placeholder || '#20242b', swatch: fb,
         onCommit: v=>{ if(v) write(parts.concat([v])); }});
     });
     strip.appendChild(add);
@@ -960,7 +976,8 @@ const paintEditSwatches = wireSwatchStrip('editColorsInput', 'editColorsSwatches
   const v = hexFieldValue(document.getElementById('editColorsInput').value).toLowerCase();
   return !!n && !(n.ownColors && n.ownColors.length) && v === drawnColorText(n).toLowerCase();
 });
-const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches');
+const paintEditBgSwatches = wireSwatchStrip('editBgInput', 'editBgSwatches', null,
+  ()=> selectedId ? entryGroundShown(selectedId) : null);
 /* The background field, which behaves the OTHER way round from the border
    one: an entry with no background is a perfectly ordinary entry — it is
    drawn on the paper — so an empty box means exactly that and stays empty.

@@ -141,7 +141,12 @@ function drawBendHandles(){
   }catch(e){ return; }
   while(host.firstChild) host.removeChild(host.firstChild);
   if(!target) return;
+  drawBendMarks(host, target);
+  /* The ends last, over the marks, and stepped clear of any that stand
+     where they do (see drawEndGrips). */
   if(picked === target) drawEndGrips(host, target);
+}
+function drawBendMarks(host, target){
   /* A straight connector is the one line between its two ends: a point
      it had to pass through would make it something other than straight,
      and the router throws such points away for it (see handBends). So it
@@ -253,13 +258,39 @@ function drawBendHandles(){
    on its way somewhere else would put a grip over a small entry's middle
    — and not on a merge's lines, whose ends the merge decides. */
 function drawEndGrips(host, target){
-  if(target.from === '' || isAmalgamMember(target.from, target.to)) return;
+  /* A merge's lines have one end each that is their entry's own: a
+     lineage's where it leaves its parent, the merged arrow's where it
+     comes into the entry. The other end is on the bar, and the merge
+     decides it. */
+  const member = isAmalgamMember(target.from, target.to);
   const rec = drawnRoutes.get(calloutEdgeKey(target.from, target.to));
   const line = drawnLineOf(target.from, target.to) || (rec && rec.pts);
   if(!line || line.length < 2) return;
-  [['from', line[0]], ['to', line[line.length - 1]]].forEach(([end, q])=>{
+  /* A corner set by hand can stand right by a port, and a grip drawn
+     over its mark hid it (the owner's list of 30.10). So a grip that
+     would cover a mark steps sideways along the entry's border, the way
+     across its line, until it clears every one. */
+  const marks = Array.from(host.querySelectorAll('.bend-mark')).map(c=> ({x: +c.getAttribute('cx'), y: +c.getAttribute('cy')}));
+  const clear = 2 * BEND_R + 4;
+  const placed = (q, next)=>{
+    // A port's run-out is level or upright, so across it is the other axis.
+    const v = Math.abs(next.x - q.x) > Math.abs(next.y - q.y) ? {x: 0, y: 1} : {x: 1, y: 0};
+    for(const k of [0, 1, -1, 2, -2, 3, -3]){
+      const c = {x: q.x + v.x * clear * k, y: q.y + v.y * clear * k};
+      if(marks.every(m=> Math.hypot(m.x - c.x, m.y - c.y) >= clear)) return c;
+    }
+    return q;
+  };
+  // The way the line leaves an end, read a few units out where a rounded corner cannot tilt it.
+  const outFrom = (i, di)=>{
+    let j = i;
+    while(j + di >= 0 && j + di < line.length && Math.hypot(line[j].x - line[i].x, line[j].y - line[i].y) < 4) j += di;
+    return line[j];
+  };
+  [['from', line[0], outFrom(0, 1)], ['to', line[line.length - 1], outFrom(line.length - 1, -1)]].forEach(([end, q0, next])=>{
     const id = end === 'from' ? target.from : target.to;
-    if(!id || !nodes.has(id)) return;
+    if(!id || !nodes.has(id) || (member && end === 'to')) return;
+    const q = placed(q0, next);
     const g = el('g', {class:'bend-end', 'data-end': end}, host);
     el('circle', {cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:BEND_R + 2, class:'bend-hit'}, g);
     el('rect', {x:(q.x - BEND_R + 0.6).toFixed(2), y:(q.y - BEND_R + 0.6).toFixed(2),

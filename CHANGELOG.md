@@ -6,7 +6,37 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
-## Unreleased
+## 0.20.0 — "Ports and cards" (2026-10-30)
+
+- A connector's end grip steps aside along its entry's border when a
+  corner set by hand stands where it would be, so neither hides the
+  other. A merge's lines have grips too: a lineage's end at its parent,
+  and the merged arrow's end at its entry, which keeps the port it is
+  carried to.
+- A curve is the one sweep through its route again, as it was before the
+  last two changes to its corners.
+- A colour square that has no colour of its own shows the colour in use,
+  with the dashed edge, everywhere: a tag with none, an entry's empty
+  ground, a picked colour list. Opened, it shows that colour to type
+  over rather than an empty box; left as it was, it is still the default.
+- A note written along its line opens its field on a double click and
+  can be rewritten; it stands as far off the line as a level note does,
+  its frame closes at both ends, and it is lit like a level note when its
+  connector is picked.
+- A long press on a merge's bar opens that lineage's menu, Unmerge and
+  Delete, as a right click does.
+- A split's dot is carried along the line it splits; Ctrl takes it
+  anywhere.
+- A card's picture is as wide as its heading, as deep as that makes it,
+  and stops at the rule under it. A picture chosen from a file keeps up
+  to 1600 pixels (a portrait 480), where it was cut to 240 and went soft
+  next to the type. A wavy card is no bigger than a plain one. An entry,
+  a card or not, is at least as wide as its row of language chips. The
+  hints after "Medium", "Portrait" and "Image" are gone.
+- A style bar choice leaves the bar where it was: turning anything wavy
+  moved it up under the hand by the ripple and back again.
+- A drawer shutting goes in under its tab instead of across the tab's
+  sign.
 
 - A right click anywhere on the chart is the chart's own menu: on a
   merge's bar it is that lineage's, on its junction the merged entry's,
@@ -22,9 +52,6 @@ Releases before 0.9.0 were not numbered.
   the line comes in there.
 - The field typed into an entry with stickers in its words stands on the
   words and the stickers together. It stood a sticker's width aside.
-- A curve turns its corners on a radius of its own, three of an elbow's,
-  and runs along the elbowed route between them, rather than bowing
-  across the whole route.
 - The wheel zooms the chart over its menus too. A note written along a
   bend has its bar where the pointer met it and keeps it while the hand
   crosses the note's own line. A callout turned to a shelf, or back, keeps
@@ -55,9 +82,6 @@ Releases before 0.9.0 were not numbered.
 - A merge whose lineages are all deleted is no longer a merge: connectors
   drawn into the entry afterwards are ordinary ones, where they used to
   merge at once.
-- A curve that ends a U — round under an entry and up into it — comes in
-  along its port, where it rode the long leg and turned in its last few
-  units, a hook with the head askew.
 - A split's dot is the size of a callout's point, and a line goes on out
   of its middle; a split drawn before keeps its middle where it was
   (chart format 4).

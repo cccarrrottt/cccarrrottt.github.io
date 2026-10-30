@@ -42,6 +42,24 @@ function siteIconInto(g, link, dy){
 }
 /* Where the tabs stand: the outer edge of the outermost border line, so a
    ringed or rippled entry's tabs clear all of it. */
+/* How wide an entry's row of language chips is, as the drawing lays it
+   out below (the same sizes: a chip is its label and a pad either side,
+   no narrower than tall, the shown one full size and the rest smaller).
+   Its numbers are kept here rather than shared: the first chart is drawn
+   before a constant further down this part would exist. */
+function langChipsSpan(n, tabs){
+  const CHIP_GAP = 1.2, CHIP_FS = 5.2, CHIP_PAD = 3, CHIP_IDLE = 0.82;
+  const active = activeLangTab.get(n.id) ?? null;
+  const labels = [DEFAULT_LANG_CHIP, ...tabs.map(t=> flagForCode(t.tag) || t.tag)];
+  const isFlag = (lbl)=> lbl === DEFAULT_LANG_CHIP || /^(\uD83C[\uDDE6-\uDDFF]){2}$/.test(lbl);
+  let span = 2;
+  labels.forEach((lbl, idx)=>{
+    const k = (idx === 0 ? null : idx - 1) === active ? 1 : CHIP_IDLE;
+    const textW = measureText(lbl, {fontSize: CHIP_FS * k, family: isFlag(lbl) ? EMOJI_FAMILY : undefined});
+    span += Math.max(CHIP_TAB_H * k, textW + CHIP_PAD * k * 2) + CHIP_GAP;
+  });
+  return span;
+}
 function tabBaseOf(n){
   const own = (ringCountOf(n) - 1) * ringStepFor(n);
   const out = borderHalfOf(n);
@@ -649,9 +667,13 @@ const drawOne = (n)=>{
   const cardImgH = (isCard && n.image)
     ? (n.cardImgH != null ? n.cardImgH
        : n.cardCrop ? CARD_IMG_H
+       /* As wide as the heading under it, and as deep as that width
+          makes it (the owner's list of 30.10): a band held between two
+          depths drew a tall picture narrower than its card, with the
+          card's ground either side. Smaller is the picture's own corners'
+          to give (cardImgW, cardImgH). */
        : (()=>{ const r = imageAspect(n.image);
-                return r ? Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, Math.round(w * r)))
-                         : CARD_IMG_H; })())
+                return r ? Math.max(1, round2(w * r)) : CARD_IMG_H; })())
     : 0;
   const cardBodyH = cardBody
     ? CARD_PAD_Y + wrapAndMeasure(cardBody, cardBodyChars, cardBodyLineH, cardBodyScale, cardBodyFit).totalH
@@ -687,6 +709,15 @@ const drawOne = (n)=>{
      typed into a box sized by hand grow it, rather than run across its
      border. */
   if(manual && minUpright && w < minUpright.w){ n.w = w = minUpright.w; }
+  /* …nor narrower than its row of language chips. They are drawn along
+     the top border from its left corner, and a box narrower than the row
+     had them standing out past its right edge over the paper (the
+     owner's list of 30.10, on a card; a short entry did the same). */
+  if(hasLangTabs && !isRound && !isFree && !isImage && !turned){
+    const need = round2(langChipsSpan(n, langTabList) + 4);
+    if(w < need) n.w = w = need;
+    if(n.minSize && n.minSize.w < need) n.minSize.w = need;
+  }
 
   let h = isRound ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
@@ -696,6 +727,13 @@ const drawOne = (n)=>{
           : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
   if(manual && minUpright && h < minUpright.h) h = minUpright.h;
+  /* A rippled border swings a ripple's depth either side of its box, and
+     a card's box is the card's size, not its words': turned wavy, a card
+     came out that much bigger all round (the owner's list of 30.10). Its
+     box is taken in by the depth instead, about the same middle, so the
+     crests stand where a plain card's border did. */
+  const cardRipple = (isCard && isWavy && !manual && !turned) ? POCKET_AMP : 0;
+  if(cardRipple){ n.w = w = w - 2 * cardRipple; h -= 2 * cardRipple; }
   /* Placed as the turned box — where it stands is decided by the shape
      the reader sees, which is also how a turned entry has always been
      saved. Drawn upright below, at the same middle. */
@@ -750,8 +788,12 @@ const drawOne = (n)=>{
        level, one with a second line, would no longer be. Centring keeps
        every middle where it was, which is where connectors meet a box. */
     n.growShift = closesOnInk ? round2((h - NODE_GROW_REF) / 2)
-                              : snapToGrid(Math.max(0, h - NODE_GROW_REF) / 2);
+                              : snapToGrid(Math.max(0, h + 2 * cardRipple - NODE_GROW_REF) / 2);
     n.y = n.pos.y - n.growShift;
+    if(cardRipple){
+      n.growShift -= cardRipple; n.y = n.pos.y - n.growShift;
+      n.growShiftX = -cardRipple; n.x = n.pos.x - n.growShiftX;
+    }
     /* And sideways, by what the border takes beyond a plain one.
      *
        Height was already spread either side of the stored position, but
@@ -1241,8 +1283,12 @@ const drawOne = (n)=>{
     const imgBleed = imgFull ? bleed : 0;
     if(n.image){
       const img = el('image', {
+        /* Down to the rule under it and not across it: the rule is drawn
+           see-through, and a picture under its lower half showed through
+           the line between the picture and the heading (the owner's list
+           of 30.10). */
         x:imgX - imgBleed, y:n.y - bleed, width:imgW + imgBleed*2,
-        height:(cardImgB - n.y) + bleed,
+        height:Math.max(0, (cardImgB - n.y) + bleed - (cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0)),
         'clip-path': `url(#${clipId})`,
         /* Fit the whole picture unless this card has asked for the
            other thing. `slice` fills the band and throws the rest away;
@@ -1562,6 +1608,7 @@ const drawOne = (n)=>{
     /* The active chip is drawn at full size and the rest a little smaller,
        so which one is showing reads from the shape alone — the colour is
        then a reinforcement rather than the only signal. */
+    // The same sizes langChipsSpan measures the row by.
     const CHIP_H = CHIP_TAB_H, CHIP_GAP = 1.2, CHIP_FS = 5.2, CHIP_PAD = 3;
     const CHIP_IDLE = 0.82;             // how much smaller an unselected chip is
     const CHIP_R = 2.5;                 // rounded rectangle, not a pill
