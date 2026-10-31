@@ -292,6 +292,10 @@ function sweepColourAt(paint, p){
 function recolourCalloutCard(n, ink){
   const was = calloutInheritedColor(n);
   if(!was || !ink || was === ink) return;
+  /* …and the field typed over its words takes it too (the owner's list of
+     31.10: the words were written in the colour from before the leader
+     was drawn, which is not the one on the chart). */
+  if(n.labelInk === was) n.labelInk = ink;
   const g = qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
   if(!g) return;
   g.querySelectorAll('[stroke], [fill]').forEach(e=>{

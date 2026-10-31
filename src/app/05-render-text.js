@@ -303,6 +303,13 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
   const lineWidth = widths.reduce((a,b)=>a+b,0) + gaps.reduce((a,b)=>a+b,0);
   let cursorX = centerX - lineWidth/2;
   words.forEach((w,i)=>{
+    /* A space set with a rule under it or through it: a blank of its own
+       width, carrying the rule, so the line runs on across the gap. */
+    if(gaps[i] && w.gap){
+      const sp = el('tspan', {x: cursorX, y: baselineY, class: 'text-gap'}, textEl);
+      applyRunStyle(sp, {under: w.gap.under, strike: w.gap.strike, color: w.gap.color}, true);
+      sp.textContent = '\u00a0';
+    }
     cursorX += gaps[i];
     const width = widths[i];
     if(w.type==='sticker'){
@@ -667,6 +674,11 @@ function paintUnderlines(txtEl){
   });
   if(!runs.length) return;
   const key = txtEl.dataset.ulKey || (txtEl.dataset.ulKey = 'ul' + (++underlineSeq));
+  /* Measured first and drawn after, so runs that meet are drawn as ONE
+     line: a rule along "Beast Wars:" is three runs now that the space
+     between the words carries it (see layoutLine), and three dashed or
+     wavy lines end to end each start their pattern afresh at the joins. */
+  const segs = [];
   runs.forEach(run=>{
     const n = (run.textContent || '').length;
     if(!n) return;
@@ -678,10 +690,18 @@ function paintUnderlines(txtEl){
     }catch(e){ return; }
     if(!a || !b || Math.abs(b.x - a.x) < 0.4) return;
     const w = Math.max(0.7, size * 0.055);
-    const y = a.y + size * 0.14 + w/2;
-    const ink = run.getAttribute('data-ul-color') ||
-                getComputedStyle(run).fill || 'currentColor';
-    const kind = run.getAttribute('data-ul') || 'solid';
+    const seg = {a: a.x, b: b.x, y: a.y + size * 0.14 + w/2, w, size,
+                 ink: run.getAttribute('data-ul-color') || getComputedStyle(run).fill || 'currentColor',
+                 kind: run.getAttribute('data-ul') || 'solid'};
+    const last = segs[segs.length - 1];
+    if(last && last.kind === seg.kind && last.ink === seg.ink && Math.abs(last.y - seg.y) < 0.05 &&
+       Math.abs(last.w - seg.w) < 0.01 && Math.abs(seg.a - last.b) < 0.75){
+      last.b = Math.max(last.b, seg.b);
+      return;
+    }
+    segs.push(seg);
+  });
+  segs.forEach(({a: ax, b: bx, y, w, size, ink, kind})=>{
     /* The width goes in an inline STYLE, not an attribute: the rule that
        gives every shape inside an entry its border weight — and the
        thicker one a selected entry gets — would otherwise win over it,
@@ -696,9 +716,9 @@ function paintUnderlines(txtEl){
     };
     if(kind === 'wavy'){
       const amp = Math.max(0.6, size * 0.05), step = Math.max(2, size * 0.22);
-      let d = `M${a.x.toFixed(2)},${y.toFixed(2)}`;
-      for(let x = a.x, k = 0; x < b.x; x += step, k++){
-        const nx = Math.min(b.x, x + step);
+      let d = `M${ax.toFixed(2)},${y.toFixed(2)}`;
+      for(let x = ax, k = 0; x < bx; x += step, k++){
+        const nx = Math.min(bx, x + step);
         d += ` Q${(x + step/2).toFixed(2)},${(y + (k % 2 ? amp : -amp)).toFixed(2)} ${nx.toFixed(2)},${y.toFixed(2)}`;
       }
       put({d});
@@ -707,7 +727,7 @@ function paintUnderlines(txtEl){
     const dash = kind === 'dashed' ? `${(w*3).toFixed(2)} ${(w*2.4).toFixed(2)}`
                : kind === 'dotted' ? `${w.toFixed(2)} ${(w*1.8).toFixed(2)}`
                : null;
-    const base = {x1:a.x.toFixed(2), x2:b.x.toFixed(2)};
+    const base = {x1:ax.toFixed(2), x2:bx.toFixed(2)};
     const rows = kind === 'double' ? [y, y + w*2.2] : [y];
     rows.forEach(ry=>{
       const attrs = Object.assign({}, base, {y1:ry.toFixed(2), y2:ry.toFixed(2)});

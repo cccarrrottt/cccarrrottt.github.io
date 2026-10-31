@@ -519,6 +519,12 @@
   /* A hub's echo rings and a local multiverse's back sheets are scenery
      around the entry, not the entry itself: selecting one thickens the box
      it actually is, and leaves the scenery alone. */
+  /* …and a tab grown out of that border is the border too: the language
+     chips and a link's tab glow with it (the owner's list of 31.10). */
+  .node.selected > .lang-chips .lang-chip-bg, .node.selected > .node-link .node-link-bg{
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
+  }
   .node.selected > rect.local-sheet, .node.selected > path.local-sheet{filter:none;}
   .node.selected > rect.hub-echo{filter:none;}
   /* An array (see 40-arrays.js) is held anywhere inside its frame and on
@@ -1286,7 +1292,7 @@
   .legend-item .swatch{width:11px;height:11px;border-radius:2.5px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;}
   /* A tag with no colour of its own: its entries are drawn in the default
      ink, which the square shows, with the dashed edge a default wears. */
-  .legend-item .swatch-unset{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
+  .legend-item .swatch-unset{outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .legend-item .swatch-none{visibility:hidden;}
   .legend-item .swatch-pick{cursor:pointer;}
   .legend-item .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
@@ -1303,7 +1309,7 @@
   /* The count is a column of its own, right-aligned, so a one-digit count
      and a three-digit one end in the same place. */
   #tagsList .legend-item .count{flex:0 0 3ch;text-align:right;}
-  .legend-item .ground-default{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
+  .legend-item .ground-default{outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .legend-item .ground-reset{
     flex:0 0 16px;width:16px;height:16px;padding:0;line-height:1;font-size:11px;
     background:none;border:none;color:var(--ink-faint);cursor:pointer;
@@ -2990,7 +2996,7 @@
     border:1px solid var(--line);border-radius:3px;
     padding:0 2px;margin:0 1px;cursor:default;user-select:all;
   }
-  .tb-ref-btn svg{display:block;width:12px;height:12px;}
+  .tb-ref-btn svg, .tb-sticker-btn svg{display:block;width:12px;height:12px;}
   .ref-picker{width:232px;padding:5px;}
   .ref-picker-grid{display:flex;flex-direction:column;gap:2px;}
   .ref-pick{
@@ -3408,7 +3414,10 @@
      handed down — wears the dashed edge a ground's square does in the Tags
      drawer (.ground-default), so a chosen colour and a default one can be
      told apart wherever a colour is set. */
-  .hex-square.hex-square.inherited{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
+  /* …and keeps its hairline inside the dashes: a default of white, on a
+     white bar, was a dashed outline round nothing, which read as no
+     colour at all (the owner's list of 31.10). */
+  .hex-square.hex-square.inherited{outline:1px dashed var(--ink-faint);outline-offset:1px;}
   /* The reset belongs to the square in front of it, and stands against it:
      the toolbar's gap and the square's own margin put a whole space
      between the two, as though they were separate controls. */
@@ -3428,7 +3437,7 @@
   .swatch-strip .swatch-pick{cursor:pointer;}
   /* Inherited, as on .hex-square: the dashed edge a ground's default wears
      in the Tags drawer. The strip's gap leaves room for the offset. */
-  .swatch-strip .swatch-chip.inherited{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
+  .swatch-strip .swatch-chip.inherited{outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .swatch-strip .swatch-chip.inherited + .swatch-chip{margin-left:2px;}
   .swatch-strip .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
   .swatch-strip .swatch-blank.swatch-pick:hover{border-color:var(--accent);box-shadow:none;}

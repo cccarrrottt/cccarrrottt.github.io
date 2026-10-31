@@ -244,11 +244,29 @@ function latticeRoute(s1, s2, allObstacles, endNormal){
 // and so on). Before this, the endpoints' own boxes were excluded from the
 // whole path, so such a route could tunnel straight through the node it
 // was arriving at and nothing objected.
+/* An end's own leg is let off its own entry, which it leaves from — and
+   was let off the entry at the OTHER end as well. Two entries one above
+   the other, joined top to top, were joined by a run-out up from the
+   lower one straight through the upper, a turn of a few pixels, and back
+   down into it: a line folded onto itself across the entry it was going
+   to (the owner's list of 31.10). The far entry's box is in the way of
+   this leg like any other's. Its own box less a pixel all round: a leg
+   that only reaches the far entry's border is arriving, not crossing. */
+function crossesFarEntry(a, b, owner){
+  const n = owner && nodes.get(owner);
+  if(!n) return false;
+  return segIntersectsRect(a.x, a.y, b.x, b.y, {x0: n.x + 1, y0: n.y + 1, x1: n.x + n.w - 1, y1: n.y + n.h - 1});
+}
 function pathClearParts(pts, midObstacles, endObstacles){
   for(let i=0;i<pts.length-1;i++){
     const a = pts[i], b = pts[i+1];
     const isEnd = (i === 0 || i === pts.length-2);
     const rects = isEnd ? endObstacles : midObstacles;
+    if(isEnd && pts.length > 2){
+      const p1 = pts[0], p2 = pts[pts.length-1];
+      if(i === 0 && p2.owner !== p1.owner && crossesFarEntry(a, b, p2.owner)) return false;
+      if(i === pts.length-2 && p1.owner !== p2.owner && crossesFarEntry(a, b, p1.owner)) return false;
+    }
     let hit = false;
     obstaclesNear(rects, a.x, a.y, b.x, b.y, rect=>{
       if(segIntersectsRect(a.x,a.y,b.x,b.y,rect)){ hit = true; return false; }
@@ -371,7 +389,11 @@ function orthPointsAvoiding(p1, p2, excludeIds, lane){
       const d = lvl - proj(p);
       return {x: p.x + n1.x*d, y: p.y + n1.y*d, keep: true};
     };
-    s1 = put(p1); s2 = put(p2);
+    const l1 = put(p1), l2 = put(p2);
+    /* …unless the shared level is past the other entry: one stacked over
+       the other, the lower's run-out went up through the upper to reach
+       it. Then each keeps its own and the route goes round. */
+    if(!crossesFarEntry(p1, l1, p2.owner) && !crossesFarEntry(p2, l2, p1.owner)){ s1 = l1; s2 = l2; }
   }
   const lanes = [];
   if(lane) lanes.push(lane, -lane);
@@ -467,7 +489,14 @@ function unfoldEnds(pts, p1, p2){
        A run-out is what makes a connector leave its entry square-on, so it
        is kept — the fold this function exists to remove is worth removing
        only down to that point. */
-    const floor = Math.max(STUB_MIN, portClearance(port));
+    /* …but two ports FACING each other across a gap narrower than two
+       run-outs cannot both keep theirs: each ran past the other's, and
+       the line came back a pixel or two on itself at both ends. There the
+       gap is shared, down to a couple of units each — still square. */
+    const facing = OPPOSITE_SIDE[p1.side] === p2.side &&
+      ((p2.x - p1.x) * (SIDE_NORMAL[p1.side] || {x:0}).x + (p2.y - p1.y) * (SIDE_NORMAL[p1.side] || {y:0}).y) > 0;
+    const floor = facing ? Math.min(Math.max(STUB_MIN, portClearance(port)), Math.max(2, portClearance(port) + 2))
+                         : Math.max(STUB_MIN, portClearance(port));
     const pull = Math.min(over, Math.max(0, len - floor));
     bq.x -= ux2*pull; bq.y -= uy2*pull;
   };

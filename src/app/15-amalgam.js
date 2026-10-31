@@ -490,6 +490,17 @@ function amalgamStem(geo, from, pnodes){
     return portOnSide(b, s, 2*t - 1, 1, ring);
   };
   const toward = (dir)=> ux ? (dir > 0 ? 'left' : 'right') : (dir > 0 ? 'top' : 'bottom');
+  /* Where the crossing between the bar and the entry turns. Halfway was
+     right while the gap was wide; in a narrow one the last leg came out
+     shorter than the arrowhead it carries, and the head sat on the corner
+     with the crossing running into its back (the owner's list of 31.10).
+     The last leg gets the head and a corner first, and the first leg what
+     is left — at least a corner's worth while there is that much. */
+  const knee = (j, f)=>{
+    const g = f - j, sg = Math.sign(g) || 1, need = ARROW_LEN + R + 2;
+    if(Math.abs(g) / 2 >= need) return (j + f) / 2;
+    return f - sg * Math.max(Math.abs(g) / 2, Math.min(need, Math.abs(g) - R));
+  };
   /* The entry wholly on one side of the bar: in by the side facing it, at
      its MIDDLE, wherever the foot is (the owner's list of 24.10, evening).
    *
@@ -507,7 +518,14 @@ function amalgamStem(geo, from, pnodes){
   if(jP > pHi + 0.5){
     const fA = along(facing), fP = perp(facing);
     if(Math.abs(jA - fA) < 0.5) return {pts: [from, {x: facing.x, y: facing.y}], port: facing};
-    const mid = (jP + fP) / 2;
+    /* …unless the foot is less than two corners off it, where the knee
+       would be a kink, not a step: straight in, a little off the middle
+       (the owner's list of 31.10; see flattenFacingStep). */
+    if(Math.abs(jA - fA) < 2*R && jA >= aLo + M && jA <= aHi - M){
+      const port = portAt(side, ux ? from.x : from.y);
+      return {pts: [from, {x: port.x, y: port.y}], port};
+    }
+    const mid = knee(jP, fP);
     return {pts: [from, pt(jA, mid), pt(fA, mid), {x: facing.x, y: facing.y}], port: facing};
   }
   const dir = cA >= jA ? 1 : -1;
@@ -537,7 +555,7 @@ function amalgamStem(geo, from, pnodes){
   // Two turns, through the middle of the gap, into the facing side.
   const port = portAt(side, ux ? Math.max(aLo + mA, Math.min(aHi - mA, from.x))
                                : Math.max(aLo + mA, Math.min(aHi - mA, from.y)));
-  const mid = (jP + perp(port)) / 2;
+  const mid = knee(jP, perp(port));
   return {pts: [from, pt(jA, mid), pt(along(port), mid), {x: port.x, y: port.y}], port};
 }
 function drawAmalgam(list, ports){
@@ -1410,17 +1428,21 @@ function drawMergedArrow(b, stem, colors, ring, side){
      back through corners left behind on the other side. The corners are
      kept, unused, and taken up again on the side they were set on. */
   const set = os.routing !== 'straight' && os.bends && os.bends.length && os.bendSides ? os.bendSides : null;
-  const pinned = set && set[1] === stem.port.side ? set : null;
+  /* Its end carried onto another port of the entry (drawEndGrips) is a
+     side set by hand, as on any connector, and outranks the face the
+     stem would choose. It used to give way to the faces its corners were
+     pinned to, so on a bent arrow the drag was taken and nothing moved
+     (the owner's list of 31.10); a drag now writes the new face into the
+     pin as well (movePortTo), and a pin that disagrees with the face set
+     by hand is one from before that, which the corners give way to. */
+  const handSide = SIDES.includes(os.toSide) ? os.toSide : null;
+  const pinned = set && set[1] === (handSide || stem.port.side) ? set : null;
   /* Bent, it arrives at the middle of its side, as any connector does: the
      stem's own port stands in front of the foot, and with the foot under
      the first corner that put the head wherever the corner was — a stretch
      dragged across the entry pulled the head along the border after it,
      and the drag was refused as a shape it had not asked for. */
   const hasBends = os.routing !== 'straight' && os.bends && os.bends.length && !(set && !pinned);
-  /* Its end carried onto another port of the entry (drawEndGrips) is a
-     side set by hand, as on any connector, and outranks the face the
-     stem would choose — corners pinned to their own faces aside. */
-  const handSide = SIDES.includes(os.toSide) && !pinned ? os.toSide : null;
   let head = hasBends ? portOnSide(b, pinned ? pinned[1] : (handSide || stem.port.side), 0, 1, ring)
     : handSide && handSide !== stem.port.side ? portOnSide(b, handSide, 0, 1, ring) : stem.port;
   /* `slides`: the one end of any connector that is not a fixed point. It
@@ -1433,6 +1455,13 @@ function drawMergedArrow(b, stem, colors, ring, side){
     const bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
     if(!bent.ignored && bent.pts.length >= 2) route = bent.pts;
     else head = stem.port;
+  }
+  /* The route may land a little along the side from the head's port, to
+     run straight rather than step (flattenFacingStep); the head goes
+     where the line arrives. */
+  if(route !== stem.pts && route.length >= 2 && SIDES.includes(head.side)){
+    const last = route[route.length - 1], key = sideIsVertical(head.side) ? 'x' : 'y';
+    if(Math.abs(last[key] - head[key]) > 0.01) head = Object.assign({}, head, {[key]: last[key]});
   }
   mergedArrowPorts.set(b.id, {p1: start, p2: head});
   /* Every lineage's colour unless it has been given its own: a colour or a

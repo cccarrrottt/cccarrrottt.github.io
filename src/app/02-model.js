@@ -488,7 +488,21 @@ function borderReachIn(n){
    get to move the frame either. */
 const TEXTBOX_FRAME_W = 1;
 function isTextboxShape(n){ return !!n && (n.shape || '') === 'textbox'; }
-function textInsetFor(n){ return TEXT_GAP + borderReachIn(n); }
+/* …but a ripple no longer buys its pixel with the entry's size (the
+   owner's list of 31.10: any entry grew a little the moment it was turned
+   wavy — three pixels a side, the ripple's whole swing on top of the
+   pixel). The ripple's band is that much wider than a plain stroke, so
+   both cannot be had; what is kept is that its troughs never touch the
+   words, and the pixel is given up there and only there. The box is then
+   half a pixel a side bigger than the plain one, and the ripple swings
+   about very nearly the line a plain border is drawn on. What it reaches
+   inward is still borderReachIn's, which is what anything laid INSIDE the
+   ripple (an array's hatching) asks. */
+function textReachIn(n){
+  return isWavyBorder(n) && !isWavyPortrait(n) ? POCKET_AMP + NODE_BORDER_W / 2 - TEXT_GAP
+       : borderReachIn(n);
+}
+function textInsetFor(n){ return TEXT_GAP + textReachIn(n); }
 /* How round a box closed onto its words may be at the corners.
  *
  * The pixel was kept along the sides and not across the corners: a corner

@@ -269,6 +269,7 @@ function commitNodeEdit(){
     if(newTags.length) opts.tags = newTags; else delete opts.tags;
     if(newFont) opts.font = newFont; else delete opts.font;
     if(newFontSize) opts.fontSize = newFontSize; else delete opts.fontSize;
+    const hadImage = opts.image;
     if(newImage) opts.image = newImage; else delete opts.image;
     if(newCard) opts.card = true; else delete opts.card;
     if(labelChanged) delete opts.size;
@@ -281,7 +282,10 @@ function commitNodeEdit(){
        corners, so this form carries whatever it already had rather than
        asking a control about it — and lets it go with the card or the
        picture it belonged to. */
-    if(!newCard || !newImage) delete opts.cardImgH;
+    /* …and a NEW picture starts as a picture does, at the card's width:
+       a size dragged out for the one before was kept, and the new one
+       came in at the old one's size (the owner's list of 31.10). */
+    if(!newCard || !newImage || newImage !== hadImage){ delete opts.cardImgH; delete opts.cardImgW; }
     /* The card's middle line. */
     {
       const med = (typeof editMediumInput !== 'undefined' && editMediumInput)

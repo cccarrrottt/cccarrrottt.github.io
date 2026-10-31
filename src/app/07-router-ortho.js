@@ -179,7 +179,7 @@ function tidyPoints(pts){
   for(const p of pts){
     const last = out[out.length-1];
     if(last && !p.keep && Math.abs(last.x-p.x)<0.5 && Math.abs(last.y-p.y)<0.5) continue;
-    out.push({x:p.x, y:p.y, side:p.side, ring:p.ring, keep:p.keep});
+    out.push({x:p.x, y:p.y, side:p.side, ring:p.ring, keep:p.keep, owner:p.owner});
   }
   // Stub points are load-bearing, not decoration: the clearance check
   // identifies the two port-to-stub segments by position, so collapsing a

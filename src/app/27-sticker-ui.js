@@ -369,7 +369,12 @@ function addStickerButton(bar){
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tb-sticker-btn';
-  btn.textContent = '☺';
+  /* The same face as the Stickers button on the toolbar, copied from it
+     so the two cannot drift apart: a ☺ here and a drawn face there read
+     as two different things (the owner's list of 31.10). */
+  const face = document.querySelector('#stickersToggle svg');
+  if(face) btn.appendChild(face.cloneNode(true));
+  else btn.textContent = '\u263a';
   btn.title = 'Insert a sticker';
   btn.addEventListener('click', ev=>{
     ev.stopPropagation();

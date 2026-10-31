@@ -7247,10 +7247,14 @@ async function main(){
     out.notDecorated = ![...g.querySelectorAll('tspan[data-ul]')]
       .some(t=> /underline/.test(getComputedStyle(t).textDecorationLine));
     const line = g.querySelector('line.text-underline');
-    const run = g.querySelector('tspan[data-ul]');
+    /* One rule runs the whole underlined stretch, the space between its
+       words included (the owner's list of 31.10): from the first word's
+       start to the last word's end. */
+    const runs = [...g.querySelectorAll('tspan[data-ul]')].filter(t=> !t.classList.contains('text-gap'));
+    const run = runs[0], end = runs[runs.length - 1];
     if(line && run){
       const a = run.getStartPositionOfChar(0);
-      const b = run.getEndPositionOfChar((run.textContent||'').length - 1);
+      const b = end.getEndPositionOfChar((end.textContent||'').length - 1);
       out.spansTheRun = Math.abs(+line.getAttribute('x1') - a.x) < 0.6 &&
                         Math.abs(+line.getAttribute('x2') - b.x) < 0.6;
       out.belowTheBaseline = +line.getAttribute('y1') > a.y;
@@ -11694,8 +11698,14 @@ async function main(){
          and two thirds of it. Every one of those is arithmetic on the
          entry's own box, and nothing else may touch it. */
       const seats = [t.x + t.w/3, t.x + t.w*2/3];
-      out.portsUnmoved = Math.abs(first.x - (a.x + a.w/2)) < 0.01 &&
-                         seats.some(sx=> Math.abs(last.x - sx) < 0.01);
+      /* T's end, one of two on its side, stays on its seat. A's, alone on
+         its side and five units off, is the one exception there is since
+         the owner's list of 31.10 (flattenFacingStep): a step shorter than
+         two corners is a kink, not a route, so the lone end stands in
+         line with the other and the connector runs straight. */
+      out.portsUnmoved = seats.some(sx=> Math.abs(last.x - sx) < 0.01) &&
+                         pts.every(q=> Math.abs(q.x - last.x) < 0.01) &&
+                         Math.abs(first.x - (a.x + a.w/2)) < 2 * EDGE_CORNER_R;
       out.lonePts = pts.map(q=> q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ') +
                     ' | seats ' + seats.map(v=> v.toFixed(1)).join(',');
     }
@@ -12801,7 +12811,11 @@ async function main(){
         sizes[B] = [n.w, n.h];
       }
       out.wavySize = JSON.stringify(sizes);
-      const more = 2 * POCKET_AMP;
+      /* Since the owner's list of 31.10 the words stand a pixel off the
+         ripple's CRESTS, not its troughs: a node no longer grows by the
+         ripple's whole depth, only by the half pixel a side the border's
+         own stroke reaches in past a plain one's. */
+      const more = 2 * (textReachIn(nodes.get('wz')) - NODE_BORDER_W/2);
       out.wavySame = Math.abs(sizes.wavy[0] - sizes.solid[0] - more) < 0.03 &&
                      Math.abs(sizes.wavy[1] - sizes.solid[1] - more) < 0.03;
     }
@@ -20297,11 +20311,16 @@ async function main(){
         return face && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
       });
       /* …and carried along past the end of its bar, it keeps the face it
-         had, at its middle, with a knee from the first step off it. */
+         had, at its middle, with a knee from the first step off it — but
+         for a step shorter than two corners, which would be a kink, and
+         where it runs straight in a little off the middle instead (the
+         owner's list of 31.10). */
       out.pastEnd = [140, 150, 160, 170, 200, 260].map(dx=>{
         move('sl_m', X + 120 + dx, Y + 160);
         const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
-        return Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - (n.x + n.w / 2)) < 0.01 &&
+        const off = Math.abs(P[m].x - (n.x + n.w / 2));
+        return Math.abs(P[m].y - n.y) < 0.01 &&
+               (off < 0.01 || (P.length === 2 && off < 2 * EDGE_CORNER_R)) &&
                P.slice(1).every((p, i)=> Math.abs(p.x - P[i].x) < 0.01 || Math.abs(p.y - P[i].y) < 0.01);
       });
       move('sl_m', X + 120, Y + 160);
@@ -21150,6 +21169,160 @@ async function main(){
   check('a style bar choice leaves the bar where it was', out.bar.length === 3 && out.bar[0] === out.bar[1] && out.bar[2] === 'wavy',
         JSON.stringify(out.bar));
   check('a drawer shutting goes under its tab', out.tab === '1', out.tab);
+  });
+
+  await scenario("the owner's list of 31.10: a ripple that keeps the size, an arrow carried off its corners, a picture at its heading's width, rules across spaces, lines with no kinks", async () => {
+  await page.evaluate(()=>{
+    window.__keep31 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    return true;
+  });
+  const X = 131000, Y = 131000;
+  let out = {};
+  try{
+    out = await page.evaluate(async ([X, Y])=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const r = {};
+      /* Whether a route turns twice within two corners' width, comes
+         back on itself, or carries a head on its last corner. */
+      const kinks = (pts, head)=>{
+        const P = pts.filter((q, i)=> !i || Math.hypot(q.x - pts[i-1].x, q.y - pts[i-1].y) > 0.05);
+        const seg = P.slice(1).map((b, i)=> ({dx: b.x - P[i].x, dy: b.y - P[i].y, len: Math.hypot(b.x - P[i].x, b.y - P[i].y)}));
+        const turn = (u, v)=>{ const c = (u.dx*v.dy - u.dy*v.dx) / (u.len*v.len || 1); return Math.abs(c) < 0.3 ? 0 : Math.sign(c); };
+        const bad = [];
+        for(let i = 1; i < seg.length - 1; i++)
+          if(seg[i].len < 2 * EDGE_CORNER_R && turn(seg[i-1], seg[i]) && turn(seg[i], seg[i+1])) bad.push('step');
+        for(let i = 0; i < seg.length - 1; i++)
+          if(seg[i].dx*seg[i+1].dx + seg[i].dy*seg[i+1].dy < -0.01*seg[i].len*seg[i+1].len) bad.push('back');
+        if(head && seg.length > 1 && turn(seg[seg.length-2], seg[seg.length-1]) && seg[seg.length-1].len < ARROW_LEN + 2) bad.push('head');
+        return bad;
+      };
+      const route = (f, t)=> drawnRoutes.get(calloutEdgeKey(f, t)).pts;
+
+      /* 1. A ripple keeps the entry's size, give or take its troughs. */
+      applyEdit(()=>{
+        workingNodes.push(['o31_p','Beast Wars',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['o31_w','Beast Wars',null,null,null,null,{pos:[X, Y + 100], border:'wavy'}]);
+      });
+      rebuildChart();
+      const P = nodes.get('o31_p'), W = nodes.get('o31_w');
+      r.wavy = [round2(W.w - P.w), round2(W.h - P.h), round2((W.x + W.w/2) - (P.x + P.w/2))];
+
+      /* 2. A bent merged arrow is carried onto another port, and its
+            corners go with the new face. */
+      applyEdit(()=>{
+        workingNodes.push(['o31_a','Alpha',null,null,null,null,{pos:[X + 600, Y]}]);
+        workingNodes.push(['o31_b','Beta',null,null,null,null,{pos:[X + 800, Y]}]);
+        workingNodes.push(['o31_m','Merged',['o31_a','o31_b'],null,null,null,{pos:[X + 700, Y + 300], merge:true}]);
+      });
+      rebuildChart();
+      const m = nodes.get('o31_m');
+      setEdgeStyleOverride('', 'o31_m', Object.assign({}, edgeStyleFor('', 'o31_m'),
+        {gradient:['#cc22cc', '#22cc22'], bends:[[m.x + m.w/2 - 60, m.y - 30]], bendSides:['bottom', 'top']}));
+      rebuildChart();
+      const side0 = mergedArrowPorts.get('o31_m').p2.side;
+      movePortTo('', 'o31_m', 'to', 'left', 0);
+      rebuildChart();
+      r.arrow = {side0, side: mergedArrowPorts.get('o31_m').p2.side, pin: (edgeStyleFor('', 'o31_m').bendSides || []).join()};
+
+      /* 3. A picture comes in at its heading's width. */
+      const c = document.createElement('canvas'); c.width = 400; c.height = 200;
+      c.getContext('2d').fillRect(0, 0, 400, 200);
+      const pic = c.toDataURL('image/png');
+      applyEdit(()=>{ workingNodes.push(['o31_c','Optimus Prime',null,null,null,null,{pos:[X, Y + 600], card:true}]); });
+      rebuildChart();
+      const w0 = nodes.get('o31_c').w;
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o31_c'); e[6] = Object.assign({}, e[6], {image: pic}); });
+      rebuildChart(); await wait(300); rebuildChart();
+      const img = document.querySelector('.node[data-id="o31_c"] image');
+      r.card = [w0, nodes.get('o31_c').w, img ? +img.getAttribute('width') : null];
+
+      /* 4. A picked entry's chips glow with its border. */
+      applyEdit(()=>{ workingNodes.push(['o31_l','Beast Wars',null,null,null,null,{pos:[X, Y + 900],
+                        multiLang:true, langTabs:[{tag:'JP',text:'a'}]}]); });
+      rebuildChart();
+      selectNode('o31_l');
+      const chip = document.querySelector('.node[data-id="o31_l"] .lang-chip-bg');
+      r.chipGlow = chip ? getComputedStyle(chip).filter : 'none';
+      deselect();
+
+      /* 5. A rule runs across the spaces it was put on. */
+      applyEdit(()=>{
+        workingNodes.push(['o31_u1','A{{u:solid| }}B',null,null,null,null,{pos:[X, Y + 1200]}]);
+        workingNodes.push(['o31_u2','{{u:dashed|Beast Wars: }}Uprising',null,null,null,null,{pos:[X, Y + 1300]}]);
+      });
+      rebuildChart();
+      const rules = id=> [...document.querySelectorAll(`.node[data-id="${id}"] .text-underline`)];
+      const u2 = rules('o31_u2'), up = [...document.querySelectorAll('.node[data-id="o31_u2"] tspan')]
+        .find(t=> t.textContent === 'Uprising');
+      r.rules = [rules('o31_u1').length, u2.length,
+                 u2.length && up ? round2(up.getStartPositionOfChar(0).x - +u2[0].getAttribute('x2')) : null];
+
+      /* 6. Lines with no kinks: two entries one over the other with words
+            of different lengths; the same joined top to top; two facing
+            across a narrow gap; a merged arrow into a near entry; and the
+            whole of the owner's chart. */
+      applyEdit(()=>{
+        workingNodes.push(['o31_s1','Alpha',null,null,null,null,{pos:[X + 1600, Y]}]);
+        workingNodes.push(['o31_s2','Beta','o31_s1',null,null,null,{pos:[X + 1600, Y + 160]}]);
+        workingNodes.push(['o31_t1','Alpha',null,null,null,null,{pos:[X + 2000, Y + 200]}]);
+        workingNodes.push(['o31_t2','Beta','o31_t1',null,null,null,{pos:[X + 2000, Y]}]);
+        workingNodes.push(['o31_f1','Alpha',null,null,null,null,{pos:[X + 2400, Y]}]);
+        workingNodes.push(['o31_f2','Beta','o31_f1',null,null,null,{pos:[X + 2360, Y + 120]}]);
+        workingNodes.push(['o31_n1','Alpha',null,null,null,null,{pos:[X + 2800, Y]}]);
+        workingNodes.push(['o31_n2','Beta Longer',null,null,null,null,{pos:[X + 2920, Y]}]);
+        workingNodes.push(['o31_nm','Merged',['o31_n1','o31_n2'],null,null,null,{pos:[X + 2780, Y + 60], merge:true}]);
+      });
+      setEdgeStyleOverride('o31_t1', 'o31_t2', Object.assign({}, edgeStyleFor('o31_t1', 'o31_t2'), {fromSide:'top', toSide:'top'}));
+      setEdgeStyleOverride('o31_f1', 'o31_f2', Object.assign({}, edgeStyleFor('o31_f1', 'o31_f2'), {fromSide:'left', toSide:'right'}));
+      rebuildChart();
+      const T2 = nodes.get('o31_t2');
+      r.stack = route('o31_s1', 'o31_s2').map(q=> round2(q.x)).filter((x, i, a)=> a.indexOf(x) === i).length;
+      r.topTop = route('o31_t1', 'o31_t2').every((q, i, a)=> !i || !segIntersectsRect(a[i-1].x, a[i-1].y, q.x, q.y,
+        {x0: T2.x + 1, y0: T2.y + 1, x1: T2.x + T2.w - 1, y1: T2.y + T2.h - 1}));
+      r.facing = kinks(route('o31_f1', 'o31_f2'), false);
+      r.merged = kinks(route('', 'o31_nm'), true);
+      return r;
+    }, [X, Y]);
+  } finally {
+    await page.evaluate(()=>{
+      closeStyleBar(); closeEdgePopover(); deselect();
+      const k = window.__keep31;
+      applyEdit(()=>{ workingNodes.length = 0; k.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; k.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+    });
+  }
+  out.owner = await page.evaluate(()=>{
+    const bad = [];
+    drawnRoutes.forEach(rt=>{
+      const st = edgeStyleFor(rt.from, rt.to);
+      if(st.routing !== 'orthogonal' && st.routing !== 'curve') return;
+      const P = rt.pts;
+      for(let i = 1; i < P.length - 2; i++){
+        const a = P[i-1], b = P[i], c = P[i+1], d = P[i+2];
+        const l = Math.hypot(c.x - b.x, c.y - b.y);
+        const u = {x: b.x - a.x, y: b.y - a.y}, v = {x: c.x - b.x, y: c.y - b.y}, w = {x: d.x - c.x, y: d.y - c.y};
+        const t1 = (u.x*v.y - u.y*v.x) / ((Math.hypot(u.x, u.y) * l) || 1), t2 = (v.x*w.y - v.y*w.x) / ((l * Math.hypot(w.x, w.y)) || 1);
+        if(l > 0.05 && l < 2 * EDGE_CORNER_R && Math.abs(t1) > 0.3 && Math.abs(t2) > 0.3) bad.push(rt.from + '>' + rt.to);
+      }
+    });
+    return bad;
+  });
+  check('a ripple keeps an entry\'s size, half a pixel a side aside, about the same middle',
+        out.wavy[0] <= 1.01 && out.wavy[1] <= 1.01 && Math.abs(out.wavy[2]) < 0.01, JSON.stringify(out.wavy));
+  check('a bent merged arrow is carried onto another port, its corners pinned to the new face',
+        out.arrow.side0 === 'top' && out.arrow.side === 'left' && out.arrow.pin === 'bottom,left', JSON.stringify(out.arrow));
+  check('a card\'s picture comes in at its heading\'s width',
+        Math.abs(out.card[0] - out.card[1]) < 0.01 && Math.abs(out.card[2] - out.card[1]) < 0.01, JSON.stringify(out.card));
+  check('a picked entry\'s chips glow with its border', /drop-shadow/.test(out.chipGlow), out.chipGlow);
+  check('a rule runs across the spaces it was put on, as one line',
+        out.rules[0] === 1 && out.rules[1] === 1 && out.rules[2] !== null && out.rules[2] < 1, JSON.stringify(out.rules));
+  check('two entries one over the other are joined straight, whatever their words',
+        out.stack === 1, String(out.stack));
+  check('joined top to top, the lower does not run through the upper', out.topTop === true, String(out.topTop));
+  check('facing across a narrow gap, neither end runs back on itself', out.facing.length === 0, out.facing.join());
+  check('a merged arrow into a near entry keeps its head off the corner', out.merged.length === 0, out.merged.join());
+  check('no line on the owner\'s chart turns twice within two corners', out.owner.length === 0, out.owner.join(' '));
   });
 
   await scenario("nothing threw along the way", async () => {
