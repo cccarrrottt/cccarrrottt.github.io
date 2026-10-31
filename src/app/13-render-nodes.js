@@ -572,7 +572,14 @@ const drawOne = (n)=>{
      way an entry is, so it closes on its words the way an entry does. */
   const cardBare = isCard && !n.image && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
   const closesOnInk = !isRound && !isImage && (!isCard || cardBare);
-  const inkPad = closesOnInk ? textInsetFor(n) : NODE_PAD_X;
+  /* A card with a picture and a heading and nothing else keeps the width
+     its heading had before the picture came (the owner's list of 31.10:
+     the picture is to take the heading's width, and the heading had been
+     taken out to the card minimum and padded as a card's, so the picture
+     arrived wider than the words it was put over). The minimum is for the
+     bands of smaller words, which wrap. */
+  const cardPicOnly = isCard && !cardBare && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
+  const inkPad = closesOnInk || cardPicOnly ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
      inkCornerR. A card and a picture keep the old one. */
   const cornerR = closesOnInk ? inkCornerR(n) : 5;
@@ -629,7 +636,7 @@ const drawOne = (n)=>{
      while showing exactly the same words: the layout is a way of drawing
      what an entry has, and adds no room for what it has not. */
   if(isCard && !manual){
-    if(cardBare) n.w = w = maxInkW > 0 ? Math.min(CARD_MAXW, round2(maxInkW + inkPad*2)) : GRID;
+    if(cardBare || cardPicOnly) n.w = w = maxInkW > 0 ? Math.min(CARD_MAXW, round2(maxInkW + inkPad*2)) : GRID;
     else {
       const want = maxInkW > 0 ? Math.ceil(maxInkW) + inkPad*2 : CARD_MINW;
       n.w = w = Math.max(CARD_MINW, Math.min(CARD_MAXW, want));
@@ -732,7 +739,9 @@ const drawOne = (n)=>{
      came out that much bigger all round (the owner's list of 30.10). Its
      box is taken in by the depth instead, about the same middle, so the
      crests stand where a plain card's border did. */
-  const cardRipple = (isCard && isWavy && !manual && !turned) ? POCKET_AMP : 0;
+  /* A card that is only a heading closes on its words like an entry, and
+     its ripple is placed as an entry's is (textReachIn). */
+  const cardRipple = (isCard && isWavy && !closesOnInk && !manual && !turned) ? POCKET_AMP : 0;
   if(cardRipple){ n.w = w = w - 2 * cardRipple; h -= 2 * cardRipple; }
   /* Placed as the turned box — where it stands is decided by the shape
      the reader sees, which is also how a turned entry has always been
@@ -808,7 +817,7 @@ const drawOne = (n)=>{
        have. Recorded for the same reason growShift is — every save turns
        a drawn x back into a stored one by adding it. */
     if(closesOnInk && !isTextbox){
-      n.growShiftX = round2(borderReachIn(n) - NODE_BORDER_W / 2);
+      n.growShiftX = round2(textReachIn(n) - NODE_BORDER_W / 2);
       n.x = n.pos.x - n.growShiftX;
     }
   }
@@ -1548,7 +1557,7 @@ const drawOne = (n)=>{
   if(clipText && !isRound && !isImage){
     const clipId = defId('textclip-', n.id);
     const clip = el('clipPath', {id: clipId}, nodeDefs);
-    const reach = closesOnInk ? borderReachIn(n) : NODE_PAD_X/2;
+    const reach = closesOnInk ? textReachIn(n) : NODE_PAD_X/2;
     el('rect', {x: n.x + reach, y: n.y,
                 width: Math.max(1, n.w - reach*2), height: h}, clip);
     txt.setAttribute('clip-path', `url(#${clipId})`);

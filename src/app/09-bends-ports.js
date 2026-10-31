@@ -464,6 +464,10 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
 }
 function pathFromPortsFresh(p1,p2,style,excludeIds,lane){
   style = style || DEFAULT_EDGE_STYLE;
+  if(style.routing !== 'straight' && !(style.bends && style.bends.length)){
+    const flat = flattenFacingStep(p1, p2);
+    if(flat){ p1 = flat.p1; p2 = flat.p2; }
+  }
   /* The router is told which ends carry an arrowhead, because a head needs
      a straight run to sit in — see stubLength. The port records themselves
      are left alone; only the copies the routing sees learn about it. */
@@ -532,6 +536,50 @@ function pathFromPortsFresh(p1,p2,style,excludeIds,lane){
   /* `ignored` says the route was drawn without bends it was given — see
      dropIgnoredBends, which takes such bends out when an edit settles. */
   return { d, angleDeg: endAngleDeg(pts), pts, ignored };
+}
+/* Two ports facing each other a few pixels out of line.
+ *
+ * Two entries one under the other, with words of different lengths, put
+ * their middles a few pixels apart, and the line between them was drawn
+ * as a step that small: two corners close enough to run into each other,
+ * a kink nobody drew on purpose (the owner's list of 31.10, which asked
+ * for every such bend to go). A step narrower than two corners cannot be
+ * drawn as a step at all.
+ *
+ * So the line runs straight, and ONE of its ends lands that much along
+ * its side from the middle of its share — the end that has the side to
+ * itself, the head's first, and only where the side has room for it past
+ * its corners. Ports are still fastened (see the note at the end of
+ * resolvePorts): what is moved is where this one line meets the border,
+ * worked out afresh from where the two entries are, so it does not wander
+ * while nothing moves, and a carry that opens the step past two corners'
+ * width puts the end back on its port and draws the step. */
+function flattenFacingStep(p1, p2){
+  // Inside, not beside it: the first chart is routed while part 02 runs.
+  const STEP_FLAT = 2 * EDGE_CORNER_R;
+  if(!p1 || !p2 || !SIDES.includes(p1.side) || OPPOSITE_SIDE[p1.side] !== p2.side) return null;
+  const nrm = SIDE_NORMAL[p1.side];
+  if((p2.x - p1.x) * nrm.x + (p2.y - p1.y) * nrm.y <= 0) return null;
+  const key = sideIsVertical(p1.side) ? 'x' : 'y';
+  const off = p2[key] - p1[key];
+  if(Math.abs(off) < 0.01 || Math.abs(off) >= STEP_FLAT) return null;
+  const moved = (p, to)=>{
+    if(!p.owner || (p.slots || 1) > 1 || p.sunk) return null;
+    const n = nodes.get(p.owner);
+    if(!n || isSplitNode(n) || (n.shape || '') === 'ellipse') return null;
+    const prof = borderProfileOf(n, p.ring || 0);
+    if(prof && prof.structural) return null;
+    const inset = (p.ring || 0) * ringStepFor(n);
+    const lo = (key === 'x' ? n.x : n.y) - inset, len = (key === 'x' ? n.w : n.h) + inset * 2;
+    const margin = Math.min(len / 2, EDGE_CORNER_R + 2);
+    if(!(to >= lo + margin && to <= lo + len - margin)) return null;
+    const q = portOnSide(n, p.side, 2 * (to - lo) / len - 1, 1, p.ring || 0);
+    return Object.assign({}, p, {x: q.x, y: q.y, drop: q.drop});
+  };
+  const m2 = moved(p2, p1[key]);
+  if(m2) return {p1, p2: m2};
+  const m1 = moved(p1, p2[key]);
+  return m1 ? {p1: m1, p2} : null;
 }
 // ports is {p1, p2, lane} from resolvePorts(); when absent, fall back to
 // the automatic sides at each side's midpoint.

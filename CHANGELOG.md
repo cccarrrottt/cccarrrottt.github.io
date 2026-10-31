@@ -6,6 +6,43 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.21.0 — "Straight where it can be" (2026-10-31)
+
+The owner's list of 31.10.
+
+- **A step shorter than two corners is straightened**
+  (`flattenFacingStep`, `09-bends-ports.js`). Two entries one over the
+  other with words of different lengths were joined by a jog of a few
+  pixels. Where two facing ports are less than two corners apart and one
+  end is alone on its side, that end stands in line with the other and
+  the line runs straight. This is the one exception to "ports do not
+  move" (0.9.30): a lone end, a short step, ports facing each other.
+  A merged arrow into an entry just past its bar's end does the same
+  (`amalgamStem`), where it used to knee in at the middle.
+- **No line runs through the entry it goes round** (`crossesFarEntry`,
+  `08-router-astar.js`): a route's end legs are checked against the far
+  entry too, so top to top no longer U-folds through the upper one; and
+  two facing across a narrow gap keep run-outs short enough not to fold
+  back (`unfoldEnds`).
+- **A merged arrow's head keeps off its last corner** in a narrow gap
+  (`knee`, `amalgamStem`): the last leg gets the head and a corner first.
+  It is carried onto another port of its entry even when corners are set
+  on it (`movePortTo` writes the new face into `bendSides`).
+- **A wavy border keeps the entry's size** (`textReachIn`,
+  `02-model.js`): the words stand a pixel off the ripple's crests instead
+  of its troughs, so an entry grows by half a pixel a side, the stroke's
+  own reach, instead of by the ripple's whole depth.
+- **A card's picture comes in at its heading's width**, and a picture
+  changed afresh forgets the size the old one was given (`29-editors.js`).
+- **A picked entry's chips glow** with its border, as its link tab does.
+- **A colour square showing an inherited colour keeps its hairline**, so
+  an inherited white no longer reads as an empty square; the field over
+  a comment is written in the comment's colour when its words had it.
+- **An underline or strike-through on a space is drawn** (`expandForWrap`,
+  `layoutLine`, `paintUnderlines`): the space is a run of its own, and
+  touching rules of one kind are drawn as one.
+- The field's sticker and reference buttons wear the toolbar's signs.
+
 ## 0.20.0 — "Ports and cards" (2026-10-30)
 
 - A connector's end grip steps aside along its entry's border when a

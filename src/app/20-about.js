@@ -11,9 +11,14 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.20.0';
+const APP_VERSION = '0.21.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.21.0', date:'2026-10-31', title:'Straight where it can be', notes:[
+'A connector between two entries whose middles nearly line up runs straight instead of stepping by a few pixels, and no line turns twice in less than two of its corners; a line joined top to top no longer runs through the entry it goes round, and two facing across a narrow gap no longer fold back. A merged arrow keeps its head off its last corner in a narrow gap, and is carried onto another port of its entry even with corners set on it.',
+'A wavy border no longer makes an entry bigger: the words stand a pixel off its crests. A card\u2019s picture comes in at its heading\u2019s width. A picked entry\u2019s language chips glow with its border, a colour square showing an inherited white keeps its edge, and the field over a comment is written in the comment\u2019s colour.',
+'An underline or a strike-through put on a space is drawn across it, as one rule with the words around it. The sticker and reference buttons in an entry\u2019s field wear the same signs as the toolbar.',
+  ]},
   {v:'0.20.0', date:'2026-10-30', title:'Ports and cards', notes:[
 'A connector\u2019s end is carried onto another port of its entry by the square grip at its end, on a merge\u2019s lines too; only lines into the same port of an entry merge, and a merge\u2019s bar, its junction and a split\u2019s dot answer a right click or a long press with their own menu. A split\u2019s dot slides along the line it splits.',
 'A card\u2019s picture is as wide as its heading and kept sharp; a wavy card is no bigger than a plain one, and an entry is as wide as its language chips. A note can be written along its line, framed and rewritten in place.',

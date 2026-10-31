@@ -283,10 +283,21 @@ function expandForWrap(tokens){
    * and neither did a line beginning with a colour, a sticker or a
    * citation. The editor showed two lines and the chart drew one. */
   let brk = false;
+  /* The run the last space was written in. The space between two words
+     is not a word, so it was nobody's: underlined or struck through with
+     the words either side of it, it was drawn bare, and a rule along
+     "Beast Wars: " stopped at every space and short of the last one (the
+     owner's list of 31.10). The word after it carries the space's look,
+     and the line is drawn across the gap (layoutLine). */
+  let gapRun = null;
   const push = w=>{
-    words.push(Object.assign(w, {glue: glue && words.length > 0, br: brk}));
+    const gap = glue || !words.length ? null : gapRun;
+    words.push(Object.assign(w, {glue: glue && words.length > 0, br: brk},
+                             gap && (gap.under || gap.strike) ? {gap: {under: gap.under, strike: gap.strike,
+                                                                      color: gap.color, size: gap.size}} : {}));
     brk = false;
     glue = true;
+    gapRun = null;
   };
   tokens.forEach(tok=>{
     /* A ruby unit, a sticker and a reference mark are each one indivisible
@@ -308,6 +319,7 @@ function expandForWrap(tokens){
     text.split('\n').forEach((chunk, ci)=>{
       if(ci > 0){ brk = true; glue = false; }
       chunk.split(' ').forEach((w, i)=>{
+        if(i > 0) gapRun = tok;
         // An empty fragment IS the space: it breaks the glue and draws nothing.
         if(w === ''){ glue = false; return; }
         if(i > 0) glue = false;

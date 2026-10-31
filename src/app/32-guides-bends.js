@@ -341,8 +341,13 @@ function movePortTo(from, to, end, side, ring){
   const kept = edgeStyleFor(from, to);
   const sideKey = end === 'from' ? 'fromSide' : 'toSide', ringKey = end === 'from' ? 'fromRing' : 'toRing';
   if(kept[sideKey] === side && (kept[ringKey] || 0) === (ring || 0)) return false;
+  /* Corners pinned to the faces they were set from (bendSides) are
+     pinned to this one now: the face was chosen by hand after them. */
+  const pin = Array.isArray(kept.bendSides) && kept.bendSides.length === 2
+    ? (end === 'from' ? [side, kept.bendSides[1]] : [kept.bendSides[0], side]) : kept.bendSides;
   applyEdit(()=>{
-    setEdgeStyleOverride(from, to, Object.assign({}, kept, {[sideKey]: side, [ringKey]: ring || undefined}));
+    setEdgeStyleOverride(from, to, Object.assign({}, kept, {[sideKey]: side, [ringKey]: ring || undefined,
+                                                            bendSides: pin}));
   });
   return true;
 }
