@@ -440,74 +440,31 @@ const EDGE_CORNER_R = 6;
 /* A CURVE is the orthogonal route drawn as one smooth stroke.
  *
  * It goes where an elbowed connector goes — round the same entries,
- * through the same corridors, with the same marks to bend it by — and
- * turns its corners wide and smooth where an elbow turns them tight (see
- * CURVE_TURN_R). It used to be a B-spline over the whole route, the single
- * bow a hand draws; the owner found its turns too wide and too far from
- * the elbowed line (29.10). Asked for square corners as well, it is still
- * a curve: the routing is the more specific of the two choices. */
+ * through the same corridors, with the same marks to bend it by — and the
+ * route's corners are not places it turns but places it is DRAWN TOWARDS:
+ * the route is the control polygon of a clamped cubic B-spline, so the
+ * line leaves its entry square, bows out towards the corners without
+ * reaching them, and comes in square to the other. Two entries one above
+ * the other, joined side to side, get the single bow a hand draws; the
+ * first version kept the elbow's straight middle and only rounded its two
+ * corners, which was a bracket, not a curve.
+ *
+ * A clamped spline starts and ends on its first and last points and
+ * leaves along the first and last legs, so the arrowheads, which are set
+ * from the route, sit exactly where the line meets them. Asked for square
+ * corners as well, it is still a curve: the routing is the more specific
+ * of the two choices. */
 const CURVE_CORNER_R = 1e6;
 const CURVE_STEP = 2;
-/* A curve turns its corners on a radius of its own, three of an elbow's
-   (the owner's list of 29.10).
- *
-   It was the route's whole B-spline: the line bowed out towards each
-   corner from the middle of the leg before and came back by the middle of
-   the leg after, so on a long leg a corner was a turn a hundred units
-   across and the line ran nowhere near where the same connector drawn
-   elbowed would run. Now the legs are the route's own, straight, and each
-   corner is one smooth turn of CURVE_TURN_R — less where the legs either
-   side are too short to give it, as an elbow's is. A turn is a cubic laid
-   as a quarter circle is, so it leaves one leg and joins the next along
-   each, and the line is smooth all the way. */
-const CURVE_TURN_R = 3 * EDGE_CORNER_R;
-function roundedThrough(P, step){
-  const out = [{x: P[0].x, y: P[0].y}];
-  const legs = [];
-  for(let i = 1; i < P.length; i++) legs.push(Math.hypot(P[i].x - P[i-1].x, P[i].y - P[i-1].y));
-  const last = legs.length - 1;
-  /* What a leg can give a turn: half of it where a turn is at each end;
-     at the line's ends, all but a head's length, so a head comes in along
-     its port rather than off the turn — and never less than an elbow
-     would take, so the turn by a port is no tighter than an elbow's. */
-  const give = (k)=> (k === 0 || k === last)
-    ? Math.min(legs[k], Math.max(EDGE_CORNER_R, legs[k] - ARROW_LEN - 1)) : legs[k] / 2;
-  const line = (a, b)=>{
-    const L = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(L / step));
-    for(let i = 1; i <= n; i++) out.push({x: a.x + (b.x - a.x) * i / n, y: a.y + (b.y - a.y) * i / n});
-  };
-  let from = out[0];
-  for(let i = 1; i < P.length - 1; i++){
-    const a = P[i-1], c = P[i], b = P[i+1];
-    const r = Math.min(CURVE_TURN_R, give(i - 1), give(i));
-    const la = legs[i-1], lb = legs[i];
-    if(!(r > 0.01) || !(la > 0) || !(lb > 0)){ line(from, c); from = c; continue; }
-    const ua = {x: (c.x - a.x) / la, y: (c.y - a.y) / la}, ub = {x: (b.x - c.x) / lb, y: (b.y - c.y) / lb};
-    const s = {x: c.x - ua.x * r, y: c.y - ua.y * r}, e = {x: c.x + ub.x * r, y: c.y + ub.y * r};
-    line(from, s);
-    /* A quarter circle's handles are 0.5523 of its radius; a sharper or
-       wider turn takes the same, which keeps it inside the corner. */
-    const k = 0.5523 * r;
-    const c1 = {x: s.x + ua.x * k, y: s.y + ua.y * k}, c2 = {x: e.x - ub.x * k, y: e.y - ub.y * k};
-    // Fine enough that no step turns more than a few degrees.
-    const n = Math.max(24, Math.ceil(r * 1.6 / step));
-    for(let j = 1; j <= n; j++){
-      const t = j / n, q = 1 - t;
-      out.push({x: q*q*q*s.x + 3*q*q*t*c1.x + 3*q*t*t*c2.x + t*t*t*e.x,
-                y: q*q*q*s.y + 3*q*q*t*c1.y + 3*q*t*t*c2.y + t*t*t*e.y});
-    }
-    from = e;
-  }
-  line(from, P[P.length - 1]);
-  return out;
-}
-/* The curve over `raw`, as points about `step` apart along it; points in
-   a line are dropped first. `ends` says which ends carry a head ({start,
-   end}): only those are laid straight (see straightenTail). */
+/* The B-spline over `raw`, as points about `step` apart along it. A route
+   with points in a line would pull the stroke straight there, so those
+   are dropped first; two points are a straight line, three a parabola. */
+/* `ends` says which ends carry a head ({start, end}): only those are laid
+   straight (see straightenTail). */
 function curveThrough(raw, step, ends){
   const P = mergeCollinear(raw);
   if(P.length < 3) return P.map(q=> ({x:q.x, y:q.y}));
-  let c = roundedThrough(P, step || CURVE_STEP);
+  let c = bsplineOver(P, step);
   if(ends && ends.end) c = straightenTail(c);
   if(ends && ends.start) c = straightenTail(c.reverse()).reverse();
   return c;
@@ -571,6 +528,36 @@ function straightenTail(c){
   for(let i = 1; i <= runs; i++){
     const t = i / runs;
     out.push({x: base.x + (tip.x - base.x) * t, y: base.y + (tip.y - base.y) * t});
+  }
+  return out;
+}
+function bsplineOver(P, step){
+  const p = Math.min(3, P.length - 1), n = P.length - 1;
+  const span = n - p + 1;
+  const knots = [];
+  for(let i = 0; i <= n + p + 1; i++) knots.push(Math.min(span, Math.max(0, i - p)));
+  let len = 0;
+  for(let i = 1; i < P.length; i++) len += Math.hypot(P[i].x - P[i-1].x, P[i].y - P[i-1].y);
+  const count = Math.max(8, Math.min(800, Math.ceil(len / (step || CURVE_STEP))));
+  const at = (t)=>{
+    let k = p;
+    while(k < n && t >= knots[k + 1]) k++;
+    const d = [];
+    for(let j = 0; j <= p; j++) d.push({x: P[k - p + j].x, y: P[k - p + j].y});
+    for(let r = 1; r <= p; r++){
+      for(let j = p; j >= r; j--){
+        const i = k - p + j;
+        const den = knots[i + p - r + 1] - knots[i];
+        const a = den ? (t - knots[i]) / den : 0;
+        d[j] = {x: (1 - a) * d[j-1].x + a * d[j].x, y: (1 - a) * d[j-1].y + a * d[j].y};
+      }
+    }
+    return d[p];
+  };
+  const out = [];
+  for(let i = 0; i <= count; i++){
+    const t = i === count ? span : span * i / count;
+    out.push(i === count ? {x: P[n].x, y: P[n].y} : at(t));
   }
   return out;
 }

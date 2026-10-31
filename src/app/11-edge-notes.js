@@ -973,9 +973,11 @@ function noteAlongFillet(pts, side){
   return out;
 }
 function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
-  /* Clear of the line by half the type and three units — and of the wave's
-     crest too, on a wavy connector, whose letters sat in its ripples. */
-  const reach = EDGE_NOTE_FS * 0.5 + 3 + (style && style.sinusoid ? EDGE_WAVE_PEAK + 1 : 0);
+  /* As far off the line as a level plate's middle (EDGE_NOTE_OFFSET): the
+     words stood nearer than the plate's did, so turning a note along its
+     line moved it (the owner's list of 30.10). That is clear of a wave's
+     crest too. */
+  const reach = EDGE_NOTE_OFFSET;
   const off = pos === 'on' ? 0 : reach * (pos === 'below' ? -1 : 1);
   // The side asked for, as a multiple of the line's own left normal.
   const sign = (m.dy * px - m.dx * py) >= 0 ? 1 : -1;
@@ -1065,13 +1067,18 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   if(style && style.noteAlongFrame && half > 0){
     const pad = TEXT_GAP + EDGE_NOTE_FRAME_W + 1;
     const piece = alongSlice(run, at - half - pad, at + half + pad);
+    /* The ink runs a frame's width past the ground at either end, or a
+       square band showed its frame above and below the words and nothing
+       at their ends (the owner's list of 30.10). */
+    const outer = alongSlice(run, at - half - pad - EDGE_NOTE_FRAME_W, at + half + pad + EDGE_NOTE_FRAME_W);
     if(piece.length > 1){
-      const d = piece.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ');
+      const dOf = (q)=> q.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ');
+      const d = dOf(piece);
       const band = EDGE_NOTE_FS * 1.2 + TEXT_GAP * 2;
       const round = style.noteSquare === false;
       const look = {fill:'none', 'stroke-linecap': round ? 'round' : 'butt',
                     'stroke-linejoin': round ? 'round' : 'miter'};
-      const edge = el('path', Object.assign({class:'edge-note-along-frame', d,
+      const edge = el('path', Object.assign({class:'edge-note-along-frame', d: round || outer.length < 2 ? d : dOf(outer),
                                              'stroke-width': (band + EDGE_NOTE_FRAME_W * 2).toFixed(2)}, look));
       const ground = el('path', Object.assign({class:'edge-note-along-ground', d,
                                                'stroke-width': band.toFixed(2)}, look));

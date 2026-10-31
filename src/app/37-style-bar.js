@@ -284,12 +284,7 @@ const styleBar = (()=>{
     if(v) opts.bg = [v]; else delete opts.bg;
     putEntry(found.index, found.entry, opts);
     rebuildChart();
-  }, false, t=>{
-    const g = t.kind === 'node' && qNode(`.node[data-id="${CSS.escape(t.id)}"]`);
-    return drawnGroundOf(g && [...g.querySelectorAll('rect, path, ellipse, polygon')]
-      .find(e=> !/handle|hit|band/.test(e.getAttribute('class') || '') && (e.style.fill || '') !== 'none' &&
-                getComputedStyle(e).fill !== 'none'));
-  });
+  }, false, t=> t.kind === 'node' ? entryGroundShown(t.id) : null);
   /* An array's frame. An entry is coloured in its settings, which an
      array has none of, so its colour is set here, beside its ground. */
   hexGroup('arrayInk', 'The colour of the array’s frame and hatching — blank is black', (t, v)=>{
@@ -394,10 +389,26 @@ const styleBar = (()=>{
        off the bar or put them back — a callout's card taken down to a
        shelf has no border to choose — and the button slid out from under
        the pointer, which then left the bar and let it go. */
-    const was = b.getBoundingClientRect();
+    /* A choice out of a menu is held by the menu's face, which is where
+       the hand goes back to: the choice itself was in the list, put away
+       by now, and the bar was moved by the distance from where it had
+       been in the open list to where it stood in the shut one — down by
+       the list's length on every pick (the owner's list of 30.10: the
+       screen jumped on turning anything wavy, and back again). */
+    const drop = row.classList.contains('style-bar-drop');
+    const was = (drop ? row.querySelector('.style-bar-drop-face') : b).getBoundingClientRect();
     const group = row.dataset.group, value = b.dataset.value;
+    /* And the bar stays where it was while the hand is on it. Placed
+       afresh over the entry, it stood a ripple's depth higher over a
+       wavy one, and higher again by its tabs, which a ripple lifts — so
+       it hopped up under the hand on every turn to wavy and down on every
+       turn back. */
+    const kept = {left: bar.style.left, top: bar.style.top};
     applyStyleBar(group, value);
-    const now = !bar.hidden && bar.querySelector(`.style-bar-group[data-group="${group}"] button[data-value="${CSS.escape(value)}"]`);
+    if(!bar.hidden){ bar.style.left = kept.left; bar.style.top = kept.top; }
+    const now = !bar.hidden && bar.querySelector(drop
+      ? `.style-bar-group[data-group="${group}"] .style-bar-drop-face`
+      : `.style-bar-group[data-group="${group}"] button[data-value="${CSS.escape(value)}"]`);
     const at = now && now.getBoundingClientRect();
     if(at && at.width && (Math.abs(at.left - was.left) > 0.5 || Math.abs(at.top - was.top) > 0.5)){
       bar.style.left = (parseFloat(bar.style.left) + was.left - at.left).toFixed(2) + 'px';
@@ -874,9 +885,19 @@ function applyStyleBar(group, value){
 }
 /* The colour a drawn ground is filled with, as a code — or null where
    there is none to read (a gradient, nothing drawn yet). */
+// The ground an entry's box is drawn on, read off the drawing.
+function entryGroundShown(id){
+  const g = qNode(`.node[data-id="${CSS.escape(id)}"]`);
+  return drawnGroundOf(g && [...g.querySelectorAll('rect, path, ellipse, polygon')]
+    .find(e=> !/handle|hit|band/.test(e.getAttribute('class') || '') && (e.style.fill || '') !== 'none' &&
+              getComputedStyle(e).fill !== 'none'))
+    || getComputedStyle(document.body).getPropertyValue('--panel').trim() || '#ffffff';
+}
 function drawnGroundOf(e){
   if(!e) return null;
   const f = getComputedStyle(e).fill || '';
+  // Nothing painted is not black: a see-through fill says no ground at all.
+  if(/^rgba\(.*,\s*0(\.0+)?\)$/.test(f) || f === 'transparent') return null;
   return /^#/.test(f) ? f : rgbToHex(f);
 }
 // Whether `line` is the connector of the note the bar is up for.

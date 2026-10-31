@@ -872,6 +872,10 @@ function beginNodeDrag(ev, n, g){
     /* A parent carried alone keeps to its own stretch of its bar; see
        barLeashFor. */
     barLeash: group.length === 1 ? barLeashFor(n.id, {x: n.x + n.w/2, y: n.y + n.h/2}) : [],
+    /* A split carried alone goes along the line it splits (see
+       splitTrackOf); Ctrl takes it anywhere, as it takes an entry off
+       the grid. */
+    splitLine: group.length === 1 && isSplitNode(n) ? splitTrackOf(n) : null,
     bendCarry: EDGE_STYLES
       .filter(o=> Array.isArray(o.bends) && o.bends.length && group.includes(o.to) &&
                   (group.includes(o.from) || (o.from === '' && mergeCarriedWhole(o.to, group))))
@@ -885,6 +889,57 @@ function beginNodeDrag(ev, n, g){
    its bends go with it. Left out of that, a group carry dragged the arrow
    back through corners that stayed where they were (the owner's video of
    29.10). */
+/* The line a split stands on, as routed when it is taken hold of: the
+   stretch into it and the stretch out that carries straight on — the one
+   whose first step goes the way the stretch in arrived. A line branched
+   off it is not the line it splits (the owner's list of 30.10: the dot
+   could only be carried off the line, never along it). Its two ends are
+   left out by a dot's width and a head's length, so it cannot be put
+   into an entry. */
+function splitTrackOf(n){
+  // The routes, not the strokes: a wavy line's stroke swings off its route.
+  const routeOf = (f, t)=>{ const r = drawnRoutes.get(calloutEdgeKey(f, t)); return r && r.pts; };
+  const into = (n.parents || [])[0];
+  const a = into && routeOf(into, n.id);
+  if(!a || a.length < 2) return null;
+  const p = a[a.length - 2], q = a[a.length - 1];
+  const ux = q.x - p.x, uy = q.y - p.y, ul = Math.hypot(ux, uy) || 1;
+  let best = null, bestDot = -Infinity;
+  nodes.forEach(c=>{
+    if(!(c.parents || []).includes(n.id)) return;
+    const b = routeOf(n.id, c.id);
+    if(!b || b.length < 2) return;
+    const k = b.findIndex(r=> Math.hypot(r.x - b[0].x, r.y - b[0].y) > 1);
+    if(k < 0) return;
+    const vx = b[k].x - b[0].x, vy = b[k].y - b[0].y;
+    const dot = (ux * vx + uy * vy) / (ul * (Math.hypot(vx, vy) || 1));
+    if(dot > bestDot){ bestDot = dot; best = b; }
+  });
+  const line = best ? a.concat(best) : a.slice();
+  let total = 0;
+  for(let i = 1; i < line.length; i++) total += Math.hypot(line[i].x - line[i-1].x, line[i].y - line[i-1].y);
+  const keep = SPLIT_SIZE + ARROW_LEN;
+  return total > 2 * keep ? {line, lo: keep, hi: total - keep} : null;
+}
+/* The point of a split's track nearest to (x, y), within its ends. */
+function nearestOnTrack(track, x, y){
+  const L = track.line;
+  let best = null, d = Infinity, run = 0;
+  for(let i = 1; i < L.length; i++){
+    const a = L[i-1], b = L[i], dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+    if(len > 0){
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (len * len)));
+      const s = Math.max(track.lo, Math.min(track.hi, run + t * len));
+      if(s >= run && s <= run + len){
+        const c = {x: a.x + dx * (s - run) / len, y: a.y + dy * (s - run) / len};
+        const k = Math.hypot(c.x - x, c.y - y);
+        if(k < d){ d = k; best = c; }
+      }
+    }
+    run += len;
+  }
+  return best || {x, y};
+}
 function mergeCarriedWhole(id, group){
   const m = nodes.get(id);
   if(!m || !isMergeNode(m)) return false;
@@ -1030,6 +1085,19 @@ window.addEventListener('mousemove', e=>{
     : e.shiftKey ? snapToGrid(rawY)
     : st.originY + snapToGrid(rawY - st.originY);
   let offX = placedX - st.originX, offY = placedY - st.originY;
+  if(st.splitLine && !free){
+    const c = nearestOnTrack(st.splitLine, rawX + st.node.w/2, rawY + st.node.h/2);
+    offX = Math.round((c.x - st.node.w/2 - st.originX) * 100) / 100;
+    offY = Math.round((c.y - st.node.h/2 - st.originY) * 100) / 100;
+    clearGuides();
+    st.members.forEach(m=>{
+      m.node.x = m.originX + offX;
+      m.node.y = m.originY + offY;
+      if(m.g) m.g.setAttribute('transform', `translate(${offX},${offY}) ${m.g.dataset.rotTransform || ''}`.trim());
+    });
+    queueDragRedraw(st);
+    return;
+  }
   /* An amalgam cannot be dragged off the end of its own bar.
    *
    * The bar stands a bounded distance in front of the entry, so past that

@@ -11,9 +11,15 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.16.0';
+const APP_VERSION = '0.20.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.20.0', date:'2026-10-30', title:'Ports and cards', notes:[
+'A connector\u2019s end is carried onto another port of its entry by the square grip at its end, on a merge\u2019s lines too; only lines into the same port of an entry merge, and a merge\u2019s bar, its junction and a split\u2019s dot answer a right click or a long press with their own menu. A split\u2019s dot slides along the line it splits.',
+'A card\u2019s picture is as wide as its heading and kept sharp; a wavy card is no bigger than a plain one, and an entry is as wide as its language chips. A note can be written along its line, framed and rewritten in place.',
+'Every colour square shows the colour in use, with a dashed edge where it is a default, and a comment\u2019s ground has a way back to it. The wheel zooms over the menus, and a style bar stays under the hand as it is used.',
+'Along the way: carrying a merge whole keeps its arrow\u2019s corners, a merge\u2019s junction lines up with Shift, the field over an entry with stickers stands on its words, and the drawers go back under their tabs.',
+  ]},
   {v:'0.16.0', date:'2026-10-23', title:'Merged by hand', notes:[
 'A merge is no longer a kind of entry. Two connectors running into one entry are merged from the connector\u2019s menu \u2014 press and hold, or a right click \u2014 and the entry they meet in becomes the merge: one bar, one arrow, its border and words in the lineages\u2019 colours, or in a border colour of its own. Unmerge takes a lineage out, and on the merged arrow ends the merge. Every stretch of it is a connector like any other, with its own line, colour, gradient and ends, the merged arrow too. A chart with amalgams opens with them as merges, drawn as before.',
 'A moving picture is played, stopped or set to move on hover by a player\u2019s buttons over the picture itself. Undo, redo and the guides are small buttons under the counts on the toolbar, for a mouse as much as a finger.',

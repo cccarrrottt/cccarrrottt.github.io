@@ -217,6 +217,10 @@ function touchMenuFor(st){
   }
   const line = st.target.closest && st.target.closest('.edge-hit');
   if(line && line.dataset.to) return 'edge';
+  /* A stretch of a merge's bar is its lineage, and offers what that
+     lineage's connector does — Unmerge and Delete (the owner's list of
+     30.10); a right click already did. */
+  if(st.target.closest && st.target.closest('.amalgam-bar-hit')) return 'bar';
   const thing = '.edge-hit, .amalgam-bar-hit, .amalgam-junction-hit, .edge-note, .leader-line-hit, .leader-dot-hit, #bendLayer, .bio-card-g, .node-aura';
   return (svg.contains(st.target) && !st.target.closest(thing)) ? 'canvas' : null;
 }
@@ -545,6 +549,13 @@ function touchFinish(ev, cancelled){
      to the selection (a held tap is Ctrl), a connector's panel opened —
      so the menu's Delete has something to act on. */
   const menu = touchMenuFor(st);
+  if(menu === 'bar'){
+    touchLastTap = null;
+    const bar = st.target.closest('.amalgam-bar-hit');
+    openBarStretch(bar.dataset.amalgam, {clientX: st.x0, clientY: st.y0, stopPropagation(){}});
+    if(edgePopover.classList.contains('open') && currentEdgeStyleTarget) openTouchMenu(st.x0, st.y0, 'edge');
+    return;
+  }
   if(menu){
     touchLastTap = null;
     if(menu === 'add' || menu === 'edge'){
@@ -657,7 +668,7 @@ svg.addEventListener('contextmenu', ev=>{
   const st = {held: true, target: t};
   let kind = touchMenuFor(st), id = null;
   if(kind === 'add') id = t.closest('.node').dataset.id;
-  if(!kind){
+  if(!kind || kind === 'bar'){
     const held = rightClickHolds(t, ev);
     if(!held) return;
     kind = held.kind; id = held.id;

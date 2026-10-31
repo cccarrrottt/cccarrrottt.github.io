@@ -411,7 +411,12 @@ const CARD_MEDIUM_SCALE = 0.9;
    actually needs — a panorama gets a shallow one, a portrait a deep one —
    between these two, so that a card stays a card and a tall photograph
    does not turn one into a poster. */
-const CARD_IMG_MINH = 26, CARD_IMG_MAXH = 200;
+/* …and then the owner asked for the picture to take the heading's width
+   whatever its depth (30.10), so these bound only a picture sized by hand
+   — the upper one wide enough to hold any picture so fitted. */
+const CARD_IMG_MINH = 26, CARD_IMG_MAXH = 800;
+// The rule between a card's bands — .card-rule in the stylesheet.
+const CARD_RULE_W = 1;
 const CARD_PAD_Y = 9;
 /* Default box for a free-standing picture before anyone resizes it: the
    size a character bio starts at. It was 180 by 120 — five times a

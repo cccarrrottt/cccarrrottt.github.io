@@ -11815,7 +11815,8 @@ async function main(){
       out.mergedIgnoresBends = JSON.stringify(before) === JSON.stringify(after);
       openEdgeStylePopover('kmP','kmM',{clientX:500, clientY:260});
       drawBendHandles(); await wait(200);
-      out.mergedOffersNoHandles = document.querySelectorAll('#bendLayer > *').length === 0;
+      // Its end at its parent's port is still offered, to be carried to another (the owner's list of 30.10).
+      out.mergedOffersNoHandles = document.querySelectorAll('#bendLayer > :not(.bend-end)').length === 0;
       out.mergedStraightenOff = !!document.getElementById('styleBendsClear').disabled;
       closeEdgePopover();
       applyEdit(()=> setBendList('kmP','kmM', []));
@@ -15205,14 +15206,9 @@ async function main(){
                                     head: heads && +heads.out.toFixed(1)});
       /* The same points as an elbowed connector — so the same handles —
          and drawn through them as one sweep. */
-      /* …turning each corner wider than an elbow does and no wider than
-         its own radius: a corner rounded on r passes it at r(√2 − 1). */
-      const cut = (r)=> r * (Math.SQRT2 - 1);
       out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && d.indexOf('Q') < 0 &&
-                        line.length > 20 && nearest > cut(EDGE_CORNER_R) + 1 && nearest < cut(CURVE_TURN_R) + 0.5;
-      /* The owner's list of 29.10: the sketch keeps to the bracket — out
-         as far as the elbowed route goes — and its head comes in square. */
-      out.curveSketch = ptsS.length >= 4 && Math.abs(bowOut - routeOut) < 1 && (slant < 1 || slant > 89);
+                        line.length > 20 && nearest > 4 * EDGE_CORNER_R;
+      out.curveSketch = ptsS.length >= 4 && bowOut < routeOut - 4 && slant > 5 && slant < 85;
       /* The stretch the head stands on, and the few units the line runs
          before it, lie on the head's own axis — plain and wavy alike — and
          the line's last step points the way the head does, so it meets the
@@ -15333,9 +15329,9 @@ async function main(){
                         wavy:rR.leaderWavy, only:rR.leaderRowOnlyOnCallouts, solid:rR.leaderSolidIsAbsence}));
   check('a callout and a note are edited in a field their own size, in their own type',
         rR.remarkFieldFits, rR.remarkFieldAt);
-  check('a curve is the elbowed route turned on a wider radius, and bends at the same handles',
+  check('a curve is one sweep through the elbowed route, and bends at the same handles',
         rR.curveSmooth && rR.curveOffered, rR.curveAt + rR.curvePts);
-  check('a curve from one entry\'s side to the one under it keeps to the bracket, its head square',
+  check('a curve from one entry\'s side to the one under it is a bow inside the bracket, met at a slant',
         rR.curveSketch, rR.curveAt);
   check('a curve arrives along its head\'s axis, so the head meets the line without a notch',
         rR.curveTailOnHead, rR.curveTailAt);
@@ -18223,7 +18219,7 @@ async function main(){
     const route = drawnRoutes.get(calloutEdgeKey('ck_a', 'ck_b'));
     const line = document.querySelector('.edge[data-from="ck_a"][data-to="ck_b"]');
     const pts = (line.getAttribute('d').match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
-    const plain = roundedThrough(mergeCollinear(route.pts), CURVE_STEP);
+    const plain = bsplineOver(mergeCollinear(route.pts), CURVE_STEP);
     // The first dozen units, point for point.
     let gap = 0;
     for(let i = 0; i < 8 && i < pts.length; i++) gap = Math.max(gap, Math.hypot(pts[i].x - plain[i].x, pts[i].y - plain[i].y));
@@ -18245,7 +18241,7 @@ async function main(){
     });
     return out;
   });
-  check('a curve leaves a bare end along its own rounded route', r.startGap < 0.05, JSON.stringify(r));
+  check('a curve leaves a bare end along the spline itself', r.startGap < 0.05, JSON.stringify(r));
   check('a curve turns no step sharply, at either end', r.worstTurn < 4.5, JSON.stringify(r));
   });
   await scenario("ends without a rule, a picture's cross, and defaults that say so", async () => {
@@ -18538,8 +18534,8 @@ async function main(){
     if(along){
       const L = along.getTotalLength(), ds = [];
       for(let k = 1; k < 10; k++){ const q = along.getPointAtLength(L * k / 10); ds.push(off(q.x, q.y)); }
-      // A copy of the line half a size and three units off it.
-      const want = EDGE_NOTE_FS * 0.5 + 3;
+      // A copy of the line as far off it as a level note's middle (the owner's list of 30.10).
+      const want = EDGE_NOTE_OFFSET;
       out.alongOffset = ds;
       out.alongEven = ds.every(d=> Math.abs(d - want) < 1.2);
     }
@@ -20390,7 +20386,7 @@ async function main(){
   check('a corner levelled with its port takes the nick before it away', r.levelled === JSON.stringify([{x:100, y:200}, {x:100, y:72}, {x:20, y:72}]),
         r.levelled);
   });
-  await scenario("the owner's list of 24.10, late: a junction carried, the face towards the bar, a curve into its port, a lighter split", async () => {
+  await scenario("the owner's list of 24.10, late: a junction carried, the face towards the bar, a lighter split", async () => {
   const r = await page.evaluate(async ()=>{
     const wait = (ms)=> new Promise(ok=> setTimeout(ok, ms));
     const beforeNodes = workingNodes.map(x=> x.slice());
@@ -20441,22 +20437,6 @@ async function main(){
       connectNodes('lt_b', 'lt_s');
       rebuildChart();
       out.staleForgotten = !isMergeNode(nodes.get('lt_s'));
-
-      /* 3. A curve round under an entry and up into it comes in along the
-            port's own direction, not off a hook at the last few units. */
-      applyEdit(()=>{
-        workingNodes.push(['lt_p','Reading something',null,null,null,null,{pos:[X + 2000, Y]}]);
-        workingNodes.push(['lt_q','ghdlix','lt_p',null,null,null,{pos:[X + 1700, Y + 150]}]);
-        EDGE_STYLES.push({from:'lt_p', to:'lt_q', routing:'curve', fromSide:'bottom', toSide:'bottom'});
-      });
-      rebuildChart();
-      const route = drawnRoutes.get(calloutEdgeKey('lt_p', 'lt_q')).pts;
-      const c = curveThrough(route, CURVE_STEP, {end: true});
-      const tip = c[c.length - 1];
-      const back = cutAlong(c, 0, ARROW_LEN * 1.5);
-      const q = back[back.length - 1];
-      out.curveIn = q.y - tip.y > 3 * Math.abs(q.x - tip.x);
-      out.curveAt = [+(q.x - tip.x).toFixed(1), +(q.y - tip.y).toFixed(1)];
 
       /* 4. A split is as big as a callout's point, and one drawn at the
             old size keeps its middle where it was. */
@@ -20537,7 +20517,6 @@ async function main(){
   check('…and no further than the bar reaches', r.heldToBar);
   check('a merge whose lineages are all deleted merges nothing drawn in afterwards', r.forgotten && r.staleForgotten,
         JSON.stringify([r.forgotten, r.staleForgotten]));
-  check('a curve round under an entry comes up into its port along the port, not off a hook', r.curveIn, JSON.stringify(r.curveAt));
   check('a split is as big as a callout\'s point, and one drawn before keeps its middle', r.splitSize);
   check('a merge comes as close to its lineages as the lines did unmerged, its bar still between them',
         r.squeezed.every(Boolean), JSON.stringify(r.squeezed));
@@ -20936,6 +20915,241 @@ async function main(){
         /255, 238, 136/.test(out.ground.before) && out.ground.inherited && !out.ground.kept, JSON.stringify(out.ground));
   check('a callout turned to a shelf from its bar, and back, keeps the bar under the hand',
         out.shelf.length === 2 && out.shelf.every(Boolean), JSON.stringify(out.shelf));
+  });
+
+  await scenario("the owner's list of 30.10: grips clear of corners, squares that show the default, a note along its line rewritten, cards and chips, a bar that stays", async () => {
+  await page.evaluate(()=>{
+    window.__keep30 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    return true;
+  });
+  const X = 99000, Y = 99000;
+  const out = {};
+  const centreOf = (sel)=> page.evaluate((sel)=>{
+    const e = document.querySelector(sel); if(!e) return null;
+    const b = e.getBoundingClientRect(); return {x: b.x + b.width/2, y: b.y + b.height/2, w: b.width, h: b.height};
+  }, sel);
+  try{
+    await page.mouse.move(5, 940);
+    /* 1. A connector's end grip steps clear of a corner set beside its
+          port; a merge's lineage and its merged arrow have one each, and
+          the arrow's is carried onto another port. */
+    Object.assign(out, await page.evaluate(async ([X, Y])=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const r = {};
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      applyEdit(()=>{
+        workingNodes.push(['to_x','Ex',null,null,null,null,{pos:[X + 600, Y]}]);
+        workingNodes.push(['to_y','Why','to_x',null,null,null,{pos:[X + 800, Y + 300]}]);
+        workingNodes.push(['to_a','Alpha',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['to_b','Beta',null,null,null,null,{pos:[X + 200, Y]}]);
+        workingNodes.push(['to_m','Gamma',['to_a','to_b'],null,null,null,{pos:[X + 100, Y + 300], merge:true}]);
+      });
+      rebuildChart();
+      const p0 = drawnRoutes.get(calloutEdgeKey('to_x', 'to_y')).pts[0];
+      setBendList('to_x', 'to_y', [[p0.x, p0.y + 6]]);
+      rebuildChart();
+      openEdgeStylePopover('to_x', 'to_y', {clientX:500, clientY:400, stopPropagation(){}});
+      await wait(120);
+      const marks = [...bendLayer.querySelectorAll('.bend-mark')].map(c=> [+c.getAttribute('cx'), +c.getAttribute('cy')]);
+      const grips = [...bendLayer.querySelectorAll('.bend-end .bend-hit')].map(c=> [+c.getAttribute('cx'), +c.getAttribute('cy')]);
+      r.gripGap = Math.min(...grips.flatMap(g=> marks.map(m=> Math.hypot(g[0] - m[0], g[1] - m[1]))));
+      r.gripCount = grips.length;
+      closeEdgePopover();
+      openEdgeStylePopover('to_a', 'to_m', {clientX:500, clientY:400, stopPropagation(){}});
+      await wait(120);
+      r.memberEnds = [...bendLayer.querySelectorAll('.bend-end')].map(g=> g.dataset.end).join();
+      closeEdgePopover();
+      openEdgeStylePopover('', 'to_m', {clientX:500, clientY:400, stopPropagation(){}});
+      await wait(120);
+      r.arrowEnds = [...bendLayer.querySelectorAll('.bend-end')].map(g=> g.dataset.end).join();
+      closeEdgePopover();
+      const side0 = mergedArrowPorts.get('to_m').p2.side;
+      const next = side0 === 'left' ? 'right' : 'left';
+      movePortTo('', 'to_m', 'to', next, 0);
+      rebuildChart();
+      r.arrowMoved = [side0, mergedArrowPorts.get('to_m').p2.side, next];
+      return r;
+    }, [X, Y]));
+
+    /* 3. Squares with no colour of their own show the one in use, and
+          open on it without making it a choice. */
+    Object.assign(out, await page.evaluate(async ([X, Y])=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const r = {};
+      openEdgeStylePopover('to_x', 'to_y', {clientX:500, clientY:400, stopPropagation(){}});
+      styleFillSel.value = 'custom'; styleFillSel.dispatchEvent(new Event('change'));
+      styleGradientBtn.click();
+      await wait(60);
+      const sq = styleColor2Input._hexSquare;
+      r.second = {cls: sq.square.className, bg: sq.square.style.background};
+      sq.open();
+      r.second.opened = styleColor2Input.value;
+      sq.close(true);
+      r.second.after = styleColor2Input.value;
+      r.second.kept = JSON.stringify(EDGE_STYLES.find(e=> e.from === 'to_x' && e.to === 'to_y').gradient || null);
+      closeEdgePopover();
+      return r;
+    }, [X, Y]));
+    out.legend = await page.evaluate(()=>{
+      const row = buildTagRow('to-no-colour', null);
+      document.body.appendChild(row);
+      const sw = row.querySelector('.swatch-unset');
+      const r = sw ? {bg: getComputedStyle(sw).backgroundColor, outline: getComputedStyle(sw).outlineStyle} : null;
+      row.remove();
+      return r;
+    });
+
+    /* 4. A note written along its line opens its field and is rewritten;
+          it stands where a level note stands, and its frame is closed. */
+    out.along = await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      applyEdit(()=>{
+        EDGE_STYLES.push({from:'to_a', to:'to_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          note:'hello', noteAlong:true, noteAlongFrame:true});
+      });
+      applyEdit(()=>{ const f = workingEntry('to_b'); const o = entryOpts(f.entry); f.entry[2] = 'to_a'; putEntry(f.index, f.entry, o); });
+      rebuildChart();
+      const r = {};
+      const g = ()=> document.querySelector('.edge-note[data-from="to_a"][data-to="to_b"]');
+      const frame = g().querySelector('.edge-note-along-frame'), ground = g().querySelector('.edge-note-along-ground');
+      r.frameLonger = !!(frame && ground) && frame.getTotalLength() > ground.getTotalLength() + 1;
+      const path = g().querySelector('.edge-note-along-path');
+      const route = drawnRoutes.get(calloutEdgeKey('to_a', 'to_b')).pts;
+      const q = path.getPointAtLength(path.getTotalLength() / 2);
+      r.offset = +(Math.abs(q.y - route[0].y)).toFixed(2);
+      r.opened = openEdgeNoteEditor('to_a', 'to_b');
+      await wait(60);
+      setRichValue(nodeEditorText, 'hello there');
+      richFields.get('nodeEditorText').surface.dispatchEvent(new Event('input', {bubbles:true}));
+      closeNodeEditor(true);
+      await wait(60);
+      r.note = edgeStyleFor('to_a', 'to_b').note;
+      r.alongAgain = !!g().querySelector('.edge-note-along');
+      return r;
+    });
+
+    /* 5. A long press on a merge's bar is that lineage's menu. */
+    out.barMenu = await page.evaluate(()=>{
+      const hit = document.querySelector('.amalgam-bar-hit[data-amalgam="to_m"]');
+      return hit ? touchMenuFor({held: true, target: hit}) : null;
+    });
+
+    /* 6. A split's dot is carried along its line. */
+    const split = await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['to_p','Pe',null,null,null,null,{pos:[X, Y + 700]}]);
+        workingNodes.push(['to_q','Qu','to_p',null,null,null,{pos:[X + 400, Y + 700]}]);
+      });
+      rebuildChart();
+      const id = splitEdgeAt('to_p', 'to_q', 0.5);
+      rebuildChart();
+      vs = 1; vx = -X + 300; vy = -Y - 400; applyTransform();
+      const n = nodes.get(id), b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect();
+      return {id, y: n.y, x: n.x, sx: b.x + b.width/2, sy: b.y + b.height/2};
+    }, [X, Y]);
+    await page.mouse.move(split.sx, split.sy); await page.mouse.down();
+    for(let i = 1; i <= 8; i++){ await page.mouse.move(split.sx + i * 7, split.sy + i * 4); }
+    await page.mouse.up();
+    await new Promise(ok=> setTimeout(ok, 120));
+    out.split = await page.evaluate(([id, x, y])=>{ const n = nodes.get(id); return {dx: +(n.x - x).toFixed(2), dy: +(n.y - y).toFixed(2)}; }, [split.id, split.x, split.y]);
+
+    /* 7. Cards: a picture as wide as the heading, stopping at its rule; a
+          wavy card no bigger than a plain one; chips inside the box; no
+          hints after the field names. */
+    out.card = await page.evaluate(async ([X, Y])=>{
+      const c = document.createElement('canvas'); c.width = 300; c.height = 600;
+      const x = c.getContext('2d'); x.fillStyle = '#c33'; x.fillRect(0, 0, 300, 600);
+      const url = c.toDataURL('image/png');
+      await new Promise(ok=>{ const im = new Image(); im.onload = ok; im.src = url; });
+      applyEdit(()=>{
+        workingNodes.push(['to_c1','Card',null,null,'n',null,{pos:[X, Y + 1000], card:true, image:url, medium:'M'}]);
+        workingNodes.push(['to_c2','Card',null,null,'n',null,{pos:[X + 300, Y + 1000], card:true, image:url, medium:'M', border:'wavy'}]);
+        workingNodes.push(['to_c3','Hi',null,null,null,null,{pos:[X + 600, Y + 1000], card:true, multiLang:true,
+                           langTabs:[{tag:'JP',text:'a'},{tag:'RU',text:'b'},{tag:'DE',text:'c'}]}]);
+      });
+      rebuildChart();
+      await new Promise(ok=> setTimeout(ok, 200));
+      rebuildChart();
+      const r = {};
+      const c1 = nodes.get('to_c1'), c2 = nodes.get('to_c2'), c3 = nodes.get('to_c3');
+      r.band = [c1.cardTop, +(c1.w * 2).toFixed(2)];
+      const img = document.querySelector('.node[data-id="to_c1"] > image');
+      r.imgBottom = img ? +(+img.getAttribute('y') + +img.getAttribute('height') - c1.y).toFixed(2) : null;
+      r.wavy = [c1.w - c2.w, c1.h - c2.h];
+      r.chips = [c3.w, c3.chipRight - c3.x];
+      r.labels = ['editMediumInput', 'editImageInput', 'freeMenuImageUrl']
+        .map(id=> document.querySelector(`label[for="${id}"]`).textContent).join('|');
+      return r;
+    }, [X, Y]);
+
+    /* 8. A style bar choice leaves the bar where it was. */
+    const node = await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{ workingNodes.push(['to_w','Wave me',null,null,null,null,{pos:[X + 900, Y + 1000],
+                       multiLang:true, langTabs:[{tag:'JP',text:'a'}]}]); });
+      rebuildChart();
+      vs = 2; vx = -(X + 900) * 2 + 500; vy = -(Y + 1000) * 2 + 400; applyTransform();
+      const b = document.querySelector('.node[data-id="to_w"]').getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2};
+    }, [X, Y]);
+    await page.mouse.move(node.x, node.y);
+    await new Promise(ok=> setTimeout(ok, 450));
+    const face = await centreOf('#styleBar .style-bar-group[data-group="border"] .style-bar-drop-face');
+    const bar = [];
+    if(face){
+      await page.mouse.move(face.x, face.y);
+      bar.push(await page.evaluate(()=> styleBar.style.top));
+      await page.mouse.click(face.x, face.y);
+      const wavy = await centreOf('#styleBar .style-bar-group[data-group="border"] button[data-value="wavy"]');
+      await page.mouse.move(wavy.x, wavy.y);
+      await page.mouse.click(wavy.x, wavy.y);
+      await new Promise(ok=> setTimeout(ok, 60));
+      bar.push(await page.evaluate(()=> styleBar.style.top), await page.evaluate(()=> borderStyleOf(nodes.get('to_w'))));
+    }
+    out.bar = bar;
+
+    /* 9. A drawer shutting goes under its tab. */
+    out.tab = await page.evaluate(()=>{
+      const t = document.getElementById('tagsPanel');
+      t.classList.remove('open'); t.classList.add('shutting');
+      const z = getComputedStyle(t.querySelector('.side-tab-handle')).zIndex;
+      t.classList.remove('shutting');
+      return z;
+    });
+  } finally {
+    await page.mouse.move(5, 940);
+    await page.evaluate(()=>{
+      closeStyleBar(); closeTouchMenu(); closeNodeEditor(false); closeEdgePopover();
+      const k = window.__keep30;
+      applyEdit(()=>{ workingNodes.length = 0; k.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; k.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      deselect(); rebuildChart();
+    });
+  }
+  check('a connector\'s end grip stands clear of a corner set beside its port',
+        out.gripCount === 2 && out.gripGap >= 2 * 4.2 + 4 - 0.01, JSON.stringify({gap: out.gripGap, n: out.gripCount}));
+  check('a merge\'s lineage and its arrow have a grip at their entry\'s end, and the arrow\'s end is carried to another port',
+        out.memberEnds === 'from' && out.arrowEnds === 'to' && out.arrowMoved[1] === out.arrowMoved[2],
+        JSON.stringify({m: out.memberEnds, a: out.arrowEnds, moved: out.arrowMoved}));
+  check('a gradient\'s second square shows the colour in use and opens on it without choosing it',
+        /inherited/.test(out.second.cls) && !!out.second.bg && /^#[0-9a-f]{6}$/i.test(out.second.opened) &&
+        out.second.after === '' && out.second.kept === 'null', JSON.stringify(out.second));
+  check('a tag with no colour shows the default ink, dashed', !!out.legend &&
+        (out.legend.bg !== 'rgba(0, 0, 0, 0)' && out.legend.outline === 'dashed'), JSON.stringify(out.legend));
+  check('a note along its line is rewritten in its field, stands where a level note stands, and its frame is closed',
+        out.along.opened && out.along.note === 'hello there' && out.along.alongAgain && out.along.frameLonger &&
+        Math.abs(out.along.offset - 11) < 0.6, JSON.stringify(out.along));
+  check('a long press on a merge\'s bar is its lineage\'s menu', out.barMenu === 'bar', String(out.barMenu));
+  check('a split\'s dot is carried along its line', out.split.dx > 20 && Math.abs(out.split.dy) < 0.01, JSON.stringify(out.split));
+  check('a card\'s picture is as wide as its heading and stops at its rule',
+        Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - 0.5)) < 0.05,
+        JSON.stringify(out.card));
+  check('a wavy card is no bigger than a plain one, and an entry is as wide as its chips',
+        Math.abs(out.card.wavy[0] - 3) < 0.01 && Math.abs(out.card.wavy[1] - 3) < 0.01 && out.card.chips[0] >= out.card.chips[1],
+        JSON.stringify(out.card));
+  check('the fields say what they are and nothing after it', out.card.labels === 'Medium|Portrait|Image', out.card.labels);
+  check('a style bar choice leaves the bar where it was', out.bar.length === 3 && out.bar[0] === out.bar[1] && out.bar[2] === 'wavy',
+        JSON.stringify(out.bar));
+  check('a drawer shutting goes under its tab', out.tab === '1', out.tab);
   });
 
   await scenario("nothing threw along the way", async () => {

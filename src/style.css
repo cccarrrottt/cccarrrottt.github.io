@@ -799,7 +799,8 @@
      owner's ask, 23.10): every one of them used to stay unlit, so the
      thing being worked on was the one thing on the chart that did not
      say so. */
-  .edge-note.edge-picked > .edge-note-plate:not(.bare), .edge-note.edge-picked > text,
+  .edge-note.edge-picked > .edge-note-plate:not(.bare), .edge-note.edge-picked > text:not(.edge-note-along-ring),
+  .edge-note.edge-picked > .edge-note-along-frame,
   .callout-leader.focused .leader-line, .callout-leader.focused .leader-dot,
   .node.selected > image, .bio-card-g.focused > rect,
   .edge.edge-picked, .edge-arrow.edge-picked{
@@ -1224,6 +1225,10 @@
   }
   .side-tab.shutting:not(.open) .side-tab-body{visibility:visible;pointer-events:none;
     animation:side-tab-fall 0.18s ease-in forwards;}
+  /* …and goes in UNDER its tab. Shut, the tab gives up the open one's
+     place over the drawer, and the drawer sliding back went across the
+     tab's sign on its way (the owner's list of 30.10). */
+  .side-tab.shutting:not(.open) .side-tab-handle{z-index:1;}
   @keyframes side-tab-fall{
     from{opacity:1;transform:none;}
     to{opacity:0;transform:translateX(-10px) scale(0.94);}
@@ -1279,7 +1284,9 @@
   }
   .legend-item:hover{background:var(--panel-2);}
   .legend-item .swatch{width:11px;height:11px;border-radius:2.5px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;}
-  .legend-item .swatch-unset{background:transparent;box-shadow:none;border:1px dashed var(--ink-faint);box-sizing:border-box;}
+  /* A tag with no colour of its own: its entries are drawn in the default
+     ink, which the square shows, with the dashed edge a default wears. */
+  .legend-item .swatch-unset{box-shadow:none;outline:1px dashed var(--ink-faint);outline-offset:1px;}
   .legend-item .swatch-none{visibility:hidden;}
   .legend-item .swatch-pick{cursor:pointer;}
   .legend-item .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
