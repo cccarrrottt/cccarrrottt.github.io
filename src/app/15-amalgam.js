@@ -518,13 +518,6 @@ function amalgamStem(geo, from, pnodes){
   if(jP > pHi + 0.5){
     const fA = along(facing), fP = perp(facing);
     if(Math.abs(jA - fA) < 0.5) return {pts: [from, {x: facing.x, y: facing.y}], port: facing};
-    /* …unless the foot is less than two corners off it, where the knee
-       would be a kink, not a step: straight in, a little off the middle
-       (the owner's list of 31.10; see flattenFacingStep). */
-    if(Math.abs(jA - fA) < 2*R && jA >= aLo + M && jA <= aHi - M){
-      const port = portAt(side, ux ? from.x : from.y);
-      return {pts: [from, {x: port.x, y: port.y}], port};
-    }
     const mid = knee(jP, fP);
     return {pts: [from, pt(jA, mid), pt(fA, mid), {x: facing.x, y: facing.y}], port: facing};
   }
@@ -1455,13 +1448,6 @@ function drawMergedArrow(b, stem, colors, ring, side){
     const bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
     if(!bent.ignored && bent.pts.length >= 2) route = bent.pts;
     else head = stem.port;
-  }
-  /* The route may land a little along the side from the head's port, to
-     run straight rather than step (flattenFacingStep); the head goes
-     where the line arrives. */
-  if(route !== stem.pts && route.length >= 2 && SIDES.includes(head.side)){
-    const last = route[route.length - 1], key = sideIsVertical(head.side) ? 'x' : 'y';
-    if(Math.abs(last[key] - head[key]) > 0.01) head = Object.assign({}, head, {[key]: last[key]});
   }
   mergedArrowPorts.set(b.id, {p1: start, p2: head});
   /* Every lineage's colour unless it has been given its own: a colour or a

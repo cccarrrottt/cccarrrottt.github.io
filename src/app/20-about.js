@@ -11,9 +11,12 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.21.0';
+const APP_VERSION = '0.21.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.21.1', date:'2026-10-31', title:'Fastened again', notes:[
+'A connector\u2019s end no longer moves along its port to straighten a step a few pixels wide, and a merged arrow just past its bar\u2019s end comes in at the middle with a knee again: an end stays where the spacing put it, as before 0.21.0. A picked entry\u2019s link tab glows with its border, as its language chips do.',
+  ]},
   {v:'0.21.0', date:'2026-10-31', title:'Straight where it can be', notes:[
 'A connector between two entries whose middles nearly line up runs straight instead of stepping by a few pixels, and no line turns twice in less than two of its corners; a line joined top to top no longer runs through the entry it goes round, and two facing across a narrow gap no longer fold back. A merged arrow keeps its head off its last corner in a narrow gap, and is carried onto another port of its entry even with corners set on it.',
 'A wavy border no longer makes an entry bigger: the words stand a pixel off its crests. A card\u2019s picture comes in at its heading\u2019s width. A picked entry\u2019s language chips glow with its border, a colour square showing an inherited white keeps its edge, and the field over a comment is written in the comment\u2019s colour.',

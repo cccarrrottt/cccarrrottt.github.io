@@ -11698,14 +11698,11 @@ async function main(){
          and two thirds of it. Every one of those is arithmetic on the
          entry's own box, and nothing else may touch it. */
       const seats = [t.x + t.w/3, t.x + t.w*2/3];
-      /* T's end, one of two on its side, stays on its seat. A's, alone on
-         its side and five units off, is the one exception there is since
-         the owner's list of 31.10 (flattenFacingStep): a step shorter than
-         two corners is a kink, not a route, so the lone end stands in
-         line with the other and the connector runs straight. */
-      out.portsUnmoved = seats.some(sx=> Math.abs(last.x - sx) < 0.01) &&
-                         pts.every(q=> Math.abs(q.x - last.x) < 0.01) &&
-                         Math.abs(first.x - (a.x + a.w/2)) < 2 * EDGE_CORNER_R;
+      /* The owner, 31.10, after a try at the opposite: a connector does
+         not move along its port, full stop — not even to straighten a
+         step shorter than two corners. */
+      out.portsUnmoved = Math.abs(first.x - (a.x + a.w/2)) < 0.01 &&
+                         seats.some(sx=> Math.abs(last.x - sx) < 0.01);
       out.lonePts = pts.map(q=> q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ') +
                     ' | seats ' + seats.map(v=> v.toFixed(1)).join(',');
     }
@@ -20311,16 +20308,13 @@ async function main(){
         return face && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
       });
       /* …and carried along past the end of its bar, it keeps the face it
-         had, at its middle, with a knee from the first step off it — but
-         for a step shorter than two corners, which would be a kink, and
-         where it runs straight in a little off the middle instead (the
-         owner's list of 31.10). */
+         had, at its middle, with a knee from the first step off it,
+         however short the step (the owner, 31.10: no end moves along its
+         port). */
       out.pastEnd = [140, 150, 160, 170, 200, 260].map(dx=>{
         move('sl_m', X + 120 + dx, Y + 160);
         const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
-        const off = Math.abs(P[m].x - (n.x + n.w / 2));
-        return Math.abs(P[m].y - n.y) < 0.01 &&
-               (off < 0.01 || (P.length === 2 && off < 2 * EDGE_CORNER_R)) &&
+        return Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - (n.x + n.w / 2)) < 0.01 &&
                P.slice(1).every((p, i)=> Math.abs(p.x - P[i].x) < 0.01 || Math.abs(p.y - P[i].y) < 0.01);
       });
       move('sl_m', X + 120, Y + 160);
@@ -21171,7 +21165,7 @@ async function main(){
   check('a drawer shutting goes under its tab', out.tab === '1', out.tab);
   });
 
-  await scenario("the owner's list of 31.10: a ripple that keeps the size, an arrow carried off its corners, a picture at its heading's width, rules across spaces, lines with no kinks", async () => {
+  await scenario("the owner's list of 31.10: a ripple that keeps the size, an arrow carried off its corners, a picture at its heading's width, rules across spaces, ends that stay put", async () => {
   await page.evaluate(()=>{
     window.__keep31 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
     return true;
@@ -21244,6 +21238,13 @@ async function main(){
       const chip = document.querySelector('.node[data-id="o31_l"] .lang-chip-bg');
       r.chipGlow = chip ? getComputedStyle(chip).filter : 'none';
       deselect();
+      applyEdit(()=>{ workingNodes.push(['o31_k','Beast Wars',null,null,null,null,{pos:[X + 300, Y + 900],
+                        link:'https://example.com/'}]); });
+      rebuildChart();
+      selectNode('o31_k');
+      const tab = document.querySelector('.node[data-id="o31_k"] .node-link-bg');
+      r.linkGlow = tab ? getComputedStyle(tab).filter : 'none';
+      deselect();
 
       /* 5. A rule runs across the spaces it was put on. */
       applyEdit(()=>{
@@ -21276,7 +21277,12 @@ async function main(){
       setEdgeStyleOverride('o31_f1', 'o31_f2', Object.assign({}, edgeStyleFor('o31_f1', 'o31_f2'), {fromSide:'left', toSide:'right'}));
       rebuildChart();
       const T2 = nodes.get('o31_t2');
-      r.stack = route('o31_s1', 'o31_s2').map(q=> round2(q.x)).filter((x, i, a)=> a.indexOf(x) === i).length;
+      /* Their middles a few pixels apart, both ends stay on them: a
+         connector does not move along its port (the owner, 31.10). */
+      {
+        const S = route('o31_s1', 'o31_s2'), A = nodes.get('o31_s1'), B = nodes.get('o31_s2');
+        r.stack = [round2(S[0].x - (A.x + A.w/2)), round2(S[S.length-1].x - (B.x + B.w/2))];
+      }
       r.topTop = route('o31_t1', 'o31_t2').every((q, i, a)=> !i || !segIntersectsRect(a[i-1].x, a[i-1].y, q.x, q.y,
         {x0: T2.x + 1, y0: T2.y + 1, x1: T2.x + T2.w - 1, y1: T2.y + T2.h - 1}));
       r.facing = kinks(route('o31_f1', 'o31_f2'), false);
@@ -21292,18 +21298,18 @@ async function main(){
       rebuildChart();
     });
   }
+  /* A step a few pixels wide stays where the ports put it (the owner,
+     31.10: an end does not move along its port), but no line on the
+     owner's chart may run back on itself. */
   out.owner = await page.evaluate(()=>{
     const bad = [];
     drawnRoutes.forEach(rt=>{
       const st = edgeStyleFor(rt.from, rt.to);
       if(st.routing !== 'orthogonal' && st.routing !== 'curve') return;
-      const P = rt.pts;
-      for(let i = 1; i < P.length - 2; i++){
-        const a = P[i-1], b = P[i], c = P[i+1], d = P[i+2];
-        const l = Math.hypot(c.x - b.x, c.y - b.y);
-        const u = {x: b.x - a.x, y: b.y - a.y}, v = {x: c.x - b.x, y: c.y - b.y}, w = {x: d.x - c.x, y: d.y - c.y};
-        const t1 = (u.x*v.y - u.y*v.x) / ((Math.hypot(u.x, u.y) * l) || 1), t2 = (v.x*w.y - v.y*w.x) / ((l * Math.hypot(w.x, w.y)) || 1);
-        if(l > 0.05 && l < 2 * EDGE_CORNER_R && Math.abs(t1) > 0.3 && Math.abs(t2) > 0.3) bad.push(rt.from + '>' + rt.to);
+      const P = rt.pts.filter((q, i, a)=> !i || Math.hypot(q.x - a[i-1].x, q.y - a[i-1].y) > 0.05);
+      for(let i = 1; i < P.length - 1; i++){
+        const u = {x: P[i].x - P[i-1].x, y: P[i].y - P[i-1].y}, v = {x: P[i+1].x - P[i].x, y: P[i+1].y - P[i].y};
+        if(u.x*v.x + u.y*v.y < -0.01 * Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y)) bad.push(rt.from + '>' + rt.to);
       }
     });
     return bad;
@@ -21315,14 +21321,15 @@ async function main(){
   check('a card\'s picture comes in at its heading\'s width',
         Math.abs(out.card[0] - out.card[1]) < 0.01 && Math.abs(out.card[2] - out.card[1]) < 0.01, JSON.stringify(out.card));
   check('a picked entry\'s chips glow with its border', /drop-shadow/.test(out.chipGlow), out.chipGlow);
+  check('…and so does its link\'s tab', /drop-shadow/.test(out.linkGlow), out.linkGlow);
   check('a rule runs across the spaces it was put on, as one line',
         out.rules[0] === 1 && out.rules[1] === 1 && out.rules[2] !== null && out.rules[2] < 1, JSON.stringify(out.rules));
-  check('two entries one over the other are joined straight, whatever their words',
-        out.stack === 1, String(out.stack));
+  check('two entries one over the other keep their ends at their middles, whatever their words',
+        out.stack[0] === 0 && out.stack[1] === 0, JSON.stringify(out.stack));
   check('joined top to top, the lower does not run through the upper', out.topTop === true, String(out.topTop));
   check('facing across a narrow gap, neither end runs back on itself', out.facing.length === 0, out.facing.join());
   check('a merged arrow into a near entry keeps its head off the corner', out.merged.length === 0, out.merged.join());
-  check('no line on the owner\'s chart turns twice within two corners', out.owner.length === 0, out.owner.join(' '));
+  check('no line on the owner\'s chart runs back on itself', out.owner.length === 0, out.owner.join(' '));
   });
 
   await scenario("nothing threw along the way", async () => {

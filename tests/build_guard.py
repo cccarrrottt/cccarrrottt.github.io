@@ -13,6 +13,7 @@ can touch the real src/data.js.
 
     python3 tests/build_guard.py
 """
+import atexit
 import hashlib
 import os
 import re
@@ -37,8 +38,14 @@ def check(name, ok, detail=''):
 
 
 def sandbox():
-    """A copy of the project with a live page to pull from."""
+    """A copy of the project with a live page to pull from.
+
+    Each is a whole copy of src/ and dist/, ~20 MB, and a run makes dozens;
+    they were never taken away, so every run left half a gigabyte in the
+    temporary directory until a machine that runs the guard often filled
+    its disk (31.10: 2958 of them, 30 GB). They go when the guard ends."""
     tmp = Path(tempfile.mkdtemp(prefix='rhizome-build-'))
+    atexit.register(shutil.rmtree, tmp, True)
     for part in ('src', 'dist', 'tools'):
         if (ROOT / part).exists():
             shutil.copytree(ROOT / part, tmp / part)

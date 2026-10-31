@@ -6,6 +6,20 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.21.1 — "Fastened again" (2026-10-31)
+
+- **Ports do not move, without exception** (the owner, 31.10: "a
+  connector must not move along its port, full stop"). `flattenFacingStep`
+  is gone, and with it the straight stem `amalgamStem` took into an entry
+  just past its bar's end; the merged arrow's head no longer follows a
+  route that lands off its port. The checks of 0.9.30 and 24.10 are back
+  as they were, and the 31.10 scenario now asks that two stacked entries
+  keep their ends at their middles and that no line on the owner's chart
+  runs back on itself. Everything else in 0.21.0 stays.
+- **A picked entry's link tab glows** with its border, as its language
+  chips do: the rule of 0.21.0 looked for the tab directly under the
+  entry, and it stands inside the link it opens.
+
 ## 0.21.0 — "Straight where it can be" (2026-10-31)
 
 The owner's list of 31.10.
