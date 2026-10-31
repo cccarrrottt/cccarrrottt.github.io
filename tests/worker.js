@@ -285,6 +285,37 @@ function partsOf(text){
   check('a save missing a region is refused', r.status === 400 && gh.head === 'c0');
   r = await post(s, {base: gitSha(DATA), parts: {...edited, NODES: parts.NODES + '/* @@EDIT:NODES:END@@ */'}});
   check('and so is one that carries a region marker in its text', r.status === 400 && gh.head === 'c0');
+
+  /* A region is published as a script and runs in every reader's browser,
+     and a save is published at once. So it has to be data and only data. */
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, NODES: parts.NODES.replace(/\];$/, '];\nfetch(\'//elsewhere\');')}});
+  body = await r.json();
+  check('a region with a statement after its list is refused', r.status === 400 && gh.head === 'c0' && /NODES/.test(body.error),
+        r.status + ' ' + JSON.stringify(body));
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, "\n  {key:'x', title:String(document.cookie)},\n];")}});
+  check('and so is one with a call where a value should be', r.status === 400 && gh.head === 'c0');
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, "\n  {key:'x', title:location},\n];")}});
+  check('and one with a name where a value should be', r.status === 400 && gh.head === 'c0');
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, "\n  {key:'x', title:'</scr' + 'ipt>'},\n];")}});
+  check('and one that would end the page\'s script inside a string', r.status === 400 && gh.head === 'c0');
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, '\n')}});
+  check('and one cut short', r.status === 400 && gh.head === 'c0');
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, SETTINGS: 'const SETTINGS = [];'}});
+  check('and settings that are not a record', r.status === 400 && gh.head === 'c0');
+  r = await post(s, {base: gitSha(DATA), parts: {...parts, NODES: 'const EDGE_STYLES = [];'}});
+  check('and a region that declares another region\'s name', r.status === 400 && gh.head === 'c0');
+  {
+    const w2 = await import(path.join(ROOT, 'worker', 'index.js'));
+    const all = partsOf(DATA);
+    const read = Object.keys(all).every(k => { try{ w2.parseRegion(k, all[k]); return true; }catch(e){ return false; } });
+    check('every region of the repository\'s own data.js reads as data', read);
+    const exotic = "const NODES = [\n  {id:'a\\'b\\x3c\\u2028\\n', label:\"q\", 'quoted key':[1, -2.5e3, .5, true, false, null, undefined, NaN, -Infinity],}, // a note\n  /* and another */\n];";
+    let got = null;
+    try{ got = w2.parseRegion('NODES', exotic); }catch(e){ got = e.message; }
+    check('what the page\'s serializers can write reads back as the same values',
+          Array.isArray(got) && got[0].id === "a'b<\u2028\n" && got[0]['quoted key'][2] === 0.5 && Number.isNaN(got[0]['quoted key'][7]),
+          JSON.stringify(got));
+  }
   r = await post(await session('someone'), {base: gitSha(DATA), parts: edited});
   check('a login that is not an owner cannot save', r.status === 403 && gh.head === 'c0');
 
@@ -415,6 +446,30 @@ function partsOf(text){
         r.status + ' ' + JSON.stringify(body));
   r = await post(s, {base: 'f'.repeat(40), parts: two});
   check('a base the repository never had is refused, not merged against nothing', r.status === 409);
+
+  /* A merge whose two halves are each whole can still leave a loose end:
+     one device took an entry out while the other hung a new one under it. */
+  {
+    const before = partsOf(gh.dataAt(gh.head));
+    r = await post(s, {base: gitSha(gh.dataAt(gh.head)), parts: addTo(before, 'NODES', "  {id:'lone', label:'Lone'},")});
+    const withLone = await r.json();
+    const P2 = partsOf(gh.dataAt(gh.head));
+    const loneLine = "\n  {id:'lone', label:'Lone'},";
+    r = await post(s, {base: withLone.sha, parts: {...P2, NODES: P2.NODES.replace(loneLine, '')}});
+    check('(one device takes an entry out)', r.status === 200 && !gh.dataAt(gh.head).includes("id:'lone'"));
+    const headGone = gh.head;
+    r = await post(s, {base: withLone.sha, parts: addTo(P2, 'NODES', "  {id:'kid', label:'Kid', parent:'lone'},")});
+    body = await r.json();
+    check('a merge that would leave an entry under one that is gone is refused, and names the one that is gone',
+          r.status === 409 && gh.head === headGone && body.conflicts && body.conflicts[0].item === 'lone' && body.conflicts[0].from.item === 'kid',
+          r.status + ' ' + JSON.stringify(body));
+    r = await post(s, {base: withLone.sha, parts: addTo(P2, 'EDGESTYLES', "  {from:'lone', to:'uprising', routing:'curve', dash:'solid', arrow:true},")});
+    body = await r.json();
+    check('and so is one that would leave a connector style pointing at it', r.status === 409 && gh.head === headGone,
+          r.status + ' ' + JSON.stringify(body));
+    r = await post(s, {base: withLone.sha, parts: addTo(P2, 'NODES', "  {id:'kid', label:'Kid', parent:'uprising'},")});
+    check('while one that hangs it somewhere still there is merged', r.status === 200 && gh.head !== headGone);
+  }
 
   /* Suggestions. A reader signs in by asking to; the same account through
      Owner sign-in is still turned away above. */

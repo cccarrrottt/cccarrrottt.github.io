@@ -13,6 +13,7 @@
     "test:build": "python3 tests/build_guard.py",
     "test:worker": "node tests/worker.js",
     "check:data": "python3 tools/data_check.py",
+    "check:chart": "node tools/chart_check.js",
     "bench": "node tools/bench.js",
     "test:list": "node tests/regression.js --list",
     "test:fast": "node tools/shards.js"
