@@ -520,8 +520,9 @@
      around the entry, not the entry itself: selecting one thickens the box
      it actually is, and leaves the scenery alone. */
   /* …and a tab grown out of that border is the border too: the language
-     chips and a link's tab glow with it (the owner's list of 31.10). */
-  .node.selected > .lang-chips .lang-chip-bg, .node.selected > .node-link .node-link-bg{
+     chips and a link's tab glow with it (the owner's list of 31.10). The
+     link's tab is inside the anchor it opens, one level further down. */
+  .node.selected > .lang-chips .lang-chip-bg, .node.selected > a > .node-link .node-link-bg{
     filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }

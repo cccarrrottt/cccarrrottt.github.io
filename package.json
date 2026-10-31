@@ -1,6 +1,6 @@
 {
   "name": "rhizome-project",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "private": true,
   "description": "An interactive, editable chart of Transformers G1 continuity, built as one self-contained page.",
   "type": "commonjs",
