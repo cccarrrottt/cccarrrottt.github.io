@@ -608,6 +608,16 @@ function closeNodeEditor(keep){
   if(wasNote){ redrawEdges(); applyVisibility(); }
 }
 setRichEnter('nodeEditorText', ()=> closeNodeEditor(true));
+/* The ✓ on the field's toolbar, for a phone, whose Enter is a line break
+   (see keysAreOnScreen). Pressed without taking the focus, so the field
+   is still the one being settled when the click arrives. */
+{
+  const done = document.getElementById('nodeEditorDone');
+  if(done){
+    done.addEventListener('mousedown', ev=> ev.preventDefault());
+    done.addEventListener('click', ev=>{ ev.stopPropagation(); if(nodeEditorTarget) closeNodeEditor(true); });
+  }
+}
 /* A phone's keyboard coming up resizes the window; the field is put back
    on its entry, and its toolbar back on the narrower page. */
 window.addEventListener('resize', ()=>{ if(nodeEditorTarget) positionNodeEditor(); });

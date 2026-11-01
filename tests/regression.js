@@ -21628,6 +21628,69 @@ async function main(){
   }
   check('…a carry back to where it started writes no face, and undo takes it out',
         out.back[1] === null && out.undone[0] === 'top' && out.undone[1] === null, JSON.stringify(out));
+
+  /* 4. On a phone the entry's sheet comes up folded to its heading, opens
+        and folds by a swipe on it, and is put away by one more; its field's
+        Enter is a new line, and the ✓ settles it. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  const sheet = {};
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(700);
+    const id = await pp.evaluate(()=>{
+      applyEdit(()=> workingNodes.push(['o111_p','Phone entry',null,null,null,null,{pos:[141000, 141000]}]));
+      rebuildChart();
+      const n = nodes.get('o111_p'); vs = 1.2; vx = -(n.x - 100) * 1.2; vy = -(n.y - 150) * 1.2; applyTransform();
+      return n.id;
+    });
+    await wait(200);
+    const c = await pp.evaluate((id)=>{ const b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2}; }, id);
+    await pp.touchscreen.tap(c.x, c.y); await wait(500);
+    const state = ()=> pp.evaluate(()=>{ const d = document.getElementById('detail');
+      return {open: d.classList.contains('open'), peek: d.classList.contains('peek'), full: d.classList.contains('full'),
+              h: Math.round(d.getBoundingClientRect().height), sel: selectedId}; });
+    const cdp = await phone.newCDPSession(pp);
+    const swipe = async (dy)=>{
+      const h = await pp.evaluate(()=>{ const b = document.querySelector('#detail .detail-head').getBoundingClientRect();
+        return {x: b.x + 40, y: b.y + 10}; });
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:h.x, y:h.y}]});
+      for(let i = 1; i <= 5; i++){
+        await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:h.x, y:h.y + dy * i / 5}]});
+        await wait(16);
+      }
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+      await wait(300);
+      return state();
+    };
+    sheet.tapped = await state();
+    sheet.up = await swipe(-80);
+    sheet.down = await swipe(80);
+    sheet.away = await swipe(80);
+    /* The field: Enter breaks the line, the ✓ keeps it. */
+    await pp.evaluate((id)=> openNodeEditor(id), id); await wait(150);
+    await pp.keyboard.press('End'); await pp.keyboard.press('Enter'); await pp.keyboard.type('two');
+    await wait(100);
+    sheet.typing = await pp.evaluate(()=> ({open: !!nodeEditorTarget, value: document.getElementById('nodeEditorText').value}));
+    const d = await pp.evaluate(()=>{ const b = document.getElementById('nodeEditorDone').getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2, w: b.width}; });
+    await pp.touchscreen.tap(d.x, d.y); await wait(300);
+    sheet.done = await pp.evaluate((id)=> ({open: !!nodeEditorTarget, label: nodes.get(id).label}), id);
+  } finally {
+    await phone.close();
+  }
+  check('on a phone a picked entry\'s sheet comes up folded to its heading',
+        sheet.tapped && sheet.tapped.open && sheet.tapped.peek && sheet.tapped.h < 120, JSON.stringify(sheet.tapped));
+  check('…a swipe up on its heading opens it, a swipe down folds it, and one more puts it away',
+        sheet.up && sheet.up.full && sheet.down.peek && !sheet.away.open && sheet.away.sel === null, JSON.stringify(sheet));
+  check('…a phone\'s Enter in a field is a new line, and the field\'s ✓ settles it',
+        sheet.typing && sheet.typing.open && /\ntwo$/.test(sheet.typing.value) && sheet.done && !sheet.done.open
+        && /\ntwo$/.test(sheet.done.label), JSON.stringify(sheet.typing) + JSON.stringify(sheet.done));
   });
 
   await scenario("nothing threw along the way", async () => {

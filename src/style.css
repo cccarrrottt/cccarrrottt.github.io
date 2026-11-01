@@ -1777,6 +1777,12 @@
   .mini-toolbar .tb-sep{
     width:1px;align-self:stretch;background:var(--line);margin:0 3px;flex:0 0 auto;
   }
+  /* The field's ✓, for a phone, whose Enter makes a new line: last in
+     the row, whatever the toolbar's wiring adds after it, and only once
+     the page has been touched. */
+  .mini-toolbar .tb-done{display:none;order:99;margin-left:auto;}
+  body.touch-input .mini-toolbar .tb-done{display:inline-block;color:#fff;background:var(--accent);
+    border-color:var(--accent);font-size:13px;padding:3px 12px;}
   /* These two carry an extra .editor-field so they outrank the generic
      .editor-field select / input[type=number] rules further down, which
      are written for full-width labelled fields and would otherwise stretch
@@ -3367,6 +3373,16 @@
             border-radius:12px 12px 0 0;border-bottom:none;
             transform:translateY(calc(100% + 20px));}
     .detail.open{transform:none;}
+    /* …and it comes up folded to its heading, and is opened and folded
+       by it (see setEntrySheet, 38-touch.js). The bar at the top says the
+       heading is a handle; the heading keeps the finger to itself, so a
+       swipe on it is not the page scrolling. */
+    .detail{transition:transform 180ms ease, max-height 200ms ease;}
+    .detail.open.peek{max-height:var(--sheet-peek, 96px);}
+    .detail.open.full{max-height:88dvh;}
+    .detail-head{position:relative;touch-action:none;cursor:grab;padding-top:18px;}
+    .detail-head::before{content:'';position:absolute;top:6px;left:50%;width:36px;height:4px;
+      margin-left:-18px;border-radius:2px;background:var(--line);}
     .add-fab{right:12px;bottom:12px;}
     /* Under the open sheet there is nowhere for it to stand. */
     .add-fab.shifted{display:none;}
