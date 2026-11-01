@@ -727,3 +727,73 @@ document.addEventListener('mousedown', ev=>{
 document.addEventListener('keydown', ev=>{
   if(ev.key === 'Escape' && !touchMenu.hidden){ closeTouchMenu(); ev.stopPropagation(); }
 }, true);
+
+/* ---- the entry's sheet on a phone -------------------------------------
+ *
+ * On a phone the entry's panel is a sheet from the bottom, and it opened
+ * at half the screen on every tap of an entry — over the chart the entry
+ * was picked from (the owner's list of 1.11). It comes up folded now, its
+ * heading and tags and nothing more, and is opened and folded again by
+ * its heading: a swipe up opens it, a swipe down folds it, and folded, a
+ * swipe down puts it away as ✕ does. A tap on the heading does the first
+ * two for a hand that does not swipe. It opens by itself when anything in
+ * it is to be written in — the ✎, a field taking the focus.
+ * ------------------------------------------------------------------- */
+const entrySheet = document.getElementById('detail');
+const entrySheetHead = entrySheet && entrySheet.querySelector('.detail-head');
+const phoneSheet = window.matchMedia('(max-width: 720px)');
+const SHEET_SWIPE = 24, SHEET_TAP = 8, SHEET_TAGS_SHOWN = 64;
+function setEntrySheet(state){
+  if(!entrySheet) return;
+  if(state === 'peek'){
+    const tags = document.getElementById('detailTags');
+    const tagsH = tags && tags.offsetParent ? Math.min(SHEET_TAGS_SHOWN, tags.offsetHeight) : 0;
+    entrySheet.style.setProperty('--sheet-peek', (entrySheetHead.offsetHeight + tagsH + 1) + 'px');
+  }
+  entrySheet.classList.toggle('peek', state === 'peek');
+  entrySheet.classList.toggle('full', state === 'full');
+}
+function entrySheetState(){
+  return !entrySheet || !entrySheet.classList.contains('open') ? null
+       : entrySheet.classList.contains('peek') ? 'peek'
+       : entrySheet.classList.contains('full') ? 'full' : 'half';
+}
+if(entrySheet && entrySheetHead){
+  let wasOpen = entrySheet.classList.contains('open');
+  new MutationObserver(()=>{
+    const open = entrySheet.classList.contains('open');
+    if(open && !wasOpen) setEntrySheet(phoneSheet.matches ? 'peek' : null);
+    else if(!open && wasOpen) setEntrySheet(null);
+    wasOpen = open;
+  }).observe(entrySheet, {attributes: true, attributeFilter: ['class']});
+  phoneSheet.addEventListener('change', q=>{ if(!q.matches) setEntrySheet(null); });
+  /* Anything in it being written in opens it: a field folded out of
+     sight under the heading is a field nobody can see. */
+  const unfold = ()=>{ if(entrySheetState() === 'peek') setEntrySheet('full'); };
+  const toggle = document.getElementById('detailEditToggle');
+  if(toggle) toggle.addEventListener('click', unfold, true);
+  entrySheet.addEventListener('focusin', ev=>{ if(!entrySheetHead.contains(ev.target)) unfold(); });
+
+  let swipe = null;
+  entrySheetHead.addEventListener('pointerdown', ev=>{
+    if(!phoneSheet.matches || !entrySheetState()) return;
+    if(ev.target.closest && ev.target.closest('button, a, input')) return;
+    swipe = {id: ev.pointerId, y0: ev.clientY, x0: ev.clientX};
+  });
+  const settle = (ev)=>{
+    const st = swipe;
+    if(!st || ev.pointerId !== st.id) return;
+    swipe = null;
+    const dy = ev.clientY - st.y0, far = Math.hypot(ev.clientX - st.x0, dy);
+    const now = entrySheetState();
+    if(!now) return;
+    if(far <= SHEET_TAP) setEntrySheet(now === 'peek' ? 'full' : 'peek');
+    else if(dy <= -SHEET_SWIPE) setEntrySheet('full');
+    else if(dy >= SHEET_SWIPE){
+      if(now === 'peek') deselect();
+      else setEntrySheet('peek');
+    }
+  };
+  entrySheetHead.addEventListener('pointerup', settle);
+  entrySheetHead.addEventListener('pointercancel', ()=>{ swipe = null; });
+}

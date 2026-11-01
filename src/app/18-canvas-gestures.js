@@ -997,6 +997,7 @@ window.addEventListener('mousemove', e=>{
        gives way to it or jumps across the lineages when the entry passes
        their middle. See fixAmalgamBars. */
     st.barsFixed = fixAmalgamBars(st.members.map(m=> m.id));
+    st.arrowsPinned = pinMergedArrowSides(st.members.map(m=> m.id));
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and
@@ -1269,6 +1270,7 @@ window.addEventListener('mouseup', ()=>{
     // bar the carry fixed, since nothing has been done.
     carryBends(st, 0, 0);
     unfixAmalgamBars(st.barsFixed);
+    unpinMergedArrowSides(st.arrowsPinned);
     return;
   }
   /* Any bend these entries' connectors no longer need goes with the drop;
@@ -1390,8 +1392,30 @@ function beginNodeResize(ev, n, g, corner){
     originX: n.x, originY: n.y,
     originW: n.w, originH: n.h, moved: false,
     // On the chart, as an entry's carry is — see the wheel.
-    grab: clientToWorld(ev.clientX, ev.clientY)
+    grab: clientToWorld(ev.clientX, ev.clientY),
+    picture: cardPictureAsDrawn(n)
   };
+}
+/* The size a card's picture is seen at, when nothing has set it: the
+ * part of its band the picture covers, kept entire.
+ *
+   Resizing a card is resizing the CARD (the owner's list of 1.11). A
+   picture with no size of its own is drawn as large as its band allows,
+   and the band takes whatever the words leave — so a corner pulled out
+   made the picture bigger and the card around it barely changed, and a
+   corner pulled in shrank the picture. Its size is written down where
+   the resize starts, as it is seen, and from then on the card grows and
+   shrinks round it; the band it no longer covers is the blurred picture.
+   Its own corners (beginCardImageResize) are how a picture is resized. */
+function cardPictureAsDrawn(n){
+  if(!n || !n.card || !n.image || (n.cardImgW != null && n.cardImgH != null)) return null;
+  const band = n.cardImgBand;
+  if(!band || !(band.h > 0.5)) return null;
+  const bw = n.cardImgW != null ? n.cardImgW : n.w, bh = n.cardImgH != null ? n.cardImgH : band.h;
+  const r = imageAspect(n.image);
+  if(!r || n.cardCrop) return {w: round2(bw), h: round2(bh)};
+  const w = Math.min(bw, bh / r);
+  return {w: round2(w), h: round2(w * r)};
 }
 window.addEventListener('mousemove', e=>{
   if(!nodeResizeState) return;
@@ -1399,6 +1423,10 @@ window.addEventListener('mousemove', e=>{
   if(!st.moved && Math.hypot(e.clientX - st.startClientX, e.clientY - st.startClientY) < DRAG_THRESHOLD) return;
   const hand = clientToWorld(e.clientX, e.clientY);
   const dx = hand.x - st.grab.x, dy = hand.y - st.grab.y;
+  if(!st.moved && st.picture){
+    st.node.cardImgW = st.picture.w;
+    st.node.cardImgH = st.picture.h;
+  }
   st.moved = true;
   const c = st.corner;
   /* The floor is the smallest box an entry ever settles to by itself:
@@ -1475,6 +1503,7 @@ window.addEventListener('mouseup', ()=>{
     if(!found) return;
     const opts = entryOpts(found.entry);
     opts.size = [size.w, size.h];
+    if(st.picture){ opts.cardImgW = st.picture.w; opts.cardImgH = st.picture.h; }
     const moved = st.corner.sx < 0 || st.corner.sy < 0;
     if(moved){
       // A fixed size takes no growth offset, so the drawn top-left IS the
@@ -1504,7 +1533,7 @@ function beginCardImageResize(ev, n){
   ev.preventDefault();
   cardImgResizeState = {node:n, moved:false,
                         startW: n.cardImgW == null ? n.w : n.cardImgW,
-                        startH: n.cardImgH == null ? (n.cardTop || CARD_IMG_H) : n.cardImgH};
+                        startH: n.cardImgH == null ? ((n.cardImgBand && n.cardImgBand.h) || n.cardTop || CARD_IMG_H) : n.cardImgH};
 }
 window.addEventListener('mousemove', e=>{
   if(!cardImgResizeState) return;
@@ -1513,7 +1542,12 @@ window.addEventListener('mousemove', e=>{
   const p = clientToWorld(e.clientX, e.clientY);
   const cx = n.x + n.w/2;
   let iw = Math.max(CARD_IMG_MINH, Math.min(CARD_MAXW, Math.abs(p.x - cx) * 2));
-  let ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, p.y - n.y));
+  /* A card sized by hand holds its picture in the middle of the band
+     (see renderNodes), so a corner says the depth as it says the width:
+     twice its distance from the middle. */
+  const band = n.size && n.cardImgBand;
+  let ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH,
+    band ? Math.abs(p.y - (n.y + band.top + band.h / 2)) * 2 : p.y - n.y));
   if(e.shiftKey){
     const r = imageAspect(n.image);
     if(r) ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, iw * r));

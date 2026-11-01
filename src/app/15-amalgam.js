@@ -1866,6 +1866,46 @@ function fixAmalgamBars(ids){
   });
   return fixed;
 }
+/* …and the face its merged arrow comes into the entry by, written down
+   the same way and in the same step (the owner's list of 1.11).
+ *
+   Unwritten, the face was the stem's to choose, and the stem turns to
+   whichever face is towards the bar: an arrow into the top of its entry
+   went round to the bottom the moment the entry was carried past the bar.
+   That was the only way an arrow could ever reach the other face, from the
+   days when a port could not be moved by hand; it can be now (the square
+   grip at its end, movePortTo), so a carry keeps the face the arrow had,
+   as it keeps the bar, and the arrow goes round to it. Answers what it
+   wrote, so a carry that comes back to where it started takes it out. */
+function pinMergedArrowSides(ids){
+  const carried = new Set(ids);
+  const pinned = [];
+  nodes.forEach(b=>{
+    if(!isMergeNode(b)) return;
+    if(!carried.has(b.id) && !mergeMembersOf(b).some(p=> carried.has(p))) return;
+    const os = edgeStyleFor('', b.id);
+    if(SIDES.includes(os.toSide)) return;
+    const drawn = mergedArrowPorts.get(b.id);
+    const side = drawn && drawn.p2 && drawn.p2.side;
+    if(!SIDES.includes(side)) return;
+    /* Written into the arrow's own style where it has one, not swapped
+       for a copy: the carry holds that object to move its corners with
+       (bendCarry), and a copy left them behind. */
+    const own = EDGE_STYLES.find(st=> st.from === '' && st.to === b.id);
+    if(own) own.toSide = side;
+    else setEdgeStyleOverride('', b.id, Object.assign({}, os, {toSide: side}));
+    pinned.push(b.id);
+  });
+  return pinned;
+}
+function unpinMergedArrowSides(list){
+  (list || []).forEach(id=>{
+    const own = EDGE_STYLES.find(st=> st.from === '' && st.to === id);
+    if(!own) return;
+    own.toSide = null;
+    if(isDefaultEdgeStyle(own)) EDGE_STYLES.splice(EDGE_STYLES.indexOf(own), 1);
+  });
+}
 function unfixAmalgamBars(list){
   (list || []).forEach(id=>{
     const b = nodes.get(id);
@@ -1946,6 +1986,7 @@ window.addEventListener('mousemove', ev=>{
   if(!st.moved){
     st.moved = true;
     st.before = takeSnapshot();
+    st.pinned = pinMergedArrowSides([st.id]);
     setBarFocus(st.id);
     document.body.classList.add('bar-carrying');
   }
@@ -1991,6 +2032,7 @@ window.addEventListener('mouseup', ()=>{
   const b = nodes.get(st.id);
   if(Math.abs(st.lead - st.spec.lead) < 1e-6){
     if(b) b.bar = st.had ? st.spec : null;
+    unpinMergedArrowSides(st.pinned);
     redrawEdges();
     return;
   }

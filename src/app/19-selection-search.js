@@ -660,7 +660,7 @@ function linkShownTarget(n){
    pointer is on it, so where it goes can be seen without going. Copied
    from the entry's own drawing, so it is the entry as it stands; a copy
    carries none of its handles, names or ids, which belong to the entry. */
-const LINK_PREVIEW_SCALE = 0.5, LINK_PREVIEW_GAP = 10;
+const LINK_PREVIEW_SCALE = 0.5, LINK_PREVIEW_GAP = 10 + COPY_LINK_R * 2;
 const linkPreviewLayer = el('g', {id:'linkPreviewLayer', style:'pointer-events:none;'}, viewport);
 function showLinkPreview(id){
   linkPreviewLayer.replaceChildren();

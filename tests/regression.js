@@ -12552,7 +12552,7 @@ async function main(){
                            {pos:[X + 520, Y], card:true, image:wide, border:'wavy'}]);
       });
       await wait(900);
-      const img = (id)=> document.querySelector('.node[data-id="' + id + '"] image');
+      const img = (id)=> document.querySelector('.node[data-id="' + id + '"] > image');
       out.fitWhole = (img('ciA') || {}).getAttribute &&
         img('ciA').getAttribute('preserveAspectRatio').indexOf('meet') > 0;
       out.cropWhenAsked = !!img('ciB') &&
@@ -12567,9 +12567,12 @@ async function main(){
          card's own outline, so no band and no rule reaches past the
          ripple. */
       const wg = document.querySelector('.node[data-id="ciW"]');
-      const wImg = wg.querySelector('image');
+      /* The picture, and what fills round it, which is cut by a group. */
+      const wImg = wg.querySelector(':scope > image');
+      const wBack = wg.querySelector('.card-img-backdrop');
       const rules = [...wg.querySelectorAll('.card-rule')];
       out.wavyCardSealed = !!wImg && /^url\(#/.test(wImg.getAttribute('clip-path') || '') &&
+        !!wBack && /^url\(#/.test(wBack.parentNode.getAttribute('clip-path') || '') &&
         rules.length > 0 && rules.every(r=> /^url\(#/.test(r.getAttribute('clip-path') || ''));
 
       /* A picture given a depth by hand, on a card then made smaller, gives
@@ -15318,8 +15321,12 @@ async function main(){
                                    (pts[i].y - pts[i-1].y) * (pts[i+1].x - pts[i].x)) > 0.01;
       for(let i = 1; i < pts.length - 1; i++) if(turns(i))
         line.forEach(q=>{ nearest = Math.min(nearest, Math.hypot(q.x - pts[i].x, q.y - pts[i].y)); });
-      /* The sketch: the bow stays inside the bracket the elbowed route
-         would draw, and arrives at its head at a slant, as drawn. */
+      /* The sketch: one bow, and it arrives at its head at a slant, as
+         drawn. It used to stay inside the bracket the elbowed route would
+         draw — which, with stubs a dozen units long, meant turning a right
+         angle in two units at each end, the hook the owner circled on
+         1.11. It swings out past the stubs now, as a hand's bow does, by
+         less than half the height it spans. */
       const recS = drawnRoutes.get(calloutEdgeKey('cvU', 'cvL'));
       const ptsS = recS ? recS.pts : [];
       const lineS = drawn(pathOf('cvU', 'cvL'));
@@ -15335,7 +15342,8 @@ async function main(){
          and drawn through them as one sweep. */
       out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && d.indexOf('Q') < 0 &&
                         line.length > 20 && nearest > 4 * EDGE_CORNER_R;
-      out.curveSketch = ptsS.length >= 4 && bowOut < routeOut - 4 && slant > 5 && slant < 85;
+      const spanS = ptsS.length ? Math.max(...ptsS.map(p=> p.y)) - Math.min(...ptsS.map(p=> p.y)) : 0;
+      out.curveSketch = ptsS.length >= 4 && bowOut > routeOut && bowOut < routeOut + spanS / 2 && slant > 5 && slant < 85;
       /* The stretch the head stands on, and the few units the line runs
          before it, lie on the head's own axis — plain and wavy alike — and
          the line's last step points the way the head does, so it meets the
@@ -15458,7 +15466,7 @@ async function main(){
         rR.remarkFieldFits, rR.remarkFieldAt);
   check('a curve is one sweep through the elbowed route, and bends at the same handles',
         rR.curveSmooth && rR.curveOffered, rR.curveAt + rR.curvePts);
-  check('a curve from one entry\'s side to the one under it is a bow inside the bracket, met at a slant',
+  check('a curve from one entry\'s side to the one under it is one bow, met at a slant',
         rR.curveSketch, rR.curveAt);
   check('a curve arrives along its head\'s axis, so the head meets the line without a notch',
         rR.curveTailOnHead, rR.curveTailAt);
@@ -18389,7 +18397,7 @@ async function main(){
     const route = drawnRoutes.get(calloutEdgeKey('ck_a', 'ck_b'));
     const line = document.querySelector('.edge[data-from="ck_a"][data-to="ck_b"]');
     const pts = (line.getAttribute('d').match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
-    const plain = bsplineOver(mergeCollinear(route.pts), CURVE_STEP);
+    const plain = curveThrough(route.pts, CURVE_STEP);
     // The first dozen units, point for point.
     let gap = 0;
     for(let i = 0; i < 8 && i < pts.length; i++) gap = Math.max(gap, Math.hypot(pts[i].x - plain[i].x, pts[i].y - plain[i].y));
@@ -21491,6 +21499,301 @@ async function main(){
   check('facing across a narrow gap, neither end runs back on itself', out.facing.length === 0, out.facing.join());
   check('a merged arrow into a near entry keeps its head off the corner', out.merged.length === 0, out.merged.join());
   check('no line on the owner\'s chart runs back on itself', out.owner.length === 0, out.owner.join(' '));
+  });
+
+  await scenario("the owner's list of 1.11: a merged arrow keeps its face", async () => {
+  await page.evaluate(()=>{
+    window.__keep111 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    return true;
+  });
+  const X = 141000, Y = 141000;
+  const out = {};
+  try{
+    await page.mouse.move(5, 940);
+    /* 1. An entry carried past its bar keeps the face its merged arrow
+          came in by, and a carry that comes back writes nothing. */
+    await page.evaluate(([X, Y])=>{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      applyEdit(()=>{
+        workingNodes.push(['o111_a','Alpha',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['o111_b','Beta',null,null,null,null,{pos:[X + 200, Y]}]);
+        workingNodes.push(['o111_m','Gamma',['o111_a','o111_b'],null,null,null,{pos:[X + 100, Y + 300], merge:true}]);
+      });
+      rebuildChart();
+    }, [X, Y]);
+    const carry = async (dy)=>{
+      const c = await page.evaluate(()=>{
+        const b = document.querySelector('.node[data-id="o111_m"]').getBoundingClientRect();
+        return {x: b.x + b.width/2, y: b.y + b.height/2};
+      });
+      await page.mouse.move(c.x, c.y); await page.mouse.down();
+      for(let i = 1; i <= 12; i++){ await page.mouse.move(c.x, c.y + dy * i / 12); await wait(16); }
+      await page.mouse.up(); await wait(120);
+      return page.evaluate(()=> [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]);
+    };
+    out.back = await carry(0);
+    out.side0 = await page.evaluate(()=> mergedArrowPorts.get('o111_m').p2.side);
+    out.across = await carry(-480);
+    out.undone = await page.evaluate(()=>{ undoLastEdit(); return [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]; });
+    /* 3. A card's picture: the same size rippled or not, the band it
+          leaves filled with itself blurred, unlit when the card is picked,
+          and kept at its size when the card is resized. */
+    out.card = await page.evaluate(async ([X, Y])=>{
+      const cv = document.createElement('canvas'); cv.width = 300; cv.height = 200;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#3a7'; cx.fillRect(0, 0, 300, 200);
+      const pic = cv.toDataURL();
+      applyEdit(()=>{
+        workingNodes.push(['o111_c1','Plain',null,null,'A note',null,{pos:[X - 250, Y + 380], card:true, image:pic}]);
+        workingNodes.push(['o111_c2','Plain',null,null,'A note',null,{pos:[X + 300, Y + 380], card:true, image:pic, border:'wavy'}]);
+      });
+      rebuildChart();
+      await new Promise(ok=> setTimeout(ok, 250));
+      const pics = id=> [...document.querySelectorAll(`.node[data-id="${id}"] > image`)]
+        .map(i=> [+i.getAttribute('width'), +i.getAttribute('height')]);
+      const backs = id=> document.querySelectorAll(`.node[data-id="${id}"] .card-img-backdrop image`).length;
+      const r = {plain: pics('o111_c1'), wavy: pics('o111_c2'), backPlain: backs('o111_c1'), backWavy: backs('o111_c2')};
+      selectNode('o111_c1', {quiet: true});
+      r.lit = getComputedStyle(document.querySelector('.node[data-id="o111_c1"] > image')).filter;
+      deselect();
+      return r;
+    }, [X, Y]);
+    {
+      const se = await page.evaluate(()=>{
+        nodeControlsOn('o111_c1');
+        const b = document.querySelector('.node[data-id="o111_c1"] .node-resize-se').getBoundingClientRect();
+        const c = document.querySelector('.node[data-id="o111_c1"]').getBoundingClientRect();
+        return {x: b.x + b.width/2 + 2, y: b.y + b.height/2 + 2, cx: c.x + c.width/2, cy: c.y + c.height/2};
+      });
+      await page.mouse.move(se.cx, se.cy); await page.mouse.move(se.x, se.y); await wait(60);
+      await page.mouse.down();
+      for(let i = 1; i <= 8; i++){ await page.mouse.move(se.x + i * 8, se.y + i * 10); await wait(16); }
+      await page.mouse.up(); await wait(120);
+      out.card.resized = await page.evaluate(()=>{
+        const n = nodes.get('o111_c1');
+        return {size: [n.w, n.h], pic: [...document.querySelectorAll('.node[data-id="o111_c1"] > image')]
+                  .map(i=> [+i.getAttribute('width'), +i.getAttribute('height')]),
+                back: document.querySelectorAll('.node[data-id="o111_c1"] .card-img-backdrop image').length,
+                kept: [n.cardImgW, n.cardImgH]};
+      });
+    }
+    /* 5. A curve out of a port's short stub into a long run swings out
+          of its entry rather than turning in a couple of units, with a
+          head at that end or without one. */
+    out.curve = await page.evaluate(async ([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['o111_s','From',null,null,null,null,{pos:[X - 600, Y]}]);
+        workingNodes.push(['o111_t','To','o111_s',null,null,null,{pos:[X - 340, Y - 150]}]);
+        EDGE_STYLES.push({from:'o111_s', to:'o111_t', routing:'curve', dash:'solid', arrow:true,
+                          arrowIn:true, fromSide:'bottom', toSide:'bottom'});
+      });
+      rebuildChart();
+      const d = document.querySelector('.edge[data-from="o111_s"][data-to="o111_t"]').getAttribute('d');
+      const P = (d.match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
+      /* The hook the owner circled ran back under the entry before it
+         set off: leaving by the bottom for an entry off to the right, the
+         line went left first. Along the whole line it only goes right. */
+      let back = 0;
+      for(let i = 1; i < P.length; i++) back = Math.max(back, P[i-1].x - P[i].x);
+      /* …and its head comes into the entry along the port, not on the
+         slant of a line already turning away under it. */
+      const heads = curveHeads(drawnRoutes.get(calloutEdgeKey('o111_s', 'o111_t')).pts, true, true);
+      const tilt = Math.abs(((heads.in + 90) % 360 + 540) % 360 - 180);
+      return {back: +back.toFixed(2), tilt: +tilt.toFixed(1), n: P.length};
+    }, [X, Y]);
+    /* 6. A note along its line is framed as a level one is — the frame as
+          far from the words, the words in its middle — and sits on the
+          same kind of ground, framed or not. */
+    out.noteFrames = await page.evaluate(async ([X, Y])=>{
+      applyEdit(()=>{
+        const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above'};
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}], ['ab', {noteAlong:true}]].forEach(([k, o], i)=>{
+          workingNodes.push(['o111_' + k + 'a','A',null,null,null,null,{pos:[X - 600, Y + 300 + i * 60]}]);
+          workingNodes.push(['o111_' + k + 'b','B','o111_' + k + 'a',null,null,null,{pos:[X - 420, Y + 300 + i * 60]}]);
+          EDGE_STYLES.push(Object.assign({from:'o111_' + k + 'a', to:'o111_' + k + 'b'}, base, o));
+        });
+      });
+      rebuildChart();
+      const g = k=> document.querySelector(`.edge-note[data-from="o111_${k}a"]`);
+      const plate = g('lv').querySelector('.edge-note-plate');
+      const frame = g('al').querySelector('.edge-note-along-frame');
+      /* Where the words' ink stands across the band: the canvas measures
+         the letters, the path says where the band's middle is. */
+      const word = g('al').querySelector('text.edge-note-along');
+      const span = word.querySelector('tspan');
+      const ink = noteAlongInk(span.textContent, word);
+      const mid = +span.getAttribute('dy') - (ink.up - ink.down) / 2;
+      return {plateH: +plate.getAttribute('height') + EDGE_NOTE_FRAME_W, frameW: frame && +frame.getAttribute('stroke-width'),
+              off: +mid.toFixed(3), bareGround: !!g('ab').querySelector('.edge-note-along-ground'),
+              bareFrame: !!g('ab').querySelector('.edge-note-along-frame')};
+    }, [X, Y]);
+    /* 7. A hub's echo and a local multiverse's stack, moving, stand again
+          and again exactly as they stand still: every quarter (a third)
+          of a turn the rings that show are the still ones, at their
+          places and strengths. */
+    out.scenery = await page.evaluate(async ([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['o111_h','Hub',null,null,null,null,{pos:[X - 600, Y + 600], tags:['multiversal hub']}]);
+        workingNodes.push(['o111_m2','Local',null,null,null,null,{pos:[X - 400, Y + 600], tags:['local multiverse']}]);
+      });
+      rebuildChart();
+      const aura = id=> document.querySelector(`.node-aura[data-id="${id}"]`);
+      const look = (id)=> [...aura(id).querySelectorAll('.hub-echo, .local-sheet, .hub-echo-more, .local-sheet-more')]
+        .map(e=> ({b: e.getBoundingClientRect(), o: +getComputedStyle(e).opacity,
+                   w: +getComputedStyle(e).strokeWidth.replace('px', ''), shown: getComputedStyle(e).display !== 'none'}))
+        .filter(r=> r.shown && r.o > 0.01)
+        .map(r=> [r.b.x, r.b.y, r.b.width, r.b.height, r.o].map(v=> +v.toFixed(1)).join(','))
+        .sort();
+      const still = {h: look('o111_h'), m: look('o111_m2')};
+      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.add('tag-lively'));
+      const anims = (name)=> document.getAnimations().filter(a=> a.animationName === name &&
+        (aura('o111_h').contains(a.effect.target) || aura('o111_m2').contains(a.effect.target)));
+      const at = (name, ms)=>{ anims(name).forEach(a=>{ a.pause(); a.currentTime = ms; }); };
+      const moving = [];
+      for(const [h, m] of [[0, 0], [600, 600], [1800, 1200]]){
+        at('hub-echo-out', h); at('local-sheet-away', m);
+        await new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok)));
+        moving.push({h: look('o111_h'), m: look('o111_m2')});
+      }
+      const between = (()=>{ at('hub-echo-out', 300); return look('o111_h'); })();
+      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.remove('tag-lively'));
+      return {still, moving, between, counts: [anims('hub-echo-out').length, anims('local-sheet-away').length]};
+    }, [X, Y]);
+    /* 2. Beside every entry, a link node too, a faint button copies a
+          link to it, standing clear of the box and of its right port. */
+    const lk = await page.evaluate(([X, Y])=>{
+      applyEdit(()=> workingNodes.push(['o111_l','',null,null,null,'link',{pos:[X + 500, Y]}]));
+      rebuildChart();
+      const g = document.querySelector('.node[data-id="o111_l"]');
+      const b = g.getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2};
+    }, [X, Y]);
+    await page.mouse.move(lk.x, lk.y); await wait(200);
+    out.copy = await page.evaluate(async ()=>{
+      const n = nodes.get('o111_l');
+      const btn = document.querySelector('.node[data-id="o111_l"] .node-copy-link');
+      if(!btn) return null;
+      const op = +getComputedStyle(btn).opacity;
+      const box = btn.querySelector('.node-copy-link-bg').getBBox();
+      const right = n.x + n.w;
+      let wrote = null;
+      try{
+        Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async t=>{ wrote = t; }}});
+        btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        await new Promise(ok=> setTimeout(ok, 30));
+      } finally { delete navigator.clipboard; }
+      const local = btn.transform.baseVal.consolidate().matrix;
+      return {op, wrote, left: local.e - box.width/2, right, sel: selectedId,
+              target: wrote ? entryLinkTarget(wrote) : null};
+    });
+  } finally {
+    await page.evaluate(()=>{
+      closeStyleBar(); closeEdgePopover(); deselect();
+      const k = window.__keep111;
+      applyEdit(()=>{ workingNodes.length = 0; k.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; k.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+    });
+  }
+  check('a merged arrow keeps its face when its entry is carried past the bar',
+        out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
+  check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
+        out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
+  {
+    const n = out.noteFrames || {};
+    check('a note along its line is framed as far from its words as a level one, its words in the middle',
+          n.frameW && Math.abs(n.frameW - n.plateH) < 0.6 && Math.abs(n.off) < 0.01, JSON.stringify(n));
+    check('…and unframed it sits on a band of ground, as a level one sits on its plate', n.bareGround && !n.bareFrame, JSON.stringify(n));
+  }
+  {
+    const sc = out.scenery || {};
+    const near = (a, b)=> a && b && a.length === b.length && a.every((r, i)=>
+      r.split(',').every((v, k)=> Math.abs(+v - +b[i].split(',')[k]) <= (k === 4 ? 0.02 : 0.6)));
+    check('a hub\'s echo and a local multiverse\'s stack, moving, stand again and again as they stand still',
+          sc.still && sc.still.h.length === 3 && sc.still.m.length === 2 &&
+          sc.moving.every(f=> near(f.h, sc.still.h) && near(f.m, sc.still.m)) && !near(sc.between, sc.still.h),
+          JSON.stringify(sc));
+  }
+  check('a faint button beside an entry copies a link to it, outside its box',
+        out.copy && out.copy.op > 0.2 && out.copy.op < 0.7 && out.copy.target && out.copy.target.id === 'o111_l'
+        && out.copy.left > out.copy.right + 2 && out.copy.sel !== 'o111_l', JSON.stringify(out.copy));
+  {
+    const c = out.card || {};
+    const same = (a, b)=> a && b && a.length === 1 && b.length === 1 && Math.abs(a[0][0] - b[0][0]) < 0.01 && Math.abs(a[0][1] - b[0][1]) < 0.01;
+    check('a card\'s picture is drawn the same size when its border is turned wavy', same(c.plain, c.wavy), JSON.stringify(c));
+    check('…a picture that fits its band has nothing behind it, and the ripple\'s crests are filled with it blurred',
+          c.backPlain === 0 && c.backWavy === 1, JSON.stringify(c));
+    check('…a picked card does not light its picture across the rule', c.lit === 'none', c.lit);
+    const z = c.resized || {};
+    check('…resizing the card keeps its picture\'s size, and fills the band round it',
+          z.size && z.size[0] > c.plain[0][0] + 20 && z.pic && z.pic.length === 1
+          && Math.abs(z.pic[0][0] - c.plain[0][0]) < 1.5 && Math.abs(z.pic[0][1] - c.plain[0][1]) < 1.5 && z.back === 1
+          && Math.abs(z.kept[0] - c.plain[0][0]) < 1, JSON.stringify(z));
+  }
+  check('…a carry back to where it started writes no face, and undo takes it out',
+        out.back[1] === null && out.undone[0] === 'top' && out.undone[1] === null, JSON.stringify(out));
+
+  /* 4. On a phone the entry's sheet comes up folded to its heading, opens
+        and folds by a swipe on it, and is put away by one more; its field's
+        Enter is a new line, and the ✓ settles it. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  const sheet = {};
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(700);
+    const id = await pp.evaluate(()=>{
+      applyEdit(()=> workingNodes.push(['o111_p','Phone entry',null,null,null,null,{pos:[141000, 141000]}]));
+      rebuildChart();
+      const n = nodes.get('o111_p'); vs = 1.2; vx = -(n.x - 100) * 1.2; vy = -(n.y - 150) * 1.2; applyTransform();
+      return n.id;
+    });
+    await wait(200);
+    const c = await pp.evaluate((id)=>{ const b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2}; }, id);
+    await pp.touchscreen.tap(c.x, c.y); await wait(500);
+    const state = ()=> pp.evaluate(()=>{ const d = document.getElementById('detail');
+      return {open: d.classList.contains('open'), peek: d.classList.contains('peek'), full: d.classList.contains('full'),
+              h: Math.round(d.getBoundingClientRect().height), sel: selectedId}; });
+    const cdp = await phone.newCDPSession(pp);
+    const swipe = async (dy)=>{
+      const h = await pp.evaluate(()=>{ const b = document.querySelector('#detail .detail-head').getBoundingClientRect();
+        return {x: b.x + 40, y: b.y + 10}; });
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:h.x, y:h.y}]});
+      for(let i = 1; i <= 5; i++){
+        await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:h.x, y:h.y + dy * i / 5}]});
+        await wait(16);
+      }
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+      await wait(300);
+      return state();
+    };
+    sheet.tapped = await state();
+    sheet.up = await swipe(-80);
+    sheet.down = await swipe(80);
+    sheet.away = await swipe(80);
+    /* The field: Enter breaks the line, the ✓ keeps it. */
+    await pp.evaluate((id)=> openNodeEditor(id), id); await wait(150);
+    await pp.keyboard.press('End'); await pp.keyboard.press('Enter'); await pp.keyboard.type('two');
+    await wait(100);
+    sheet.typing = await pp.evaluate(()=> ({open: !!nodeEditorTarget, value: document.getElementById('nodeEditorText').value}));
+    const d = await pp.evaluate(()=>{ const b = document.getElementById('nodeEditorDone').getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2, w: b.width}; });
+    await pp.touchscreen.tap(d.x, d.y); await wait(300);
+    sheet.done = await pp.evaluate((id)=> ({open: !!nodeEditorTarget, label: nodes.get(id).label}), id);
+  } finally {
+    await phone.close();
+  }
+  check('on a phone a picked entry\'s sheet comes up folded to its heading',
+        sheet.tapped && sheet.tapped.open && sheet.tapped.peek && sheet.tapped.h < 120, JSON.stringify(sheet.tapped));
+  check('…a swipe up on its heading opens it, a swipe down folds it, and one more puts it away',
+        sheet.up && sheet.up.full && sheet.down.peek && !sheet.away.open && sheet.away.sel === null, JSON.stringify(sheet));
+  check('…a phone\'s Enter in a field is a new line, and the field\'s ✓ settles it',
+        sheet.typing && sheet.typing.open && /\ntwo$/.test(sheet.typing.value) && sheet.done && !sheet.done.open
+        && /\ntwo$/.test(sheet.done.label), JSON.stringify(sheet.typing) + JSON.stringify(sheet.done));
   });
 
   await scenario("nothing threw along the way", async () => {

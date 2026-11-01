@@ -372,6 +372,13 @@ const richFields = new Map();   // textarea id -> {textarea, surface}
    the field has let go of the keyboard. Blurring alone is enough for the
    fields that commit as you type; the ones with a button of their own name
    it here so Enter and the button are the same gesture. */
+/* Whether the keys being typed with are drawn on the screen: a finger
+   has been used on this page, and the device's own pointer is one. A
+   laptop with a touch screen that was touched once still has its keys. */
+function keysAreOnScreen(){
+  return document.body.classList.contains('touch-input') &&
+         !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
 const richEnterActions = new Map();
 function setRichEnter(id, fn){ richEnterActions.set(id, fn); }
 function setRichValue(textarea, markup){
@@ -423,10 +430,15 @@ function makeRichField(textarea){
    * than letting the browser start whatever block it fancies — contenteditable
    * answers a plain Enter with a <div> or a <p> depending on the browser, and
    * the markup reader then has to guess at line boundaries. */
+  /* …except on a keyboard drawn on the screen (the owner's list of 1.11).
+     A phone's has no Shift+Enter to give, so a field there could hold one
+     line and no more; its Enter is the break, and the field is settled
+     the way everything else on a phone is let go of — a tap anywhere
+     else, or the ✓ on the field's own toolbar. */
   surface.addEventListener('keydown', ev=>{
     if(ev.key !== 'Enter' || ev.isComposing) return;
     ev.preventDefault();
-    if(ev.shiftKey){ document.execCommand('insertLineBreak'); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
+    if(ev.shiftKey || keysAreOnScreen()){ document.execCommand('insertLineBreak'); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
     // Whatever is in the surface reaches the textarea BEFORE the field is
     // asked to settle (the input listener above writes it, first of all the
     // field's listeners), so a field that settles from `.value` never loses
