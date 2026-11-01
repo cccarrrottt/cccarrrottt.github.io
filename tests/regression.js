@@ -21493,6 +21493,55 @@ async function main(){
   check('no line on the owner\'s chart runs back on itself', out.owner.length === 0, out.owner.join(' '));
   });
 
+  await scenario("the owner's list of 1.11: a merged arrow keeps its face", async () => {
+  await page.evaluate(()=>{
+    window.__keep111 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    return true;
+  });
+  const X = 141000, Y = 141000;
+  const out = {};
+  try{
+    await page.mouse.move(5, 940);
+    /* 1. An entry carried past its bar keeps the face its merged arrow
+          came in by, and a carry that comes back writes nothing. */
+    await page.evaluate(([X, Y])=>{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      applyEdit(()=>{
+        workingNodes.push(['o111_a','Alpha',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['o111_b','Beta',null,null,null,null,{pos:[X + 200, Y]}]);
+        workingNodes.push(['o111_m','Gamma',['o111_a','o111_b'],null,null,null,{pos:[X + 100, Y + 300], merge:true}]);
+      });
+      rebuildChart();
+    }, [X, Y]);
+    const carry = async (dy)=>{
+      const c = await page.evaluate(()=>{
+        const b = document.querySelector('.node[data-id="o111_m"]').getBoundingClientRect();
+        return {x: b.x + b.width/2, y: b.y + b.height/2};
+      });
+      await page.mouse.move(c.x, c.y); await page.mouse.down();
+      for(let i = 1; i <= 12; i++){ await page.mouse.move(c.x, c.y + dy * i / 12); await wait(16); }
+      await page.mouse.up(); await wait(120);
+      return page.evaluate(()=> [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]);
+    };
+    out.back = await carry(0);
+    out.side0 = await page.evaluate(()=> mergedArrowPorts.get('o111_m').p2.side);
+    out.across = await carry(-480);
+    out.undone = await page.evaluate(()=>{ undoLastEdit(); return [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]; });
+  } finally {
+    await page.evaluate(()=>{
+      closeStyleBar(); closeEdgePopover(); deselect();
+      const k = window.__keep111;
+      applyEdit(()=>{ workingNodes.length = 0; k.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; k.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+    });
+  }
+  check('a merged arrow keeps its face when its entry is carried past the bar',
+        out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
+  check('…a carry back to where it started writes no face, and undo takes it out',
+        out.back[1] === null && out.undone[0] === 'top' && out.undone[1] === null, JSON.stringify(out));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

@@ -997,6 +997,7 @@ window.addEventListener('mousemove', e=>{
        gives way to it or jumps across the lineages when the entry passes
        their middle. See fixAmalgamBars. */
     st.barsFixed = fixAmalgamBars(st.members.map(m=> m.id));
+    st.arrowsPinned = pinMergedArrowSides(st.members.map(m=> m.id));
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and
@@ -1269,6 +1270,7 @@ window.addEventListener('mouseup', ()=>{
     // bar the carry fixed, since nothing has been done.
     carryBends(st, 0, 0);
     unfixAmalgamBars(st.barsFixed);
+    unpinMergedArrowSides(st.arrowsPinned);
     return;
   }
   /* Any bend these entries' connectors no longer need goes with the drop;
