@@ -11,9 +11,18 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.23.2';
+const APP_VERSION = '0.24.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.24.0', date:'2026-11-01', title:'As it was asked', notes:[
+'A merged arrow keeps the face of its entry it came in on when the entry is carried past the bar, rather than being moved to the other side.',
+'A faint button beside every entry copies a link to it, so a link entry can be pointed at another link entry too. It stands clear of the box and of its port.',
+'A card\'s picture keeps its size when the border turns wavy and when the whole entry is resized; where it does not fill its band, the band shows a blurred, enlarged copy of it, as video sites do.',
+'On a phone, a picked entry\'s panel opens low and folded, and a swipe on its header unfolds or folds it. Enter makes a new line in a field, and a check mark beside the editor\'s buttons, or a tap elsewhere, keeps the edit.',
+'A curve leaves and meets its entries more gently: a bend of one corner is a round arc, and the ends of a longer curve run straight a little further before turning, so there is no hook under an arrowhead.',
+'A note along its connector is framed, and stands on its band, as a level note does: its words sit in the middle of the band, and its outline is the same box.',
+'A multiversal hub\'s rings and a local multiverse\'s sheets, moving, pass through exactly the picture they make standing still.'
+  ]},
   {v:'0.23.2', date:'2026-11-01', title:'Told, not stuck', notes:[
 'An owner who signs in and is not handed the editor is told why on the page: the write service failed, or the page is older than the repository. Both messages were written before, and hidden on a page that was still a reader\'s.'
   ]},

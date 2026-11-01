@@ -6,6 +6,31 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.24.0 — "As it was asked" (2026-11-01)
+
+The owner's list of seven, from 1.11.
+
+- **A merged arrow keeps its face** when its entry is carried past the bar
+  (`pinMergedArrowSides`, `15-amalgam.js`): the side it had is written
+  down for the drag, and let go again on a snap back.
+- **A copy-link button beside every entry** (`.node-copy-link`), faint
+  until the entry is under the pointer, standing clear of the box and its
+  right port — so a link entry can be given another link entry's address.
+- **A card's picture keeps its size** across a wavy border and a resize
+  of the whole entry; a band it does not fill shows a blurred, enlarged
+  copy of it behind.
+- **On a phone** the picked entry's panel opens folded and is swiped open
+  or shut by its header; Enter is a new line, and ✓ (or a tap elsewhere)
+  keeps the edit.
+- **Curves without a hook** (`curveThrough`, `06-edge-geometry.js`): one
+  corner is a fillet, and a longer route's end legs are lengthened before
+  the spline is laid through it.
+- **A note along its line is framed and grounded** as a level one is:
+  its ink centred in the band, the same box for an outline.
+- **The hub's echo and the local stack, moving, pass through the still
+  picture**: one more ring or sheet while it moves, each at the strength
+  and weight of the still one at its place.
+
 ## 0.23.2 — "Told, not stuck" (2026-11-01)
 
 After 0.23.1 the owner signed in on the site and nothing happened. The
