@@ -1172,7 +1172,7 @@
   .edge-note-along-frame{stroke:var(--ink);}
   .edge-note-along-ground{stroke:var(--paper);}
   .edge-note-text.edge-note-along-ring{
-    fill:none;stroke:var(--paper);stroke-width:3px;stroke-linejoin:round;pointer-events:none;
+    fill:none;stroke:var(--paper);stroke-width:2px;stroke-linejoin:round;pointer-events:none;
   }
   .edge-note.dim{opacity:0.08;}
   /* The arrowheads and an amalgam's beads are their own shapes in their

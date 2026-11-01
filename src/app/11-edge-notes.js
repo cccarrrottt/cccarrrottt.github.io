@@ -1043,16 +1043,25 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
      each letter's ring was laid over the letter before it and ate its
      edge — an o came out a c (the owner's report, 23.10). */
   const words = stripMarkup(text).replace(/\s+/g, ' ').trim();
+  /* Centred on the line by their INK, as a level plate is built round its
+     words' ink (the owner's list of 1.11). They were set on the middle of
+     the face's box, which is not the middle of the letters: the words sat
+     a few units low in their band, and the band, sized from the face
+     rather than from the letters, stood further off them than a plate's
+     frame does. The baseline goes onto the line, and down by half of
+     what the letters reach above it less what they reach below. */
   const lay = (cls)=>{
     const t = el('text', {class:'edge-note-text ' + cls}, g);
     t.style.textAnchor = 'middle';
-    t.style.dominantBaseline = 'central';
     const tp = el('textPath', {href: '#' + id}, t);
-    tp.textContent = words;
-    return {t, tp};
+    const span = el('tspan', {}, tp);
+    span.textContent = words;
+    return {t, tp, span};
   };
   const ring = lay('edge-note-along-ring');
   const ink = lay('edge-note-along' + (pos === 'on' ? ' on-line' : ''));
+  const inkH = noteAlongInk(words, ink.t);
+  [ring, ink].forEach(w=> w.span.setAttribute('dy', ((inkH.up - inkH.down) / 2).toFixed(2)));
   if(paint) ink.t.style.fill = paint;
   if(bg) ring.t.style.stroke = bg;
   /* Held inside the line: a note slid near an end ran its words off it,
@@ -1063,13 +1072,21 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   else at = Math.max(half, Math.min(total - half, at));
   ring.tp.setAttribute('startOffset', at.toFixed(2));
   ink.tp.setAttribute('startOffset', at.toFixed(2));
-  /* Framed, when asked: a band of the note's ground round the words with
-     the connector's ink at its edges, bending as they do — the plate's
-     frame, laid along the line. Two strokes of one stretch of the copy,
-     the wider in ink under the narrower in ground; square or round at
-     its ends and turns as the plate's corners are. */
-  if(style && style.noteAlongFrame && half > 0){
-    const pad = TEXT_GAP + EDGE_NOTE_FRAME_W + 1;
+  /* A band of the note's ground round the words, bending as they do — the
+     plate laid along the line — and, framed, the connector's ink at its
+     edges. Two strokes of one stretch of the copy, the wider in ink under
+     the narrower in ground; square or round at its ends and turns as the
+     plate's corners are.
+   *
+     The same distances as the plate's: the ground a TEXT_GAP past the
+     letters, the frame's ink beyond that. And there whether framed or
+     not, as a plate is: unframed, the words were ringed letter by letter
+     instead, so the paper round a note was a box on a level note and the
+     outline of its letters on one along its line (the owner's list of
+     1.11). */
+  if(half > 0){
+    const framed = !!(style && style.noteAlongFrame);
+    const pad = TEXT_GAP;
     const piece = alongSlice(run, at - half - pad, at + half + pad);
     /* The ink runs a frame's width past the ground at either end, or a
        square band showed its frame above and below the words and nothing
@@ -1078,20 +1095,34 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
     if(piece.length > 1){
       const dOf = (q)=> q.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ');
       const d = dOf(piece);
-      const band = EDGE_NOTE_FS * 1.2 + TEXT_GAP * 2;
-      const round = style.noteSquare === false;
+      const band = inkH.up + inkH.down + TEXT_GAP * 2;
+      const round = !!(style && style.noteSquare === false);
       const look = {fill:'none', 'stroke-linecap': round ? 'round' : 'butt',
                     'stroke-linejoin': round ? 'round' : 'miter'};
-      const edge = el('path', Object.assign({class:'edge-note-along-frame', d: round || outer.length < 2 ? d : dOf(outer),
-                                             'stroke-width': (band + EDGE_NOTE_FRAME_W * 2).toFixed(2)}, look));
       const ground = el('path', Object.assign({class:'edge-note-along-ground', d,
                                                'stroke-width': band.toFixed(2)}, look));
-      if(paint) edge.style.stroke = paint;
       if(bg) ground.style.stroke = bg;
       g.insertBefore(ground, ring.t);
-      g.insertBefore(edge, ground);
+      if(framed){
+        const edge = el('path', Object.assign({class:'edge-note-along-frame', d: round || outer.length < 2 ? d : dOf(outer),
+                                               'stroke-width': (band + EDGE_NOTE_FRAME_W * 2).toFixed(2)}, look));
+        if(paint) edge.style.stroke = paint;
+        g.insertBefore(edge, ground);
+      }
     }
   }
+}
+/* How far a note's letters reach above their baseline and below it, in
+   the note's face — the same measure inkBoxOf takes of a level note. A
+   note with no ink measures as a capital and a descender would. */
+function noteAlongInk(words, t){
+  const fallback = {up: EDGE_NOTE_FS * 0.72, down: EDGE_NOTE_FS * 0.21};
+  if(!inkCtx || !words || !t) return fallback;
+  const cs = getComputedStyle(t);
+  inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${(parseFloat(cs.fontSize) || EDGE_NOTE_FS) * INK_SCALE}px ${cs.fontFamily}`;
+  const m = inkCtx.measureText(words);
+  if(!Number.isFinite(m.actualBoundingBoxAscent) || !(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > 0)) return fallback;
+  return {up: m.actualBoundingBoxAscent / INK_SCALE, down: Math.max(0, m.actualBoundingBoxDescent / INK_SCALE)};
 }
 /* The point a fraction of the way along a line, by length. */
 function alongPoint(pts, f){

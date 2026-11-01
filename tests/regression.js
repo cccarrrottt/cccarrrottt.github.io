@@ -21600,6 +21600,32 @@ async function main(){
       const tilt = Math.abs(((heads.in + 90) % 360 + 540) % 360 - 180);
       return {back: +back.toFixed(2), tilt: +tilt.toFixed(1), n: P.length};
     }, [X, Y]);
+    /* 6. A note along its line is framed as a level one is — the frame as
+          far from the words, the words in its middle — and sits on the
+          same kind of ground, framed or not. */
+    out.noteFrames = await page.evaluate(async ([X, Y])=>{
+      applyEdit(()=>{
+        const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above'};
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}], ['ab', {noteAlong:true}]].forEach(([k, o], i)=>{
+          workingNodes.push(['o111_' + k + 'a','A',null,null,null,null,{pos:[X - 600, Y + 300 + i * 60]}]);
+          workingNodes.push(['o111_' + k + 'b','B','o111_' + k + 'a',null,null,null,{pos:[X - 420, Y + 300 + i * 60]}]);
+          EDGE_STYLES.push(Object.assign({from:'o111_' + k + 'a', to:'o111_' + k + 'b'}, base, o));
+        });
+      });
+      rebuildChart();
+      const g = k=> document.querySelector(`.edge-note[data-from="o111_${k}a"]`);
+      const plate = g('lv').querySelector('.edge-note-plate');
+      const frame = g('al').querySelector('.edge-note-along-frame');
+      /* Where the words' ink stands across the band: the canvas measures
+         the letters, the path says where the band's middle is. */
+      const word = g('al').querySelector('text.edge-note-along');
+      const span = word.querySelector('tspan');
+      const ink = noteAlongInk(span.textContent, word);
+      const mid = +span.getAttribute('dy') - (ink.up - ink.down) / 2;
+      return {plateH: +plate.getAttribute('height') + EDGE_NOTE_FRAME_W, frameW: frame && +frame.getAttribute('stroke-width'),
+              off: +mid.toFixed(3), bareGround: !!g('ab').querySelector('.edge-note-along-ground'),
+              bareFrame: !!g('ab').querySelector('.edge-note-along-frame')};
+    }, [X, Y]);
     /* 2. Beside every entry, a link node too, a faint button copies a
           link to it, standing clear of the box and of its right port. */
     const lk = await page.evaluate(([X, Y])=>{
@@ -21641,6 +21667,12 @@ async function main(){
         out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
   check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
         out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
+  {
+    const n = out.noteFrames || {};
+    check('a note along its line is framed as far from its words as a level one, its words in the middle',
+          n.frameW && Math.abs(n.frameW - n.plateH) < 0.6 && Math.abs(n.off) < 0.01, JSON.stringify(n));
+    check('…and unframed it sits on a band of ground, as a level one sits on its plate', n.bareGround && !n.bareFrame, JSON.stringify(n));
+  }
   check('a faint button beside an entry copies a link to it, outside its box',
         out.copy && out.copy.op > 0.2 && out.copy.op < 0.7 && out.copy.target && out.copy.target.id === 'o111_l'
         && out.copy.left > out.copy.right + 2 && out.copy.sel !== 'o111_l', JSON.stringify(out.copy));
