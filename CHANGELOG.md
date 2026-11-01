@@ -6,6 +6,40 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.23.1 — "Locked down" (2026-11-01)
+
+The rest of the project review's list.
+
+- **A Content-Security-Policy on the site** (`site_policy`, `build.py`),
+  as a `<meta>` since Pages sends no headers. Scripts only from the site
+  itself (and Cloudflare's counter when there is one), inline only by hash
+  — the fonts' `onload`, found in the page, and the prerendered drawing's
+  placement, which `tools/prerender.js` adds beside it — and nothing from a
+  string, nothing embedded, no `<base>`, no form. The owner's session sits
+  in `localStorage` and opens a token that can write to the repository;
+  this is what keeps a script nobody wrote from reading it. Outside the
+  page's markers, so an export, which runs its program inline, carries
+  none.
+- **The version log on the site is JSON** (`js_literal_json`, `build.py`)
+  and read with `JSON.parse`. It was run with `Function()`, which the
+  policy forbids. An export puts it back as before; JSON is an expression.
+- **SVG is not lifted out as a file.** Opened at its own address an SVG is
+  a document whose scripts run as the site. The page keeps one embedded as
+  a `data:` URI, which is only ever drawn, and the write service refuses
+  `media/*.svg`.
+- **The service worker answers a Range from a kept file with a 206** cut
+  from it, and fetches the whole file beside a piece the network served,
+  so a clip kept for no signal plays in Safari, which will not take a 200.
+- **It lets go of pictures** that neither the newest page nor the one
+  before it names, as it already did for the program.
+- **`/suggest` is limited**: ten suggestions waiting and five an hour per
+  account, counted from the account's own issues, the owner exempt.
+- **The chart's two GIFs are animated WebP** (ffmpeg, quality 80): 383 KB
+  and 304 KB became 69 KB and 56 KB, and what a first visit downloads in
+  pictures went from 994 KB to 433 KB. They still stand still until
+  hovered. The GIF files stay in `src/media/`, since a page or an outbox
+  from before may still name them.
+
 ## 0.23.0 — "The chart as data" (2026-11-01)
 
 The next step of the plan agreed after the project review: with the

@@ -11,9 +11,17 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.23.0';
+const APP_VERSION = '0.23.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.23.1', date:'2026-11-01', title:'Locked down', notes:[
+'The site now says which scripts may run on it: its own files and nothing typed into the page or made from a string. The owner\'s sign-in is kept in the browser, and a script that got onto the site some other way could have read it.',
+'An SVG picture stays inside the chart rather than becoming a file on the site, where opening it by its address could run a script in it. The write service refuses one sent as a file.',
+'A clip kept on the device for use with no signal plays in Safari: it is handed over in the pieces the player asks for, as a server would.',
+'Pictures no longer on the chart are let go from the device, as an old program already was.',
+'One account may have ten suggestions waiting and make five an hour; the owner is not counted.',
+'The two moving pictures on the chart are animated WebP rather than GIF: the same frames at a sixth of the weight, so a first visit downloads 0.4 MB of pictures rather than 1 MB.'
+  ]},
   {v:'0.23.0', date:'2026-11-01', title:'The chart as data', notes:[
 'The chart is a file of its own now, chart.json, and the page reads it as data rather than running it as part of its program. Export the contents writes that same file, which Import reads back; the older contents file, data.js, is gone from the menu, and a file of that kind from before still opens.',
 'Two saves made on one chart are put together by what they changed, not by the lines of a file: two different settings changed on two devices are both kept, and a chart written another way merges the same.'
@@ -374,8 +382,9 @@ const VERSION_LOG = [
    tenth of it, and the part almost nobody opens About for, so build_site
    (build.py) lifts it into a file beside the program and leaves its name
    here, and the history is fetched the first time it is unfolded. Every
-   other copy — the single page, an export, the artifact — carries it as
-   written; an export from the site has it put back (inlineSiteFiles). */
+   other copy — the single page, an export — carries it as written; an
+   export from the site has it put back (inlineSiteFiles), as JSON, which
+   is an expression as good as the literal. */
 const VERSION_LOG_FILE_RE = /"(versions\.[0-9a-f]{16}\.js)"/;
 let versionLogLoaded = Array.isArray(VERSION_LOG) ? VERSION_LOG : null;
 async function versionLogText(name){
@@ -407,9 +416,11 @@ function renderVersionInfo(){
     list.dataset.asked = '1';
     list.innerHTML = '<p class="version-foot">Loading…</p>';
     try{
-      /* The file is the log exactly as written in the source — a literal,
-         not JSON — and it is this site's own file, named by its bytes. */
-      versionLogLoaded = Function('"use strict"; return (' + await versionLogText(VERSION_LOG) + ');')();
+      /* The file is the log as JSON (js_literal_json, build.py), read as
+         data. It used to be the literal as the source writes it, run with
+         Function() — which the site's policy on scripts now forbids,
+         so that a script nobody wrote cannot be run either. */
+      versionLogLoaded = JSON.parse(await versionLogText(VERSION_LOG));
       list.innerHTML = versionEntriesHtml(versionLogLoaded);
     } catch(e){
       delete list.dataset.asked;

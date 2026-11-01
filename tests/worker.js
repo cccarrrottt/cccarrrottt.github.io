@@ -93,13 +93,14 @@ function fakeGitHub(){
     if(p === '/issues' || /^\/issues\/\d+$/.test(p)){
       if(!gh.issuesAllowed) return new Response('{}', {status: 403});
       if(p === '/issues' && method === 'GET'){
-        const n = Number(u.searchParams.get('page') || 1);
-        const open = gh.issues.filter(i => i.state === 'open').slice().reverse();
+        const n = Number(u.searchParams.get('page') || 1), by = u.searchParams.get('creator');
+        const all = u.searchParams.get('state') === 'all';
+        const open = gh.issues.filter(i => (all || i.state === 'open') && (!by || (i.user && i.user.login) === by)).slice().reverse();
         return ok(open.slice((n - 1) * 100, n * 100));
       }
       if(p === '/issues' && method === 'POST'){
         const issue = {number: gh.issues.length + 1, state: 'open', title: body.title, body: body.body,
-                       user: {login: gh.users[auth]}, created_at: '2026-10-17T12:00:00Z',
+                       user: {login: gh.users[auth]}, created_at: new Date().toISOString(),
                        html_url: 'https://github.com/owner/site/issues/' + (gh.issues.length + 1)};
         gh.issues.push(issue);
         return ok(issue);
@@ -347,6 +348,16 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
   check('a picture whose bytes are not what its name says is refused', r.status === 400 && gh.head === picHead);
   r = await post(s, {base: gitSha(after), chart: withPic, media: {['media/' + picHex + '.exe']: picture.toString('base64')}});
   check('and so is one named as no picture may be', r.status === 400 && gh.head === picHead);
+  /* An SVG on the site would have an address, and opened there its
+     scripts would run beside the owner's session; the page keeps one
+     embedded, and the service will not give it a file either. */
+  {
+    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    const svgRef = 'media/' + nodeCrypto.createHash('sha256').update(svg).digest('hex') + '.svg';
+    const withSvg = chartWith(c => { c.media.push({key: 'svg', name: 'svg', kind: 'image', src: svgRef}); });
+    r = await post(s, {base: gitSha(after), chart: withSvg, media: {[svgRef]: svg.toString('base64')}});
+    check('an SVG is refused as a file, even named for exactly what its bytes are', r.status === 400 && gh.head === picHead);
+  }
   r = await post(s, {base: gitSha(after), chart: withPic});
   body = await r.json();
   check('a chart naming a picture the repository does not have, and not sending it, is refused',
@@ -592,6 +603,37 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
   r = await call('/suggestions', auth(s));
   body = await r.json();
   check('and it leaves the list', body.owner === true && body.suggestions.map(x => x.number).join() === '2');
+
+  /* Anyone with a GitHub account can suggest, so one account is held to a
+     few: ten waiting, five an hour, the owner exempt. */
+  {
+    const keep = gh.issues.slice();
+    const old = new Date(Date.now() - 2 * 3600e3).toISOString();
+    gh.issues.length = 0;
+    const theirs = (state, at) => gh.issues.push({number: gh.issues.length + 1, state, title: 'Addition: x', created_at: at,
+      body: w.suggestionBody('x', null, 'addition', false), user: {login: 'a-reader'}});
+    for(let i = 0; i < 9; i++) theirs('open', old);
+    gh.issues.push({number: gh.issues.length + 1, state: 'open', title: 'A bug', body: 'not a suggestion', user: {login: 'a-reader'}, created_at: old});
+    r = await suggest(reader, {kind: 'addition', text: 'the tenth'});
+    check('a reader with nine suggestions waiting may make a tenth (an issue about the code is not counted)', r.status === 200, r.status);
+    const n = gh.issues.length;
+    r = await suggest(reader, {kind: 'addition', text: 'the eleventh'});
+    body = await r.json();
+    check('but not an eleventh, and is told why', r.status === 429 && gh.issues.length === n && /waiting/.test(body.error), r.status + ' ' + JSON.stringify(body));
+    r = await suggest(s, {kind: 'addition', text: 'the owner is not counted'});
+    check('the owner is not held to it', r.status === 200 && gh.issues.length === n + 1, r.status);
+    gh.issues.length = 0;
+    const now = new Date().toISOString();
+    for(let i = 0; i < 5; i++) theirs('closed', now);
+    r = await suggest(reader, {kind: 'addition', text: 'a sixth in the hour'});
+    body = await r.json();
+    check('five in an hour, closed again or not, and the sixth waits', r.status === 429 && gh.issues.length === 5 && /hour/.test(body.error),
+          r.status + ' ' + JSON.stringify(body));
+    gh.issues.forEach(i => { i.created_at = old; });
+    r = await suggest(reader, {kind: 'addition', text: 'later on'});
+    check('and is taken once the hour has gone by', r.status === 200 && gh.issues.length === 6, r.status);
+    gh.issues.length = 0; keep.forEach(i => gh.issues.push(i));
+  }
 
   gh.issuesAllowed = false;
   r = await suggest(reader, {kind: 'addition', text: 'More, please.'});

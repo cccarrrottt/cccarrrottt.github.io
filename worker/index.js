@@ -70,10 +70,18 @@ const DATA_PATH = 'src/chart.json';
 /* Pictures and clips live beside the chart as files of their own, named by
    the SHA-256 of their bytes (MEDIA_REF in the page). The name is checked
    against the bytes here, so a file in the folder is always what it says it
-   is, and one that is already there is simply not written again. */
+   is, and one that is already there is simply not written again.
+
+   An SVG is not among them, and that is the point of the list rather than
+   an omission from it. Opened by its own address, an SVG is a document,
+   and a script in it runs as the site — where the owner's session sits in
+   localStorage. Drawn as an <img> or an <image> it runs nothing, which is
+   all the chart ever does with one; so the page keeps an SVG embedded as a
+   data: URI, which has no address on the site to be opened at, and this
+   refuses a file that would give it one. */
 const MEDIA_DIR = 'src/media';
-const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)$/;
-const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)/g;
+const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)$/;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)/g;
 // A session with nothing to renew itself with lasts as long as its token.
 const SESSION_HOURS = 8;
 // A renewable one lasts this long from its last renewal, so a phone left in
@@ -94,6 +102,14 @@ const SUGGESTION_KINDS = ['correction', 'addition', 'deletion'];
 const MAX_SUGGESTION = 4000;
 const MAX_SUGGESTION_TITLE = 120;
 const SUGGESTION_MARK = 'rhizome-suggestion:';
+/* How many suggestions one reader may have waiting, and how many they may
+   open in an hour. /suggest is open to anyone with a GitHub account, and
+   each one is an issue in the owner's repository and a notification on
+   the owner's phone; without a limit, one script could bury both. Ten
+   waiting is more than anyone writing by hand gets to, and the hour stops
+   the open-and-close that would get round it. The owner is not counted. */
+const MAX_OPEN_SUGGESTIONS = 10;
+const MAX_SUGGESTIONS_AN_HOUR = 5;
 // Issues read per /suggestions, a hundred to a page. The open ones come
 // newest first, so this is the newest three hundred open issues.
 const SUGGESTION_PAGES = 3;
@@ -769,11 +785,26 @@ async function suggest(env, request, ctx){
   const kind = body.kind[0].toUpperCase() + body.kind.slice(1);
   // A title of the reader's own, when they gave one: one line, as a title is.
   const title = String(typeof body.title === 'string' ? body.title : '').replace(/\s+/g, ' ').trim().slice(0, MAX_SUGGESTION_TITLE);
+  if(!s.owner) await withinSuggestionLimits(env, s);
   const issue = await gh(s.gh, `/repos/${env.REPO}/issues`, {method: 'POST', body: JSON.stringify({
     title: `${kind}: ${title || (entry && label ? label : 'the chart')}`,
     body: suggestionBody(text, entry, body.kind, !!title)
   })}, 'GitHub refused: the sign-in app may not open issues here. It needs the Issues permission.');
   return {suggestion: Object.assign(readSuggestion(issue) || {}, {mine: true})};
+}
+
+/* This reader's newest hundred issues, open and closed, asked of GitHub
+   rather than kept here: the service keeps nothing, and the issues are the
+   record. Only suggestions count — an issue about the code is not one. */
+async function withinSuggestionLimits(env, s){
+  const mine = await gh(s.gh, `/repos/${env.REPO}/issues?state=all&creator=${encodeURIComponent(s.login)}&sort=created&direction=desc&per_page=100`,
+                        undefined, 'GitHub refused: the sign-in app may not read this repository\'s issues. It needs the Issues permission.');
+  const theirs = (Array.isArray(mine) ? mine : []).filter(i => readSuggestion(i));
+  if(theirs.filter(i => i.state === 'open').length >= MAX_OPEN_SUGGESTIONS)
+    throw httpError(429, `you have ${MAX_OPEN_SUGGESTIONS} suggestions waiting already; once the owner has read some, there is room for more.`);
+  const hourAgo = Date.now() - 3600e3;
+  if(theirs.filter(i => Date.parse(i.created_at) > hourAgo).length >= MAX_SUGGESTIONS_AN_HOUR)
+    throw httpError(429, `that is ${MAX_SUGGESTIONS_AN_HOUR} suggestions in an hour; the next can be made in a little while.`);
 }
 
 async function resolve(env, request, ctx){

@@ -14,7 +14,7 @@
  * repository has moved past it, so that copy never saves over anything.
  *
  * The pictures beside the page are the exception, and kept the other way
- * round: see aPicture. So are the program and the stylesheet, which are
+ * round, and let go once no page names them: see aPicture. So are the program and the stylesheet, which are
  * files beside the page named by their hash (build_site in build.py) and
  * kept the same way, for the same reason: see keepWhatThePageNames.
  *
@@ -53,8 +53,8 @@ self.addEventListener('fetch', ev => {
     return;
   }
   if(req.mode === 'navigate') return;
-  if(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/.test(url.pathname) || HASHED.test(url.pathname) || VERSIONS.test(url.pathname)){
-    ev.respondWith(aPicture(req));
+  if(MEDIA.test(url.pathname) || HASHED.test(url.pathname) || VERSIONS.test(url.pathname)){
+    ev.respondWith(aPicture(req, ev));
     return;
   }
   ev.respondWith(caches.match(req).then(hit => hit || fetch(req)));
@@ -63,14 +63,45 @@ self.addEventListener('fetch', ev => {
 /* A picture beside the chart is named by the hash of its bytes, so the copy
    kept is never behind: it is asked of the cache first, and kept the first
    time it is fetched — which is what lets a chart opened with no signal
-   still show the pictures it showed the last time. Asked for in pieces (a
-   clip being played), it goes to the network as asked and is kept whole
-   only when the answer was whole. */
-function aPicture(req){
-  return caches.open(CACHE).then(c => c.match(req.url).then(hit => hit || fetch(req).then(res => {
-    if(res.status === 200) c.put(req.url, res.clone());
-    return res;
-  })));
+   still show the pictures it showed the last time.
+
+   A clip is asked for in pieces, by Range, and the network answers each
+   with a 206 that is no use to keep. So a piece asked of the network is
+   handed over as it came and the whole file is fetched beside it to keep;
+   and a piece asked of a kept file is cut from it (piece). Answering a
+   Range with the whole file and a 200, as this did, is what Chrome
+   forgives and Safari does not: it plays nothing. */
+const MEDIA = /\/media\/[0-9a-f]{64}\.[a-z0-9]+$/;
+function aPicture(req, ev){
+  const range = req.headers.get('range');
+  return caches.open(CACHE).then(c => c.match(req.url).then(hit => {
+    if(hit) return range ? piece(hit, range) : hit;
+    return fetch(req).then(res => {
+      if(res.status === 200) c.put(req.url, res.clone());
+      else if(res.status === 206 && ev) ev.waitUntil(fetch(req.url).then(whole => whole.status === 200 && c.put(req.url, whole)).catch(() => {}));
+      return res;
+    });
+  }));
+}
+/* The bytes a Range asks for, from a whole kept file, as a server answers:
+   206 with Content-Range, or 416 when they are past its end. One range
+   only, which is all a media element asks for; anything else gets the
+   whole file, as before. */
+function piece(whole, range){
+  const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+  if(!m || (m[1] === '' && m[2] === '')) return whole;
+  return whole.arrayBuffer().then(buf => {
+    const size = buf.byteLength;
+    let start, end;
+    if(m[1] === ''){ start = Math.max(0, size - Number(m[2])); end = size - 1; }
+    else { start = Number(m[1]); end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1); }
+    if(start >= size || start > end) return new Response(null, {status: 416, headers: {'Content-Range': `bytes */${size}`}});
+    return new Response(buf.slice(start, end + 1), {status: 206, headers: {
+      'Content-Type': whole.headers.get('Content-Type') || 'application/octet-stream',
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Content-Length': String(end - start + 1),
+      'Accept-Ranges': 'bytes'}});
+  });
 }
 
 /* The program and the stylesheet, by the names the page gives them: the
@@ -92,13 +123,20 @@ const VERSIONS = /\/versions\.[0-9a-f]{16}\.js$/;
 const HASHED = /\/(?:app|style)\.[0-9a-f]{16}\.(?:js|css)$/;
 const namedIn = text => [...String(text || '').matchAll(/(?:src|href)="((?:app|style)\.[0-9a-f]{16}\.(?:js|css))" data-inline/g)]
   .map(m => new URL(m[1], PAGE).href);
+/* Pictures are let go the same way, by what the two pages' charts name.
+   They are not fetched ahead: a picture is kept once it has been shown. A
+   picture taken off the chart used to stay on the device for good. */
+const mediaIn = text => [...String(text || '').matchAll(/media\/[0-9a-f]{64}\.[a-z0-9]+/g)].map(m => new URL(m[0], PAGE).href);
 function keepWhatThePageNames(c, text, before){
   const names = namedIn(text), spared = names.concat(namedIn(before));
   if(!names.length) return Promise.resolve();
+  const pictures = new Set(mediaIn(text).concat(mediaIn(before)));
   return Promise.all(names.map(u => c.match(u).then(hit => hit || c.add(u))))
     .then(() => c.keys())
-    .then(keys => Promise.all(keys.filter(k => HASHED.test(new URL(k.url).pathname) && spared.indexOf(k.url) < 0)
-                                  .map(k => c.delete(k))));
+    .then(keys => Promise.all(keys.filter(k => {
+      const at = new URL(k.url).pathname;
+      return HASHED.test(at) ? spared.indexOf(k.url) < 0 : MEDIA.test(at) && !pictures.has(k.url);
+    }).map(k => c.delete(k))));
 }
 
 /* Every address in the site is the one page, kept under one key: the

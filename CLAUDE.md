@@ -196,6 +196,20 @@ site") and `build_guard`:
   script and the program's, and that the files ARE the program and the
   stylesheet minified — so an export from the site carries the minified
   program, which the suite drives as it drives any other.
+- **The site says which scripts may run** — a Content-Security-Policy
+  `<meta>` written by `site_policy` (`build.py`), outside the markers so
+  no export carries it. The owner's session is in localStorage, and this
+  is what keeps a script nobody wrote from reading it. Nothing is run from
+  a string (the version log is JSON, read with `JSON.parse`), and an
+  inline script or handler runs only by its hash: the build hashes every
+  `on…=` it finds in the page, and `tools/prerender.js` adds the hash of
+  the placement script it writes. Something new the page loads from
+  another host, or runs inline, needs its place in the policy, or the
+  site breaks while every other copy works; the suite counts what the
+  policy refuses as a page error on the site.
+- **An SVG is never a file on the site.** Opened at its own address its
+  scripts run as the site; so the page keeps one embedded (`MEDIA_EXT`
+  has no `svg`) and the service refuses `media/*.svg`.
 - **Fonts do not hold up the first drawing.** The UI faces' stylesheet
   loads as `media="print"` and switches itself on; an entry face
   (`FONT_OPTIONS[].web`) is asked for the first time an entry is drawn in

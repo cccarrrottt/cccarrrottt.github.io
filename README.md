@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.23.0** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.23.1** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -443,6 +443,10 @@ somebody who misuses it is blocked with GitHub's own button.
   mark on every entry that has one open.
 - Off the site — a disk, another host — there is no service to carry a
   suggestion, so neither button is shown.
+- One account may have **ten suggestions waiting** and make **five an
+  hour**, counted from its own issues on GitHub; the owner is not counted.
+  Anyone with a GitHub account can post, and each suggestion is a
+  notification on the owner's phone.
 
 The chart's `comments` are what the earlier, claude.ai-era suggestions were
 kept in. Save, Export and Import still carry it, so a chart that has some
