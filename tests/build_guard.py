@@ -7,7 +7,7 @@ and nothing else, that the program is its parts in their order, and that
 the site is that page with its program and stylesheet beside it.
 
 Every case runs against a throwaway copy of the project, so nothing here
-can touch the real src/data.js.
+can touch the real src/chart.json.
 
     python3 tests/build_guard.py
 """
@@ -81,29 +81,35 @@ def run(tmp, *args, extra_env=None):
                           cwd=tmp, capture_output=True, text=True, env=env)
 
 
+CHART_RE = re.compile(r'<script type="application/json" id="chart-data">\n(.*?)\n</script>', re.S)
+
+
+def chart_of(text):
+    """The chart a page carries: the text of its JSON element."""
+    m = CHART_RE.search(text)
+    return m.group(1) if m else None
+
+
 def edit_one_label(text):
     """A page whose chart has been edited, with the same number of entries.
 
     The hard case for a staleness check, and the ordinary one in life:
-    somebody renamed something. A check that compares how many items a
-    region holds sees nothing at all here, which is why the real one
+    somebody renamed something. A check that compares how many items the
+    chart holds sees nothing at all here, which is why the real one
     compares the text.
     """
-    m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
-                  text, re.S)
-    assert m, 'fixture: no NODES region in the built page'
-    # An entry is a record now ({id:'…', label:'…'}); a page built before
-    # that writes a list (['…', '…']). Either is a label to rename.
-    body, n = re.subn(r"(\{id:'[^']*',\s*label:'|\[\s*'[^']*',\s*')([^']*)(')",
-                      lambda g: g.group(1) + g.group(2) + ' EDITED' + g.group(3),
-                      m.group(2), count=1)
+    m = CHART_RE.search(text)
+    assert m, 'fixture: no chart in the built page'
+    body, n = re.subn(r'("label":")([^"]*)(")', lambda g: g.group(1) + g.group(2) + ' EDITED' + g.group(3),
+                      m.group(1), count=1)
     assert n == 1, 'fixture: found no entry label to rename'
-    return text[:m.start(2)] + body + text[m.end(2):]
+    return text[:m.start(1)] + body + text[m.end(1):]
 
 
-def region_of(text, name):
-    m = re.search(rf'/\* @@EDIT:{name}:START@@ \*/.*?/\* @@EDIT:{name}:END@@ \*/', text, re.S)
-    return m.group(0) if m else None
+def as_in_page(chart):
+    """src/chart.json as the build writes it into a page (chart_script)."""
+    return (chart.rstrip('\n').replace('<', '\\u003c')
+            .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
 
 
 def main():
@@ -127,26 +133,64 @@ def main():
     check('with no read-only declaration built into it',
           '@@SHARE' not in built and '<title>Rhizome Project</title>' in built)
 
-    # The chart is src/data.js and nothing else. A build used to carry the
+    # The chart is src/chart.json and nothing else. A build used to carry the
     # chart over from the dist/nexus.html it was about to replace, because
     # a copy on claude.ai saved into its own page and that page was where
     # the newest chart lived. That copy is gone, and with it every reason
     # for the page a build makes to be anything but a function of src/: a
     # build that read its own previous output could only ever put back
-    # something src/data.js no longer says.
+    # something src/chart.json no longer says.
     tmp = sandbox()
     old = tmp / 'dist' / 'nexus.html'
     old.write_text(edit_one_label(old.read_text(encoding='utf-8')), encoding='utf-8')
-    seed = (tmp / 'src' / 'data.js').read_text(encoding='utf-8')
+    seed = (tmp / 'src' / 'chart.json').read_text(encoding='utf-8')
     r = run(tmp)
     built = old.read_text(encoding='utf-8')
-    check('a build takes the chart from src/data.js, not from the page it replaces',
-          r.returncode == 0 and ' EDITED' not in built and region_of(built, 'NODES') == region_of(seed, 'NODES'),
+    check('a build takes the chart from src/chart.json, not from the page it replaces',
+          r.returncode == 0 and ' EDITED' not in built and chart_of(built) == as_in_page(seed),
           r.stdout + r.stderr)
-    check('and leaves src/data.js as it was',
-          (tmp / 'src' / 'data.js').read_text(encoding='utf-8') == seed)
+    check('and leaves src/chart.json as it was',
+          (tmp / 'src' / 'chart.json').read_text(encoding='utf-8') == seed)
     check('and puts nothing aside, there being nothing a build can lose',
           not (tmp / '.backups').exists() and r.stdout.count('NOTE') == 0, r.stdout)
+
+    # The chart is data in the page, not code: JSON in an element a browser
+    # does not run, which the program reads with JSON.parse. Until 0.23 it
+    # was src/data.js, written into the program's own script.
+    check('the chart is in the page as JSON a browser does not run, apart from the program',
+          built.count('<script type="application/json" id="chart-data">') == 1
+          and built.index('id="chart-data"') < built.index('const APP_VERSION')
+          and '\n</script>\n<script>\n' in built[built.index('id="chart-data"'):built.index('const APP_VERSION')])
+    import json as _json
+    check('and it is src/chart.json, which reads back as the same chart',
+          _json.loads(chart_of(built)) == _json.loads(seed))
+    # A label is the owner's text, and HTML ends a script element at the
+    # first closing tag it meets, in a string or not.
+    hostile = _json.loads(seed)
+    hostile['nodes'][0]['label'] = 'see </script><script>alert(1)</script> and <!-- this \u2028'
+    (tmp / 'src' / 'chart.json').write_text(_json.dumps(hostile, ensure_ascii=False), encoding='utf-8')
+    r = run(tmp)
+    built = old.read_text(encoding='utf-8')
+    inside = chart_of(built) or ''
+    check('a closing script tag in the chart\'s text cannot end the element, nor open a comment',
+          r.returncode == 0 and '<' not in inside and '\u2028' not in inside
+          and _json.loads(inside)['nodes'][0]['label'] == hostile['nodes'][0]['label'], r.stdout + r.stderr)
+    (tmp / 'src' / 'chart.json').write_text(seed[:-3], encoding='utf-8')
+    r = run(tmp)
+    check('a chart.json that is not JSON stops the build, and says so',
+          r.returncode != 0 and 'src/chart.json is not JSON' in (r.stdout + r.stderr), r.stdout + r.stderr)
+    (tmp / 'src' / 'chart.json').write_text('{"format": 4}', encoding='utf-8')
+    r = run(tmp)
+    check('and so does one that is JSON but no chart',
+          r.returncode != 0 and 'no list of entries' in (r.stdout + r.stderr), r.stdout + r.stderr)
+    (tmp / 'src' / 'chart.json').write_text(seed, encoding='utf-8')
+    part = tmp / 'src' / 'app' / '01-store.js'
+    kept = part.read_text(encoding='utf-8')
+    part.write_text(kept.replace("CHART_ELEMENT_ID = 'chart-data'", "CHART_ELEMENT_ID = 'chart'"), encoding='utf-8')
+    r = run(tmp)
+    check('a program that looks for its chart anywhere else stops the build, and says where it lived',
+          r.returncode != 0 and '01-store.js' in (r.stdout + r.stderr), r.stdout + r.stderr)
+    part.write_text(kept, encoding='utf-8')
     r = run(tmp, '--pull', 'x.html')
     check('a flag the build no longer takes is refused, not ignored',
           r.returncode != 0 and '--pull' in (r.stdout + r.stderr), r.stdout + r.stderr)
@@ -235,29 +279,29 @@ def main():
     check('a closing script tag in a part stops the build and names the part',
           r.returncode != 0 and parts[5] in (r.stdout + r.stderr), r.stdout + r.stderr)
 
-    # 10c. The page carries the git blob id of the data.js it was built from.
+    # 10c. The page carries the git blob id of the chart.json it was built from.
     #      The write service refuses a save whose base is not the file in the
     #      repository, so this id being wrong would lock the owner out of
     #      saving — or, worse, being the same for two different files would
     #      let a page that is behind write over a newer chart.
     tmp = sandbox()
     r = run(tmp)
-    raw = (tmp / 'src' / 'data.js').read_bytes()
+    raw = (tmp / 'src' / 'chart.json').read_bytes()
     want = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
     site = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
     meta = f'<meta name="rhizome-data-sha" content="{want}">'
-    check('the page names the data.js it was built from, as git names it',
+    check('the page names the chart.json it was built from, as git names it',
           meta in built and meta in site, want)
     # In the wrapper, outside the page's own markers: what is cut out of the
     # page — an export, a publish to claude.ai — is nobody's base to save on.
     check('outside the content an exported copy is cut from',
           all(p.index(meta) < p.index('<!-- @@PAGE:BEGIN@@ -->') for p in (built, site)))
     app_before = site_files(tmp)
-    (tmp / 'src' / 'data.js').write_bytes(raw + b'\n// one more line\n')
+    (tmp / 'src' / 'chart.json').write_bytes(raw + b'\n')
     run(tmp)
     again = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
-    check('and a different data.js gives a different name',
+    check('and a different chart.json gives a different name',
           meta not in again and '<meta name="rhizome-data-sha" content="' in again)
     # The point of the site's files: a Save changes the chart and nothing a
     # reader's browser has kept.
@@ -274,8 +318,9 @@ def main():
 
     # 10e. The site is the same page with its program and stylesheet beside
     #      it. Put back where their tags stand, they give dist/nexus.html's
-    #      content byte for byte but for the one seam between the chart and
-    #      the program, which the site closes and reopens as two scripts.
+    #      content byte for byte. (There used to be one seam: the chart was
+    #      code in the program's script, which the site closed and reopened
+    #      as two. The chart is its own element now, in both.)
     tmp = sandbox()
     r = run(tmp)
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
@@ -320,7 +365,7 @@ def main():
         if n.endswith('.css'):
             inlined = inlined.replace(f'<link rel="stylesheet" href="{n}" data-inline>', f'<style>{text}</style>')
         else:
-            inlined = inlined.replace(f'\n</script>\n<script src="{n}" data-inline></script>', f'\n{text}</script>')
+            inlined = inlined.replace(f'<script src="{n}" data-inline></script>', f'<script>\n{text}</script>')
     cut = lambda p: p[p.index('<!-- @@PAGE:BEGIN@@ -->'):p.index('<!-- @@PAGE:END@@ -->')]
     check('and put back inside it, they make the page dist/nexus.html is', cut(inlined) == cut(built),
           f'{len(cut(inlined))} chars against {len(cut(built))}')

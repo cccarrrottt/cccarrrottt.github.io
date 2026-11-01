@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.22.0** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.23.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -12,7 +12,7 @@ the repository is the only place the chart lives.
 > Formerly *Axiom Nexus*. As of 0.9.20 the browser storage keys carry the new
 > name as well; each one reads the old key first and never deletes it, so a
 > chart saved under the old name opens unaltered and an older copy of the file
-> still finds its own work. The `@@EDIT@@` region names are unchanged.
+> still finds its own work.
 
 ## Layout
 
@@ -20,14 +20,14 @@ the repository is the only place the chart lives.
 src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
-  data.js      the chart's contents, in @@EDIT@@ regions (see below)
+  chart.json   the chart's contents, as JSON (see below)
   app/         the program, 42 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
   site/        published beside the page on the site only: the manifest, the
                icons and the service worker that make it an app a phone keeps
                — see "On the home screen, with no signal" below — and
-               chart.schema.json, the chart's contents as JSON (what
-               "Export JSON" writes and Import reads)
+               chart.schema.json, which describes chart.json (and what
+               "Export the contents" writes and Import reads)
 build.py       welds src/ into the single file a copy of the chart is
 eslint.config.mjs  three rules, all three about bindings that are not what
                    they look like; see the file for why there are only three
@@ -35,16 +35,15 @@ tools/lint.py  lints the ASSEMBLED program and reports per part, and asks
                tools/tdz.js whether start-up reads a const before its part
                has run
 tools/chart_check.js
-               is every region of src/data.js data and nothing else, and
-               does the chart fit chart.schema.json? what a data-only push
-               is published on
+               does src/chart.json read as a chart, and does it fit
+               chart.schema.json? what a data-only push is published on
 tools/shards.js
                the browser suite in parallel shards — see "Tests" below
 tools/bench.js what a rebuild costs, and how much of it is text measurement;
                the numbers in CLAUDE.md come from here, so they can be
                re-run rather than believed
 worker/        the write service: owner sign-in through GitHub, and Save as a
-               commit to src/data.js — see "The published site" below
+               commit to src/chart.json — see "The published site" below
 tests/
   regression.js   the browser suite, run against dist and against src
   build_guard.py  checks the built page against what src/ says it should be
@@ -77,9 +76,10 @@ split was made, the built page came out byte for byte identical.
 ES modules were considered and rejected, on the program rather than on taste.
 Drawing, routing and editing call one another in every direction, so there is
 no order in which each part only uses what came before it — one scope is what a
-call graph with cycles in it actually is. Modules would also need a bundler,
-and a bundler would destroy the `@@EDIT@@` markers the page saves itself
-through. The goal was a file you can hold in your head, not a dependency graph.
+call graph with cycles in it actually is. Modules would also have needed a
+bundler, and a bundler would have destroyed the `@@EDIT@@` markers the page
+saved itself through until the chart became JSON (0.23.0). The goal was a file
+you can hold in your head, not a dependency graph.
 
 For the same reason `src/index.html` does not load the parts as a `<script>`
 each: it fetches them, joins them, and runs the result as **one** script, which
@@ -144,8 +144,8 @@ npm ci               # eslint, ajv, esbuild and playwright, as the lockfile says
 python3 build.py     # writes dist/
 ```
 
-CI runs on every push and pull request: the chart check (every region of
-`src/data.js` is data and nothing else, and fits the schema), the build, the build guard, the lint, the write service's tests,
+CI runs on every push and pull request: the chart check (`src/chart.json`
+reads as a chart and fits the schema), the build, the build guard, the lint, the write service's tests,
 and the regression suite twice — once against `dist`, once against `src`,
 because they load the program by different paths and a green run on one says
 nothing about the other. Each of those two runs is split across four shards
@@ -173,8 +173,8 @@ chart.
 
 There is one page, and on the site it is the same file for everybody. It
 opens as a reader; anyone may press **Sign in** and sign in with GitHub to
-suggest a change, and when it is the owner, the same tab becomes the editor. **Save** then commits the chart's
-regions into `src/data.js` on `main`, and CI rebuilds the site from that
+suggest a change, and when it is the owner, the same tab becomes the editor. **Save** then commits the chart
+into `src/chart.json` on `main`, and CI rebuilds the site from that
 commit, so a save is on the site a few minutes after it is made.
 
 What keeps everybody else out is not the hidden controls — every reader
@@ -188,12 +188,13 @@ and the one place a write can go is the write service in `worker/`, which:
   it with Contents write — nothing on the page can change either answer;
 - never writes an older chart over a newer one. The page carries the git id
   of the file it was built from (`DATA_SHA`, written in by `build.py`), and a
-  save made on top of anything but the `data.js` currently in the
+  save made on top of anything but the `chart.json` currently in the
   repository — a second device, or a phone's kept Save sent days later — is
   merged with what the repository got in between: what only one side
-  changed is taken from that side, one entry (one line of `data.js`) at a
-  time, and only an entry both changed differently is refused, by name
-  (`mergeRegions`). The page then takes the merged chart. A page that is
+  changed is taken from that side, one entry (a connector style, a
+  reference, one of the settings) at a time, and only one both changed
+  differently is refused, by name (`mergeCharts`). The page then takes the
+  merged chart. A page that is
   behind when it opens says so then, rather than when Save is pressed.
 
 Anywhere other than the site's address — a disk, somebody else's host, the
@@ -284,41 +285,51 @@ stack still names the functions, which minification leaves as they are.
 
 ## Where the chart's contents actually live
 
-In `src/data.js`, between its `@@EDIT@@` markers:
+In `src/chart.json`, one item to a line:
 
 ```
-/* @@EDIT:NODES:START@@ */      the entries
-/* @@EDIT:EDGESTYLES:START@@ */ per-connector styling
-/* @@EDIT:STICKERS:START@@ */   the sticker library
-/* @@EDIT:MEDIA:START@@ */      pictures and clips in comments
-/* @@EDIT:TAGCATS:START@@ */    tag categories
-/* @@EDIT:REFS:START@@ */       the reference list
-/* @@EDIT:SETTINGS:START@@ */   chart-wide settings
-/* @@EDIT:COMMENTS:START@@ */   suggestions (feature currently switched off)
+"nodes"       the entries
+"edgeStyles"  per-connector styling
+"stickers"    the sticker library
+"media"       pictures and clips in comments
+"comments"    suggestions (feature currently switched off)
+"tagCats"     tag categories
+"refs"        the reference list
+"settings"    chart-wide settings
 ```
 
-**Save** on the published site commits those regions to the repository
-through the write service, so the repository is current by construction, and
-a build makes the page from `src/` and nothing else.
+with `format`, the form its entries are written in, at the top, and
+`$schema` naming `chart.schema.json`, which describes all of it. **Save**
+on the published site commits the file to the repository through the write
+service, so the repository is current by construction, and a build makes the
+page from `src/` and nothing else.
 
-It used to be two places. A copy published on claude.ai saved by rewriting
-its own page, so the newest chart lived in a page nobody had committed; a
-build carried the chart over from the `dist/nexus.html` it replaced,
-`build.py --pull` brought it back into the sources by hand, and
+The build puts the file into the page as JSON in a script element a browser
+does not run, and the program reads it with `JSON.parse`. Until 0.23.0 the
+chart was `src/data.js`, eight `const` statements between `@@EDIT@@`
+markers, written into the program's own script — the chart was code on every
+reader's screen, and the write service needed a parser of its own to be sure
+a save held nothing that would run. Import still reads those regions, so a
+page or a contents file from before then opens as it did.
+
+It used to be two places, too. A copy published on claude.ai saved by
+rewriting its own page, so the newest chart lived in a page nobody had
+committed; a build carried the chart over from the `dist/nexus.html` it
+replaced, `build.py --pull` brought it back into the sources by hand, and
 `tools/data_check.py` asked whether the two had drifted. As of 0.22.0 that
 copy is gone, and all of that with it.
 
 ## How an entry is written
 
-Each entry in `src/data.js` is a record with its fields named:
+Each entry in `src/chart.json` is a record with its fields named:
 
-```js
-{id:'uprising-copy', label:'Beast Wars: Uprising', parent:'uprising', pos:[450, 90], colors:['#20242b'], border:'dashdot'},
+```json
+{"id":"uprising-copy","label":"Beast Wars: Uprising","parent":"uprising","pos":[450,90],"colors":["#20242b"],"border":"dashdot"},
 ```
 
 `parent` is one id or a list of them, and the entry's options — position,
 colours, tags, link, picture — stand beside the fields rather than in a
-nested object. `SETTINGS.format` is the number of the form (2; the list by
+nested object. `format` is the number of the form (4; the list by
 position that charts were written in before is 1, and is still read). A
 file from a page that writes a higher number is refused at import rather
 than half-read. Inside the page an entry is still the positional list, so
@@ -334,22 +345,22 @@ an SVG `<image>` given the path fetches it from there, so the drawing does
 not need to know.
 
 - **Nothing has to be converted by hand.** A Save on the site lifts every
-  embedded picture larger than 2 KB out of the regions it sends, and sends
-  the files with them, once per page. The first Save after this change moves
-  what `src/data.js` still embeds into `src/media/`; from then on the page
+  embedded picture larger than 2 KB out of the chart it sends, and sends
+  the files with them, once per page. The first Save after this change moved
+  what the chart still embedded into `src/media/`; from then on the page
   and every Save carry paths only. A tiny picture stays embedded, as does a
   type with no file extension the page knows.
 - **The write service checks every file.** It refuses one whose bytes are
   not what its name says, and a save whose chart names a path that is in
   neither the repository nor the save. A file already in the folder is not
   written again. The commit is still one commit, chart and pictures together.
-- **What leaves the site carries the bytes.** Export, Export data and the
+- **What leaves the site carries the bytes.** Export, Export the contents and the
   PNG/SVG picture fetch each path and write the picture back in, so a copy
   opened from a disk needs no folder beside it.
 - **With no signal**, the service worker keeps every picture it has served,
   first come, and answers from that copy: a name is what its bytes are, so a
   kept copy is never behind.
-- A push that changes only `src/data.js` and `src/media/` is a Save, and is
+- A push that changes only `src/chart.json` and `src/media/` is a Save, and is
   published without the checks, as before.
 
 ## Working on it locally
@@ -433,14 +444,14 @@ somebody who misuses it is blocked with GitHub's own button.
 - Off the site — a disk, another host — there is no service to carry a
   suggestion, so neither button is shown.
 
-The `COMMENTS` region is what the earlier, claude.ai-era suggestions were
+The chart's `comments` are what the earlier, claude.ai-era suggestions were
 kept in. Save, Export and Import still carry it, so a chart that has some
 keeps them, but nothing writes to it any more.
 
 ## Tags and categories
 
 Tags live in two places now. An entry's `opts.tags` is still the list it wears, and `TAG_CATS` —
-its own `@@EDIT@@` region, so it travels with an export — records how those tags are grouped. A
+the chart's `tagCats`, so it travels with an export — records how those tags are grouped. A
 tag belongs to at most one category; `sanitizeTagCats()` enforces that on import so no tag can
 render twice.
 

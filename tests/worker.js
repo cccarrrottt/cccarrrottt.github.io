@@ -7,12 +7,12 @@
  * change the published chart, so what it REFUSES matters more than what it
  * does: a session it did not seal, a login that is not the owner, a sign-in
  * that would hand the session to another site, a page saving on top of an
- * older data.js. Each is driven through the service's own fetch handler,
+ * older chart.json. Each is driven through the service's own fetch handler,
  * exactly as Cloudflare calls it, with GitHub's API answered from memory.
  *
  * And the one thing it does, it has to do exactly as the page and build.py
  * do it: a save of the chart as it already is changes nothing, and a save
- * of an edit changes that region and no other byte of src/data.js.
+ * of an edit changes that item's line and no other line of src/chart.json.
  *
  * Readers sign in too, to suggest — and a reader's session is the newest
  * thing a mistake could turn into a key. So the suggestion checks are
@@ -27,7 +27,7 @@ function check(name, ok, detail){
 }
 
 const ROOT = path.join(__dirname, '..');
-const DATA = fs.readFileSync(path.join(ROOT, 'src', 'data.js'), 'utf8');
+const DATA = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'), 'utf8');
 const gitSha = text => { const b = Buffer.from(text, 'utf8');
   return nodeCrypto.createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${b.length}\0`), b])).digest('hex'); };
 
@@ -54,7 +54,7 @@ function fakeGitHub(){
   const blob = text => { const sha = gitSha(text); gh.blobs.set(sha, text); return sha; };
   const tree = entries => { const sha = nodeCrypto.createHash('sha1').update(JSON.stringify(entries)).digest('hex');
                             gh.trees.set(sha, entries); return sha; };
-  const srcTree = tree([{path: 'data.js', type: 'blob', sha: blob(DATA)}]);
+  const srcTree = tree([{path: 'chart.json', type: 'blob', sha: blob(DATA)}]);
   const root = tree([{path: 'src', type: 'tree', sha: srcTree}, {path: 'README.md', type: 'blob', sha: blob('readme')}]);
   gh.head = 'c0'; gh.commits.set('c0', {tree: root});
   gh.mediaAt = commit => {
@@ -66,7 +66,7 @@ function fakeGitHub(){
   gh.dataAt = commit => {
     const top = gh.trees.get(gh.commits.get(commit).tree);
     const src = gh.trees.get(top.find(e => e.path === 'src').sha);
-    return gh.blobs.get(src.find(e => e.path === 'data.js').sha);
+    return gh.blobs.get(src.find(e => e.path === 'chart.json').sha);
   };
   gh.fetch = async (url, init) => {
     const u = new URL(url), method = (init && init.method) || 'GET';
@@ -162,18 +162,20 @@ function fakeGitHub(){
   return gh;
 }
 
-/* The regions as the page sends them: the text between each pair of markers. */
-function partsOf(text){
-  const out = {};
-  for(const name of ['NODES', 'COMMENTS', 'STICKERS', 'MEDIA', 'EDGESTYLES', 'TAGCATS', 'REFS', 'SETTINGS']){
-    const a = `/* @@EDIT:${name}:START@@ */`, b = `/* @@EDIT:${name}:END@@ */`;
-    out[name] = text.slice(text.indexOf(a) + a.length, text.indexOf(b)).replace(/^\n/, '').replace(/\n$/, '');
-  }
-  return out;
-}
+/* The chart as the page sends it: the file, with an edit made to it. The
+   text is written as the service writes it, which is what the page writes
+   too (chartJsonText); the suite holds the page's to the service's. */
+let chartText = null;
+const edit = (text, fn) => { const c = JSON.parse(text); fn(c); return chartText(c); };
+const chartWith = fn => edit(DATA, fn);
+// How many lines differ between two texts of nearly one length.
+const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n'));
+  const gone = A.filter(l => !B.has(l)).length, have = new Set(A);
+  return gone + b.split('\n').filter(l => !have.has(l)).length; };
 
 (async () => {
   const w = await import(path.join(ROOT, 'worker', 'index.js'));
+  chartText = w.chartText;
   const svc = w.default;
   const gh = fakeGitHub();
   globalThis.fetch = gh.fetch;
@@ -229,7 +231,7 @@ function partsOf(text){
   check('with no session, /me says so', r.status === 401);
   r = await call('/me', auth(s));
   let body = await r.json();
-  check('the owner is told so, with the data.js that is current', r.status === 200 && body.owner && body.sha === gitSha(DATA),
+  check('the owner is told so, with the chart.json that is current', r.status === 200 && body.owner && body.sha === gitSha(DATA),
         JSON.stringify(body));
   check('and that it takes pictures as files beside the chart', body.media === true);
   check('and the answer is readable by the site', r.headers.get('Access-Control-Allow-Origin') === SITE);
@@ -264,7 +266,7 @@ function partsOf(text){
   check('a session whose token is good is not renewed', r.status === 200 && !('session' in body));
   const lapsedSave = await lapsed([...gh.refresh][0]);
   r = await call('/save', {method: 'POST', headers: {Authorization: 'Bearer ' + lapsedSave, Origin: SITE,
-                 'Content-Type': 'application/json'}, body: JSON.stringify({base: '0000', parts: {...partsOf(DATA), REFS: partsOf(DATA).REFS + '\n/* behind */'}})});
+                 'Content-Type': 'application/json'}, body: JSON.stringify({base: '0000', chart: chartWith(c => c.refs.push({key: 'behind', title: ''}))})});
   body = await r.json();
   check('a save that is refused still hands back the session it renewed, which is all that can renew it now',
         r.status === 409 && !!body.session && !!(await w.unseal(ENV, 'session', body.session)), r.status + ' ' + JSON.stringify(body).slice(0, 120));
@@ -272,72 +274,64 @@ function partsOf(text){
   /* Saving. */
   const post = (tok, payload) => call('/save', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
                                        'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
-  const parts = partsOf(DATA);
-  r = await post(s, {base: gitSha(DATA), parts});
+  check('the repository\'s chart.json is written as the service writes it, one item to a line',
+        w.chartText(w.readChart(DATA)) === DATA);
+  r = await post(s, {base: gitSha(DATA), chart: DATA});
   body = await r.json();
   check("saving the chart as it is commits nothing", r.status === 200 && body.unchanged && gh.refUpdates === 0, r.status + " " + JSON.stringify(body));
+  r = await post(s, {base: gitSha(DATA), chart: JSON.stringify(JSON.parse(DATA))});
+  body = await r.json();
+  check('nor does the same chart written on one line: what is compared is the chart, written the one way',
+        r.status === 200 && body.unchanged && gh.refUpdates === 0, r.status + ' ' + JSON.stringify(body));
 
-  const edited = {...parts, REFS: parts.REFS + '\n/* a reference added in the browser */'};
-  r = await post(s, {base: '0000', parts: edited});
+  const edited = chartWith(c => c.refs.push({key: 'added', title: 'A reference added in the browser'}));
+  r = await post(s, {base: '0000', chart: edited});
   check('a page that is behind the repository cannot save', r.status === 409 && gh.head === 'c0');
 
-  r = await post(s, {base: gitSha(DATA), parts: {...edited, MEDIA: undefined}});
-  check('a save missing a region is refused', r.status === 400 && gh.head === 'c0');
-  r = await post(s, {base: gitSha(DATA), parts: {...edited, NODES: parts.NODES + '/* @@EDIT:NODES:END@@ */'}});
-  check('and so is one that carries a region marker in its text', r.status === 400 && gh.head === 'c0');
-
-  /* A region is published as a script and runs in every reader's browser,
-     and a save is published at once. So it has to be data and only data. */
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, NODES: parts.NODES.replace(/\];$/, '];\nfetch(\'//elsewhere\');')}});
+  /* A save is published at once, so it has to be the chart and only the
+     chart. JSON cannot run, and the page reads it from an element that
+     does not; what is left to refuse is a file that is not a chart. */
+  const refused = async (what, chart) => {
+    const res = await post(s, {base: gitSha(DATA), chart});
+    const b = await res.json();
+    check(what, res.status === 400 && gh.head === 'c0', res.status + ' ' + JSON.stringify(b));
+  };
+  await refused('a save that is not JSON is refused', edited.replace(/\}\n$/, ''));
+  await refused('and the regions of a page from before the chart was JSON', 'const NODES = [];');
+  await refused('and a chart with no entries', chartWith(c => { delete c.nodes; }));
+  await refused('and one with a part no chart has', DATA.replace(/\n\}\n$/, ',\n  "script": "alert(1)"\n}\n'));
+  await refused('and one whose entries are not records', chartWith(c => { c.nodes.push(['an', 'old', 'list']); }));
+  await refused('and one whose connector styles are not a list', chartWith(c => { c.edgeStyles = {}; }));
+  await refused('and settings that are not a record', chartWith(c => { c.settings = []; }));
+  await refused('and a form that is not a whole number', chartWith(c => { c.format = '4'; }));
+  r = await post(s, {base: gitSha(DATA), parts: {NODES: 'const NODES = [];'}});
   body = await r.json();
-  check('a region with a statement after its list is refused', r.status === 400 && gh.head === 'c0' && /NODES/.test(body.error),
+  check('a page from before 0.23, sending regions, is told to reload', r.status === 400 && /reload/.test(body.error) && gh.head === 'c0',
         r.status + ' ' + JSON.stringify(body));
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, "\n  {key:'x', title:String(document.cookie)},\n];")}});
-  check('and so is one with a call where a value should be', r.status === 400 && gh.head === 'c0');
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, "\n  {key:'x', title:location},\n];")}});
-  check('and one with a name where a value should be', r.status === 400 && gh.head === 'c0');
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, "\n  {key:'x', title:'</scr' + 'ipt>'},\n];")}});
-  check('and one that would end the page\'s script inside a string', r.status === 400 && gh.head === 'c0');
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, REFS: parts.REFS.replace(/\n\];$/, '\n')}});
-  check('and one cut short', r.status === 400 && gh.head === 'c0');
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, SETTINGS: 'const SETTINGS = [];'}});
-  check('and settings that are not a record', r.status === 400 && gh.head === 'c0');
-  r = await post(s, {base: gitSha(DATA), parts: {...parts, NODES: 'const EDGE_STYLES = [];'}});
-  check('and a region that declares another region\'s name', r.status === 400 && gh.head === 'c0');
-  {
-    const w2 = await import(path.join(ROOT, 'worker', 'index.js'));
-    const all = partsOf(DATA);
-    const read = Object.keys(all).every(k => { try{ w2.parseRegion(k, all[k]); return true; }catch(e){ return false; } });
-    check('every region of the repository\'s own data.js reads as data', read);
-    const exotic = "const NODES = [\n  {id:'a\\'b\\x3c\\u2028\\n', label:\"q\", 'quoted key':[1, -2.5e3, .5, true, false, null, undefined, NaN, -Infinity],}, // a note\n  /* and another */\n];";
-    let got = null;
-    try{ got = w2.parseRegion('NODES', exotic); }catch(e){ got = e.message; }
-    check('what the page\'s serializers can write reads back as the same values',
-          Array.isArray(got) && got[0].id === "a'b<\u2028\n" && got[0]['quoted key'][2] === 0.5 && Number.isNaN(got[0]['quoted key'][7]),
-          JSON.stringify(got));
-  }
-  r = await post(await session('someone'), {base: gitSha(DATA), parts: edited});
+  r = await post(await session('someone'), {base: gitSha(DATA), chart: edited});
   check('a login that is not an owner cannot save', r.status === 403 && gh.head === 'c0');
 
   gh.raceNext = true;
-  r = await post(s, {base: gitSha(DATA), parts: edited});
+  r = await post(s, {base: gitSha(DATA), chart: edited});
   check('a push that lands during a save makes it fail, not overwrite', r.status === 409 && gh.head === 'c0');
 
-  r = await post(s, {base: gitSha(DATA), parts: edited});
+  r = await post(s, {base: gitSha(DATA), chart: edited});
   body = await r.json();
   const after = gh.dataAt(gh.head);
   check('an edit becomes a commit on the branch', r.status === 200 && gh.head !== 'c0', JSON.stringify(body));
-  check('which answers with the new data.js, so the next save stacks on it', body.sha === gitSha(after));
-  check('the edit is in it', after.includes('/* a reference added in the browser */'));
-  check('and nothing else in the file moved',
-        after.replace('\n/* a reference added in the browser */', '') === DATA);
+  check('which answers with the new chart.json, so the next save stacks on it', body.sha === gitSha(after));
+  check('the edit is in it', after.includes('A reference added in the browser'));
+  /* An item added at the end of a list is its own line and a comma on the
+     line before it: three lines of difference, and the file is otherwise
+     the one it was. */
+  check('and nothing else in the file moved', after === edited && diffLines(DATA, after) === 3, diffLines(DATA, after));
 
-  r = await post(s, {base: gitSha(DATA), parts});
+  r = await post(s, {base: gitSha(DATA), chart: DATA});
   body = await r.json();
   check('the page\'s old base, sending the chart it was made on, cannot undo that save',
         r.status === 200 && body.unchanged && gitSha(gh.dataAt(gh.head)) === gitSha(after), r.status + ' ' + JSON.stringify(body).slice(0, 200));
   const headBefore = gh.head;
-  r = await post(s, {base: gitSha(DATA), parts: edited});
+  r = await post(s, {base: gitSha(DATA), chart: edited});
   body = await r.json();
   check('but that same save sent again on the old base — its answer lost on the way — is not a conflict',
         r.status === 200 && body.unchanged && body.sha === gitSha(after) && gh.head === headBefore, r.status + ' ' + JSON.stringify(body));
@@ -346,17 +340,18 @@ function partsOf(text){
   const picture = Buffer.from('not really a png, but bytes all the same');
   const picHex = nodeCrypto.createHash('sha256').update(picture).digest('hex');
   const picRef = 'media/' + picHex + '.png';
-  const withPic = {...edited, MEDIA: edited.MEDIA + `\n/* {src:'${picRef}'} */`};
+  const withPic = chartWith(c => { c.refs.push({key: 'added', title: 'A reference added in the browser'});
+                                   c.media.push({key: 'pic', name: 'pic', kind: 'image', src: picRef}); });
   let picHead = gh.head;
-  r = await post(s, {base: gitSha(after), parts: withPic, media: {[picRef]: Buffer.from('other bytes').toString('base64')}});
+  r = await post(s, {base: gitSha(after), chart: withPic, media: {[picRef]: Buffer.from('other bytes').toString('base64')}});
   check('a picture whose bytes are not what its name says is refused', r.status === 400 && gh.head === picHead);
-  r = await post(s, {base: gitSha(after), parts: withPic, media: {['media/' + picHex + '.exe']: picture.toString('base64')}});
+  r = await post(s, {base: gitSha(after), chart: withPic, media: {['media/' + picHex + '.exe']: picture.toString('base64')}});
   check('and so is one named as no picture may be', r.status === 400 && gh.head === picHead);
-  r = await post(s, {base: gitSha(after), parts: withPic});
+  r = await post(s, {base: gitSha(after), chart: withPic});
   body = await r.json();
   check('a chart naming a picture the repository does not have, and not sending it, is refused',
         r.status === 400 && gh.head === picHead && /does not have/.test(body.error), r.status + ' ' + JSON.stringify(body));
-  r = await post(s, {base: gitSha(after), parts: withPic, media: {[picRef]: picture.toString('base64')}});
+  r = await post(s, {base: gitSha(after), chart: withPic, media: {[picRef]: picture.toString('base64')}});
   body = await r.json();
   const landed = gh.mediaAt(gh.head);
   check('a new picture is committed beside the chart, in the same commit',
@@ -365,109 +360,132 @@ function partsOf(text){
   const withPicSha = body.sha;
   picHead = gh.head;
   const blobsBefore = gh.pictureBlobs;
-  const again = {...withPic, REFS: withPic.REFS + '\n/* and one more edit */'};
-  r = await post(s, {base: withPicSha, parts: again, media: {[picRef]: picture.toString('base64')}});
+  const again = edit(withPic, c => c.refs.push({key: 'more', title: 'and one more edit'}));
+  r = await post(s, {base: withPicSha, chart: again, media: {[picRef]: picture.toString('base64')}});
   body = await r.json();
   check('a picture already in the folder is not written again', r.status === 200 && gh.head !== picHead && gh.pictureBlobs === blobsBefore,
         r.status + ' ' + JSON.stringify(body));
   picHead = gh.head;
-  r = await post(s, {base: body.sha, parts: {...again, NODES: again.NODES + `\n/* {image:'${picRef}'} */`}});
+  r = await post(s, {base: body.sha, chart: edit(again, c => { c.nodes[0].image = picRef; })});
   check('and a chart may name one that is there without sending it', r.status === 200 && gh.head !== picHead);
 
   /* Two saves made on one chart: a second device, or a phone's kept Save
      sent days later. What each changed is put together; only what both
      changed is refused. */
-  r = await post(s, {base: gitSha(gh.dataAt(gh.head)), parts: partsOf(DATA)});
+  r = await post(s, {base: gitSha(gh.dataAt(gh.head)), chart: DATA});
   const clean = (await r.json()).sha;
   check('(a clean chart to merge on)', r.status === 200 && gitSha(gh.dataAt(gh.head)) === clean);
-  const P = partsOf(DATA);
-  const line = (region, re) => P[region].split('\n').find(l => re.test(l));
-  const refLine = line('REFS', /^  \{key:'ref',/), nodeLine = line('NODES', /^  \{id:'uprising-copy',/);
-  const addTo = (parts, region, l) => ({...parts, [region]: parts[region].replace(/\n\];$/, '\n' + l + '\n];')});
-  const one = addTo(P, 'REFS', "  {key:'m-one', title:'One'},");
-  r = await post(s, {base: clean, parts: one});
+  const one = chartWith(c => c.refs.push({key: 'm-one', title: 'One'}));
+  r = await post(s, {base: clean, chart: one});
   const firstSave = await r.json();
   check('(one device saves a reference)', r.status === 200 && !firstSave.merged);
-  const two = addTo(P, 'NODES', "  {id:'m-two', label:'Two'},");
-  r = await post(s, {base: clean, parts: two});
+  const two = chartWith(c => c.nodes.push({id: 'm-two', label: 'Two'}));
+  r = await post(s, {base: clean, chart: two});
   body = await r.json();
   const merged = gh.dataAt(gh.head);
   check('a save made on the older chart is merged with it rather than refused',
-        r.status === 200 && body.merged && merged.includes("{key:'m-one', title:'One'}") && merged.includes("{id:'m-two', label:'Two'}"),
+        r.status === 200 && body.merged && merged.includes('{"key":"m-one","title":"One"}') && merged.includes('{"id":"m-two","label":"Two"}'),
         r.status + ' ' + JSON.stringify(body).slice(0, 200));
-  check('and nothing else in the file moved',
-        merged.replace("\n  {id:'m-two', label:'Two'},", '').replace("\n  {key:'m-one', title:'One'},", '') === gh.blobs.get(clean));
+  check('and the file is the two edits and nothing else', diffLines(DATA, merged) === 6 &&
+        merged === chartWith(c => { c.refs.push({key: 'm-one', title: 'One'}); c.nodes.push({id: 'm-two', label: 'Two'}); }),
+        diffLines(DATA, merged));
   check('the answer carries the chart as merged, and what it was saved over',
-        !!body.parts && body.parts.REFS.includes("key:'m-one'") && body.parts.NODES.includes("id:'m-two'") && body.over === firstSave.sha,
-        JSON.stringify({over: body.over, first: firstSave.sha}));
+        body.chart === merged && body.over === firstSave.sha, JSON.stringify({over: body.over, first: firstSave.sha}));
   const mergedSha = body.sha;
+  const retitle = (chart, title) => edit(chart, c => { c.refs.find(x => x.key === 'ref').title = title; });
   // The same entry changed on both: refused, and named.
-  const mine = {...P, REFS: P.REFS.replace(refLine, refLine.replace("title:''", "title:'Mine'"))};
-  const theirs = {...body.parts, REFS: body.parts.REFS.replace(refLine, refLine.replace("title:''", "title:'Theirs'"))};
-  r = await post(s, {base: mergedSha, parts: theirs});
+  const theirs = retitle(body.chart, 'Theirs');
+  r = await post(s, {base: mergedSha, chart: theirs});
   const theirsSave = await r.json();
   check('(the other device retitles a reference)', r.status === 200);
   const headMine = gh.head;
-  r = await post(s, {base: clean, parts: mine});
+  r = await post(s, {base: clean, chart: retitle(DATA, 'Mine')});
   body = await r.json();
   check('the same entry changed differently on both is refused, and named',
         r.status === 409 && gh.head === headMine && Array.isArray(body.conflicts) &&
-        body.conflicts.length === 1 && body.conflicts[0].region === 'REFS' && body.conflicts[0].item === 'ref',
+        body.conflicts.length === 1 && body.conflicts[0].region === 'refs' && body.conflicts[0].item === 'ref',
         r.status + ' ' + JSON.stringify(body));
   // Changed the same way on both: no conflict at all.
-  const same = {...P, REFS: P.REFS.replace(refLine, refLine.replace("title:''", "title:'Theirs'"))};
-  r = await post(s, {base: clean, parts: same});
+  r = await post(s, {base: clean, chart: retitle(DATA, 'Theirs')});
   body = await r.json();
   check('the same change made on both is no conflict', r.status === 200 && body.unchanged && body.merged, r.status + ' ' + JSON.stringify(body).slice(0, 160));
   // Taken out on one, changed on the other.
-  const gone = {...P, NODES: P.NODES.replace(nodeLine + '\n', '')};
-  const changed = {...theirs, NODES: theirs.NODES.replace(nodeLine, nodeLine.replace("label:'Beast Wars: Uprising'", "label:'Renamed'"))};
-  r = await post(s, {base: theirsSave.sha, parts: changed});
+  const gone = chartWith(c => { c.nodes = c.nodes.filter(n => n.id !== 'uprising-copy'); });
+  const changed = edit(theirs, c => { c.nodes.find(n => n.id === 'uprising-copy').label = 'Renamed'; });
+  r = await post(s, {base: theirsSave.sha, chart: changed});
   check('(the other device renames an entry)', r.status === 200);
   const headThen = gh.head;
-  r = await post(s, {base: clean, parts: gone});
+  r = await post(s, {base: clean, chart: gone});
   body = await r.json();
   check('an entry taken out on one and changed on the other is refused', r.status === 409 && gh.head === headThen &&
-        body.conflicts && body.conflicts[0].item === 'uprising-copy', r.status + ' ' + JSON.stringify(body));
+        body.conflicts && body.conflicts[0].region === 'nodes' && body.conflicts[0].item === 'uprising-copy', r.status + ' ' + JSON.stringify(body));
   // And one taken out where the other did not touch it is taken out.
-  const goneRef = {...P, REFS: P.REFS.replace(line('REFS', /^  \{key:'ref-2',/) + '\n', '')};
-  r = await post(s, {base: clean, parts: goneRef});
+  r = await post(s, {base: clean, chart: chartWith(c => { c.refs = c.refs.filter(x => x.key !== 'ref-2'); })});
   body = await r.json();
   check('an entry taken out on one and left alone on the other is taken out',
-        r.status === 200 && body.merged && !gh.dataAt(gh.head).includes("{key:'ref-2',") && gh.dataAt(gh.head).includes("label:'Renamed'"),
+        r.status === 200 && body.merged && !gh.dataAt(gh.head).includes('"key":"ref-2"') && gh.dataAt(gh.head).includes('"label":"Renamed"'),
         r.status + ' ' + JSON.stringify(body).slice(0, 200));
-  // Settings are one line, so both changing them is a conflict.
-  const s1 = {...body.parts, SETTINGS: body.parts.SETTINGS.replace("'#c23b22'", "'#112233'")};
-  r = await post(s, {base: body.sha, parts: s1});
-  const headS = gh.head;
-  r = await post(s, {base: clean, parts: {...P, SETTINGS: P.SETTINGS.replace("'#c23b22'", "'#445566'")}});
-  body = await r.json();
-  check('settings changed on both are refused', r.status === 409 && gh.head === headS && body.conflicts[0].region === 'SETTINGS',
-        r.status + ' ' + JSON.stringify(body));
-  r = await post(s, {base: 'f'.repeat(40), parts: two});
+  /* Two changes to one field of a connector style are one entry changed
+     twice, and collide even when the fields differ — as two edits to one
+     entry always have. */
+  {
+    const style = (chart, k, v) => edit(chart, c => { c.edgeStyles.find(x => x.from === 'node-3' && x.to === 'node-4')[k] = v; });
+    const now = gh.dataAt(gh.head);
+    r = await post(s, {base: gitSha(now), chart: style(now, 'dash', 'dotted')});
+    const headE = gh.head;
+    r = await post(s, {base: clean, chart: style(DATA, 'routing', 'curve')});
+    body = await r.json();
+    check('a connector style changed on both is refused, and named by its two ends',
+          r.status === 409 && gh.head === headE && body.conflicts[0].region === 'edgeStyles' && body.conflicts[0].item === 'node-3 \u2192 node-4',
+          r.status + ' ' + JSON.stringify(body));
+  }
+  /* The settings are one record of unrelated choices, so each is merged
+     on its own: two devices setting two different ones is no collision. */
+  {
+    const now = gh.dataAt(gh.head);
+    r = await post(s, {base: gitSha(now), chart: edit(now, c => { c.settings.refColor = '#112233'; })});
+    check('(one device changes the citation colour)', r.status === 200);
+    const headS = gh.head;
+    r = await post(s, {base: gitSha(now), chart: edit(now, c => { c.settings.legend = {'tag:x': 'Meaning'}; })});
+    body = await r.json();
+    const got = JSON.parse(gh.dataAt(gh.head)).settings;
+    check('two settings changed on two devices are both kept',
+          r.status === 200 && body.merged && got.refColor === '#112233' && got.legend && got.legend['tag:x'] === 'Meaning',
+          r.status + ' ' + JSON.stringify(got));
+    const headS2 = gh.head;
+    r = await post(s, {base: gitSha(now), chart: edit(now, c => { c.settings.refColor = '#445566'; })});
+    body = await r.json();
+    check('one setting changed differently on both is refused, and named', r.status === 409 && gh.head === headS2 && headS2 !== headS &&
+          body.conflicts[0].region === 'settings' && body.conflicts[0].item === 'refColor', r.status + ' ' + JSON.stringify(body));
+  }
+  r = await post(s, {base: 'f'.repeat(40), chart: two});
   check('a base the repository never had is refused, not merged against nothing', r.status === 409);
+  r = await post(s, {base: gitSha(DATA), chart: edit(DATA, c => { c.nodes.push({label: 'no id'}); })});
+  body = await r.json();
+  check('and a list a merge cannot name the items of is refused as a whole, not guessed at',
+        r.status === 409 && body.conflicts && body.conflicts[0].region === 'nodes' && !body.conflicts[0].item, r.status + ' ' + JSON.stringify(body));
 
   /* A merge whose two halves are each whole can still leave a loose end:
      one device took an entry out while the other hung a new one under it. */
   {
-    const before = partsOf(gh.dataAt(gh.head));
-    r = await post(s, {base: gitSha(gh.dataAt(gh.head)), parts: addTo(before, 'NODES', "  {id:'lone', label:'Lone'},")});
+    const now = gh.dataAt(gh.head);
+    r = await post(s, {base: gitSha(now), chart: edit(now, c => c.nodes.push({id: 'lone', label: 'Lone'}))});
     const withLone = await r.json();
-    const P2 = partsOf(gh.dataAt(gh.head));
-    const loneLine = "\n  {id:'lone', label:'Lone'},";
-    r = await post(s, {base: withLone.sha, parts: {...P2, NODES: P2.NODES.replace(loneLine, '')}});
-    check('(one device takes an entry out)', r.status === 200 && !gh.dataAt(gh.head).includes("id:'lone'"));
+    const P2 = gh.dataAt(gh.head);
+    r = await post(s, {base: withLone.sha, chart: edit(P2, c => { c.nodes = c.nodes.filter(n => n.id !== 'lone'); })});
+    check('(one device takes an entry out)', r.status === 200 && !gh.dataAt(gh.head).includes('"id":"lone"'));
     const headGone = gh.head;
-    r = await post(s, {base: withLone.sha, parts: addTo(P2, 'NODES', "  {id:'kid', label:'Kid', parent:'lone'},")});
+    r = await post(s, {base: withLone.sha, chart: edit(P2, c => c.nodes.push({id: 'kid', label: 'Kid', parent: 'lone'}))});
     body = await r.json();
     check('a merge that would leave an entry under one that is gone is refused, and names the one that is gone',
-          r.status === 409 && gh.head === headGone && body.conflicts && body.conflicts[0].item === 'lone' && body.conflicts[0].from.item === 'kid',
+          r.status === 409 && gh.head === headGone && body.conflicts && body.conflicts[0].region === 'nodes' &&
+          body.conflicts[0].item === 'lone' && body.conflicts[0].from.item === 'kid',
           r.status + ' ' + JSON.stringify(body));
-    r = await post(s, {base: withLone.sha, parts: addTo(P2, 'EDGESTYLES', "  {from:'lone', to:'uprising', routing:'curve', dash:'solid', arrow:true},")});
+    r = await post(s, {base: withLone.sha, chart: edit(P2, c => c.edgeStyles.push({from: 'lone', to: 'uprising', routing: 'curve', dash: 'solid', arrow: true}))});
     body = await r.json();
     check('and so is one that would leave a connector style pointing at it', r.status === 409 && gh.head === headGone,
           r.status + ' ' + JSON.stringify(body));
-    r = await post(s, {base: withLone.sha, parts: addTo(P2, 'NODES', "  {id:'kid', label:'Kid', parent:'uprising'},")});
+    r = await post(s, {base: withLone.sha, chart: edit(P2, c => c.nodes.push({id: 'kid', label: 'Kid', parent: 'uprising'}))});
     check('while one that hangs it somewhere still there is merged', r.status === 200 && gh.head !== headGone);
   }
 
@@ -494,10 +512,10 @@ function partsOf(text){
 
   r = await call('/me', auth(reader));
   body = await r.json();
-  check('/me tells a reader they are a reader, and nothing about data.js',
+  check('/me tells a reader they are a reader, and nothing about chart.json',
         r.status === 200 && body.owner === false && body.login === 'a-reader' && !('sha' in body), JSON.stringify(body));
   const headNow = gh.head;
-  r = await post(reader, {base: gitSha(after), parts: {...partsOf(after), REFS: partsOf(after).REFS + '\n/* a reader */'}});
+  r = await post(reader, {base: gitSha(after), chart: edit(after, c => c.refs.push({key: 'reader', title: 'a reader'}))});
   check('a reader cannot save', r.status === 403 && gh.head === headNow);
 
   const suggest = (tok, payload) => call('/suggest', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,

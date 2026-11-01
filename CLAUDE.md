@@ -33,9 +33,9 @@ So:
 
 ## How an entry is written
 
-In `src/data.js` an entry is a record with its fields named —
+In `src/chart.json` an entry is a record with its fields named —
 `{id, label, parent, edgeLabel, note, shape, …}`, every option beside them —
-and `SETTINGS.format` says so (`DATA_FORMAT`, `02-model.js`). Inside the page
+and the file's `format` says so (inside the page, `SETTINGS.format`; `DATA_FORMAT`, `02-model.js`). Inside the page
 it is still the list it always was, `[id, label, parent, edgeLabel, note,
 shape, opts]`, because every part reads it that way; `entryOfRecord` and
 `recordOfEntry` are the only two places that know both. A list found in a
@@ -51,18 +51,33 @@ new step with the number it ends at, and `DATA_FORMAT` goes up by one.
 Tests write entries in the current form; one that means an old chart says
 so with `migrateChart(1)`.
 
-The same contents as JSON — `{format, nodes: [records], edgeStyles, …}` —
-are what "Export the contents as JSON" writes and Import reads, and
-`src/site/chart.schema.json` (published at the site's root) describes
-them. A field added to an entry or a connector belongs in the schema too;
-the suite validates the owner's chart and a chart of every kind against it.
+The file is JSON — `{$schema, format, nodes: [records], edgeStyles, …,
+settings}`, one record to a line — and the same file is what "Export the
+contents" writes and Import reads; `src/site/chart.schema.json` (published
+at the site's root) describes it. A field added to an entry or a connector
+belongs in the schema too; `tools/chart_check.js` holds the owner's chart to
+it and the suite a chart of every kind. A new part at the top of the file
+also belongs in `CHART_KEYS` (`worker/index.js`), which refuses a save with
+a part it does not know. Import still reads the `@@EDIT@@` regions of a file
+from before 0.23.0 (`chartOfText`), and a page from then still opens.
 
 ## Where the chart's contents actually live
 
-**In `src/data.js`, and only there.** Save on the published site commits the
-regions to the repository through the write service (`worker/`), so the
+**In `src/chart.json`, and only there.** Save on the published site commits
+the chart to the repository through the write service (`worker/`), so the
 repository is current by construction, and `build.py` makes the page from
 `src/` and nothing else.
+
+It goes into the page as JSON in a `<script type="application/json"
+id="chart-data">`, which a browser does not run; `CHART_IN` (`01-store.js`)
+reads it with `JSON.parse` into the names every part has always used
+(`NODES`, `EDGE_STYLES`, … `SETTINGS`). `src/index.html` fetches the file
+and puts it in the same element, so both ways in read it the one way. Until
+0.23.0 the chart was `src/data.js`, eight `const` statements in the
+program's own script: it was code on every reader's screen, and the service
+carried a parser of its own to be sure a save held nothing that could run.
+Every `<` in the element is written `\u003c` (`chart_script` in `build.py`,
+`chartForScript` in the page), so a label cannot end it.
 
 It used to be two places, and it is worth knowing why it is not. A copy on
 claude.ai saved by rewriting its own `@@EDIT@@` regions, so the newest chart
@@ -80,7 +95,7 @@ Six checks, and all six have to be green:
 
 ```bash
 python3 build.py
-node tools/chart_check.js        # ~instant: the chart is data, and fits its schema
+node tools/chart_check.js        # ~instant: the chart reads, and fits its schema
 python3 tests/build_guard.py     # ~seconds
 python3 tools/lint.py            # ~seconds, and tools/tdz.js with it
 node tests/worker.js             # ~instant, the write service
@@ -202,14 +217,16 @@ site") and `build_guard`:
   the program is inside a `<script>` in every build but the site's, and the
   parser ends it there. The build refuses it and names the part.
 - **A save made on an older chart is merged, not refused.** The service
-  reads the `data.js` the save was made on (its base, by blob id) and
-  merges region by region, item by item — an item is a line, named by
-  what opens it (`ITEM_KEY`, `worker/index.js`), which is why every
-  serializer writes one item to a line and must keep doing so. Only what
-  both changed differently is a 409, with the colliding items named. The
-  answer carries the merged regions and `over`, the file it replaced.
+  reads the `chart.json` the save was made on (its base, by blob id) and
+  merges the three as values (`mergeCharts`, `worker/index.js`): a list
+  record by record, each named as `CHART_LISTS` says (an entry by its id, a
+  connector style by its two ends), and the settings field by field. Only
+  what both changed differently is a 409, with the colliding items named,
+  and a merge that would leave a name pointing at an entry that is gone is
+  one too. The answer carries the merged chart and `over`, the file it
+  replaced.
 - **A page that is behind the repository may not save.** `build.py` writes
-  the git blob id of `src/data.js` into the page — as a
+  the git blob id of `src/chart.json` into the page — as a
   `<meta name="rhizome-data-sha">` in the wrapper's head, outside the
   page's markers, which `DATA_SHA` (`01-store.js`) reads. Not into the
   program, which would then change with every Save and the site's program
@@ -218,19 +235,24 @@ site") and `build_guard`:
   become an editor when `/me` reports a different id. Moving to the next
   base after a save is what lets two saves in a row work before the site
   has rebuilt.
-- **What the page sends for a region is the text between its markers,
-  byte for byte** — but for each embedded picture past 2 KB, which goes as
-  its path, `media/<sha256>.<ext>`, with the file beside it (`liftMedia`,
-  `04-assets.js`). Otherwise every save would rewrite all of `data.js`.
+- **What the page sends is the file, as the service writes it** —
+  `chartJsonText` in the page and `chartText` in the service write the same
+  bytes, one item to a line, and the suite holds them to each other — but
+  for each embedded picture past 2 KB, which goes as its path,
+  `media/<sha256>.<ext>`, with the file beside it (`liftMedia`,
+  `04-assets.js`). The service writes what it commits itself, so a commit
+  of one edit is a diff of the lines it changed.
 - **Pictures live in `src/media/`, named by the hash of their bytes**, and
   the build copies them to `dist/media/`. The service refuses a file whose
   bytes are not its name and a chart naming a path nobody sent. Anything
-  that leaves the site (Export, Export data, the PNG/SVG picture) inlines
+  that leaves the site (Export, Export the contents, the PNG/SVG picture) inlines
   them again with `inlineMediaRefs`.
-- **A push that changes only `src/data.js` and `src/media/` skips CI's checks** and is
+- **A push that changes only `src/chart.json` and `src/media/` skips CI's checks** and is
   published at once — that is what a Save on the site is, and the owner
   asked not to wait for the suite. The `changes` job decides from the
-  pushed trees, so any other file in the push runs everything.
+  pushed trees, so any other file in the push runs everything. Such a push
+  is still published only once `tools/chart_check.js` reads it as a chart
+  that fits its schema.
 - **On the site a chart in localStorage is never restored** — it could only
   be a reader's edit from the days the site served an editor.
 - **With no connection the owner still edits, and Save goes to an outbox**
@@ -546,12 +568,14 @@ Do not re-propose these without new evidence:
 
 - **ES modules / a bundler.** The call graph has 348 boot-reachable forward
   references with cycles; there is no order in which each part only uses what
-  came before it. A bundler would also destroy the `@@EDIT@@` markers the page
-  saves itself through. Looked at again in October 2026: the cycles alone
-  would not forbid modules — a module may take part in a cycle as long as it
-  does not read the other side's names while it runs — but the markers stand,
-  and the owner's answer was to keep one scope. The door is not shut: if the
-  chart's data ever leaves the page, the strong reason goes with it.
+  came before it. A bundler would also have destroyed the `@@EDIT@@` markers
+  the page saved itself through. Looked at again in October 2026: the cycles
+  alone would not forbid modules — a module may take part in a cycle as long
+  as it does not read the other side's names while it runs — but the markers
+  stood, and the owner's answer was to keep one scope. The markers went in
+  0.23.0, when the chart became `src/chart.json`, so that reason is gone; one
+  scope stays because nothing measured asks for anything else. Re-propose
+  modules with such a measurement, not with the markers' absence alone.
 - **A full TypeScript migration**, and a **Model/View split as an end in
   itself**. Cost without a measured problem behind it.
 - **Splitting the editor and the viewer into two builds.** Editing and drawing
@@ -568,8 +592,9 @@ Do not re-propose these without new evidence:
 1. **Independence from the claude.ai runtime.** Done as of 0.22.0: Pages
    serves the page, Save on the site commits to the repository through
    `worker/`, pictures are files beside the page, and the page no longer
-   asks an artifact host anything. What is left of the artifact's shape is
-   the chart as `@@EDIT@@` regions of a script; moving it to JSON is next.
+   asks an artifact host anything. The last of the artifact's shape, the
+   chart as `@@EDIT@@` regions of a script, became `src/chart.json` in
+   0.23.0.
 2. **Bughunting**, and removing behaviour that is unwanted or surprising, over
    new features.
 

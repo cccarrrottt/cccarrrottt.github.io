@@ -8,8 +8,8 @@
      GET  /login        sends the owner (or, with as=reader, a reader) to
                         GitHub to sign in
      GET  /callback     where GitHub sends them back; hands the page a session
-     GET  /me           "who is this session, and which data.js is current?"
-     POST /save         commits the chart's regions into src/data.js, and
+     GET  /me           "who is this session, and which chart.json is current?"
+     POST /save         commits the chart into src/chart.json, and
                         the new pictures beside it into src/media/
      GET  /suggestions  the open suggestions, read from the issues
      POST /suggest      opens an issue, as the reader who signed in
@@ -66,7 +66,7 @@
      ALLOWED_ORIGINS                          the site's origin(s), comma-separated
 */
 
-const DATA_PATH = 'src/data.js';
+const DATA_PATH = 'src/chart.json';
 /* Pictures and clips live beside the chart as files of their own, named by
    the SHA-256 of their bytes (MEDIA_REF in the page). The name is checked
    against the bytes here, so a file in the folder is always what it says it
@@ -74,7 +74,6 @@ const DATA_PATH = 'src/data.js';
 const MEDIA_DIR = 'src/media';
 const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)$/;
 const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)/g;
-const REGIONS = ['NODES', 'COMMENTS', 'STICKERS', 'MEDIA', 'EDGESTYLES', 'TAGCATS', 'REFS', 'SETTINGS'];
 // A session with nothing to renew itself with lasts as long as its token.
 const SESSION_HOURS = 8;
 // A renewable one lasts this long from its last renewal, so a phone left in
@@ -162,25 +161,76 @@ export async function unseal(env, purpose, token){
 
 /* ---- the file -------------------------------------------------------- */
 
-/* The same operation as patchRegion in the page and carry_data in
-   build.py: everything between a region's two markers is replaced, the
-   markers themselves are not. Every region has to be there, in the file and
-   in the save — a save that leaves one out is not a save of this chart. */
-export function applyRegions(file, parts){
-  let out = file;
-  for(const name of REGIONS){
-    const text = parts[name];
-    if(typeof text !== 'string') throw httpError(400, `the save has no ${name} region.`);
-    // A region's text that contained a marker would split the file wrongly
-    // on the next read, and there is no chart content that needs one.
-    if(text.indexOf('@@EDIT:') >= 0) throw httpError(400, `the ${name} region contains a region marker.`);
-    const start = `/* @@EDIT:${name}:START@@ */`, end = `/* @@EDIT:${name}:END@@ */`;
-    const i = out.indexOf(start), j = out.indexOf(end);
-    if(i < 0 || j < 0 || j < i) throw httpError(500, `${DATA_PATH} has no ${name} region.`);
-    out = out.slice(0, i + start.length) + '\n' + text + '\n' + out.slice(j);
-  }
-  return out;
+/* src/chart.json: the chart as JSON, the file the page's own chartJsonText
+   writes. A save sends that text whole; it is read here with JSON.parse,
+   checked to be a chart, and written back by chartText, so what is
+   committed is always one item to a line whatever the page sent.
+
+   Until 0.23 the chart was src/data.js, eight `const` statements that the
+   page RAN, and a save sent the text of each — so this service carried a
+   parser of its own (parseRegion) to make sure nothing in a save could do
+   anything when it ran but exist. JSON is data by construction, and the
+   page reads it with JSON.parse from an element a browser does not run;
+   there is nothing left here to be sure of but the shape. */
+
+/* The parts of a chart, in the order the file is written. Every list is
+   one of records, and each record is named by what CHART_LISTS says; that
+   name is what a merge goes by. */
+const CHART_KEYS = ['$schema', 'format', 'nodes', 'edgeStyles', 'stickers', 'media', 'comments', 'tagCats', 'refs', 'settings'];
+const CHART_LISTS = {
+  nodes: e => e.id,
+  edgeStyles: e => (typeof e.from === 'string' && typeof e.to === 'string') ? e.from + '\u0000' + e.to : null,
+  stickers: e => e.key,
+  media: e => e.key,
+  comments: e => e.id,
+  tagCats: e => e.name,
+  refs: e => e.key
+};
+function itemName(part, item){
+  const k = CHART_LISTS[part](item);
+  return typeof k === 'string' ? k : null;
 }
+const isRecord = v => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/* The chart in a text, or an Error saying what it is not. Only the shape is
+   asked: a record, with only the parts above, each list a list of records,
+   the settings a record and the form a whole number. What may stand inside
+   a record is the schema's to say (src/site/chart.schema.json, which CI
+   holds the repository's chart to); nothing in one can do anything here. */
+export function readChart(text){
+  if(typeof text !== 'string') throw new Error('it is not text');
+  let c;
+  try{ c = JSON.parse(text); }catch(e){ throw new Error('it is not JSON that parses'); }
+  if(!isRecord(c)) throw new Error('it is not a record');
+  for(const k of Object.keys(c)){
+    if(CHART_KEYS.indexOf(k) < 0) throw new Error(`it has a part no chart has, "${k}"`);
+  }
+  if(!Array.isArray(c.nodes)) throw new Error('it has no list of entries');
+  for(const part of Object.keys(CHART_LISTS)){
+    if(c[part] === undefined) continue;
+    if(!Array.isArray(c[part])) throw new Error(`its ${part} are not a list`);
+    if(!c[part].every(isRecord)) throw new Error(`its ${part} are not all records`);
+  }
+  if(c.settings !== undefined && !isRecord(c.settings)) throw new Error('its settings are not a record');
+  if(c.format !== undefined && !(Number.isInteger(c.format) && c.format >= 1)) throw new Error('its form is not a whole number');
+  if(c.$schema !== undefined && typeof c.$schema !== 'string') throw new Error('its $schema is not text');
+  return c;
+}
+
+/* The file's text: the parts in their order, a list one record to a line.
+   The same text as chartJsonText in the page (22-file-comments.js), which
+   the suite holds it to, so a save of an unchanged chart is the same bytes
+   and a save of one edit is a commit of one line. */
+export function chartText(c){
+  const keys = CHART_KEYS.filter(k => c[k] !== undefined);
+  return '{\n' + keys.map((k, i) => {
+    const v = c[k], end = i < keys.length - 1 ? ',' : '';
+    return Array.isArray(v) && v.length
+      ? `  ${JSON.stringify(k)}: [\n${v.map(x => '    ' + JSON.stringify(x)).join(',\n')}\n  ]${end}`
+      : `  ${JSON.stringify(k)}: ${JSON.stringify(v)}${end}`;
+  }).join('\n') + '\n}\n';
+}
+
 // What git calls a file's contents, so it can be compared with the id the
 // page was built with (build.py computes the same thing).
 export async function blobSha(text){
@@ -194,104 +244,87 @@ export async function blobSha(text){
 
 /* ---- two saves made on one chart ------------------------------------- */
 
-/* The text between a region's markers, as applyRegions wrote it: the
-   markers are each followed and preceded by one line break that is not
-   the region's. */
-export function regionsOf(file){
-  const out = {};
-  for(const name of REGIONS){
-    const start = `/* @@EDIT:${name}:START@@ */`, end = `/* @@EDIT:${name}:END@@ */`;
-    const i = file.indexOf(start), j = file.indexOf(end);
-    if(i < 0 || j < 0 || j < i) return null;
-    let text = file.slice(i + start.length, j);
-    if(text.startsWith('\n')) text = text.slice(1);
-    if(text.endsWith('\n')) text = text.slice(0, -1);
-    out[name] = text;
-  }
-  return out;
-}
-
-/* Every list the page writes has one item to a line, and each item opens
-   with what names it (see the serializers in 23-quick-edit.js and
-   29-editors.js). That is what makes a merge possible without reading
-   the chart: an item is its line, and its name is the start of it. */
-const STR = String.raw`'((?:[^'\\]|\\.)*)'`;
-const ITEM_KEY = {
-  NODES: new RegExp(String.raw`^\s*\{id:${STR}`),
-  COMMENTS: new RegExp(String.raw`^\s*\{id:${STR}`),
-  EDGESTYLES: new RegExp(String.raw`^\s*\{from:${STR}, to:${STR}`),
-  STICKERS: new RegExp(String.raw`^\s*\{key:${STR}`),
-  MEDIA: new RegExp(String.raw`^\s*\{key:${STR}`),
-  REFS: new RegExp(String.raw`^\s*\{key:${STR}`),
-  TAGCATS: new RegExp(String.raw`^\s*\{name:${STR}`)
-};
-// A region as its opening line, its items by name in order, and its close;
-// null when it is not written one item to a line, which is then no merge.
-function itemsOf(name, text){
-  const lines = text.split('\n').map(l => l.replace(/\s+$/, ''));
-  let head, tail, body;
-  const one = /^(const \w+ = \[)\];$/.exec(lines[0]);
-  if(lines.length === 1 && one){ head = one[1]; tail = '];'; body = []; }
-  else{
-    if(lines.length < 2 || !/^const \w+ = \[$/.test(lines[0]) || lines[lines.length - 1] !== '];') return null;
-    head = lines[0]; tail = '];'; body = lines.slice(1, -1).filter(l => l.trim());
-  }
-  const items = new Map();
-  for(const line of body){
-    const m = ITEM_KEY[name].exec(line);
-    if(!m) return null;
-    const key = m.slice(1).join('\u0000');
-    if(items.has(key)) return null;
-    items.set(key, line);
-  }
-  return {head, tail, items};
-}
-
 /* Three charts: the one a save was made on (base), the one the repository
    has now (theirs), and the save (mine). What only one side changed is
    taken from that side; what both changed the same way is taken once;
    what both changed differently is a conflict, and nothing is merged —
-   the save is refused as it always was, with the names of what collided.
-   An entry is the unit: two edits to one entry collide even when they
-   touch different fields, because a line is all this reads. */
-export function mergeRegions(base, theirs, mine){
+   the save is refused, with the names of what collided.
+
+   A list's unit is its record, named as CHART_LISTS says: two edits to one
+   entry collide even when they touch different fields, because an entry
+   is one thing to whoever edited it. The settings' unit is a field, since
+   the settings are one record holding unrelated choices. It used to be a
+   line of data.js, which came to the same for the lists and made the
+   settings one unit; reading the values rather than the text, a chart
+   written differently (a hand edit, another indentation) merges the same. */
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function mergeList(part, b, t, m, say){
+  const named = list => {
+    const out = new Map();
+    for(const item of list || []){
+      const k = itemName(part, item);
+      if(k === null || out.has(k)) return null;
+      out.set(k, item);
+    }
+    return out;
+  };
+  const B = named(b), T = named(t), M = named(m);
+  if(!B || !T || !M){ say({region: part}); return t; }
+  const keep = new Map();
+  const collide = k => say({region: part, item: k.split('\u0000').join(' → ')});
+  for(const [k, ti] of T){
+    const bi = B.get(k), mi = M.get(k);
+    if(mi === undefined){
+      if(bi === undefined) keep.set(k, ti);          // theirs added it
+      else if(!same(bi, ti)) collide(k);             // they changed what mine took out
+      continue;                                      // else mine took it out
+    }
+    if(same(mi, ti) || same(mi, bi)) keep.set(k, ti);
+    else if(same(ti, bi)) keep.set(k, mi);
+    else collide(k);
+  }
+  // What mine added goes after the item it follows in mine.
+  let after = null;
+  const order = [...keep.keys()];
+  for(const [k, mi] of M){
+    if(T.has(k)){ after = k; continue; }
+    const bi = B.get(k);
+    if(bi === undefined){
+      order.splice(after === null ? 0 : order.indexOf(after) + 1, 0, k);
+      keep.set(k, mi);
+      after = k;
+    } else if(!same(bi, mi)) collide(k);             // mine changed what they took out
+  }
+  return order.filter(k => keep.has(k)).map(k => keep.get(k));
+}
+function mergeRecord(part, b, t, m, say){
+  b = b || {}; t = t || {}; m = m || {};
+  const out = {};
+  const fields = [...Object.keys(t), ...Object.keys(m).filter(k => !(k in t)), ...Object.keys(b).filter(k => !(k in t) && !(k in m))];
+  for(const k of fields){
+    const v = mergeOne(b[k], t[k], m[k], () => say({region: part, item: k}));
+    if(v !== undefined) out[k] = v;
+  }
+  return out;
+}
+function mergeOne(b, t, m, collide){
+  if(same(m, b) || same(m, t)) return t;
+  if(same(t, b)) return m;
+  collide();
+  return t;
+}
+export function mergeCharts(base, theirs, mine){
   const out = {}, conflicts = [];
-  for(const name of REGIONS){
-    const b = base[name], t = theirs[name], m = mine[name];
-    if(m === b || m === t){ out[name] = t; continue; }
-    if(t === b){ out[name] = m; continue; }
-    if(!ITEM_KEY[name]){ conflicts.push({region: name}); continue; }
-    const B = itemsOf(name, b), T = itemsOf(name, t), M = itemsOf(name, m);
-    if(!B || !T || !M){ conflicts.push({region: name}); continue; }
-    const keep = new Map();
-    const say = key => conflicts.push({region: name, item: key.split('\u0000').join(' → ')});
-    for(const [key, tl] of T.items){
-      const bl = B.items.get(key), ml = M.items.get(key);
-      if(ml === undefined){
-        if(bl === undefined) keep.set(key, tl);         // theirs added it
-        else if(bl !== tl) say(key);                    // they changed what mine took out
-        continue;                                       // else mine took it out
-      }
-      if(ml === tl || ml === bl) keep.set(key, tl);
-      else if(tl === bl) keep.set(key, ml);
-      else say(key);
-    }
-    // What mine added goes after the item it follows in mine.
-    let after = null;
-    const order = [...keep.keys()];
-    for(const [key, ml] of M.items){
-      if(T.items.has(key)){ after = key; continue; }
-      const bl = B.items.get(key);
-      if(bl === undefined){
-        const at = after === null ? 0 : order.indexOf(after) + 1;
-        order.splice(at, 0, key);
-        keep.set(key, ml);
-        after = key;
-      } else if(bl !== ml) say(key);                    // mine changed what they took out
-    }
-    const lines = order.filter(k => keep.has(k)).map(k => keep.get(k));
-    out[name] = !lines.length && name === 'EDGESTYLES' ? M.head + '];'
-              : [M.head, ...lines, M.tail].join('\n');
+  const say = c => conflicts.push(c);
+  for(const k of CHART_KEYS){
+    const b = base[k], t = theirs[k], m = mine[k];
+    let v;
+    if(same(m, b) || same(m, t)) v = t;
+    else if(same(t, b)) v = m;
+    else if(CHART_LISTS[k]) v = mergeList(k, b, t, m, say);
+    else if(k === 'settings') v = mergeRecord(k, b, t, m, say);
+    else { say({region: k}); v = t; }
+    if(v !== undefined) out[k] = v;
   }
   if(conflicts.length){
     const e = httpError(409, 'the repository has a newer chart, and it changed ' +
@@ -302,245 +335,41 @@ export function mergeRegions(base, theirs, mine){
   return out;
 }
 
-/* ---- a region is data, and nothing else ------------------------------
-
-   src/data.js is written into the published page as a script, so the text
-   of a region RUNS in every reader's browser. A save that is also a push
-   of only data.js is published at once, without the checks a code change
-   waits for (the owner asked for that). Between the two, whatever a save
-   sent became code on the site, unread: an emptied bracket broke the page
-   for everybody, and a region holding a statement after its list would
-   have run it for everybody — with only a stolen session between that and
-   anyone who wanted to.
-
-   So a region is read here as what it claims to be: `const NAME = ` one
-   literal `;`, where a literal is a string, a number, true, false, null,
-   undefined, NaN, Infinity, or an array or object of literals with plain or
-   quoted keys. No name is looked up, nothing is called, no expression is
-   formed — what passes cannot do anything when it runs but exist. Comments
-   and trailing commas are allowed, because the serializers in the page
-   and a hand-edited data.js may write them, and they are inert.
-
-   It is a reader of the page's own output, not of JavaScript: anything the
-   serializers (jsStr, jsVal in 23-quick-edit.js; 29-editors.js) can write
-   reads; anything else is refused with where it stopped. */
-const REGION_CONST = {NODES: 'NODES', COMMENTS: 'COMMENTS', STICKERS: 'STICKERS', MEDIA: 'MEDIA',
-                      EDGESTYLES: 'EDGE_STYLES', TAGCATS: 'TAG_CATS', REFS: 'REFS', SETTINGS: 'SETTINGS'};
-const LITERAL_WORDS = {true: true, false: false, null: null, undefined: undefined, NaN: NaN, Infinity: Infinity};
-const MAX_DEPTH = 32;
-
-export function parseRegion(name, text){
-  const want = REGION_CONST[name];
-  if(!want) throw new Error(`no region is called ${name}`);
-  /* The page is HTML first: inside a script element these two end it or
-     bend how the rest of it is read, wherever they stand — a string
-     included. jsStr writes every "<" as \x3c, so only a hand edit has one. */
-  if(/<\/script|<!--/i.test(text)) throw new Error('it contains a sequence that would end the page\'s script');
-  let i = 0;
-  const n = text.length;
-  const fail = what => {
-    const line = text.slice(0, i).split('\n').length;
-    throw new Error(`${what} (line ${line} of the region)`);
-  };
-  const space = () => {
-    for(;;){
-      while(i < n && /\s/.test(text[i])) i++;
-      if(text.startsWith('//', i)){ while(i < n && text[i] !== '\n') i++; continue; }
-      if(text.startsWith('/*', i)){
-        const e = text.indexOf('*/', i + 2);
-        if(e < 0) fail('a comment is never closed');
-        i = e + 2; continue;
-      }
-      return;
-    }
-  };
-  const word = () => {
-    const m = /^[A-Za-z_$][\w$]*/.exec(text.slice(i, i + 64));
-    if(!m) return null;
-    i += m[0].length;
-    return m[0];
-  };
-  const hex = (len) => {
-    const h = text.slice(i, i + len);
-    if(h.length !== len || !/^[0-9a-fA-F]+$/.test(h)) fail('a broken escape in a string');
-    i += len;
-    return parseInt(h, 16);
-  };
-  const string = () => {
-    const q = text[i++];
-    let out = '';
-    for(;;){
-      if(i >= n) fail('a string is never closed');
-      const c = text[i];
-      if(c === q){ i++; return out; }
-      if(c === '\n' || c === '\r') fail('a string runs past the end of its line');
-      if(c !== '\\'){ out += c; i++; continue; }
-      const e = text[i + 1];
-      i += 2;
-      if(e === undefined) fail('a string is never closed');
-      else if(e === 'n') out += '\n';
-      else if(e === 'r') out += '\r';
-      else if(e === 't') out += '\t';
-      else if(e === 'b') out += '\b';
-      else if(e === 'f') out += '\f';
-      else if(e === 'v') out += '\v';
-      else if(e === '0' && !/[0-9]/.test(text[i] || '')) out += '\0';
-      else if(e === 'x') out += String.fromCharCode(hex(2));
-      else if(e === 'u'){
-        if(text[i] === '{'){
-          const end = text.indexOf('}', i);
-          if(end < 0 || end - i > 7) fail('a broken escape in a string');
-          i++;
-          const cp = hex(end - i);
-          if(cp > 0x10FFFF) fail('a broken escape in a string');
-          out += String.fromCodePoint(cp);
-          i++;
-        } else out += String.fromCharCode(hex(4));
-      }
-      else if(e === '\n' || e === ' ' || e === ' '){ /* a line continuation */ }
-      else if(e === '\r'){ if(text[i] === '\n') i++; }
-      else if(/[1-9]/.test(e)) fail('an octal escape in a string');
-      else out += e;
-    }
-  };
-  const number = () => {
-    const m = /^-?(?:Infinity|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/.exec(text.slice(i, i + 64));
-    if(!m) fail('something that is not a number, a string or a list');
-    i += m[0].length;
-    return Number(m[0]);
-  };
-  const value = (depth) => {
-    if(depth > MAX_DEPTH) fail('lists nested too deeply');
-    space();
-    const c = text[i];
-    if(c === '[') {
-      i++;
-      const out = [];
-      for(;;){
-        space();
-        if(text[i] === ']'){ i++; return out; }
-        out.push(value(depth + 1));
-        space();
-        if(text[i] === ','){ i++; continue; }
-        if(text[i] === ']'){ i++; return out; }
-        fail('a list where a comma or its close should be');
-      }
-    }
-    if(c === '{') {
-      i++;
-      const out = {};
-      for(;;){
-        space();
-        if(text[i] === '}'){ i++; return out; }
-        let key;
-        if(text[i] === "'" || text[i] === '"') key = string();
-        else key = word();
-        if(key === null) fail('a record whose field has no name');
-        space();
-        if(text[i] !== ':') fail(`a record field "${key}" with no value`);
-        i++;
-        // Defined, not assigned: assigned, "__proto__" would set the prototype.
-        Object.defineProperty(out, key, {value: value(depth + 1), enumerable: true, writable: true, configurable: true});
-        space();
-        if(text[i] === ','){ i++; continue; }
-        if(text[i] === '}'){ i++; return out; }
-        fail('a record where a comma or its close should be');
-      }
-    }
-    if(c === "'" || c === '"') return string();
-    if(c === '-' || c === '.' || /[0-9]/.test(c || '')) return number();
-    const at = i, w = word();
-    if(w !== null && Object.prototype.hasOwnProperty.call(LITERAL_WORDS, w)) return LITERAL_WORDS[w];
-    i = at;
-    fail(w === null ? 'something that is not data' : `a name, "${w}", where only data may stand`);
-  };
-  space();
-  if(word() !== 'const') fail(`the region does not open with "const ${want} ="`);
-  space();
-  if(word() !== want) fail(`the region does not open with "const ${want} ="`);
-  space();
-  if(text[i] !== '=') fail(`the region does not open with "const ${want} ="`);
-  i++;
-  const got = value(0);
-  space();
-  if(text[i] !== ';') fail('something follows the region\'s value');
-  i++;
-  space();
-  if(i < n) fail('something follows the region\'s value');
-  if(name === 'SETTINGS' ? (!got || typeof got !== 'object' || Array.isArray(got)) : !Array.isArray(got)){
-    fail(name === 'SETTINGS' ? 'the settings are not a record' : 'the region is not a list');
-  }
-  return got;
-}
-
-/* Every region a save changes is read as data before anything is
-   committed; a region the save leaves as the repository has it is not the
-   save's to answer for. */
-export function checkRegions(parts, file){
-  const was = regionsOf(file) || {};
-  const out = {};
-  for(const name of REGIONS){
-    if(typeof parts[name] !== 'string') throw httpError(400, `the save has no ${name} region.`);
-    if(parts[name] === was[name]) continue;
-    try{ out[name] = parseRegion(name, parts[name]); }
-    catch(e){ throw httpError(400, `the ${name} region is not the chart's data: ${e.message}.`); }
-  }
-  return out;
-}
-
 /* What an entry or a connector names: an entry's parents, the members of
    an array, a leader's two ends, a connector's two ends. A connector with
    an empty end is a bar's, and names nothing. */
-function namesIn(regions){
+function namesIn(chart){
   const ids = new Set(), refs = [];
   const say = (region, item, to) => { if(typeof to === 'string' && to) refs.push({region, item, to}); };
-  for(const e of regions.NODES || []){
-    if(Array.isArray(e)){                      // a chart kept in the first form
-      if(typeof e[0] === 'string') ids.add(e[0]);
-      [].concat(e[2] || []).forEach(p => say('NODES', e[0], p));
-      continue;
-    }
-    if(!e || typeof e !== 'object') continue;
+  for(const e of chart.nodes || []){
+    if(!isRecord(e)) continue;
     if(typeof e.id === 'string') ids.add(e.id);
-    [].concat(e.parent || []).forEach(p => say('NODES', e.id, p));
-    if(Array.isArray(e.members)) e.members.forEach(m => say('NODES', e.id, m));
-    if(e.leader && typeof e.leader === 'object'){ say('NODES', e.id, e.leader.from); say('NODES', e.id, e.leader.to); }
+    [].concat(e.parent || []).forEach(p => say('nodes', e.id, p));
+    if(Array.isArray(e.members)) e.members.forEach(m => say('nodes', e.id, m));
+    if(isRecord(e.leader)){ say('nodes', e.id, e.leader.from); say('nodes', e.id, e.leader.to); }
   }
-  for(const s of regions.EDGESTYLES || []){
-    if(!s || typeof s !== 'object') continue;
+  for(const s of chart.edgeStyles || []){
+    if(!isRecord(s)) continue;
     const item = `${s.from} → ${s.to}`;
-    say('EDGESTYLES', item, s.from); say('EDGESTYLES', item, s.to);
+    say('edgeStyles', item, s.from); say('edgeStyles', item, s.to);
   }
   return {ids, refs};
 }
-export function looseEnds(regions){ return dangling(regions); }
-function dangling(regions){
-  const {ids, refs} = namesIn(regions);
+export function looseEnds(chart){
+  const {ids, refs} = namesIn(chart);
   return refs.filter(r => !ids.has(r.to));
 }
 /* A merge puts together two edits that were each whole on their own, and
    can still leave a name pointing nowhere: one device took an entry out
-   while the other drew a line to it. Neither side's text collides, so the
-   item-by-item merge passes it. What is refused is only a loose end the
-   MERGE made — one in neither side's chart — so a chart that already had
-   one (a hand edit, an older bug) is not held hostage to it. */
+   while the other drew a line to it. Neither side's records collide, so
+   the merge passes it. What is refused is only a loose end the MERGE made
+   — one in neither side's chart — so a chart that already had one (a hand
+   edit, an older bug) is not held hostage to it. */
 export function mergeLeftLooseEnds(merged, theirs, mine){
-  const read = parts => {
-    const out = {};
-    for(const name of ['NODES', 'EDGESTYLES']){
-      try{ out[name] = parseRegion(name, parts[name]); }catch(e){ out[name] = null; }
-    }
-    return out;
-  };
-  const M = read(merged), T = read(theirs), Y = read(mine);
-  if(!M.NODES || !M.EDGESTYLES) return [];   // unreadable is checkRegions' to refuse
   const key = r => `${r.region}\u0000${r.item}\u0000${r.to}`;
   const had = new Set();
-  for(const side of [T, Y]){
-    if(!side.NODES || !side.EDGESTYLES) return [];
-    dangling(side).forEach(r => had.add(key(r)));
-  }
-  return dangling(M).filter(r => !had.has(key(r)));
+  for(const side of [theirs, mine]) looseEnds(side).forEach(r => had.add(key(r)));
+  return looseEnds(merged).filter(r => !had.has(key(r)));
 }
 
 /* ---- GitHub ---------------------------------------------------------- */
@@ -587,13 +416,13 @@ async function gh(token, path, init, refused){
   return res.json();
 }
 
-/* The current head of the branch, the data.js inside it, and the names in
+/* The current head of the branch, the chart.json inside it, and the names in
    the media folder beside it (none, before the first picture is saved). */
 async function currentData(env, token){
   const ref = await gh(token, `/repos/${env.REPO}/git/ref/heads/${env.BRANCH}`);
   const commit = await gh(token, `/repos/${env.REPO}/git/commits/${ref.object.sha}`);
   // Walked down the tree rather than asked of the contents endpoint, which
-  // stops describing a file once it passes a megabyte — and this one does.
+  // stops describing a file once it passes a megabyte — and this one could.
   const walk = async (sha, path) => {
     for(const name of path.split('/')){
       const tree = await gh(token, `/repos/${env.REPO}/git/trees/${sha}`);
@@ -646,7 +475,8 @@ async function readBlob(env, token, sha){
 }
 
 /* One commit, made with the Git Data API rather than the contents endpoint:
-   data.js runs past a megabyte, and the ref update is a fast-forward only —
+   a chart with its pictures inside could run past a megabyte, which that
+   endpoint will not take, and the ref update is a fast-forward only —
    a push that landed in between makes it fail rather than be overwritten. */
 async function commitData(env, token, now, text, login, media){
   const blob = await gh(token, `/repos/${env.REPO}/git/blobs`, {method: 'POST', body: JSON.stringify({content: text, encoding: 'utf-8'})});
@@ -670,7 +500,7 @@ async function commitData(env, token, now, text, login, media){
   });
   if(res.status === 422) throw httpError(409, 'the branch moved while this save was being made.');
   if(!res.ok) throw httpError(res.status === 403 ? 403 : 502, `GitHub answered ${res.status} to the branch update.`);
-  // `over`: the data.js this one replaced, so a page that was told of that
+  // `over`: the chart.json this one replaced, so a page that was told of that
   // one a moment ago knows it has been overtaken by its own save.
   return {sha: blob.sha, commit: commit.sha, over: now.sha};
 }
@@ -820,13 +650,21 @@ async function me(env, request, ctx){
 async function save(env, request, ctx){
   const s = await session(env, request, ctx, 'owner');
   const body = await readJson(request, MAX_BODY, 'the save');
-  if(!body || typeof body.base !== 'string' || !body.parts || typeof body.parts !== 'object'){
-    throw httpError(400, 'the save needs a base and the chart\'s regions.');
+  /* A page from before 0.23 sends the chart as data.js's regions. It is
+     behind the repository by definition — its data.js is not there any
+     more — and its owner sees it as soon as it is reloaded. */
+  if(body && body.parts && body.chart === undefined){
+    throw httpError(400, 'this page is older than the chart\'s save service; reload it to save.');
   }
+  if(!body || typeof body.base !== 'string' || typeof body.chart !== 'string'){
+    throw httpError(400, 'the save needs a base and the chart.');
+  }
+  let mine;
+  try{ mine = readChart(body.chart); }
+  catch(e){ throw httpError(400, `the save is not the chart: ${e.message}.`); }
   const now = await currentData(env, s.gh);
   const file = await readBlob(env, s.gh, now.sha);
-  checkRegions(body.parts, file);
-  let next = applyRegions(file, body.parts);
+  let next = chartText(mine);
   let media = await checkMedia(body.media, next, file, now.media);
   // A save of exactly what is there changes nothing, whatever it was made
   // on top of. That is not a courtesy: a save kept on a phone with a bad
@@ -842,28 +680,30 @@ async function save(env, request, ctx){
      that sent it has not seen the other half. */
   let merged = null;
   if(now.sha !== body.base){
-    let base;
-    try{ base = /^[0-9a-f]{40}$/.test(body.base) ? regionsOf(await readBlob(env, s.gh, body.base)) : null; }
-    catch(e){ base = null; }
-    const theirs = regionsOf(file);
+    const read = async sha => {
+      try{ return readChart(await readBlob(env, s.gh, sha)); }catch(e){ return null; }
+    };
+    const base = /^[0-9a-f]{40}$/.test(body.base) ? await read(body.base) : null;
+    let theirs = null;
+    try{ theirs = readChart(file); }catch(e){}
     if(!base || !theirs) throw httpError(409, 'the repository has a newer chart.');
-    merged = mergeRegions(base, theirs, body.parts);
-    const loose = mergeLeftLooseEnds(merged, theirs, body.parts);
+    const together = mergeCharts(base, theirs, mine);
+    const loose = mergeLeftLooseEnds(together, theirs, mine);
     if(loose.length){
       const e = httpError(409, 'the repository has a newer chart, and put together with this save it would leave ' +
         (loose.length === 1 ? 'a name' : loose.length + ' names') + ' pointing at an entry that is no longer there.');
       // Named by the entry that is gone, which is what the page can show
       // by name; what still points at it rides along.
-      e.conflicts = loose.map(r => ({region: 'NODES', item: r.to, from: {region: r.region, item: r.item}}));
+      e.conflicts = loose.map(r => ({region: 'nodes', item: r.to, from: {region: r.region, item: r.item}}));
       throw e;
     }
-    checkRegions(merged, file);
-    next = applyRegions(file, merged);
+    next = chartText(together);
+    merged = next;
     media = await checkMedia(body.media, next, file, now.media);
-    if(next === file && !media.length) return {sha: now.sha, unchanged: true, merged: true, parts: merged};
+    if(next === file && !media.length) return {sha: now.sha, unchanged: true, merged: true, chart: merged};
   }
   const done = await commitData(env, s.gh, now, next, s.login, media);
-  return merged ? Object.assign(done, {merged: true, parts: merged}) : done;
+  return merged ? Object.assign(done, {merged: true, chart: merged}) : done;
 }
 
 /* ---- suggestions ----------------------------------------------------- */

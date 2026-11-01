@@ -4,7 +4,7 @@
    The site is a static page, and a static page cannot be written to. So
    the writing goes somewhere else: a small service (worker/ in the
    repository) that signs the owner in through GitHub, and on Save commits
-   the chart's regions into src/data.js. The commit is the publish — CI
+   the chart into src/chart.json. The commit is the publish — CI
    builds the page from it and puts it on the site, exactly as it does for
    any other change.
 
@@ -39,11 +39,11 @@ const SITE_OWNER_KEY = 'rhizome.site.owner';
 /* The key of the kept Save in the draft store (22-file-comments). */
 const SITE_OUTBOX_KEY = 'rhizome.site.outbox';
 const ownerBtn = document.getElementById('ownerBtn');
-/* The data.js this page's next save replaces. It starts as the one the page
+/* The chart.json this page's next save replaces. It starts as the one the page
    was built from and moves with every save, so a second save before the
    site has caught up is still a save on top of the first. */
 let siteBase = DATA_SHA;
-/* The data.js files a save from this page replaced. The service saying the
+/* The chart.json files a save from this page replaced. The service saying the
    repository holds one of them is this page's own save not yet published,
    not a newer chart from somewhere else. */
 const siteSavedOver = new Set();
@@ -124,14 +124,16 @@ function siteError(code, message, body){
   return e;
 }
 /* What collided, in words: the entries by their names on the chart where
-   the service named one, the region otherwise. */
-const SITE_REGION_WORDS = {NODES: 'entries', EDGESTYLES: 'connector styles', STICKERS: 'stickers', MEDIA: 'pictures',
-                           COMMENTS: 'comments', TAGCATS: 'tag categories', REFS: 'references', SETTINGS: 'the chart\u2019s settings'};
+   the service named one, the part of the chart otherwise. The service
+   names a part as chart.json does (`nodes`, `edgeStyles`, …). */
+const SITE_REGION_WORDS = {nodes: 'entries', edgeStyles: 'connector styles', stickers: 'stickers', media: 'pictures',
+                           comments: 'comments', tagCats: 'tag categories', refs: 'references', settings: 'the chart\u2019s settings',
+                           format: 'the chart\u2019s form'};
 function siteConflictWords(conflicts){
   if(!Array.isArray(conflicts) || !conflicts.length) return '';
   const names = conflicts.slice(0, 4).map(c=>{
     if(!c.item) return SITE_REGION_WORDS[c.region] || c.region;
-    if(c.region === 'NODES'){
+    if(c.region === 'nodes'){
       const n = nodes.get(c.item);
       return '\u201c' + (n ? stripMarkup(n.label) : c.item).slice(0, 40) + '\u201d';
     }
@@ -143,14 +145,25 @@ function siteConflictWords(conflicts){
    one step of undo, and undoing it is an edit like any other. The paths
    the save lifted its own pictures to are given their bytes back, because
    the site serves them only once it has been published again. */
-function takeMergedChart(parts, uris){
-  const text = REGION_NAMES.map(name=>{
-    let t = typeof parts[name] === 'string' ? parts[name] : '';
-    Object.keys(uris || {}).forEach(ref=>{ t = t.split(ref).join(uris[ref]); });
-    return `/* @@EDIT:${name}:START@@ */\n${t}\n/* @@EDIT:${name}:END@@ */`;
-  }).join('\n');
-  importChartFromText(text);
+function takeMergedChart(chart, uris){
+  let t = String(chart);
+  Object.keys(uris || {}).forEach(ref=>{ t = t.split(ref).join(uris[ref]); });
+  importChartFromText(t);
   savedParts = snapshotParts();
+}
+/* A Save kept on this device by a page from before 0.23 holds the chart
+   as regions, which the service no longer takes. It is the same chart,
+   and is sent as the file it now is. */
+function keptChart(kept){
+  if(!kept) return null;
+  if(typeof kept.chart === 'string') return kept.chart;
+  if(kept.parts && typeof kept.parts === 'object'){
+    try{
+      return chartJsonText(chartJsonOf(REGION_NAMES.map(name=>
+        `/* @@EDIT:${name}:START@@ */\n${kept.parts[name] || ''}\n/* @@EDIT:${name}:END@@ */`).join('\n')));
+    }catch(e){ return null; }
+  }
+  return null;
 }
 
 /* The way in is GitHub's own mark, and the way out a door in the
@@ -192,7 +205,7 @@ function updateOwnerBtn(){
 async function checkSiteOwner(){
   if(!ON_SITE || !SITE_API || !siteSession()) return false;
   const kept = await readOutbox();
-  if(kept && kept.data && kept.parts) takeOutbox(kept);
+  if(kept && kept.data && keptChart(kept)) takeOutbox(kept);
   let answer = null;
   if(!siteOffline()){ try{ answer = await siteRequest('/me'); }catch(e){} }
   if(!answer) return workOffline();
@@ -271,24 +284,24 @@ window.addEventListener('message', ev=>{
   checkSiteOwner().then(()=>{ if(suggestionsOpen()){ paintSuggestForm(); loadSuggestions(); } });
 });
 
-/* Save, when the page is on the site. The regions go as the same text the
-   page writes into itself and Export data writes into a file, so the
-   service needs to know nothing about the chart beyond where its markers
-   are. */
+/* Save, when the page is on the site. The chart goes as the file it is in
+   the repository — the same text Export the contents writes — and the
+   service reads it as JSON, merges it item by item with whatever the
+   repository got since, and writes it back one item to a line. */
 async function saveToSite(){
   if(!siteSession()) throw siteError('signed_out', 'you are not signed in.');
-  const parts = writeChartParts();
-  if(siteOffline()) return keepForLater(parts);
+  const chart = chartFileText();
+  if(siteOffline()) return keepForLater(chart);
   let answer, sent;
   try{
-    sent = siteTakesMedia ? await liftMedia(parts) : {parts, files: {}};
+    sent = siteTakesMedia ? await liftMedia({chart}) : {parts: {chart}, files: {}};
     answer = await siteRequest('/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({base: siteBase, parts: sent.parts, media: sent.files})
+      body: JSON.stringify({base: siteBase, chart: sent.parts.chart, media: sent.files})
     });
   }catch(e){
-    return keepForLater(parts);
+    return keepForLater(chart);
   }
   const {res, body} = answer;
   if(res.status === 401){ forgetSiteSession(); throw siteError('signed_out', 'your sign-in has expired.'); }
@@ -301,7 +314,7 @@ async function saveToSite(){
   tookMedia(sent);
   /* Made on an older chart and merged with what the repository got since:
      what this page shows is half of it until it takes the rest. */
-  if(body && body.merged && body.parts) takeMergedChart(body.parts, sent.uris);
+  if(body && body.merged && typeof body.chart === 'string') takeMergedChart(body.chart, sent.uris);
   /* This save carried everything a kept one did, and more. */
   if(sitePending){ await dropOutbox(); sitePending = false; }
   savedParts = snapshotParts();
@@ -325,14 +338,13 @@ function readOutbox(){ return draftDo('readonly', st=> st.get(SITE_OUTBOX_KEY));
 function dropOutbox(){ return draftDo('readwrite', st=> st.delete(SITE_OUTBOX_KEY)); }
 function putOutbox(entry){ return draftDo('readwrite', st=> st.put(entry, SITE_OUTBOX_KEY)); }
 
-/* The whole chart is kept, not what changed: a save is the chart's regions
-   whole, so a second Save with no connection simply replaces the first,
+/* The whole chart is kept, not what changed: a save is the chart whole, so a second Save with no connection simply replaces the first,
    and the base stays the chart both were made on top of. The chart itself
-   is kept beside the regions so that the page can show it when it is
+   is kept beside the file as the page holds it, so that the page can show it when it is
    opened again before the Save has gone — otherwise it would open on the
    chart it was built with and look as if the work had been lost. */
-async function keepForLater(parts){
-  const kept = await putOutbox({at: Date.now(), base: siteBase, parts, data: chartData()});
+async function keepForLater(chart){
+  const kept = await putOutbox({at: Date.now(), base: siteBase, chart, data: chartData()});
   if(!kept) throw siteError('offline', 'could not reach the save service, and this browser would not keep the chart either. Export it to keep it.');
   sitePending = true;
   savedParts = snapshotParts();
@@ -365,16 +377,17 @@ function flushOutbox(){
 }
 async function sendOutbox(){
   const kept = await readOutbox();
-  if(!kept || !kept.parts){ sitePending = false; refreshSaveUI(); return true; }
+  const chart = keptChart(kept);
+  if(!chart){ sitePending = false; refreshSaveUI(); return true; }
   if(!siteSession()){ setSaveState('err', SITE_SIGN_IN_TO_SEND); return false; }
   if(siteOffline()) return false;
   let answer, sent;
   try{
-    sent = siteTakesMedia ? await liftMedia(kept.parts) : {parts: kept.parts, files: {}};
+    sent = siteTakesMedia ? await liftMedia({chart}) : {parts: {chart}, files: {}};
     answer = await siteRequest('/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({base: kept.base, parts: sent.parts, media: sent.files})
+      body: JSON.stringify({base: kept.base, chart: sent.parts.chart, media: sent.files})
     });
   }catch(e){ return false; }
   const {res, body} = answer;
@@ -402,7 +415,7 @@ async function sendOutbox(){
   if(body && body.merged){
     if(!later && !isDirty()){
       if(body.sha) siteBase = body.sha;
-      if(body.parts) takeMergedChart(body.parts, sent.uris);
+      if(typeof body.chart === 'string') takeMergedChart(body.chart, sent.uris);
     }
   } else if(body && body.sha) siteBase = body.sha;
   if(later){ if(!(body && body.merged)) await putOutbox(Object.assign({}, now, {base: siteBase})); }

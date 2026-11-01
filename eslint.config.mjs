@@ -44,14 +44,13 @@ const BROWSER = {
   /* Not everywhere yet: the custom-highlight API is feature-detected before
      use, which is exactly why it has to be declared — an undeclared name in
      a `typeof` guard reads to the linter like the typo it is guarding against. */
-  Highlight: 'readonly',
-  /* The host's own injected global. Its absence is meaningful: see HOSTED. */
-  claude: 'readonly'
+  Highlight: 'readonly'
 };
 
-/* src/data.js declares these and src/app.js works on them. They are one
- * scope in the built file — the build concatenates the two — which is what
- * this tells the linter, since it has no way to see the concatenation. */
+/* The chart, as the program names it (01-store.js reads src/chart.json into
+ * these). The program declares them itself; the tests and tools hand code
+ * to page.evaluate that runs in the page's scope, where they are, and that
+ * is what this tells the linter about those files. */
 const CHART_DATA = {
   NODES: 'readonly', EDGE_STYLES: 'readonly',
   STICKERS: 'writable', MEDIA: 'writable', COMMENTS: 'writable',
@@ -79,17 +78,10 @@ export default [
     files: ['.lint/app.js'],
     languageOptions: {
       ecmaVersion: 2022, sourceType: 'script',
-      globals: {...BROWSER, ...CHART_DATA}
+      globals: BROWSER
     },
     linterOptions: {reportUnusedDisableDirectives: true},
     rules: RULES
-  },
-  {
-    /* The data file only declares; everything that reads it is next door, so
-       "assigned but never used" is the normal state of every line in it. */
-    files: ['src/data.js'],
-    languageOptions: {ecmaVersion: 2022, sourceType: 'script', globals: BROWSER},
-    rules: {'no-redeclare': 'error', 'no-undef': 'error'}
   },
   {
     /* The test runner and the benchmark are Node, but most of their bodies
