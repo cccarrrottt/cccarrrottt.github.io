@@ -24,7 +24,7 @@
     {"id":"node-6","label":"Гаягкягкч","parent":"node-5","pos":[-240.23,219.08],"size":[54.13,12.05]},
     {"id":"node-9","label":"TNSDM","pos":[-378.39,501.72]},
     {"id":"node-10","label":"SDWaY!","pos":[-440.97,501.72]},
-    {"id":"node-11","label":"","shape":"image","pos":[-300,12],"size":[30.21,30.21],"image":"media/ae476582910cbf9599d2d882d6725d1cb7a4edf5228b942d91135062b4ef718a.gif","anim":"hover"},
+    {"id":"node-11","label":"","shape":"image","pos":[-300,12],"size":[30.21,30.21],"image":"media/921a2d02978fe45df7d24a0a999c0bdcf5a697b449e3b55a119fd027f04c3998.webp","anim":"hover"},
     {"id":"node-12","label":"SD","pos":[-398.02,530.17]},
     {"id":"array","label":"","shape":"array","members":["node-9","node-10","node-12"],"bg":["#c2c"],"hatch":"diag-r","border":"dotted"},
     {"id":"callout-3","label":"Рвивт","shape":"callout","pos":[-38.47,81.48],"leader":{"from":"asdasd-copy","to":"beast-wars-uprising-copy-4","at":0.181}},
@@ -59,7 +59,7 @@
   ],
   "stickers": [
     {"key":"images","name":"images","src":"media/88dca481176dfc036576689788c3f7d740b50a61cf9f0726bd72ab1a24690603.png"},
-    {"key":"1000012050","name":"1000012050","src":"media/45be8b64d0aa9535656e04c8c882598eeaa6172f63761a5d63b75f88d0c2d788.gif"}
+    {"key":"1000012050","name":"1000012050","src":"media/2e9e0f4b92a4c6d437600833509afed1f22259d41edf6dee63487ea80126fcd3.webp"}
   ],
   "media": [
     {"key":"nagahurt","name":"NagaHurt","kind":"video","src":"media/daf23fc6822c84f85fd103a5730f5ec7f74fcf254cc2b80073f52394b37608b5.webm"}

@@ -8,7 +8,7 @@ Releases before 0.9.0 were not numbered.
 
 ## 0.23.1 — "Locked down" (2026-11-01)
 
-The rest of the project review's list, but for compressing the pictures.
+The rest of the project review's list.
 
 - **A Content-Security-Policy on the site** (`site_policy`, `build.py`),
   as a `<meta>` since Pages sends no headers. Scripts only from the site
@@ -34,6 +34,11 @@ The rest of the project review's list, but for compressing the pictures.
   before it names, as it already did for the program.
 - **`/suggest` is limited**: ten suggestions waiting and five an hour per
   account, counted from the account's own issues, the owner exempt.
+- **The chart's two GIFs are animated WebP** (ffmpeg, quality 80): 383 KB
+  and 304 KB became 69 KB and 56 KB, and what a first visit downloads in
+  pictures went from 994 KB to 433 KB. They still stand still until
+  hovered. The GIF files stay in `src/media/`, since a page or an outbox
+  from before may still name them.
 
 ## 0.23.0 — "The chart as data" (2026-11-01)
 

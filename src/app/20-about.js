@@ -19,7 +19,8 @@ const VERSION_LOG = [
 'An SVG picture stays inside the chart rather than becoming a file on the site, where opening it by its address could run a script in it. The write service refuses one sent as a file.',
 'A clip kept on the device for use with no signal plays in Safari: it is handed over in the pieces the player asks for, as a server would.',
 'Pictures no longer on the chart are let go from the device, as an old program already was.',
-'One account may have ten suggestions waiting and make five an hour; the owner is not counted.'
+'One account may have ten suggestions waiting and make five an hour; the owner is not counted.',
+'The two moving pictures on the chart are animated WebP rather than GIF: the same frames at a sixth of the weight, so a first visit downloads 0.4 MB of pictures rather than 1 MB.'
   ]},
   {v:'0.23.0', date:'2026-11-01', title:'The chart as data', notes:[
 'The chart is a file of its own now, chart.json, and the page reads it as data rather than running it as part of its program. Export the contents writes that same file, which Import reads back; the older contents file, data.js, is gone from the menu, and a file of that kind from before still opens.',
