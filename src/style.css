@@ -292,7 +292,7 @@
   body.read-only #detailEditToggle,
   body.read-only .detail-note-btn,
   body.read-only .node-handles,
-  body.read-only #saveState,
+  body.read-only #saveState:not(.site-notice),
   /* Drawn before the page learns it is read-only (an answer that can come
      late), the ✕ on a tag would otherwise stay up until the panel is next
      built. */

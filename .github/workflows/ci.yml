@@ -303,6 +303,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            # A fork has no service of its own to deploy, and passes. The
+            # repository the site names (00-config.js) does: there, a skip
+            # left the live service on the code before 0.23.0 — reading a
+            # data.js that was gone — while every check stayed green and the
+            # owner could no longer edit. So there it is a failure.
+            site_repo=$(sed -n "s/^[[:space:]]*repo: '\([^']*\)'.*/\1/p" ../src/app/00-config.js)
+            if [ "$site_repo" = "$GITHUB_REPOSITORY" ]; then
+              echo "::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are not set, so the write service cannot be deployed and the site would talk to an old one. Add them under Settings, Secrets and variables, Actions."
+              exit 1
+            fi
             echo "No Cloudflare secrets in this repository; the write service is not deployed."
             exit 0
           fi

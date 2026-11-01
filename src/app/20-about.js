@@ -11,9 +11,12 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.23.1';
+const APP_VERSION = '0.23.2';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.23.2', date:'2026-11-01', title:'Told, not stuck', notes:[
+'An owner who signs in and is not handed the editor is told why on the page: the write service failed, or the page is older than the repository. Both messages were written before, and hidden on a page that was still a reader\'s.'
+  ]},
   {v:'0.23.1', date:'2026-11-01', title:'Locked down', notes:[
 'The site now says which scripts may run on it: its own files and nothing typed into the page or made from a string. The owner\'s sign-in is kept in the browser, and a script that got onto the site some other way could have read it.',
 'An SVG picture stays inside the chart rather than becoming a file on the site, where opening it by its address could run a script in it. The write service refuses one sent as a file.',
