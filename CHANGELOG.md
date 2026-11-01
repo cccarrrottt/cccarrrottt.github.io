@@ -6,6 +6,21 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.23.2 — "Told, not stuck" (2026-11-01)
+
+After 0.23.1 the owner signed in on the site and nothing happened. The
+write service had not been deployed since it was renamed — the repository
+has no Cloudflare secrets, and CI's deploy step said so and passed — so the
+live one still read `src/data.js`, gone since 0.23.0, and `/me` failed.
+
+- **CI fails the deploy when the secrets are missing** in the repository
+  the site names (`SITE_CONFIG.repo`); a fork still passes.
+- **The page says why the owner is not an editor.** A failing `/me` and a
+  page older than the repository both set a message, but on the save
+  state, which a read-only page hides — and both leave the page read-only.
+  They are now `siteNotice`, which shows through. The suite checks the
+  message is visible, not only written.
+
 ## 0.23.1 — "Locked down" (2026-11-01)
 
 The rest of the project review's list.

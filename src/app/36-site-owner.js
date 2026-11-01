@@ -198,6 +198,13 @@ function updateOwnerBtn(){
     : 'Sign in with GitHub: anyone may suggest a change, and the owner edits.';
 }
 
+/* What the owner is told while the page is still a reader's. The save
+   state is hidden on a read-only page, and these are exactly the moments
+   the page stays one, so they are marked to show through. */
+function siteNotice(msg){
+  setSaveState('err site-notice', msg);
+}
+
 /* Asked once at load, and again whenever a sign-in completes. Anything
    short of a clear "yes, the owner, and your page is current" leaves the
    page a reader — an unreachable service included, since the only thing
@@ -220,7 +227,14 @@ async function checkSiteOwner(){
     updateOwnerBtn();
     return false;
   }
-  if(!res.ok || !me || !me.owner) return false;
+  if(!res.ok || !me || !me.owner){
+    /* Signed in, and the service could not say who that is: the owner
+       otherwise sees the button turn and nothing else happen. 0.23.0 was
+       published against a service still reading data.js, and this is all
+       that showed. */
+    if(!res.ok) siteNotice(`Signed in, but the write service failed (${res.status}${me && me.error ? ': ' + me.error : ''}). The chart stays read-only.`);
+    return false;
+  }
   siteReader = null;
   siteTakesMedia = me.media === true;
   siteOwner = me.login || 'owner';
@@ -232,7 +246,7 @@ async function checkSiteOwner(){
      calling it a conflict, and this page is current after all. */
   if(sitePending && me.sha && me.sha !== siteBase) await flushOutbox();
   if(me.sha && siteBase && me.sha !== siteBase && !siteSavedOver.has(me.sha)){
-    if(!sitePending) setSaveState('err', 'The repository has a newer chart than this page. It is still being published — reload in a few minutes to edit.');
+    if(!sitePending) siteNotice('The repository has a newer chart than this page. It is still being published — reload in a few minutes to edit.');
     return false;
   }
   markEditable();

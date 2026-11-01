@@ -523,10 +523,14 @@ async function main(){
       const shown = !t.hidden && getComputedStyle(t).display !== 'none' &&
                     getComputedStyle(t).visibility !== 'hidden';
       document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
-      await new Promise(r => setTimeout(r, 220));
-      // And Escape puts it away again, as its own ✕ would.
-      const gone = t.hidden || getComputedStyle(t).display === 'none' ||
-                   getComputedStyle(t).visibility === 'hidden';
+      // And Escape puts it away again, as its own ✕ would. Asked until it
+      // has, for up to two seconds: a panel that fades goes hidden at the
+      // end of its transition, which a fixed 220 ms outlasted on a quiet
+      // machine and not under four shards at once.
+      const isGone = () => t.hidden || getComputedStyle(t).display === 'none' ||
+                           getComputedStyle(t).visibility === 'hidden';
+      for(let i = 0; i < 40 && !isGone(); i++) await new Promise(r => setTimeout(r, 50));
+      const gone = isGone();
       if(shown && !gone) return 'Escape left it open';
       return shown;
     }, [btn, panel]);
@@ -10459,6 +10463,7 @@ async function main(){
     }
     api.asked++;
     if(SESSIONS.indexOf(q.headers()['authorization']) < 0) return reply(401, {error: 'not signed in.'});
+    if(u.pathname === '/me' && api.meFails) return reply(500, {error: 'src/data.js was not found'});
     if(u.pathname === '/me'){
       // The service renewing a session whose GitHub token ran out.
       const renewed = api.renewNext ? {session: 'renewed-session'} : {};
@@ -10762,10 +10767,28 @@ async function main(){
   await behind.waitForFunction(() => typeof rebuildChart === 'function');
   await wait(600);
   const rb = await behind.evaluate(() => ({readOnly: readOnlyView,
-                                           said: document.getElementById('saveStateText').textContent}));
-  check('an owner whose page is older than the repository is not handed an editor',
-        rb.readOnly && /newer chart/.test(rb.said), JSON.stringify(rb));
+                                           said: document.getElementById('saveStateText').textContent,
+                                           shown: getComputedStyle(document.getElementById('saveState')).display !== 'none'}));
+  check('an owner whose page is older than the repository is not handed an editor, and is told so where it shows',
+        rb.readOnly && /newer chart/.test(rb.said) && rb.shown, JSON.stringify(rb));
   await behind.close();
+
+  /* ---- and when the service cannot answer who it is ----
+     What 0.23.0 met on the site: a service still reading data.js, a sign-in
+     that went through, and a page that silently stayed a reader. */
+  api.sha = dataSha;
+  api.meFails = true;
+  const failing = await c.newPage();
+  await failing.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+  await failing.waitForFunction(() => typeof rebuildChart === 'function');
+  await wait(600);
+  const rf = await failing.evaluate(() => ({readOnly: readOnlyView,
+                                            said: document.getElementById('saveStateText').textContent,
+                                            shown: getComputedStyle(document.getElementById('saveState')).display !== 'none'}));
+  api.meFails = false;
+  check('a service that fails after sign-in leaves a reader, and says so where it shows',
+        rf.readOnly && rf.shown && /write service failed \(500: src\/data\.js/.test(rf.said), JSON.stringify(rf));
+  await failing.close();
 
   /* ---- and when the session has run out ---- */
   api.sha = dataSha;
