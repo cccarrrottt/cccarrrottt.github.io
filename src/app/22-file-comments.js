@@ -28,22 +28,10 @@ function chartFileName(){
   return `rhizome-project-${stamp}.html`;
 }
 
-/* Handing the viewer a file takes two entirely different routes.
- *
- * Outside claude.ai the page is just a page: a blob URL on an <a download>
- * saves the file, no permission involved. Inside the artifact viewer that
- * link is inert — and inert SILENTLY, with no event to catch, which is the
- * worst possible failure for a Save-your-work button. The viewer mediates
- * file offers through the downloads capability instead, which asks the
- * person before anything is written.
- *
- * So: use the capability when it is there, the link when it is not, and
- * never report a save that may not have happened. */
-const capDownloadsPromise = (async()=>{
-  if(!HOSTED) return null;
-  try{ return (await claude.use('downloads')) || null; }catch(e){ return null; }
-})();
-
+/* Handing the person a file: a blob URL on an <a download>. It used to
+ * take a second route as well, through the claude.ai viewer's downloads
+ * capability, because a link is inert inside that viewer; the page is not
+ * published there any more. */
 function saveViaLink(text, name){
   const url = URL.createObjectURL(new Blob([text], {type:'text/html'}));
   const a = document.createElement('a');
@@ -70,8 +58,8 @@ function chartDataOnly(){
     '/* Rhizome Project — chart contents only.',
     '   Not a page: the entries, connector styles, stickers, tags,',
     '   references and settings, in the form the page stores them.',
-    '   Rebuild with:  python3 build.py --pull <this file>',
-    '   Or open the chart and use Import, which reads this too. */',
+    '   Open the chart and use Import to read it back; its regions are',
+    '   also exactly what src/data.js holds between the same markers. */',
     ''
   ].join('\n') + '\n' + REGION_NAMES.map(name=>
     `/* @@EDIT:${name}:START@@ */\n${parts[name]}\n/* @@EDIT:${name}:END@@ */`
@@ -90,23 +78,8 @@ async function exportChartData(asJson){
     setFileStatus('err', 'Export failed: ' + (e && e.message ? e.message : 'unknown error'));
     return;
   }
-  const dl = await capDownloadsPromise;
-  if(!dl){
-    saveViaLink(out, name);
-    setFileStatus(HOSTED ? '' : 'ok', HOSTED
-      ? 'This copy cannot hand you a file. Open the editable copy and export from there.'
-      : 'Exported as ' + name + '.');
-    return;
-  }
-  setFileStatus('', 'Waiting for you to confirm the download\u2026');
-  try{
-    await dl.save({filename:name, data:out});
-    setFileStatus('ok', 'Exported as ' + name + '.');
-  }catch(e){
-    if(e && e.code === 'declined'){ setFileStatus('', 'Export cancelled.'); return; }
-    saveViaLink(out, name);
-    setFileStatus('ok', 'Exported as ' + name + '.');
-  }
+  saveViaLink(out, name);
+  setFileStatus('ok', 'Exported as ' + name + '.');
 }
 
 async function exportChart(){
@@ -125,50 +98,8 @@ async function exportChart(){
     return;
   }
 
-  const dl = await capDownloadsPromise;
-  if(!dl){
-    /* No capability. Off claude.ai that is normal and the link simply works.
-       On claude.ai it means this copy was published without the downloads
-       capability — a copy shared publicly has to be, because declaring any
-       capability at all is what stops a page being shared that way. The link is then almost certainly inert, and saying
-       "Exported" would be a lie. Try it anyway, since it costs nothing and
-       may work, but describe it as an attempt. */
-    saveViaLink(out, name);
-    setFileStatus(HOSTED ? '' : 'ok', HOSTED
-      ? 'This copy of the chart cannot hand you a file: it is published without download permission so that it stays publicly shareable. If no download appeared, open the editable copy and export from there.'
-      : 'Exported as ' + name + '.');
-    return;
-  }
-
-  setFileStatus('', 'Waiting for you to confirm the download\u2026');
-  try{
-    await dl.save({filename:name, data:out});
-    setFileStatus('ok', 'Exported as ' + name + '.');
-    return;
-  }catch(e){
-    const code = e && e.code;
-    if(code === 'declined'){ setFileStatus('', 'Export cancelled.'); return; }
-    if(code === 'rate_limited'){ setFileStatus('err', 'Another download prompt is still open \u2014 finish that one, then try again.'); return; }
-    if(code === 'too_large'){ setFileStatus('err', 'This chart is too large for the viewer to hand over. Open it outside claude.ai and export there.'); return; }
-    if(code !== 'rejected_extension' && code !== 'extension_not_enabled'){
-      setFileStatus('err', 'Export failed: ' + ((e && e.message) || 'the viewer would not save the file') + '.');
-      return;
-    }
-  }
-
-  /* .html is not in every viewer's allowed set. The contents are what
-     matter and they are unchanged, so offer the same bytes under .txt and
-     say plainly that it needs renaming — a file the person has to rename
-     beats no file at all. */
-  const alt = name.replace(/\.html$/i, '') + '.html.txt';
-  try{
-    await capDownloadsPromise.then(d => d.save({filename:alt, data:out}));
-    setFileStatus('ok', 'This viewer will not save .html files, so it saved ' + alt +
-                        ' instead. Rename it to ' + name + ' and it will open as the chart.');
-  }catch(e2){
-    if(e2 && e2.code === 'declined'){ setFileStatus('', 'Export cancelled.'); return; }
-    setFileStatus('err', 'This viewer would not save the file. Open the chart outside claude.ai and export there.');
-  }
+  saveViaLink(out, name);
+  setFileStatus('ok', 'Exported as ' + name + '.');
 }
 
 /* Pull the four regions out of another Rhizome Project page.
@@ -437,31 +368,12 @@ fileImportInput.addEventListener('change', ()=>{
   reader.readAsText(file);
 });
 
-/* Whether Export can deliver anything is knowable before the button is
-   pressed, so it is settled before the button is offered. On claude.ai, a
-   copy published with no capabilities at all — so that it stays publicly
-   shareable — has nothing to hand the viewer a file with, and a button
-   that explains its own failure after the click is worse than a button
-   that was never live. Resolved once, on first open of the panel. */
-let exportGateDone = false;
-async function gateExport(){
-  if(exportGateDone) return;
-  exportGateDone = true;
-  if(!HOSTED) return;
-  const btn = document.getElementById('fileExport');
-  if(!btn) return;
-  if(await capDownloadsPromise) return;
-  btn.disabled = true;
-  btn.title = 'This copy cannot save a file to your computer \u2014 it is published without download permission so that it stays publicly shareable.';
-}
-
 document.getElementById('fileToggle').onclick = ()=>{
   const willOpen = !filePopover.classList.contains('open');
   closeToolbarMenus('filePopover');
   clearFileStatus();
-  gateExport();
   const forget = document.getElementById('fileForget');
-  forget.style.display = (!HOSTED && !ON_SITE && STORAGE_OK && readStoredChart()) ? '' : 'none';
+  forget.style.display = (!ON_SITE && STORAGE_OK && readStoredChart()) ? '' : 'none';
   filePopover.classList.toggle('open', willOpen);
   if(willOpen) placeUnderButton(filePopover, document.getElementById('fileToggle'));
 };
@@ -722,9 +634,7 @@ async function exportPicture(kind){
     const blob = kind === 'png' ? await chartPicturePng()
       : new Blob([(await chartPictureText()).text], {type:'image/svg+xml'});
     saveBlobViaLink(blob, name);
-    setFileStatus(HOSTED ? '' : 'ok', HOSTED
-      ? 'If no download appeared, this copy cannot hand you a file; open the chart outside claude.ai and export the picture there.'
-      : 'Exported as ' + name + '.');
+    setFileStatus('ok', 'Exported as ' + name + '.');
   }catch(e){
     setFileStatus('err', 'The picture was not made: ' + ((e && e.message) || 'unknown error'));
   }
@@ -741,50 +651,36 @@ document.getElementById('fileForget').onclick = (ev)=>{
 /* ---------------------------------------------------------------------
    Who may edit.
 
-   Write access is decided by the platform, not by this page: publishing
-   runs with the viewer's own authority, and a viewer without write access
-   is rejected with not_writer / not_granted no matter what the page does.
-   So this is not a lock — it can't be picked, because there is nothing
-   here to pick. It is the page telling the truth about a permission it
-   does not control: once the platform has refused a write, every control
-   that writes is hidden and the chart becomes a reader.
+   Only the published site has a reader: there the page opens as one and
+   becomes an editor when the write service confirms the owner (36-site-
+   owner.js). This is not a lock — every reader has the editor's code, and
+   the service is what refuses a write. It is the page telling the truth
+   about a permission it does not hold: every control that writes is hidden
+   and the chart becomes a reader. Anywhere else the copy is its holder's
+   and is always an editor.
 
-   There is no way to ask in advance without attempting a write (which
-   would mint a version), so the first refusal is the signal — exactly
-   what the capability's own guidance prescribes. The answer is then
-   remembered per artifact, so a reader never sees editing controls again
-   after their first visit. The owner is never refused and so never
-   notices any of this.
+   A copy on claude.ai used to learn the answer from the host's first
+   refusal and remember it in this browser; with that copy gone there is
+   nothing to remember, and a flag a reader's browser still holds from
+   then is not read.
    ------------------------------------------------------------------ */
-/* Keyed per document. It used to be one flag for the whole origin, so
-   being a reader of one chart could make every other chart on the same
-   origin look read-only too. */
-const READONLY_KEY = carryOverKey('axiomNexus.readOnly:' + (location.pathname || 'default'),
-                                  'rhizome.readOnly:'  + (location.pathname || 'default'));
-/* `sticky` is false for refusals that may not be about permission at all.
-   The old code remembered EVERY refusal forever, so one transient failure
-   — a consent prompt dismissed, a capability that failed to load — locked
-   this browser out of editing permanently, with no way back. Only a plain
-   "you are not a writer" is worth remembering. */
-function markReadOnly(sticky){
+function markReadOnly(){
   if(readOnlyView) return;
   readOnlyView = true;
   document.body.classList.add('read-only');
-  if(sticky){ try{ localStorage.setItem(READONLY_KEY, '1'); }catch(e){} }
   setSaveState(null);
-  // This can run during load (from the remembered answer below), before
-  // the panels it tidies up have been declared — nothing is open that
-  // early anyway, so each one is attempted separately and skipped if it
-  // isn't there yet.
+  // This can run during load, before the panels it tidies up have been
+  // declared — nothing is open that early anyway, so each one is attempted
+  // separately and skipped if it isn't there yet.
   try{ closeEditForm(); }catch(e){}
   try{ closeEdgePopover(); }catch(e){}
   /* …and drawn again, as markEditable does on the way back. Several
      controls are left out by asking readOnlyView while they are built —
      the side tabs' + buttons for a tag, a category and a reference, a
-     reference's pencil and ✕, the citation colour — and on claude.ai the
-     answer arrives after the first draw, so a reader was handed all of
-     them, built for the editor the page had assumed it was. Before the
-     first draw there is nothing to redo. */
+     reference's pencil and ✕, the citation colour — and an answer that
+     arrives after the first draw (the service refusing a save as not the
+     owner's) would otherwise leave them built for the editor the page had
+     been. Before the first draw there is nothing to redo. */
   try{ if(nodes.size) rebuildChart(); }catch(e){}
 }
 /* On the published site every visitor starts as a reader, and says so on
@@ -792,7 +688,7 @@ function markReadOnly(sticky){
    owner is let back in by markEditable below, once the write service has
    confirmed who they are — see SITE_API in 01-store.js and the sign-in in
    36-site-owner.js. */
-if(ON_SITE) markReadOnly(false);
+if(ON_SITE) markReadOnly();
 /* The way back, which only the site uses. Everything that hides an editing
    control does it through `body.read-only` or by asking readOnlyView while
    it draws, so lifting the flag and drawing again is the whole of it. */
@@ -804,22 +700,10 @@ function markEditable(){
   try{ refreshSaveUI(); }catch(e){}
   try{ lookForDraft(); }catch(e){}
 }
+/* The write service's answer when the account signed in is not the
+   chart's owner (siteError in 36-site-owner.js). */
 function isReadOnlyError(e){
-  const code = e && e.code;
-  return code === 'not_writer' || code === 'not_granted' ||
-         code === 'not_declared' || code === 'consent_required';
-}
-// Only these two actually mean "this viewer may not write".
-function isPermanentRefusal(e){
-  const code = e && e.code;
-  return code === 'not_writer' || code === 'not_granted';
-}
-/* Remembered read-only applies only where a host decides who may write.
-   Off-platform there is no such authority — the page saves into this
-   browser — so a flag left over from a hosted visit must not follow the
-   file onto a disk and make it look frozen. */
-if(HOSTED){
-  try{ if(localStorage.getItem(READONLY_KEY) === '1') markReadOnly(true); }catch(e){}
+  return !!e && e.code === 'not_writer';
 }
 
 /* ---------------------------------------------------------------------
@@ -834,7 +718,7 @@ if(HOSTED){
    form and the list.
 
    So it exists only on the published site, where the write service is.
-   Anywhere else — a disk, claude.ai — there is nobody to carry a
+   Anywhere else — a disk, another host — there is nobody to carry a
    suggestion, and the button is not shown rather than shown and failing.
 
    A reader signs in to suggest, with the same GitHub sign-in the owner

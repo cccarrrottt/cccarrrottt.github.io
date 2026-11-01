@@ -256,7 +256,7 @@ function siteSignOut(){
   forgetSiteSession();
   siteSuggestions = null;
   paintSuggestionMarks();
-  markReadOnly(false);
+  markReadOnly();
   updateOwnerBtn();
   /* What was listed came through the session; what any reader may see
      comes from GitHub, so it is fetched again rather than kept. */

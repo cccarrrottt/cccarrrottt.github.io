@@ -1,11 +1,13 @@
 # Rhizome Project
 
-**Version 0.21.1** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.22.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
 A hand-drawn continuity map of the Transformers G1 "OG World", redrawn as an
-interactive chart and published as a Claude artifact.
+interactive chart and published at <https://cccarrrottt.github.io>. It began
+as a Claude artifact; as of 0.22.0 it is not published there any more, and
+the repository is the only place the chart lives.
 
 > Formerly *Axiom Nexus*. As of 0.9.20 the browser storage keys carry the new
 > name as well; each one reads the old key first and never deletes it, so a
@@ -26,15 +28,12 @@ src/
                — see "On the home screen, with no signal" below — and
                chart.schema.json, the chart's contents as JSON (what
                "Export JSON" writes and Import reads)
-build.py       welds src/ into the single file the artifact host needs
+build.py       welds src/ into the single file a copy of the chart is
 eslint.config.mjs  three rules, all three about bindings that are not what
                    they look like; see the file for why there are only three
 tools/lint.py  lints the ASSEMBLED program and reports per part, and asks
                tools/tdz.js whether start-up reads a const before its part
                has run
-tools/data_check.py
-               is the chart in the repository the chart that is live? see
-               "Where the chart's contents actually live" below
 tools/chart_check.js
                is every region of src/data.js data and nothing else, and
                does the chart fit chart.schema.json? what a data-only push
@@ -53,14 +52,12 @@ tests/
 package.json   npm run build / test / test:src / test:fast / test:list /
                test:build / lint / check:data / bench
 .github/workflows/ci.yml
-               data check, build, guard, lint, the write service's tests,
+               chart check, build, guard, lint, the write service's tests,
                both suites in four shards each; on main, publishes the page
                to Pages and deploys the write service
-.backups/      the last three copies of src/data.js and dist/nexus.html,
-               written before either is overwritten; not part of the sources
 dist/          GENERATED — not in the repository, see "The repository" below
   nexus.html   the chart, one whole document, for everywhere: the site, a
-               disk, claude.ai. Who may edit it is decided when it opens,
+               disk, another host. Who may edit it is decided when it opens,
                not when it is built — see "The published site" below
   site/        the same page as the site serves it: the program and the
                stylesheet beside it in files named by their hash, so a Save
@@ -105,22 +102,19 @@ come back addressed to the part and line they belong to.
 
 ## Why there is a build step
 
-A published artifact is served under a Content Security Policy that blocks
-every external host: no separate stylesheet, no separate script, no image
-files, no `fetch`. The page it serves must be one self-contained file.
+A copy of the chart has to be one file. **Export** hands a person exactly
+one, and it must open from their disk with nothing beside it — so the page
+inlines its stylesheet and program. (It began as a Claude artifact, whose
+host blocks every external file; that is where the single file came from.)
 
 That is a fine way to *ship* a page and a poor way to *write* one, so the
 sources live apart and `build.py` inlines them. `src/index.html` is a real
 document with `<link rel="stylesheet">` and `<script src>` — open it through
-a local server and the chart runs exactly as it does when published. Only
-the built file is a monolith, and only the built file drops the
-doctype/head/body wrapper, because the host supplies its own.
+a local server and the chart runs exactly as it does when built. The site is
+the same page with its program and stylesheet beside it (see below), and
+Export puts them back inside.
 
-The build is verified to reproduce the previous single-file version byte for
-byte, so nothing about the published page changed when the sources were
-split.
-
-Fonts are the one exception the CSP allows: they come from Google Fonts by
+Fonts are the one exception: they come from Google Fonts by
 `<link>`, each with a local fallback stack, so the page still reads
 correctly if those hosts are blocked. The faces the page's own controls use
 are asked for without holding up the first drawing (the stylesheet loads as
@@ -133,9 +127,7 @@ portraits and stickers as `data:` URIs — is inside the file.
 ## Build
 
 ```bash
-python3 build.py                    # src/ -> dist/
-python3 build.py --pull live.html   # take the chart's data from a saved
-                                    # copy of the live artifact first
+python3 build.py                    # src/ -> dist/, from src/ and nothing else
 ```
 
 ## The repository
@@ -148,13 +140,12 @@ never be the thing anyone reads. So: clone, then build.
 ```bash
 git clone https://github.com/cccarrrottt/cccarrrottt.github.io
 cd cccarrrottt.github.io
-npm install          # eslint and playwright; there is no lockfile yet
+npm ci               # eslint, ajv, esbuild and playwright, as the lockfile says
 python3 build.py     # writes dist/
 ```
 
-CI runs on every push and pull request: the data check (before the build, so
-it sees the checkout's own chart rather than one made from it a step
-earlier), the build, the build guard, the lint, the write service's tests,
+CI runs on every push and pull request: the chart check (every region of
+`src/data.js` is data and nothing else, and fits the schema), the build, the build guard, the lint, the write service's tests,
 and the regression suite twice — once against `dist`, once against `src`,
 because they load the program by different paths and a green run on one says
 nothing about the other. Each of those two runs is split across four shards
@@ -293,8 +284,7 @@ stack still names the functions, which minification leaves as they are.
 
 ## Where the chart's contents actually live
 
-Not in `src/data.js`. Pressing **Save** in the published page rewrites the
-`@@EDIT@@` regions of the *published* file:
+In `src/data.js`, between its `@@EDIT@@` markers:
 
 ```
 /* @@EDIT:NODES:START@@ */      the entries
@@ -307,46 +297,16 @@ Not in `src/data.js`. Pressing **Save** in the published page rewrites the
 /* @@EDIT:COMMENTS:START@@ */   suggestions (feature currently switched off)
 ```
 
-On claude.ai, then, the live artifact, not the repository, holds the current
-chart. (On the published site it is the other way round: Save there commits
-to `src/data.js` itself, so the repository is always current — see above.)
-A plain
-`build.py` run knows this: it carries those regions over from the existing
-`dist/nexus.html` rather than resetting them to the seed data in the
-sources. If you have edited the chart in the browser since the last build,
-save that page and pass it with `--pull` so your edits come back into the
-sources first — otherwise the next publish would overwrite them.
+**Save** on the published site commits those regions to the repository
+through the write service, so the repository is current by construction, and
+a build makes the page from `src/` and nothing else.
 
-### The half of that which is easy to miss
-
-The plain build carries those regions **in memory**. It writes them into the
-page it is building and leaves `src/data.js` alone; only `--pull` writes back.
-And `dist/` is generated and not committed, so a clean checkout has no live
-page at all — which means CI builds from `src/data.js` and nothing else, and
-the site CI publishes is the sources' copy however far behind it has drifted.
-
-Both copies can therefore disagree for months while every local build looks
-perfectly correct, because every local build carries the chart across. The
-first visible symptom would be a published page that has lost work nobody
-deleted.
-
-```bash
-python3 tools/data_check.py     # npm run check:data
-```
-
-reads both and says so. It exits non-zero when `src/data.js` is behind
-`dist/nexus.html`, names the regions, and gives the one command that fixes
-it — `python3 build.py --pull dist/nexus.html`. A missing `dist/` is reported
-as a fresh clone rather than as a failure, because that is what CI is, and a
-check that cried wolf there would be switched off within a week; it prints
-the chart's inventory instead, so every CI run's log records what that run
-publishes. Regions are compared as text rather than by how many entries they
-hold: renaming something changes no count, and that is what most staleness
-looks like.
-
-The build now says the same two things itself — that it had nothing to carry
-from, or that what it carried differs from the sources — so neither case is
-silent.
+It used to be two places. A copy published on claude.ai saved by rewriting
+its own page, so the newest chart lived in a page nobody had committed; a
+build carried the chart over from the `dist/nexus.html` it replaced,
+`build.py --pull` brought it back into the sources by hand, and
+`tools/data_check.py` asked whether the two had drifted. As of 0.22.0 that
+copy is gone, and all of that with it.
 
 ## How an entry is written
 
@@ -391,16 +351,6 @@ not need to know.
   kept copy is never behind.
 - A push that changes only `src/data.js` and `src/media/` is a Save, and is
   published without the checks, as before.
-- A copy published to claude.ai has no folder beside it, so the pictures it
-  names by path do not show there.
-
-## The copy published to the artifact host
-
-`dist/nexus.html` can still be published to claude.ai with the `artifact`
-runtime capability, which is what lets the page publish new versions of
-itself there. It is the same file the site serves; on claude.ai it asks the
-host, not the write service, whether it may write. There is no separate
-read-only build any more — a public, read-only copy of the chart is the site.
 
 ## Working on it locally
 
@@ -412,24 +362,23 @@ Everything works offline. Served like this the page is your own copy, so
 **Save** keeps the chart in this browser.
 
 
-## Running it without claude.ai
+## Running it anywhere
 
-The chart does not need claude.ai, and does not need any server. `dist/nexus.html`
+The chart does not need any server. `dist/nexus.html`
 is a complete document: put it on any web space, or open it straight off a disk, and it works —
 the same archetypes, the same routing, the same editing. Nothing loads from a network. (The two
 webfonts do, when a network is there; without one the page falls back to system faces and is
 otherwise unchanged.)
 
-What changes when there is no host is only where **Save** writes:
+What changes is only where **Save** writes:
 
 | Where the page is open | What Save does |
 | --- | --- |
-| Published on claude.ai | publishes a new version of the page, as it always has |
 | The published site, signed in as the owner | commits the chart to the repository; the site shows it after CI |
 | The published site, anyone else | nothing — the page is a reader there |
 | Any other host, or `file://` | keeps the chart in that browser, keyed to the page's own address |
 
-The page decides this at load time from the host's runtime and its own address, and the **File**
+The page decides this at load time from its own address, and the **File**
 panel states in words which applies, so the answer is never a guess.
 
 ### Export and Import
@@ -441,26 +390,8 @@ openable anywhere, with nothing to import. **Import** is the other direction, li
 out of such a file into the page you have open; it validates before it replaces anything, and
 refuses a file that holds no chart rather than half-loading it.
 
-One asymmetry worth knowing: what the page **publishes** of itself to the artifact host is tried
-as a *fragment* first (no `<!doctype>`, no `<html>`), because an older host wraps it in a
-skeleton of its own, and as a document if the host asks for one. What gets **exported** is always
-a real document, because a file on disk has no host to wrap it — and so is the build.
-
-### Why Export behaves differently on claude.ai
-
-Off claude.ai, offering a file is trivial: a blob URL on an `<a download>`. Inside the artifact
-viewer that link is inert, and inert *silently* — there is no event to catch — which is the worst
-possible failure mode for a button whose job is saving your work. The viewer mediates file offers
-through a `downloads` capability that asks the person first, so the editable copy declares it and
-saves through it.
-
-A copy published there with **no capabilities at all** — the only way a page there can be shared
-publicly — cannot hand anyone a file, so it disables its own Export button on open and says why,
-rather than presenting a control that fails after the click.
-
-One wrinkle: `.html` sits in the viewer's *extended* download set and is not always enabled. When
-it is refused, the same bytes are offered as `.html.txt` with a note to rename it — a file you
-have to rename beats no file.
+What gets **exported** is always a real document, because a file on disk has no host to wrap it —
+and so is the build.
 
 ## Suggestions
 
@@ -499,7 +430,7 @@ somebody who misuses it is blocked with GitHub's own button.
   green circle with a tick) and **Decline** (a red square with a cross),
   closed as completed or as not planned, and a small numbered
   mark on every entry that has one open.
-- Off the site — a disk, claude.ai — there is no service to carry a
+- Off the site — a disk, another host — there is no service to carry a
   suggestion, so neither button is shown.
 
 The `COMMENTS` region is what the earlier, claude.ai-era suggestions were
@@ -712,8 +643,8 @@ refresh token.
 
 ## Why there are no browser dialogs
 
-`window.prompt` and `window.confirm` are unusable here. The artifact viewer runs the page in a
-sandboxed frame without `allow-modals`, where `prompt()` returns `null` and `confirm()` returns
+`window.prompt` and `window.confirm` were unusable where the page began: the artifact viewer ran it
+in a sandboxed frame without `allow-modals`, where `prompt()` returns `null` and `confirm()` returns
 `false` — silently, with nothing to catch. Every dialog built on them therefore looked like a
 button that did nothing. `askFields()` / `askConfirm()` in `app.js` replace them with in-page
 dialogs that also match the rest of the application.
@@ -731,16 +662,15 @@ abstains below an epsilon.
 
 ## Saving must never derive the page from the live DOM
 
-The page reads its own source in order to save an edited copy of itself. Fetching its own URL is
-the good way; a host that refuses that leaves only the live DOM — which contains whatever the
-**host** also put in the document. Publishing that embedded the host's runtime in the chart and
+The page reads its own source in order to Export an edited copy of itself. Fetching its own URL is
+the good way; a page opened from a disk cannot, which leaves only the live DOM — and that contains
+whatever else was put in the document (on claude.ai, the **host's** runtime). Saving that embedded the host's runtime in the chart and
 nested one document inside another; a downloaded copy carried references to things that were not
 there. Either way the result was a page that rendered part of a chart and responded to nothing.
 
 `build.py` therefore brackets everything the page is made of between `@@PAGE:BEGIN@@` and
 `@@PAGE:END@@`, and `ownContent()` cuts between them. What comes out is this page's content and
-nothing else, and it is a **fragment** by construction — which is what the artifact host expects
-to be handed back, since it supplies the document wrapper itself.
+nothing else, and it is a **fragment** by construction; Export wraps it in a document of its own.
 
 Two details that are easy to get wrong, and were:
 
@@ -791,7 +721,6 @@ Both cost real bugs in this codebase, and both look fine in the source:
 
 ## Tests
 
-    python3 tools/data_check.py       # is the repository's chart the live one
     node tools/chart_check.js         # is it data and nothing else, and does it fit the schema
     node tests/worker.js              # the write service, against a GitHub in memory
     python3 tests/build_guard.py      # the built page against what src/ says

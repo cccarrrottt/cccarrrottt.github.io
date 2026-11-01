@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""What build.py must refuse.
+"""What build.py must refuse, and what the page it makes must be.
 
 The browser suite can only test the page. This tests the one part of the
-project that runs outside it, and it tests the part that can lose work:
---pull takes the chart's contents out of a saved copy of the live page and
-writes them back into src/data.js, so a source file that is truncated, or
-saved wrong, or simply not the file the person meant to pass, is a data
-loss with no undo behind it.
+project that runs outside it: that the page is one document made from src/
+and nothing else, that the program is its parts in their order, and that
+the site is that page with its program and stylesheet beside it.
 
 Every case runs against a throwaway copy of the project, so nothing here
 can touch the real src/data.js.
@@ -38,7 +36,7 @@ def check(name, ok, detail=''):
 
 
 def sandbox():
-    """A copy of the project with a live page to pull from.
+    """A copy of the project, built once already.
 
     Each is a whole copy of src/ and dist/, ~20 MB, and a run makes dozens;
     they were never taken away, so every run left half a gigabyte in the
@@ -83,11 +81,6 @@ def run(tmp, *args, extra_env=None):
                           cwd=tmp, capture_output=True, text=True, env=env)
 
 
-def run_check(tmp):
-    return subprocess.run([sys.executable, 'tools/data_check.py'],
-                          cwd=tmp, capture_output=True, text=True)
-
-
 def edit_one_label(text):
     """A page whose chart has been edited, with the same number of entries.
 
@@ -108,91 +101,20 @@ def edit_one_label(text):
     return text[:m.start(2)] + body + text[m.end(2):]
 
 
-def strip_region(text, name):
-    return re.sub(rf'/\* @@EDIT:{name}:START@@ \*/.*?/\* @@EDIT:{name}:END@@ \*/',
-                  '/* region removed by the test */', text, count=1, flags=re.S)
-
-
-def shrink_nodes(text, keep=0):
-    """A NODES region with all but `keep` entries gone — a truncated save.
-    A negative `keep` takes that many off the end instead."""
-    m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/\n)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
-                  text, re.S)
-    assert m, 'fixture: no NODES region in the built page'
-    lines = m.group(2).split('\n')
-    head = lines[0]                       # `const NODES = [`
-    kept = [l for l in lines[1:] if l.strip() not in ('];', '')][:keep]
-    return text[:m.start(2)] + '\n'.join([head] + kept + ['];', '']) + text[m.end(2):]
+def region_of(text, name):
+    m = re.search(rf'/\* @@EDIT:{name}:START@@ \*/.*?/\* @@EDIT:{name}:END@@ \*/', text, re.S)
+    return m.group(0) if m else None
 
 
 def main():
-    base = sandbox()
-    live = (base / 'dist' / 'nexus.html').read_text(encoding='utf-8')
-
-    # 1. A region the source does not carry must stop the build, not be
-    #    skipped in silence — skipping reverts that part of the chart to the
-    #    seed data in src/data.js and says nothing about it.
-    tmp = sandbox()
-    (tmp / 'live.html').write_text(strip_region(live, 'STICKERS'), encoding='utf-8')
-    r = run(tmp, '--pull', 'live.html')
-    check('a missing region stops the build', r.returncode != 0, r.stdout + r.stderr)
-    check('and the message names the region that is missing',
-          'STICKERS' in (r.stdout + r.stderr), r.stdout + r.stderr)
-    before = (tmp / 'src' / 'data.js').read_text(encoding='utf-8')
-    check('and src/data.js is left exactly as it was',
-          before == (base / 'src' / 'data.js').read_text(encoding='utf-8'))
-
-    # 2. --partial is the one honest reason: a source saved before that
-    #    region existed. It has to be asked for.
-    r = run(tmp, '--pull', 'live.html', '--partial')
-    check('--partial lets that same source through', r.returncode == 0,
-          r.stdout + r.stderr)
-    check('and says out loud what it did not carry',
-          'STICKERS' in r.stdout, r.stdout)
-
-    # 3. A region emptied completely is what a truncated file looks like,
-    #    whatever the size of the chart.
-    tmp = sandbox()
-    (tmp / 'live.html').write_text(shrink_nodes(live, keep=0), encoding='utf-8')
-    r = run(tmp, '--pull', 'live.html')
-    check('a region emptied completely stops the build',
-          r.returncode != 0, r.stdout + r.stderr)
-    check('and the message names it, with the counts',
-          'NODES' in (r.stdout + r.stderr) and '->' in (r.stdout + r.stderr),
-          r.stdout + r.stderr)
-    r = run(tmp, '--pull', 'live.html', '--force')
-    check('--force lets it through when that really is the intent',
-          r.returncode == 0, r.stdout + r.stderr)
-
-    # 4. And so does a region that kept a couple of entries out of many.
-    tmp = sandbox()
-    (tmp / 'live.html').write_text(shrink_nodes(live, keep=2), encoding='utf-8')
-    r = run(tmp, '--pull', 'live.html')
-    check('a region that lost most of its entries stops the build too',
-          r.returncode != 0, r.stdout + r.stderr)
-
-    # 5. A region that lost only a few entries is an ordinary edit. Three
-    #    off the end, whatever the chart's size: a fixed twelve kept was an
-    #    ordinary edit of a fifteen-entry chart and most of a forty-entry one.
-    tmp = sandbox()
-    (tmp / 'live.html').write_text(shrink_nodes(live, keep=-3), encoding='utf-8')
-    r = run(tmp, '--pull', 'live.html')
-    check('an ordinary deletion is not treated as damage',
-          r.returncode == 0, r.stdout + r.stderr)
-
-    # 6. The ordinary case still works, and still reports what came in.
-    tmp = sandbox()
-    (tmp / 'live.html').write_text(live, encoding='utf-8')
-    r = run(tmp, '--pull', 'live.html')
-    check('a whole page pulls cleanly', r.returncode == 0, r.stdout + r.stderr)
-    check('and every region is reported with its count',
-          all(n in r.stdout for n in ('NODES', 'STICKERS', 'MEDIA', 'SETTINGS')),
-          r.stdout)
     # One file, and it is a whole document. There used to be four — editable
     # or read-only, fragment or document — because who may edit was decided
     # here; it is decided when the page opens now, and a second file would
     # only be a second thing to forget to publish. GitHub Pages and a disk
-    # both need a document, and the artifact host takes either.
+    # both need a document.
+    tmp = sandbox()
+    r = run(tmp)
+    check('the sources build', r.returncode == 0, r.stdout + r.stderr)
     check('dist/nexus.html is the only page the build writes, beside the site and its pictures',
           sorted(f.name for f in (tmp / 'dist').iterdir()) == ['media', 'nexus.html', 'site'],
           str(sorted(f.name for f in (tmp / 'dist').iterdir())))
@@ -205,37 +127,29 @@ def main():
     check('with no read-only declaration built into it',
           '@@SHARE' not in built and '<title>Rhizome Project</title>' in built)
 
-    # 7. Nothing that holds the chart's contents is written over without the
-    #    previous copy being put aside first.
+    # The chart is src/data.js and nothing else. A build used to carry the
+    # chart over from the dist/nexus.html it was about to replace, because
+    # a copy on claude.ai saved into its own page and that page was where
+    # the newest chart lived. That copy is gone, and with it every reason
+    # for the page a build makes to be anything but a function of src/: a
+    # build that read its own previous output could only ever put back
+    # something src/data.js no longer says.
     tmp = sandbox()
-    (tmp / 'live.html').write_text(live, encoding='utf-8')
+    old = tmp / 'dist' / 'nexus.html'
+    old.write_text(edit_one_label(old.read_text(encoding='utf-8')), encoding='utf-8')
     seed = (tmp / 'src' / 'data.js').read_text(encoding='utf-8')
-    was = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
-    run(tmp, '--pull', 'live.html')
-    bak = tmp / '.backups'
-    check('a pull puts the previous src/data.js aside',
-          any(f.name.endswith('.pull') and f.read_text(encoding='utf-8') == seed
-              for f in bak.glob('data.js.*')),
-          str(sorted(f.name for f in bak.glob('*'))))
-    check('and a build puts the previous dist/nexus.html aside',
-          any(f.name.endswith('.build') and f.read_text(encoding='utf-8') == was
-              for f in bak.glob('nexus.html.*')),
-          str(sorted(f.name for f in bak.glob('*'))))
-
-    # 8. Kept a few generations deep, and no deeper — a build every minute
-    #    must not fill the disk with copies of a 2 MB page.
-    for _ in range(5):
-        run(tmp, '--pull', 'live.html')
-    check('only a few generations are kept',
-          1 <= len(list(bak.glob('nexus.html.*'))) <= 3 and
-          1 <= len(list(bak.glob('data.js.*'))) <= 3,
-          str(sorted(f.name for f in bak.glob('*'))))
-    # Two builds inside one second must not land on one another: the copy a
-    # backup would overwrite is exactly the copy worth keeping.
-    check('two builds in the same second keep two copies',
-          len({f.name for f in bak.glob('nexus.html.*')}) ==
-          len(list(bak.glob('nexus.html.*'))),
-          str(sorted(f.name for f in bak.glob('*'))))
+    r = run(tmp)
+    built = old.read_text(encoding='utf-8')
+    check('a build takes the chart from src/data.js, not from the page it replaces',
+          r.returncode == 0 and ' EDITED' not in built and region_of(built, 'NODES') == region_of(seed, 'NODES'),
+          r.stdout + r.stderr)
+    check('and leaves src/data.js as it was',
+          (tmp / 'src' / 'data.js').read_text(encoding='utf-8') == seed)
+    check('and puts nothing aside, there being nothing a build can lose',
+          not (tmp / '.backups').exists() and r.stdout.count('NOTE') == 0, r.stdout)
+    r = run(tmp, '--pull', 'x.html')
+    check('a flag the build no longer takes is refused, not ignored',
+          r.returncode != 0 and '--pull' in (r.stdout + r.stderr), r.stdout + r.stderr)
 
     # 9. The program is one scope assembled in one order, and there are three
     #    ways for that order to quietly stop being true. None of them may
@@ -455,77 +369,6 @@ def main():
     check('a build removes what the four-build days left in dist/',
           r.returncode == 0 and sorted(f.name for f in (tmp / 'dist').iterdir()) == ['media', 'nexus.html', 'site'],
           str(sorted(f.name for f in (tmp / 'dist').iterdir())))
-
-    # 11. The chart lives in two places and only one of them is committed.
-    #     dist/ is generated and ignored, so a clean checkout has no live page
-    #     at all and builds from src/data.js — which means CI, and the site CI
-    #     publishes, are built from the sources' copy however stale it is.
-    #     Neither half of that may happen in silence.
-    tmp = sandbox()
-    shutil.rmtree(tmp / 'dist')
-    r = run(tmp)
-    check('a build with no live page to carry from still succeeds',
-          r.returncode == 0, r.stdout + r.stderr)
-    check('and says that it used src/data.js and nothing else',
-          'src/data.js' in r.stdout and 'NOTE' in r.stdout, r.stdout)
-    r = run_check(tmp)
-    check('the data check calls a missing dist/ a fresh clone, not a failure',
-          r.returncode == 0, r.stdout + r.stderr)
-
-    # A live page that is ahead of the sources is the state this exists for,
-    # and the entry count is deliberately left alone: renaming something is
-    # what staleness usually looks like.
-    tmp = sandbox()
-    live_page = tmp / 'dist' / 'nexus.html'
-    live_page.write_text(edit_one_label(live_page.read_text(encoding='utf-8')),
-                         encoding='utf-8')
-    r = run_check(tmp)
-    check('the data check fails when the sources are behind the live page',
-          r.returncode == 1, r.stdout + r.stderr)
-    check('and names the region, though the entry count is unchanged',
-          'NODES' in r.stdout and 'DIFFERS' in r.stdout, r.stdout)
-    r = run(tmp)
-    check('a build says so too, rather than carrying it across in silence',
-          r.returncode == 0 and 'NOTE' in r.stdout and 'NODES' in r.stdout,
-          r.stdout)
-
-    # And the cure it prescribes has to be the cure. A message naming a
-    # command that does not settle the thing it is named for is worse than
-    # no message, because it is followed.
-    r = run(tmp, '--pull', 'dist/nexus.html')
-    check('the remedy the message gives runs', r.returncode == 0,
-          r.stdout + r.stderr)
-    r = run_check(tmp)
-    check('and leaves the sources current', r.returncode == 0,
-          r.stdout + r.stderr)
-
-    # A page built before a region existed cannot be compared against a
-    # source that has it. That is neither "current" nor "behind", and the
-    # answer must not round down to an all-clear: a tool that says the
-    # sources are fine on evidence it does not have is worse than no tool.
-    tmp = sandbox()
-    live_page = tmp / 'dist' / 'nexus.html'
-    live_page.write_text(
-        re.sub(r'/\* @@EDIT:REFS:START@@ \*/.*?/\* @@EDIT:REFS:END@@ \*/',
-               'const REFS = [];', live_page.read_text(encoding='utf-8'),
-               count=1, flags=re.S),
-        encoding='utf-8')
-    r = run_check(tmp)
-    check('a region missing from the built page is not reported as current',
-          r.returncode == 2 and 'current' not in r.stdout.split('REFS')[-1],
-          r.stdout + r.stderr)
-    check('and the reason names the region and what to do',
-          'REFS' in r.stdout and 'rebuild' in r.stdout, r.stdout)
-
-    # The other way round matters as much: a check that cries wolf on a
-    # checkout that is already current gets switched off within a week.
-    r = run_check(sandbox())
-    check('a checkout that is current is reported as current',
-          r.returncode == 0 and 'DIFFERS' not in r.stdout, r.stdout)
-    tmp = sandbox()
-    r = run(tmp)
-    check('and its build says nothing about staleness',
-          r.returncode == 0 and 'NOTE' not in r.stdout, r.stdout)
 
     # The pictures beside the chart go beside the built page, where the
     # page's relative paths find them; one already there is left as it is.

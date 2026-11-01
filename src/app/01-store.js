@@ -3,16 +3,13 @@
    -----------------------------------------------------------------------
    This page began life as a claude.ai artifact, and for a while the only
    way it could save was the one that host provides: publish a new version
-   of yourself. That made the chart a hostage of a single website. Opened
-   from a disk, or served from anywhere else, it drew perfectly and then
-   refused to remember anything.
+   of yourself. That made the chart a hostage of a single website, and kept
+   the newest chart in a page nobody had committed. That way of saving is
+   gone (0.22.0); the chart lives in the repository.
 
-   It now keeps its work through whichever of three backends is actually
-   available, decided at load:
+   It keeps its work through whichever of two backends applies, decided at
+   load:
 
-     artifact  — running inside claude.ai with write access. Saving
-                 publishes a new version of this page, exactly as before,
-                 and the host reloads the view afterwards.
      site      — on the published site, for its owner only: Saving commits
                  the chart to the repository through the write service, and
                  the site shows it once CI has rebuilt it. See SITE_ORIGINS
@@ -44,11 +41,6 @@ const OLD_STORE_PREFIX = 'axiomNexus.chart:';
 // work rather than overwriting each other.
 const STORE_KEY = STORE_PREFIX + (location.pathname + location.search || 'default');
 
-// `claude` is a bare global the host injects. Its absence is the signal
-// that nothing here can publish, and it is worth knowing synchronously:
-// the boot-time restore below cannot wait on a promise.
-const HOSTED = typeof claude !== 'undefined' && claude && typeof claude.use === 'function';
-
 /* -------------------------------------------------------------------------
    The published site, and who may write to it.
 
@@ -79,12 +71,12 @@ const SITE_API = SITE_CONFIG.api;
    kept as issues. The page reads the open ones from GitHub itself, so a
    reader who has not signed in sees them too. */
 const SITE_REPO = SITE_CONFIG.repo;
-const ON_SITE = !HOSTED && SITE_ORIGINS.indexOf(location.origin) >= 0;
+const ON_SITE = SITE_ORIGINS.indexOf(location.origin) >= 0;
 /* What goes wrong in a reader's browser, told to the write service, which
    writes it to its log (POST /report, worker/index.js). Until now a fault
    on the site was known only if the person who met it wrote to say so, and
    most people close the tab instead. Only on the site: a copy on a disk or
-   on claude.ai is its holder's, and its faults are none of the service's
+   on another host is its holder's, and its faults are none of the service's
    business.
 
    Registered here, in the first part, so a fault anywhere in start-up is
@@ -140,8 +132,8 @@ let siteSuggestions = null;
    it made every Save a new program: on the site the program is a file of
    its own, named by its hash so a reader's browser keeps it, and a value
    that changes with the chart would have changed that name with every
-   Save. Outside the markers, it is not carried into an exported copy or a
-   page published to claude.ai, where it would only ever be stale. */
+   Save. Outside the markers, it is not carried into an exported copy,
+   where it would only ever be stale. */
 const DATA_SHA = (()=>{
   const m = document.querySelector('meta[name="rhizome-data-sha"]');
   const v = m && m.getAttribute('content');
@@ -219,16 +211,14 @@ function readStoredChart(){
 }
 
 /* Work saved in this browser wins over what is baked into the file — that
-   is what saving means. It is applied only when this page has no way to
-   publish, so on claude.ai the published document always speaks for
-   itself and a stale local copy can never shadow it.
+   is what saving means, for a copy that saves nowhere else.
 
-   The same goes for the published site, and for a sharper reason: a copy
+   Not on the published site, and for a sharp reason: a copy
    kept there was written back when the site still served an editable page,
    by a reader who believed they were changing the chart. Letting it win
    would show that reader their own old edit, forever, as if it were what
    everybody sees. On the site the file speaks for itself. */
-if(!HOSTED && !ON_SITE){
+if(!ON_SITE){
   const stored = readStoredChart();
   if(stored){
     /* A region the stored copy does not carry is a region it has nothing

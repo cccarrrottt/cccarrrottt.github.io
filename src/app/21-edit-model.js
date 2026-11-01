@@ -317,73 +317,6 @@ function putEntry(index, entry, opts){
   workingNodes[index] = entry;
 }
 
-/* Publishing a new version of this page. Only available where a host
-   offers it; everywhere else the standalone backend below takes over. */
-/* The mirror of ensureFullDocument: the host wraps what it is given in its
-   own <!doctype>/<html>/<head>/<body>, so handing it a whole document
-   nests one inside the other. */
-function ensureFragment(src){
-  if(!isFullDocument(src)) return src;
-  const mine = ownContent(src);
-  if(mine) return mine;
-  try{
-    const doc = new DOMParser().parseFromString(src, 'text/html');
-    return doc.head.innerHTML + '\n' + doc.body.innerHTML;
-  }catch(e){ return src; }
-}
-/* Which shape of page this host wants, once one of them has worked.
- *
- * For most of this chart's life the answer was settled: the artifact host
- * wrapped whatever it was given in its own <!doctype>/<html>/<head>/<body>,
- * so what went back had to be a FRAGMENT or the host would nest one
- * document inside another. That is no longer universally true — a newer
- * runtime refuses anything that does not begin with a doctype — and a page
- * that guesses wrong does not degrade, it simply cannot be saved.
- *
- * So it is not guessed. The first save of a session tries one shape and,
- * if the host complains about the SHAPE of what it was given, tries the
- * other; whichever is accepted is remembered for the rest of the session.
- * Complaints that are not about shape — a conflict, a size, a permission —
- * are passed straight out, because retrying those would be both useless
- * and, in the case of a conflict, actively wrong. */
-let publishShape = null;          // 'fragment' | 'document'
-/* Errors where trying the other shape is pointless or harmful. */
-const PUBLISH_FINAL = new Set(['conflict', 'not_writer', 'not_declared', 'not_granted',
-                               'too_large', 'rate_limited', 'read_only_path',
-                               'capability_disabled', 'capability_removed']);
-async function publishOwnPage(cap, whole){
-  const shapes = {
-    fragment: ()=> ensureFragment(whole),
-    document: ()=> ensureFullDocument(whole)
-  };
-  const order = publishShape === 'document' ? ['document', 'fragment'] : ['fragment', 'document'];
-  let firstError = null;
-  for(const name of order){
-    let body;
-    try{ body = shapes[name](); }catch(e){ if(!firstError) firstError = e; continue; }
-    try{
-      await cap.publish(body);
-      publishShape = name;
-      return;
-    }catch(e){
-      if(!firstError) firstError = e;
-      if(PUBLISH_FINAL.has(e && e.code)) throw e;
-    }
-  }
-  throw firstError || new Error('the host refused the page.');
-}
-async function saveToArtifact(cap){
-  const src = await readOwnSource();
-  await publishOwnPage(cap, writeChart(src));
-  savedParts = snapshotParts();
-  saveBtn.textContent = 'Saved';
-  setSaveState('busy', 'Saved - reloading...');
-  // The host reloads after a publish. If it somehow doesn't, stop
-  // claiming to be mid-refresh and say the save itself went through.
-  clearTimeout(saveStateTimer);
-  saveStateTimer = setTimeout(()=> setSaveState('ok', 'Saved'), 6000);
-}
-
 /* What is making this chart big, in one sentence.
  *
  * Almost always the answer is one embedded picture or clip: everything
@@ -402,13 +335,13 @@ function heaviestPartOfChart(){
     const img = it && it[6] && it[6].image;
     if(typeof img === 'string') items.push({what:`the picture on “${stripMarkup(it[1] || it[0])}”`, n:img.length});
   });
-  if(!items.length) return 'the chart itself has grown past what can be published.';
+  if(!items.length) return 'the chart itself has grown past what can be saved.';
   items.sort((a,b)=> b.n - a.n);
   const mb = (items[0].n / 1048576).toFixed(1);
   return `${items[0].what} alone is about ${mb} MB. Remove or shrink it, then save again;`;
 }
 
-/* Saving with no host at all: the chart goes into this browser's storage
+/* Saving off the site: the chart goes into this browser's storage
    for this document. No reload, because nothing about the page changed —
    only what it will find next time it opens.
 
@@ -435,12 +368,10 @@ function saveToBrowser(){
 
 async function saveNow(){
   if(!isDirty()) return;
-  const cap = await capArtifactPromise;
   setSaveState('busy', 'Saving...');
   saveBtn.disabled = true;
   try{
-    if(cap) await saveToArtifact(cap);
-    else if(ON_SITE) await saveToSite();
+    if(ON_SITE) await saveToSite();
     else saveToBrowser();
   }catch(e){
     const code = e && e.code;
@@ -453,12 +384,10 @@ async function saveNow(){
       /* On the site the service merges what it can (worker/index.js); a
          refusal there means both saves changed the same thing, and says
          which. */
-      const what = ON_SITE ? siteConflictWords(e.conflicts) : '';
+      const what = siteConflictWords(e.conflicts);
       setSaveState('err', what
         ? `A newer save changed ${what} too \u2014 export your copy, then reload and make your change again`
-        : ON_SITE
-        ? 'The repository has a newer chart than this page — export your copy, then reload once the site has caught up'
-        : 'Someone else published a newer version — export your copy, then reload');
+        : 'The repository has a newer chart than this page — export your copy, then reload once the site has caught up');
     }
     /* The one refusal that is fixed without losing anything: signing in
        again happens in a popup, so the edit is still here to save. */
@@ -468,21 +397,16 @@ async function saveNow(){
       setSaveState('err', 'Your sign-in has expired — press Sign in, then Save again');
     }
     else if(isReadOnlyError(e)){
-      markReadOnly(isPermanentRefusal(e));
+      markReadOnly();
       setSaveState('err', 'This chart is read-only for you');
     }
     /* Say what actually went wrong. "Save failed: request failed" told the
-       reader nothing they could act on — and the two failures that really
-       happen have very different answers: a chart too big to publish needs
-       something taken out of it, a transient host error just needs trying
-       again. The code is named either way, so a report of one is
-       diagnosable. */
+       reader nothing they could act on, and a chart too big to send needs
+       something taken out of it, which only naming it says. The code is
+       named either way, so a report of one is diagnosable. */
     else if(code === 'too_large'){
-      setSaveState('err', 'Too large to publish — ' + heaviestPartOfChart() +
+      setSaveState('err', 'Too large to save — ' + heaviestPartOfChart() +
                           ' Export keeps the whole thing as a file.');
-    }
-    else if(code === 'rate_limited'){
-      setSaveState('err', 'Saving too often — wait a moment and press Save again.');
     }
     else {
       setSaveState('err', 'Save failed' + (code ? ` (${code})` : '') + ': ' +

@@ -2,25 +2,16 @@
 """Assemble the split sources into the single self-contained page.
 
     python3 build.py                 build dist/ from src/
-    python3 build.py --pull live.html   take the chart's data out of a saved
-                                        copy of the live artifact first
-
-    --partial   accept a source that is missing whole @@EDIT@@ regions, letting
-                those regions fall back to what src/data.js holds
-    --force     accept a source in which a region has lost most of its contents
-
-Before either of the two files that hold the chart's contents is written over
-— src/data.js on a pull, dist/nexus.html on every build — the previous copy is
-put in .backups/, three generations deep.
 
 WHY A BUILD STEP AT ALL
 
-A published artifact is served under a Content Security Policy that blocks
-every external host, so the page it serves has to be one file with the CSS
-and JavaScript inside it. That is a bad way to WRITE the thing, so the
-sources live apart — src/index.html, src/style.css, src/data.js, and the
-ordered parts in src/app/ — and this script welds them into dist/nexus.html
-for publishing. See APP_PARTS for what "ordered" means and why it is not a
+A copy of the chart has to be one file — Export hands a person exactly one,
+and it must open from their disk with nothing beside it — so the page is one
+file with the CSS and JavaScript inside it. That is a bad way to WRITE the
+thing, so the sources live apart — src/index.html, src/style.css,
+src/data.js, and the ordered parts in src/app/ — and this script welds them
+into dist/nexus.html. The site is the same page with its program beside it
+(build_site). See APP_PARTS for what "ordered" means and why it is not a
 module system.
 
 src/index.html is a real, standalone document: open it through any local
@@ -36,33 +27,20 @@ whether a copy could be edited was decided here, at build time. It is decided
 when the page is opened now (see SITE_CONFIG in src/app/00-config.js). On the
 published site it is a reader until the owner signs in; opened off a disk or
 served from anywhere else it is that person's own copy and saves into their
-browser; on claude.ai it publishes itself through the artifact capability as
-it always did. One file, so there is no second copy to forget to republish.
-
-It is a document rather than the fragment the artifact host once wanted,
-because the host accepts either — the page tries both shapes when it
-publishes itself — and GitHub Pages and a disk accept only a document.
+browser. One file, so there is no second copy to forget to republish.
 
 WHERE THE CHART'S CONTENTS LIVE
 
-Not here. Pressing Save in the published page rewrites the @@EDIT@@ regions
-of the PUBLISHED file, so the live artifact — not src/data.js — holds the
-current entries, connector styles and stickers. A plain rebuild therefore
-carries those regions over from the existing dist/nexus.html instead of
-resetting them to whatever src/data.js happens to say. If you have edited
-the chart in the browser since the last build, save that page and pass it
-with --pull so the edits come back into the sources.
+In src/data.js, and only there. Save on the site commits the chart to it
+through the write service (worker/), so the repository is current by
+construction, and a build is a function of src/ and nothing else.
 
-It carries them IN MEMORY. The built page gets the chart and src/data.js is
-left as it was; only --pull writes back, because a build should not quietly
-rewrite a source file. The consequence is easy to miss and expensive: dist/
-is generated and not committed, so a clean checkout has no live page, and a
-clean checkout is what CI is — what CI builds, and therefore what the
-published site becomes, is src/data.js and nothing else, however far behind
-it has drifted. Both of those situations used to pass without a word. Now a
-build says when it had nothing to carry from, and says when what it carried
-differs from the sources; tools/data_check.py asks the same question on its
-own and answers with an exit code.
+It used to be otherwise. A copy published on claude.ai saved by rewriting
+its own page, so the newest chart lived in a page nobody had committed, a
+build carried the chart over from the dist/nexus.html it was replacing, and
+`--pull` brought it back into the sources by hand. That copy is gone, and
+the carrying, the pull, the backups it needed and tools/data_check.py went
+with it: there is no second place for the chart to be ahead.
 """
 import base64
 import hashlib
@@ -72,12 +50,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).parent
 SRC, DIST = ROOT / 'src', ROOT / 'dist'
-REGIONS = ['NODES', 'COMMENTS', 'STICKERS', 'MEDIA', 'EDGESTYLES', 'TAGCATS', 'REFS', 'SETTINGS']
 
 # The program, in the order it is assembled.
 #
@@ -143,39 +119,6 @@ PAGE_END = '<!-- @@PAGE:END@@ -->'
 
 def read(p: Path) -> str:
     return p.read_text(encoding='utf-8')
-
-
-# Where a file goes before it is written over, and how many generations are
-# kept. Three, because the mistake this guards against — a pull that carried
-# the wrong thing — is usually noticed on the build after the one that made
-# it, and sometimes on the one after that.
-BACKUPS = ROOT / '.backups'
-KEEP = 3
-
-# Only two files in this project hold anything that cannot be rebuilt from
-# the others, and they hold the same thing: the chart's contents. src/data.js
-# is the sources' copy, dist/nexus.html is the copy a plain rebuild carries
-# FROM. Everything else in dist/ is a function of src/ and is regenerated by
-# running this script again, so backing it up would only cost disk.
-def keep_a_copy(path: Path, why: str):
-    """Put the current contents of `path` aside before it is overwritten."""
-    if not path.exists():
-        return
-    BACKUPS.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-    dest = BACKUPS / f'{path.name}.{stamp}.{why}'
-    # A second build inside the same second must not overwrite the first
-    # one's copy — that is the exact failure this whole function exists to
-    # prevent, in miniature.
-    n = 2
-    while dest.exists():
-        dest = BACKUPS / f'{path.name}.{stamp}-{n}.{why}'
-        n += 1
-    shutil.copy(path, dest)
-    old = sorted(BACKUPS.glob(f'{path.name}.*'))
-    for stale in old[:-KEEP]:
-        stale.unlink()
-    print(f'  kept a copy of {path.name} in .backups/')
 
 
 def read_app():
@@ -249,109 +192,6 @@ def slice_between(text, begin, end, what):
     if a < 0 or b < 0 or b < a:
         sys.exit(f'build: {what} — could not find {begin} … {end}')
     return text[a + len(begin):b]
-
-
-def region(text, name):
-    """One @@EDIT@@ block, markers included, or None if the file has none."""
-    m = re.search(rf'/\* @@EDIT:{name}:START@@ \*/.*?/\* @@EDIT:{name}:END@@ \*/',
-                  text, re.S)
-    return m.group(0) if m else None
-
-
-def items_in(block):
-    """Roughly how many things a region holds.
-
-    Every serializer in the page writes one item per line, so counting the
-    lines that are neither the opening `const X = [` nor the closing `];`
-    nor a marker gives a number that tracks the region's contents closely
-    enough to notice a chart arriving with its entries missing. It is a
-    smoke alarm, not a checksum, and it is only ever compared against the
-    same measure taken of the same region.
-    """
-    n = 0
-    for line in block.splitlines():
-        t = line.strip()
-        if not t or t.startswith('/*') or t.startswith('//'):
-            continue
-        if t.endswith('= [') or t in (('];'), ('}'), ('};')) or t.endswith('= {'):
-            continue
-        n += 1
-    return n
-
-
-# How much of a region may vanish in a pull before the build stops and asks.
-# A real edit can remove a lot; losing two thirds of a region in one step is
-# not an edit, it is a source that was truncated, saved wrong, or is not the
-# file the person meant to pass. The proportional test needs a region big
-# enough for a proportion to mean anything — going from three references to
-# one is an afternoon's work, not an accident — but a region emptied
-# COMPLETELY is worth a question at any size, because that is what a
-# truncated file looks like no matter how small the chart was.
-SHRINK_FLOOR = 0.30
-SHRINK_MIN_ITEMS = 8
-
-
-def carry_data(data_js, source_text, label, partial=False, force=False):
-    """Replace src/data.js's regions with the ones in `source_text`.
-
-    A region the source does not carry used to be skipped in silence, which
-    is the worst of the three things this could do: the build succeeded, said
-    nothing, and quietly reverted that part of the chart to whatever seed data
-    src/data.js still held. Now it stops and names what is missing — and takes
-    --partial for the one honest reason a region can be absent, which is a
-    source file saved before that region existed.
-
-    Returns the rewritten text and the list of regions that actually CHANGED.
-    Which of those two things matters depends on who is calling: a --pull is
-    expected to change things and writes the result back, so drift there is
-    the point. Carrying from dist/nexus.html changes only the page being
-    built, and a region that differs means the sources are behind the live
-    chart — see the note build() prints about it.
-    """
-    carried, missing, shrunk, drifted = [], [], [], []
-    for name in REGIONS:
-        live = region(source_text, name)
-        if live is None:
-            missing.append(name)
-            continue
-        pattern = rf'/\* @@EDIT:{name}:START@@ \*/.*?/\* @@EDIT:{name}:END@@ \*/'
-        m = re.search(pattern, data_js, re.S)
-        if not m:
-            sys.exit(f'build: src/data.js has no {name} region to replace')
-        held = m.group(0)
-        had, now = items_in(held), items_in(live)
-        emptied = had > 0 and now == 0
-        if emptied or (had >= SHRINK_MIN_ITEMS and now < had * SHRINK_FLOOR):
-            shrunk.append(f'{name}: {had} -> {now}')
-        # Compared as text, not by the item count. Two regions can hold the
-        # same number of things and none of the same things — renaming an
-        # entry is the ordinary case — and a count that called that "no
-        # change" would be a staleness check that misses most staleness.
-        if live.strip() != held.strip():
-            drifted.append(f'{name}: {had} -> {now}' if had != now
-                           else f'{name}: {now}, edited')
-        data_js = data_js[:m.start()] + live + data_js[m.end():]
-        carried.append(f'{name} ({now})')
-
-    if missing and not partial:
-        sys.exit('build: {} carries no {} region{} — refusing to build, because\n'
-                 '       skipping it would silently revert that part of the chart to\n'
-                 '       the seed data in src/data.js. Pass --partial if this source\n'
-                 '       predates that region and reverting it is what you want.'
-                 .format(label, ', '.join(missing), '' if len(missing) == 1 else 's'))
-    if shrunk and not force:
-        sys.exit('build: {} would lose most of: {}\n'
-                 '       That is not what an edit looks like. Check that this is the\n'
-                 '       file you meant to pass; add --force if it really is.'
-                 .format(label, '; '.join(shrunk)))
-
-    if missing:
-        print(f'  NOT in {label}, left as src/data.js has it: {", ".join(missing)}')
-    if shrunk:
-        print(f'  shrank sharply (allowed by --force): {"; ".join(shrunk)}')
-    if carried:
-        print(f'  carried from {label}: {", ".join(carried)}')
-    return data_js, drifted
 
 
 SHA_META = 'rhizome-data-sha'
@@ -612,66 +452,17 @@ def build():
     data_js = read(SRC / 'data.js')
     app_js = read_app()
 
-    # The live page is the authority on the chart's contents; a code-only
-    # rebuild must not roll them back to the sources' seed data.
-    partial = '--partial' in sys.argv
-    force = '--force' in sys.argv
-    if '--pull' in sys.argv:
-        i = sys.argv.index('--pull')
-        if i + 1 >= len(sys.argv):
-            sys.exit('build: --pull needs a file to read')
-        pull = Path(sys.argv[i + 1])
-        if not pull.exists():
-            sys.exit(f'build: {pull} does not exist')
-        data_js, _ = carry_data(data_js, read(pull), pull.name, partial, force)
-        # The one write in this script that destroys something: the seed data
-        # in src/data.js is replaced by whatever came out of the saved page.
-        # The guards in carry_data refuse the damage they can recognise; this
-        # is for the damage they cannot.
-        keep_a_copy(SRC / 'data.js', 'pull')
-        (SRC / 'data.js').write_text(data_js, encoding='utf-8')
-        print('  wrote those regions back into src/data.js')
-    elif (DIST / 'nexus.html').exists():
-        data_js, drifted = carry_data(data_js, read(DIST / 'nexus.html'),
-                                      'dist/nexus.html', partial, force)
-        if drifted:
-            # The page just built has the live chart in it. src/data.js does
-            # not — and src/data.js is the only one of the two that is in the
-            # repository, so it is the one CI builds from and the one that
-            # becomes the published site. Left alone, the two go on diverging
-            # and the divergence is invisible: every local build looks right,
-            # because every local build carries the data across in memory.
-            print('  NOTE: src/data.js is behind dist/nexus.html — '
-                  + '; '.join(drifted))
-            print('        This build is correct; the SOURCES are stale, and the')
-            print('        sources are what CI publishes. Carry them across with')
-            print('        python3 build.py --pull dist/nexus.html')
-    else:
-        # Nothing to carry from, so the page gets whatever src/data.js holds.
-        # In a fresh clone and in CI that is the only possible answer and the
-        # right one. On a machine that HAD a live page it means dist/ was
-        # cleaned away, and publishing this build would replace the chart with
-        # the seed — which is precisely the accident that leaves no trace, so
-        # it is said out loud rather than inferred from a missing line.
-        print('  NOTE: no dist/nexus.html to carry the chart from, so this page')
-        print('        holds what src/data.js holds and nothing else. Right for a')
-        print('        fresh clone and for CI. If this machine had a live page,')
-        print('        pull from a saved copy of it before publishing this build.')
-
     # Markers around everything the page is made of.
     #
-    # A published page has to be able to read its own source back in order
-    # to save an edited copy of itself. Fetching its own URL is the good
-    # way, but a host may refuse that, and the fallback — serialising the
-    # live DOM — hands back whatever the HOST also put in the document,
-    # not just us. Saving that embeds the host's own runtime into the
-    # chart, and the next load runs it twice; a downloaded copy carries
-    # references to things that are not there at all.
+    # The page has to be able to read its own source back, to Export an
+    # edited copy of itself. Fetching its own URL is the good way, but a
+    # page opened from a disk cannot, and the fallback — serialising the
+    # live DOM — hands back whatever else is in the document by then (an
+    # extension's script, the analytics beacon on the site), not just us.
     #
     # These markers make the fallback exact: the page can cut out its own
-    # content and nothing else, and what it cuts is a fragment by
-    # construction, which is what the artifact host expects to be handed.
-    # The opening marker goes AFTER the charset meta, not before it.
+    # content and nothing else. The opening marker goes AFTER the charset
+    # meta, not before it.
     #
     # A comment that appears before <html> is attached to the document, not
     # to <head>, and documentElement.outerHTML starts at <html> — so a
@@ -707,10 +498,6 @@ def build():
     page = wrap(page, f'<meta name="{SHA_META}" content="{data_sha}">\n')
 
     DIST.mkdir(exist_ok=True)
-    # dist/nexus.html is what the NEXT plain rebuild carries its data from, so
-    # overwriting it with a bad build is how the chart's contents are lost
-    # without anybody having deleted anything.
-    keep_a_copy(DIST / 'nexus.html', 'build')
     (DIST / 'nexus.html').write_text(page, encoding='utf-8')
     print(f'  dist/nexus.html        {len(page):>8,} chars')
 
@@ -744,6 +531,12 @@ def build():
 
 
 if __name__ == '__main__':
+    # It takes no arguments. It used to take --pull, --partial and --force,
+    # for carrying the chart out of a copy saved on claude.ai; a script that
+    # quietly ignored one of those now would let someone believe it had run.
+    if sys.argv[1:]:
+        sys.exit(f'build: takes no arguments, and was given {" ".join(sys.argv[1:])}.\n'
+                 '       The chart is src/data.js; there is nothing to pull it from.')
     print('building…')
     build()
     print('done')

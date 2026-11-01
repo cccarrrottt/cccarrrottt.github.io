@@ -11,9 +11,13 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.21.1';
+const APP_VERSION = '0.22.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.22.0', date:'2026-11-01', title:'One home', notes:[
+'The chart is not published on claude.ai any more, and the page no longer asks an artifact host anything: on the site the owner saves into the repository, and anywhere else a copy saves into its own browser and Export hands you the file. Opened inside claude.ai it behaves as any other copy does.',
+'A save on the site is read as data before it is committed, and refused if a region holds anything else; a save merged with a newer one is refused if it would leave a line or an entry pointing at one the other took out.'
+  ]},
   {v:'0.21.1', date:'2026-10-31', title:'Fastened again', notes:[
 'A connector\u2019s end no longer moves along its port to straighten a step a few pixels wide, and a merged arrow just past its bar\u2019s end comes in at the middle with a knee again: an end stays where the spacing put it, as before 0.21.0. A picked entry\u2019s link tab glows with its border, as its language chips do.',
   ]},
@@ -460,25 +464,11 @@ document.getElementById('aboutToggle').onclick = ()=>{
 document.getElementById('aboutClose').onclick = ()=> aboutOverlay.classList.remove('open');
 aboutOverlay.addEventListener('click', e=>{ if(e.target===aboutOverlay) aboutOverlay.classList.remove('open'); });
 
-/* ---------------------------------------------------------------------
-   Live data plumbing — lets the in-page controls below (add node,
-   connect, per-node quick edit, edge style) read the live NODES /
-   EDGESTYLES regions from this page's own source and publish a patched
-   version back, via the `artifact` capability.
-   ------------------------------------------------------------------ */
-const capArtifactPromise = (async()=>{
-  if(!HOSTED) return null;
-  try{ return (await claude.use('artifact')) || null; }catch(e){ return null; }
-})();
+/* This document's own bytes, which Export writes the chart into.
 
-/* This document's own bytes.
-
-   Fetching is the honest way to get them when it works: on a host that
-   publishes new versions, the file on the server may already be newer than
-   the copy this tab loaded, and patching a stale one would quietly undo
-   somebody else's change. So fetch first — and fall back to the snapshot
-   taken at load when there is nothing to fetch from, which is the case for
-   a page opened straight off a disk. */
+   Fetched when that works, and the snapshot taken at load when there is
+   nothing to fetch from, which is the case for a page opened straight off
+   a disk. */
 /* The page's own content, and nothing else.
  *
  * build.py brackets everything this page is made of between PAGE_BEGIN and
