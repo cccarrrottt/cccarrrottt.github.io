@@ -15321,8 +15321,12 @@ async function main(){
                                    (pts[i].y - pts[i-1].y) * (pts[i+1].x - pts[i].x)) > 0.01;
       for(let i = 1; i < pts.length - 1; i++) if(turns(i))
         line.forEach(q=>{ nearest = Math.min(nearest, Math.hypot(q.x - pts[i].x, q.y - pts[i].y)); });
-      /* The sketch: the bow stays inside the bracket the elbowed route
-         would draw, and arrives at its head at a slant, as drawn. */
+      /* The sketch: one bow, and it arrives at its head at a slant, as
+         drawn. It used to stay inside the bracket the elbowed route would
+         draw — which, with stubs a dozen units long, meant turning a right
+         angle in two units at each end, the hook the owner circled on
+         1.11. It swings out past the stubs now, as a hand's bow does, by
+         less than half the height it spans. */
       const recS = drawnRoutes.get(calloutEdgeKey('cvU', 'cvL'));
       const ptsS = recS ? recS.pts : [];
       const lineS = drawn(pathOf('cvU', 'cvL'));
@@ -15338,7 +15342,8 @@ async function main(){
          and drawn through them as one sweep. */
       out.curveSmooth = pts.length >= 3 && pts.length < 12 && axisAligned && d.indexOf('Q') < 0 &&
                         line.length > 20 && nearest > 4 * EDGE_CORNER_R;
-      out.curveSketch = ptsS.length >= 4 && bowOut < routeOut - 4 && slant > 5 && slant < 85;
+      const spanS = ptsS.length ? Math.max(...ptsS.map(p=> p.y)) - Math.min(...ptsS.map(p=> p.y)) : 0;
+      out.curveSketch = ptsS.length >= 4 && bowOut > routeOut && bowOut < routeOut + spanS / 2 && slant > 5 && slant < 85;
       /* The stretch the head stands on, and the few units the line runs
          before it, lie on the head's own axis — plain and wavy alike — and
          the line's last step points the way the head does, so it meets the
@@ -15461,7 +15466,7 @@ async function main(){
         rR.remarkFieldFits, rR.remarkFieldAt);
   check('a curve is one sweep through the elbowed route, and bends at the same handles',
         rR.curveSmooth && rR.curveOffered, rR.curveAt + rR.curvePts);
-  check('a curve from one entry\'s side to the one under it is a bow inside the bracket, met at a slant',
+  check('a curve from one entry\'s side to the one under it is one bow, met at a slant',
         rR.curveSketch, rR.curveAt);
   check('a curve arrives along its head\'s axis, so the head meets the line without a notch',
         rR.curveTailOnHead, rR.curveTailAt);
@@ -18392,7 +18397,7 @@ async function main(){
     const route = drawnRoutes.get(calloutEdgeKey('ck_a', 'ck_b'));
     const line = document.querySelector('.edge[data-from="ck_a"][data-to="ck_b"]');
     const pts = (line.getAttribute('d').match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
-    const plain = bsplineOver(mergeCollinear(route.pts), CURVE_STEP);
+    const plain = curveThrough(route.pts, CURVE_STEP);
     // The first dozen units, point for point.
     let gap = 0;
     for(let i = 0; i < 8 && i < pts.length; i++) gap = Math.max(gap, Math.hypot(pts[i].x - plain[i].x, pts[i].y - plain[i].y));
@@ -21571,6 +21576,30 @@ async function main(){
                 kept: [n.cardImgW, n.cardImgH]};
       });
     }
+    /* 5. A curve out of a port's short stub into a long run swings out
+          of its entry rather than turning in a couple of units, with a
+          head at that end or without one. */
+    out.curve = await page.evaluate(async ([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['o111_s','From',null,null,null,null,{pos:[X - 600, Y]}]);
+        workingNodes.push(['o111_t','To','o111_s',null,null,null,{pos:[X - 340, Y - 150]}]);
+        EDGE_STYLES.push({from:'o111_s', to:'o111_t', routing:'curve', dash:'solid', arrow:true,
+                          arrowIn:true, fromSide:'bottom', toSide:'bottom'});
+      });
+      rebuildChart();
+      const d = document.querySelector('.edge[data-from="o111_s"][data-to="o111_t"]').getAttribute('d');
+      const P = (d.match(/-?[\d.]+,-?[\d.]+/g) || []).map(t=>{ const [x, y] = t.split(',').map(Number); return {x, y}; });
+      /* The hook the owner circled ran back under the entry before it
+         set off: leaving by the bottom for an entry off to the right, the
+         line went left first. Along the whole line it only goes right. */
+      let back = 0;
+      for(let i = 1; i < P.length; i++) back = Math.max(back, P[i-1].x - P[i].x);
+      /* …and its head comes into the entry along the port, not on the
+         slant of a line already turning away under it. */
+      const heads = curveHeads(drawnRoutes.get(calloutEdgeKey('o111_s', 'o111_t')).pts, true, true);
+      const tilt = Math.abs(((heads.in + 90) % 360 + 540) % 360 - 180);
+      return {back: +back.toFixed(2), tilt: +tilt.toFixed(1), n: P.length};
+    }, [X, Y]);
     /* 2. Beside every entry, a link node too, a faint button copies a
           link to it, standing clear of the box and of its right port. */
     const lk = await page.evaluate(([X, Y])=>{
@@ -21610,6 +21639,8 @@ async function main(){
   }
   check('a merged arrow keeps its face when its entry is carried past the bar',
         out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
+  check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
+        out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
   check('a faint button beside an entry copies a link to it, outside its box',
         out.copy && out.copy.op > 0.2 && out.copy.op < 0.7 && out.copy.target && out.copy.target.id === 'o111_l'
         && out.copy.left > out.copy.right + 2 && out.copy.sel !== 'o111_l', JSON.stringify(out.copy));

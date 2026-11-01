@@ -462,9 +462,9 @@ const CURVE_STEP = 2;
 /* `ends` says which ends carry a head ({start, end}): only those are laid
    straight (see straightenTail). */
 function curveThrough(raw, step, ends){
-  const P = mergeCollinear(raw);
-  if(P.length < 3) return P.map(q=> ({x:q.x, y:q.y}));
-  let c = bsplineOver(P, step);
+  const M = mergeCollinear(raw);
+  if(M.length < 3) return M.map(q=> ({x:q.x, y:q.y}));
+  let c = M.length === 3 ? filletOver(M, step) : bsplineOver(easeCurveEnds(M), step);
   if(ends && ends.end) c = straightenTail(c);
   if(ends && ends.start) c = straightenTail(c.reverse()).reverse();
   return c;
@@ -530,6 +530,72 @@ function straightenTail(c){
     out.push({x: base.x + (tip.x - base.x) * t, y: base.y + (tip.y - base.y) * t});
   }
   return out;
+}
+/* How a curve leaves and enters its entries (the owner's list of 1.11).
+ *
+ * The spline leaves along its first leg, and how hard it then turns is
+ * set by how long that leg is against the next: the curvature where a
+ * cubic starts goes as the next leg over the SQUARE of the first. The
+ * first leg is a port's stub — a dozen units — and the next is the run
+ * across to the other entry, a few hundred: the line left its entry
+ * square and turned through a right angle in a couple of units, a hook,
+ * then ran smoothly on as if nothing had happened.
+ *
+ * So the first and last legs are lengthened, along themselves, to a part
+ * of the leg that follows them, as a hand drawing the line swings out
+ * from the entry before it turns. Only the control polygon is: the line
+ * still leaves the port square and still meets nothing it did not, and
+ * an end whose stub is already long enough is left as it was. */
+const CURVE_LEAD = 0.3, CURVE_LEAD_MAX = 120;
+function easeCurveEnds(M){
+  const P = M.map(q=> ({x:q.x, y:q.y}));
+  const n = P.length - 1;
+  const want = (a, b, c)=> Math.min(CURVE_LEAD_MAX, CURVE_LEAD * Math.hypot(c.x - b.x, c.y - b.y));
+  const lead = [want(M[0], M[1], M[2]), want(M[n], M[n-1], M[n-2])];
+  [[0, 1], [n, n-1]].forEach(([e, k], i)=>{
+    const L = Math.hypot(M[k].x - M[e].x, M[k].y - M[e].y);
+    if(!(L > 0) || L >= lead[i]) return;
+    P[k] = {x: M[e].x + (M[k].x - M[e].x) / L * lead[i], y: M[e].y + (M[k].y - M[e].y) / L * lead[i]};
+  });
+  return P;
+}
+/* A route with one corner, drawn round it as wide as its two legs allow.
+ *
+   Three points used to be a parabola — the spline of a three-point
+   polygon — which turns at the short leg's end as sharply as the legs
+   are unequal: a stub of a dozen units into a run of two hundred came out
+   a hook. A curve that leaves along one leg and arrives along the other
+   cannot turn wider than the shorter of them without leaving the corner's
+   box, so it turns on that radius: the shorter leg is all arc, the longer
+   straight up to it, and equal legs are a quarter of a circle. */
+function filletOver(P, step){
+  const [a, b, c] = P;
+  const L1 = Math.hypot(b.x - a.x, b.y - a.y), L2 = Math.hypot(c.x - b.x, c.y - b.y);
+  if(!(L1 > 0) || !(L2 > 0)) return P.map(q=> ({x:q.x, y:q.y}));
+  const u1 = {x: (b.x - a.x) / L1, y: (b.y - a.y) / L1}, u2 = {x: (c.x - b.x) / L2, y: (c.y - b.y) / L2};
+  const r = Math.min(L1, L2);
+  const s = {x: b.x - u1.x * r, y: b.y - u1.y * r}, e = {x: b.x + u2.x * r, y: b.y + u2.y * r};
+  // A cubic's best stand-in for a circle's arc, for an angle of any size.
+  const cos = Math.max(-1, Math.min(1, -(u1.x * u2.x + u1.y * u2.y)));
+  const turn = Math.PI - Math.acos(cos);
+  const k = r * 4 / 3 * Math.tan(turn / 4) / Math.max(1e-6, Math.tan(turn / 2));
+  const c1 = {x: s.x + u1.x * k, y: s.y + u1.y * k}, c2 = {x: e.x - u2.x * k, y: e.y - u2.y * k};
+  const st = step || CURVE_STEP;
+  const out = [{x: a.x, y: a.y}];
+  const line = (p, q)=>{
+    const len = Math.hypot(q.x - p.x, q.y - p.y), m = Math.max(1, Math.ceil(len / st));
+    for(let i = 1; i <= m; i++) out.push({x: p.x + (q.x - p.x) * i / m, y: p.y + (q.y - p.y) * i / m});
+  };
+  line(a, s);
+  const arcN = Math.max(4, Math.ceil(r * turn / st));
+  for(let i = 1; i <= arcN; i++){
+    const t = i / arcN, w = 1 - t;
+    out.push({x: w*w*w*s.x + 3*w*w*t*c1.x + 3*w*t*t*c2.x + t*t*t*e.x,
+              y: w*w*w*s.y + 3*w*w*t*c1.y + 3*w*t*t*c2.y + t*t*t*e.y});
+  }
+  line(e, c);
+  // Equal legs leave nothing straight; the repeated point is dropped.
+  return out.filter((q, i)=> !i || Math.hypot(q.x - out[i-1].x, q.y - out[i-1].y) > 1e-6);
 }
 function bsplineOver(P, step){
   const p = Math.min(3, P.length - 1), n = P.length - 1;
