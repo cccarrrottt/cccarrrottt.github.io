@@ -135,6 +135,13 @@ function tabInkOf(ringColors){
 }
 /* A resize grip is a dot on the corner: this big to see, and this far out
    to catch the hand — see the grips below for why it is not a square. */
+/* The strength and the weight of the k-th ring of a hub's echo or sheet
+   of a local multiverse's stack, counted out from the entry. At rest the
+   first three are what was always drawn; moving, every ring passes
+   through all of them in turn (see the scenery in renderNodes, and the
+   keyframes, which repeat these numbers). */
+function echoStrength(k){ return Math.max(0, 0.42 - (k - 1) * 0.12).toFixed(2); }
+function echoWeight(k){ return 1.5 - (k - 1) * 0.32; }
 /* How far a card's picture is blurred where it fills the margins of its
    own band, in chart units. */
 const CARD_BACKDROP_BLUR = 7;
@@ -1089,13 +1096,32 @@ const drawOne = (n)=>{
         const mid = own + band / 2;
         hitBand(n.x - mid, n.y - mid, n.w + mid*2, h + mid*2, cornerR + mid, band);
       }
-      for(let i = HUB_ECHOES; i >= 1; i--){
+      /* Moving, the echo is a stream of rings going out at one speed, one
+         more than are drawn at rest: each leaves the border unseen, passes
+         through the places the rings at rest stand — at their strength and
+         weight there — and fades out one step past the last (the owner's
+         list of 1.11). Every quarter of a turn the rings stand exactly where
+         the still picture has them, the fourth unseen against the border;
+         the stream starts on one of those moments, so it sets off from the
+         picture rather than jumping to another. It used to be three rings
+         each going the whole way in two thirds of a turn and resting
+         unseen for the last, and nothing in the stream ever matched the
+         picture. The fourth is drawn one step out, and only while moving. */
+      const travel = outer + HUB_ECHO_STEP;
+      for(let i = HUB_ECHOES + 1; i >= 1; i--){
         const grow = own + i * HUB_ECHO_STEP;
         const rw = n.w + grow*2, rh = h + grow*2;
         const sx0 = rw > 0 ? (n.w + own*2) / rw : 1;
         const sy0 = rh > 0 ? (h + own*2) / rh : 1;
-        const sx1 = rw > 0 ? (n.w + outer*2) / rw : 1;
-        const sy1 = rh > 0 ? (h + outer*2) / rh : 1;
+        const sx1 = rw > 0 ? (n.w + travel*2) / rw : 1;
+        const sy1 = rh > 0 ? (h + travel*2) / rh : 1;
+        /* The ring's weight at each step out, divided by how much this
+           ring is scaled there, so the stroke drawn is the still ring's. */
+        const weights = [0, 1, 2, 3, 4].map(k=>{
+          const at = own + k * HUB_ECHO_STEP;
+          const sc = ((n.w + at*2) / (rw || 1) + (h + at*2) / (rh || 1)) / 2;
+          return (echoWeight(k) / (sc || 1)).toFixed(3);
+        });
         /* A double echo and a rippled one are a path: both rails of a
            double ring in ONE element, so they travel out as one ring under
            the one animation rather than as two that would have to be kept
@@ -1112,12 +1138,14 @@ const drawOne = (n)=>{
                                               Math.max(0, r0 - HUB_ECHO_GAP))}}
           : {tag:'rect', a:{x: x0, y: y0, width: rw, height: rh, rx: rad(r0)}};
         el(shape.tag, {
-          ...shape.a, stroke: c, class: 'hub-echo',
+          ...shape.a, stroke: c, class: i > HUB_ECHOES ? 'hub-echo-more scenery-moving' : 'hub-echo',
           ...(echoDash ? {'stroke-dasharray': echoDash} : {}),
-          style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
-                 `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +
+          style: `fill:none;opacity:${echoStrength(i)};` +
+                 `stroke-width:${echoWeight(i).toFixed(2)};` +
                  `--echo-sx0:${sx0.toFixed(4)};--echo-sy0:${sy0.toFixed(4)};` +
-                 `--echo-sx1:${sx1.toFixed(4)};--echo-sy1:${sy1.toFixed(4)};`
+                 `--echo-sx1:${sx1.toFixed(4)};--echo-sy1:${sy1.toFixed(4)};` +
+                 weights.map((wv, k)=> `--echo-w${k}:${wv};`).join('') +
+                 `--echo-phase:${((i % (HUB_ECHOES + 1)) / (HUB_ECHOES + 1)).toFixed(4)};`
         }, aura);
       }
     }
@@ -1157,8 +1185,14 @@ const drawOne = (n)=>{
       const sheetStyle = decorStyleOf(n);
       const sheetDash = (BORDER_STYLES[sheetStyle] || BORDER_STYLES.solid).dash;
       const sheetDouble = sheetStyle === 'double';
-      for(let i = LOCAL_SHEETS; i >= 1; i--){
+      /* Moving, the sheets stream out as the echo's rings do (see above):
+         one more than at rest, at one speed, through the places and at the
+         strengths of the still sheets, every third of a turn standing
+         exactly as the picture has them. */
+      for(let i = LOCAL_SHEETS + 1; i >= 1; i--){
         const off = i * LOCAL_SHEET_STEP;
+        const sheetClass = i > LOCAL_SHEETS ? 'local-sheet-more scenery-moving' : 'local-sheet';
+        const phase = ((i % (LOCAL_SHEETS + 1)) / (LOCAL_SHEETS + 1)).toFixed(4);
         const shp = sheetShape(n.x + own + off, n.y - own - off);
         if(sheetDouble){
           /* A sheet's stroke is thicker than the entry's, so its second
@@ -1176,16 +1210,16 @@ const drawOne = (n)=>{
                                   rx: rad(sheetR - gap)}};
           el(inner.tag, {
             ...inner.attrs,
-            stroke: c, class: 'local-sheet', 'data-sheet': LOCAL_SHEETS - i,
-            style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
-                   `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +
-                   `--sheet-off:${(own + off).toFixed(2)}px;` +
-                   `--sheet-far:${(own + LOCAL_SHEETS * LOCAL_SHEET_STEP).toFixed(2)}px;`
+            stroke: c, class: sheetClass, 'data-sheet': LOCAL_SHEETS - i,
+            style: `fill:none;opacity:${echoStrength(i)};` +
+                   `stroke-width:${echoWeight(i).toFixed(2)};` +
+                   `--sheet-off:${off.toFixed(2)}px;--sheet-step:${LOCAL_SHEET_STEP}px;` +
+                   `--sheet-phase:${phase};`
           }, aura);
         }
         el(shp.tag, {
           ...shp.attrs,
-          stroke: c, class: 'local-sheet', 'data-sheet': LOCAL_SHEETS - i,
+          stroke: c, class: sheetClass, 'data-sheet': LOCAL_SHEETS - i,
           ...(sheetDash ? {'stroke-dasharray': sheetDash} : {}),
           /* Two numbers for the animation: its own distance from the box,
              which is where it stands and therefore where it must START
@@ -1199,10 +1233,15 @@ const drawOne = (n)=>{
              stagger of one turn divided by their number then puts an even
              gap between them. The far sheet's place is still the limit, so
              nothing travels past what the decoration is drawn as. */
-          style: `fill:none;opacity:${(0.42 - (i-1)*0.12).toFixed(2)};` +
-                 `stroke-width:${(1.5 - (i-1)*0.32).toFixed(2)};` +
-                 `--sheet-off:${(own + off).toFixed(2)}px;` +
-                 `--sheet-far:${(own + LOCAL_SHEETS * LOCAL_SHEET_STEP).toFixed(2)}px;`
+          /* Where it stands, past the entry's own outline, and the step
+             between sheets: it travels from the outline, where it is hidden
+             behind the entry, out one step past the far sheet, so the
+             animation is told how far back that is from where it is
+             drawn. */
+          style: `fill:none;opacity:${echoStrength(i)};` +
+                 `stroke-width:${echoWeight(i).toFixed(2)};` +
+                 `--sheet-off:${off.toFixed(2)}px;--sheet-step:${LOCAL_SHEET_STEP}px;` +
+                 `--sheet-phase:${phase};`
         }, aura);
       }
     }

@@ -21626,6 +21626,38 @@ async function main(){
               off: +mid.toFixed(3), bareGround: !!g('ab').querySelector('.edge-note-along-ground'),
               bareFrame: !!g('ab').querySelector('.edge-note-along-frame')};
     }, [X, Y]);
+    /* 7. A hub's echo and a local multiverse's stack, moving, stand again
+          and again exactly as they stand still: every quarter (a third)
+          of a turn the rings that show are the still ones, at their
+          places and strengths. */
+    out.scenery = await page.evaluate(async ([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['o111_h','Hub',null,null,null,null,{pos:[X - 600, Y + 600], tags:['multiversal hub']}]);
+        workingNodes.push(['o111_m2','Local',null,null,null,null,{pos:[X - 400, Y + 600], tags:['local multiverse']}]);
+      });
+      rebuildChart();
+      const aura = id=> document.querySelector(`.node-aura[data-id="${id}"]`);
+      const look = (id)=> [...aura(id).querySelectorAll('.hub-echo, .local-sheet, .hub-echo-more, .local-sheet-more')]
+        .map(e=> ({b: e.getBoundingClientRect(), o: +getComputedStyle(e).opacity,
+                   w: +getComputedStyle(e).strokeWidth.replace('px', ''), shown: getComputedStyle(e).display !== 'none'}))
+        .filter(r=> r.shown && r.o > 0.01)
+        .map(r=> [r.b.x, r.b.y, r.b.width, r.b.height, r.o].map(v=> +v.toFixed(1)).join(','))
+        .sort();
+      const still = {h: look('o111_h'), m: look('o111_m2')};
+      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.add('tag-lively'));
+      const anims = (name)=> document.getAnimations().filter(a=> a.animationName === name &&
+        (aura('o111_h').contains(a.effect.target) || aura('o111_m2').contains(a.effect.target)));
+      const at = (name, ms)=>{ anims(name).forEach(a=>{ a.pause(); a.currentTime = ms; }); };
+      const moving = [];
+      for(const [h, m] of [[0, 0], [600, 600], [1800, 1200]]){
+        at('hub-echo-out', h); at('local-sheet-away', m);
+        await new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok)));
+        moving.push({h: look('o111_h'), m: look('o111_m2')});
+      }
+      const between = (()=>{ at('hub-echo-out', 300); return look('o111_h'); })();
+      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.remove('tag-lively'));
+      return {still, moving, between, counts: [anims('hub-echo-out').length, anims('local-sheet-away').length]};
+    }, [X, Y]);
     /* 2. Beside every entry, a link node too, a faint button copies a
           link to it, standing clear of the box and of its right port. */
     const lk = await page.evaluate(([X, Y])=>{
@@ -21644,7 +21676,6 @@ async function main(){
       const box = btn.querySelector('.node-copy-link-bg').getBBox();
       const right = n.x + n.w;
       let wrote = null;
-      const was = navigator.clipboard && navigator.clipboard.writeText;
       try{
         Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async t=>{ wrote = t; }}});
         btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
@@ -21672,6 +21703,15 @@ async function main(){
     check('a note along its line is framed as far from its words as a level one, its words in the middle',
           n.frameW && Math.abs(n.frameW - n.plateH) < 0.6 && Math.abs(n.off) < 0.01, JSON.stringify(n));
     check('…and unframed it sits on a band of ground, as a level one sits on its plate', n.bareGround && !n.bareFrame, JSON.stringify(n));
+  }
+  {
+    const sc = out.scenery || {};
+    const near = (a, b)=> a && b && a.length === b.length && a.every((r, i)=>
+      r.split(',').every((v, k)=> Math.abs(+v - +b[i].split(',')[k]) <= (k === 4 ? 0.02 : 0.6)));
+    check('a hub\'s echo and a local multiverse\'s stack, moving, stand again and again as they stand still',
+          sc.still && sc.still.h.length === 3 && sc.still.m.length === 2 &&
+          sc.moving.every(f=> near(f.h, sc.still.h) && near(f.m, sc.still.m)) && !near(sc.between, sc.still.h),
+          JSON.stringify(sc));
   }
   check('a faint button beside an entry copies a link to it, outside its box',
         out.copy && out.copy.op > 0.2 && out.copy.op < 0.7 && out.copy.target && out.copy.target.id === 'o111_l'
