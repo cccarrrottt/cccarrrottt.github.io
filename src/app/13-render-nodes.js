@@ -135,6 +135,9 @@ function tabInkOf(ringColors){
 }
 /* A resize grip is a dot on the corner: this big to see, and this far out
    to catch the hand — see the grips below for why it is not a square. */
+/* How far a card's picture is blurred where it fills the margins of its
+   own band, in chart units. */
+const CARD_BACKDROP_BLUR = 7;
 const RESIZE_DOT_R = 1.9, RESIZE_DOT_HIT = 3.6;
 /* The button beside an entry that copies a link to it — see renderNodes.
    Two links of a chain, drawn on a circle this size, in chart units. */
@@ -852,10 +855,21 @@ const drawOne = (n)=>{
      be honoured whatever the box: the bands went below the picture and so
      below the card, and the heading was written across its bottom border.
      The words are what the card is FOR; the picture gives way. */
-  const cardImgB = isCard
-    ? n.y + ((manual && n.image && n.cardImgH == null) ? Math.max(0, h - cardTextH)
-             : Math.max(0, Math.min(cardImgH, h - cardTextH)))
-    : 0;
+  /* Measured from the top of the card it would be unrippled: a ripple
+     takes the box in by its depth all round (cardRipple), and the picture
+     keeps the band it had, reaching out to the crests as it reached the
+     plain border. Taken in with the box, the band was a little narrower
+     and shallower than the picture's own proportions, and turning a card
+     wavy drew its picture smaller (the owner's list of 1.11). */
+  const cardImgDepth = !isCard ? 0
+    /* A card sized by hand gives its picture's band whatever the words
+       leave, whatever size the picture itself was given: the picture keeps
+       its own size inside it (cardImgW, cardImgH), and what it does not
+       cover is filled (see the drawing). It used to take a picture's depth
+       set by hand as the band's, and the rest went to the heading. */
+    : (manual && n.image) ? Math.max(0, h - cardTextH)
+    : Math.max(0, Math.min(cardImgH, h + 2 * cardRipple - cardTextH));
+  const cardImgB = isCard ? n.y + (cardImgDepth > 0 ? cardImgDepth - cardRipple : 0) : 0;
   /* Each band below the picture takes the height its own words need, in
      order, and the heading takes whatever is left over — so a card given
      more room by hand grows where the room was given rather than
@@ -1289,21 +1303,50 @@ const drawOne = (n)=>{
        exact whatever the border does next. */
     const bleed = isWavy ? POCKET_AMP + 1 : 0;
     /* How wide the picture is drawn. A picture pulled in from the sides
-       stands in the middle of its band with the card's own ground either
-       side of it; one at full width reaches the border, and only that one
-       is allowed to bleed past it into the ripple. */
-    const imgW = Math.max(0, Math.min(w, n.cardImgW == null ? w : n.cardImgW));
-    const imgFull = imgW >= w - 0.5;
+       stands in the middle of its band; one at full width reaches the
+       border. Both are measured on the card as it would be unrippled
+       (see cardImgDepth), so a ripple changes nothing about the picture
+       but the outline it is cut to. */
+    const bandW = w + 2 * cardRipple;
+    const imgW = Math.max(0, Math.min(bandW, n.cardImgW == null ? bandW : n.cardImgW));
     const imgX = n.x + (w - imgW)/2;
-    const imgBleed = imgFull ? bleed : 0;
+    /* Down to the rule under it and not across it: the rule is drawn
+       see-through, and a picture under its lower half showed through the
+       line between the picture and the heading (the owner's list of
+       30.10). */
+    const ruleCut = cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0;
+    const bandY = n.y - cardRipple, bandH = Math.max(0, cardImgB - bandY - ruleCut);
+    /* As deep as it was made, in the middle of its band — which is the
+       whole band unless the card was sized by hand round it. */
+    const imgH = Math.min(bandH, n.cardImgH == null ? bandH : n.cardImgH);
+    const imgY = bandY + (bandH - imgH) / 2;
+    n.cardImgBand = {top: bandY - n.y, h: bandH};
     if(n.image){
+      /* Whatever of the band the picture leaves empty — the sides of one
+         pulled in by hand, the margins of one kept entire in a band of
+         other proportions, the ripple's crests past its edges — is filled
+         with the same picture, enlarged to cover the band and blurred
+         (the owner's list of 1.11), where it used to be the card's
+         ground. Inside a viewport of the band's own size, so the blur's
+         reach stops at the rule rather than running into the heading. */
+      const r = imageAspect(n.image);
+      const fills = bleed === 0 && imgW >= bandW - 0.5 && imgH >= bandH - 0.5
+                  && (n.cardCrop || (r && Math.abs(imgW * r - imgH) < 1));
+      if(!fills && imgH > 0.5){
+        const blurId = defId('cardblur-', n.id);
+        const f = el('filter', {id: blurId, x:'-10%', y:'-10%', width:'120%', height:'120%'}, nodeDefs);
+        el('feGaussianBlur', {stdDeviation: CARD_BACKDROP_BLUR}, f);
+        const bx = n.x - bleed, by = n.y - bleed, bw = w + bleed*2, bh = cardImgB - by - ruleCut;
+        const port = el('svg', {x: bx.toFixed(2), y: by.toFixed(2), width: bw.toFixed(2), height: Math.max(0, bh).toFixed(2),
+                                class: 'card-img-backdrop', overflow: 'hidden'},
+                        el('g', {'clip-path': `url(#${clipId})`}, g));
+        const pad = CARD_BACKDROP_BLUR * 3;
+        const back = el('image', {x: -pad, y: -pad, width: (bw + pad*2).toFixed(2), height: (Math.max(0, bh) + pad*2).toFixed(2),
+                                  preserveAspectRatio: 'xMidYMid slice', filter: `url(#${blurId})`}, port);
+        wearPicture(back, n.image, n.anim);
+      }
       const img = el('image', {
-        /* Down to the rule under it and not across it: the rule is drawn
-           see-through, and a picture under its lower half showed through
-           the line between the picture and the heading (the owner's list
-           of 30.10). */
-        x:imgX - imgBleed, y:n.y - bleed, width:imgW + imgBleed*2,
-        height:Math.max(0, (cardImgB - n.y) + bleed - (cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0)),
+        x:imgX, y:imgY, width:imgW, height:imgH,
         'clip-path': `url(#${clipId})`,
         /* Fit the whole picture unless this card has asked for the
            other thing. `slice` fills the band and throws the rest away;
@@ -1338,7 +1381,7 @@ const drawOne = (n)=>{
     /* Not on a turned card: the grips would turn with the picture, and a
        corner dragged one way would pull the picture another. */
     if(cardImgEditId === n.id && n.image && cardImgB > n.y + 0.5 && !turn){
-      const gy0 = n.y, gy1 = cardImgB;
+      const gy0 = imgY, gy1 = imgY + imgH;
       [[imgX, gy0, 'nw'], [imgX + imgW, gy0, 'ne'],
        [imgX, gy1, 'sw'], [imgX + imgW, gy1, 'se']].forEach(([gx, gyy, key])=>{
         const grip = el('g', {class:'card-img-grip card-img-grip-' + key,

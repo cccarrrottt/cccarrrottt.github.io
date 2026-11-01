@@ -543,6 +543,10 @@
      divisions inside one shape rather than as three stacked boxes. */
   .node > line.card-rule{stroke-width:1;opacity:0.45;}
   .node.selected > line.card-rule{stroke-width:1;filter:none;}
+  /* A card's picture is one of its fields, not a thing of its own: lit
+     like a picture entry's, its glow ran across the rule into the heading
+     under it (the owner's list of 1.11). The card is lit by its border. */
+  .node.node-card.selected > image{filter:none;}
   .node text.card-body{fill:var(--ink-dim);}
   /* The middle band sits between the heading and the note in size, so it
      sits between them in weight too: the entry's own ink, a shade quieter

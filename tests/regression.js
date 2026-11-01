@@ -12552,7 +12552,7 @@ async function main(){
                            {pos:[X + 520, Y], card:true, image:wide, border:'wavy'}]);
       });
       await wait(900);
-      const img = (id)=> document.querySelector('.node[data-id="' + id + '"] image');
+      const img = (id)=> document.querySelector('.node[data-id="' + id + '"] > image');
       out.fitWhole = (img('ciA') || {}).getAttribute &&
         img('ciA').getAttribute('preserveAspectRatio').indexOf('meet') > 0;
       out.cropWhenAsked = !!img('ciB') &&
@@ -12567,9 +12567,12 @@ async function main(){
          card's own outline, so no band and no rule reaches past the
          ripple. */
       const wg = document.querySelector('.node[data-id="ciW"]');
-      const wImg = wg.querySelector('image');
+      /* The picture, and what fills round it, which is cut by a group. */
+      const wImg = wg.querySelector(':scope > image');
+      const wBack = wg.querySelector('.card-img-backdrop');
       const rules = [...wg.querySelectorAll('.card-rule')];
       out.wavyCardSealed = !!wImg && /^url\(#/.test(wImg.getAttribute('clip-path') || '') &&
+        !!wBack && /^url\(#/.test(wBack.parentNode.getAttribute('clip-path') || '') &&
         rules.length > 0 && rules.every(r=> /^url\(#/.test(r.getAttribute('clip-path') || ''));
 
       /* A picture given a depth by hand, on a card then made smaller, gives
@@ -21527,6 +21530,47 @@ async function main(){
     out.side0 = await page.evaluate(()=> mergedArrowPorts.get('o111_m').p2.side);
     out.across = await carry(-480);
     out.undone = await page.evaluate(()=>{ undoLastEdit(); return [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]; });
+    /* 3. A card's picture: the same size rippled or not, the band it
+          leaves filled with itself blurred, unlit when the card is picked,
+          and kept at its size when the card is resized. */
+    out.card = await page.evaluate(async ([X, Y])=>{
+      const cv = document.createElement('canvas'); cv.width = 300; cv.height = 200;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#3a7'; cx.fillRect(0, 0, 300, 200);
+      const pic = cv.toDataURL();
+      applyEdit(()=>{
+        workingNodes.push(['o111_c1','Plain',null,null,'A note',null,{pos:[X - 250, Y + 380], card:true, image:pic}]);
+        workingNodes.push(['o111_c2','Plain',null,null,'A note',null,{pos:[X + 300, Y + 380], card:true, image:pic, border:'wavy'}]);
+      });
+      rebuildChart();
+      await new Promise(ok=> setTimeout(ok, 250));
+      const pics = id=> [...document.querySelectorAll(`.node[data-id="${id}"] > image`)]
+        .map(i=> [+i.getAttribute('width'), +i.getAttribute('height')]);
+      const backs = id=> document.querySelectorAll(`.node[data-id="${id}"] .card-img-backdrop image`).length;
+      const r = {plain: pics('o111_c1'), wavy: pics('o111_c2'), backPlain: backs('o111_c1'), backWavy: backs('o111_c2')};
+      selectNode('o111_c1', {quiet: true});
+      r.lit = getComputedStyle(document.querySelector('.node[data-id="o111_c1"] > image')).filter;
+      deselect();
+      return r;
+    }, [X, Y]);
+    {
+      const se = await page.evaluate(()=>{
+        nodeControlsOn('o111_c1');
+        const b = document.querySelector('.node[data-id="o111_c1"] .node-resize-se').getBoundingClientRect();
+        const c = document.querySelector('.node[data-id="o111_c1"]').getBoundingClientRect();
+        return {x: b.x + b.width/2 + 2, y: b.y + b.height/2 + 2, cx: c.x + c.width/2, cy: c.y + c.height/2};
+      });
+      await page.mouse.move(se.cx, se.cy); await page.mouse.move(se.x, se.y); await wait(60);
+      await page.mouse.down();
+      for(let i = 1; i <= 8; i++){ await page.mouse.move(se.x + i * 8, se.y + i * 10); await wait(16); }
+      await page.mouse.up(); await wait(120);
+      out.card.resized = await page.evaluate(()=>{
+        const n = nodes.get('o111_c1');
+        return {size: [n.w, n.h], pic: [...document.querySelectorAll('.node[data-id="o111_c1"] > image')]
+                  .map(i=> [+i.getAttribute('width'), +i.getAttribute('height')]),
+                back: document.querySelectorAll('.node[data-id="o111_c1"] .card-img-backdrop image').length,
+                kept: [n.cardImgW, n.cardImgH]};
+      });
+    }
     /* 2. Beside every entry, a link node too, a faint button copies a
           link to it, standing clear of the box and of its right port. */
     const lk = await page.evaluate(([X, Y])=>{
@@ -21569,6 +21613,19 @@ async function main(){
   check('a faint button beside an entry copies a link to it, outside its box',
         out.copy && out.copy.op > 0.2 && out.copy.op < 0.7 && out.copy.target && out.copy.target.id === 'o111_l'
         && out.copy.left > out.copy.right + 2 && out.copy.sel !== 'o111_l', JSON.stringify(out.copy));
+  {
+    const c = out.card || {};
+    const same = (a, b)=> a && b && a.length === 1 && b.length === 1 && Math.abs(a[0][0] - b[0][0]) < 0.01 && Math.abs(a[0][1] - b[0][1]) < 0.01;
+    check('a card\'s picture is drawn the same size when its border is turned wavy', same(c.plain, c.wavy), JSON.stringify(c));
+    check('…a picture that fits its band has nothing behind it, and the ripple\'s crests are filled with it blurred',
+          c.backPlain === 0 && c.backWavy === 1, JSON.stringify(c));
+    check('…a picked card does not light its picture across the rule', c.lit === 'none', c.lit);
+    const z = c.resized || {};
+    check('…resizing the card keeps its picture\'s size, and fills the band round it',
+          z.size && z.size[0] > c.plain[0][0] + 20 && z.pic && z.pic.length === 1
+          && Math.abs(z.pic[0][0] - c.plain[0][0]) < 1.5 && Math.abs(z.pic[0][1] - c.plain[0][1]) < 1.5 && z.back === 1
+          && Math.abs(z.kept[0] - c.plain[0][0]) < 1, JSON.stringify(z));
+  }
   check('…a carry back to where it started writes no face, and undo takes it out',
         out.back[1] === null && out.undone[0] === 'top' && out.undone[1] === null, JSON.stringify(out));
   });
