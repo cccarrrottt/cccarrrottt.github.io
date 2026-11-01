@@ -21527,6 +21527,34 @@ async function main(){
     out.side0 = await page.evaluate(()=> mergedArrowPorts.get('o111_m').p2.side);
     out.across = await carry(-480);
     out.undone = await page.evaluate(()=>{ undoLastEdit(); return [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]; });
+    /* 2. Beside every entry, a link node too, a faint button copies a
+          link to it, standing clear of the box and of its right port. */
+    const lk = await page.evaluate(([X, Y])=>{
+      applyEdit(()=> workingNodes.push(['o111_l','',null,null,null,'link',{pos:[X + 500, Y]}]));
+      rebuildChart();
+      const g = document.querySelector('.node[data-id="o111_l"]');
+      const b = g.getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2};
+    }, [X, Y]);
+    await page.mouse.move(lk.x, lk.y); await wait(200);
+    out.copy = await page.evaluate(async ()=>{
+      const n = nodes.get('o111_l');
+      const btn = document.querySelector('.node[data-id="o111_l"] .node-copy-link');
+      if(!btn) return null;
+      const op = +getComputedStyle(btn).opacity;
+      const box = btn.querySelector('.node-copy-link-bg').getBBox();
+      const right = n.x + n.w;
+      let wrote = null;
+      const was = navigator.clipboard && navigator.clipboard.writeText;
+      try{
+        Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async t=>{ wrote = t; }}});
+        btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        await new Promise(ok=> setTimeout(ok, 30));
+      } finally { delete navigator.clipboard; }
+      const local = btn.transform.baseVal.consolidate().matrix;
+      return {op, wrote, left: local.e - box.width/2, right, sel: selectedId,
+              target: wrote ? entryLinkTarget(wrote) : null};
+    });
   } finally {
     await page.evaluate(()=>{
       closeStyleBar(); closeEdgePopover(); deselect();
@@ -21538,6 +21566,9 @@ async function main(){
   }
   check('a merged arrow keeps its face when its entry is carried past the bar',
         out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
+  check('a faint button beside an entry copies a link to it, outside its box',
+        out.copy && out.copy.op > 0.2 && out.copy.op < 0.7 && out.copy.target && out.copy.target.id === 'o111_l'
+        && out.copy.left > out.copy.right + 2 && out.copy.sel !== 'o111_l', JSON.stringify(out.copy));
   check('…a carry back to where it started writes no face, and undo takes it out',
         out.back[1] === null && out.undone[0] === 'top' && out.undone[1] === null, JSON.stringify(out));
   });

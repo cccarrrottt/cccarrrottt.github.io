@@ -904,6 +904,16 @@
   .node-resize-ne, .node-resize-sw{cursor:nesw-resize;}
   .node:hover .node-resize{opacity:1;pointer-events:auto;}
   body.read-only .node-resize{display:none;}
+  /* The link-copying button beside an entry: faint, and only while the
+     entry is under the pointer, like the grips; full when it is reached. */
+  .node-copy-link{opacity:0;transition:opacity 110ms ease;cursor:pointer;pointer-events:none;}
+  .node:hover .node-copy-link{opacity:0.45;pointer-events:auto;}
+  .node .node-copy-link:hover, .node .node-copy-link.done{opacity:1;}
+  .node-copy-link-hit{fill:transparent;stroke:none;}
+  .node-copy-link-bg{fill:var(--panel);stroke:var(--ink-faint);stroke-width:0.6;}
+  .node-copy-link-icon{fill:none;stroke:var(--ink);stroke-width:0.75;stroke-linecap:round;}
+  .node-copy-link:hover .node-copy-link-bg{stroke:var(--accent);}
+  .node-copy-link:hover .node-copy-link-icon, .node-copy-link.done .node-copy-link-icon{stroke:var(--accent);}
   /* The picture's own corners, shown only while the picture is the thing
      being edited — so they are not four more handles competing with the
      box's own on every card on the chart. */
@@ -2851,7 +2861,8 @@
      being read — the one case where the wrong target is not just clicked
      but permanently changed. */
   body.entry-open .node:not(.selected) .node-resize,
-  body.entry-open .node:not(.selected) .node-rotate{pointer-events:none;}
+  body.entry-open .node:not(.selected) .node-rotate,
+  body.entry-open .node:not(.selected) .node-copy-link{pointer-events:none;}
   .ref-missing{fill:var(--danger,#c23b22);opacity:0.75;}
 
   /* The two lists share one panel, so each gets a heading that reads as a
@@ -3385,6 +3396,8 @@
   body.touch-input .node.selected .node-resize{opacity:1;pointer-events:auto;}
   body.touch-input .node.hover .node-rotate,
   body.touch-input .node.selected .node-rotate{opacity:1;}
+  body.touch-input .node.hover .node-copy-link,
+  body.touch-input .node.selected .node-copy-link{opacity:0.45;pointer-events:auto;}
   body.touch-input .rich-surface:not(.locked) .rich-figure > .fig-grip{display:block;}
   /* A row is picked up by holding it; the browser's own answer to a hold —
      selecting the row's words and offering to copy them — would come first. */

@@ -136,6 +136,12 @@ function tabInkOf(ringColors){
 /* A resize grip is a dot on the corner: this big to see, and this far out
    to catch the hand — see the grips below for why it is not a square. */
 const RESIZE_DOT_R = 1.9, RESIZE_DOT_HIT = 3.6;
+/* The button beside an entry that copies a link to it — see renderNodes.
+   Two links of a chain, drawn on a circle this size, in chart units. */
+const COPY_LINK_R = 4.2;
+const COPY_LINK_TITLE = 'Copy a link to this entry';
+const COPY_LINK_ICON = 'M-0.6,0.6 L0.6,-0.6 M-0.3,-1.5 L0.6,-2.4 A1.27,1.27 0 0 1 2.4,-0.6 L1.5,0.3 '
+                     + 'M0.3,1.5 L-0.6,2.4 A1.27,1.27 0 0 1 -2.4,0.6 L-1.5,-0.3';
 /* The card whose PICTURE is being edited, if any.
  *
  * A card is two things in one box — words and a picture — and a double
@@ -1886,6 +1892,39 @@ const drawOne = (n)=>{
         hg.addEventListener('click', ev=> ev.stopPropagation());
       });
     });
+    /* A link to the entry, copied from beside it (the owner's list of
+     * 1.11). The only button for it was in the open entry's panel, and a
+     * link node never opens one — pressed, it goes where it points — so a
+     * link node could not be given another link node to go to: there was
+     * no way to get the address of one.
+     *
+       It stands just past the right edge, near the top, faint like the
+       corner grips and shown with them: outside the box, so it covers
+       none of the entry; above the middle, where the right port and the
+       connectors leaving it are; and clear of the frame the hover pad
+       makes round the border, so it takes no port's strip. The strip of
+       nothing between the two is part of it, so the pointer crossing the
+       gap does not leave the entry and take the button away with it. */
+    if(!isFree && !isSplit){
+      const outer = Math.max(0, ringColors.length - 1) * ringStepFor(n) + BAND_HIT_DEFAULT/2
+                  + (isWavy ? POCKET_LIFT + 1 : 0);
+      const R = COPY_LINK_R, x0 = n.x + n.w + outer;
+      const cy = n.y + Math.min(R + 3, h / 4);
+      const cg = el('g', {class:'node-copy-link', 'data-id': n.id,
+                          transform:`translate(${(x0 + R + 1).toFixed(2)},${cy.toFixed(2)})`}, controls);
+      el('rect', {x:(-R - 1.5).toFixed(2), y:(-R).toFixed(2), width:(R*2 + 1.5).toFixed(2), height:(R*2).toFixed(2),
+                  class:'node-copy-link-hit'}, cg);
+      el('circle', {cx:0, cy:0, r:R, class:'node-copy-link-bg'}, cg);
+      el('path', {d:COPY_LINK_ICON, class:'node-copy-link-icon'}, cg);
+      const tip = el('title', {}, cg);
+      tip.textContent = COPY_LINK_TITLE;
+      cg.addEventListener('mousedown', ev=> ev.stopPropagation());
+      cg.addEventListener('dblclick', ev=> ev.stopPropagation());
+      cg.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        copyEntryLink(n.id, {classList: cg.classList, set title(t){ tip.textContent = t; }}, COPY_LINK_TITLE);
+      });
+    }
   });
 
   if(n.link && safeUrl(n.link) && !isFree && !isLinkNode && !isSplit){
