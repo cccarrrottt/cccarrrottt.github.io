@@ -152,7 +152,7 @@ const REFS = [
 
 /* @@EDIT:EDGESTYLES:START@@ */
 const EDGE_STYLES = [
-  {from:'uprising', to:'uprising-copy', routing:'orthogonal', dash:'solid', arrow:true, note:'гнгн', color:'#20242b', colorFixed:true, fromSide:'top', toSide:'top', noteFrame:false, noteAlongFrame:true},
+  {from:'uprising', to:'uprising-copy', routing:'orthogonal', dash:'solid', arrow:true, note:'гнгн', color:'#20242b', colorFixed:true, fromSide:'top', toSide:'top', noteAlongFrame:true},
   {from:'beast-wars-uprising-copy', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, color:'#c2c', colorFixed:true, fromSide:'bottom', toSide:'top'},
   {from:'beast-wars-uprising-copy-2', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, arrowIn:true, barEnd:'tout', fromSide:'bottom', toSide:'top', square:true},
   {from:'beast-wars-uprising-copy-3', to:'beast-wars-uprising-copy-5', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'},
