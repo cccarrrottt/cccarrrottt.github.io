@@ -107,11 +107,12 @@ can happen in silence any more.
 
 ## Before you say anything is done
 
-Six checks, and all six have to be green:
+Seven checks, and all seven have to be green:
 
 ```bash
 python3 build.py
 python3 tools/data_check.py      # ~instant, and run it AFTER the build
+node tools/chart_check.js        # ~instant: the chart is data, and fits its schema
 python3 tests/build_guard.py     # ~seconds
 python3 tools/lint.py            # ~seconds, and tools/tdz.js with it
 node tests/worker.js             # ~instant, the write service

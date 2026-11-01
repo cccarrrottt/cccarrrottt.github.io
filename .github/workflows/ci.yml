@@ -38,18 +38,35 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request makes the older run pointless, so it is
+# cancelled. On main it is not: a run there is a publish, and cancelling one
+# half way left the next push to decide alone what to publish. A Save made
+# while a merged code change was still being checked cancelled that check,
+# was itself "only data", and published the unchecked code with it — and
+# skipped deploying the write service the code expected. Runs on main now
+# finish in order. (GitHub still drops a run that is only WAITING when a
+# newer one queues; which is why "only data" is decided against what was
+# last published, below, not against the push before.)
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Is this push only the chart's data? Answered from the two commits' trees,
-  # not from the commit message, so a code change can never ride along
-  # unchecked. A push with no usable "before" (a new branch, a force-push
-  # that dropped it) counts as code.
+  # Is this push only the chart's data? Answered from the trees, not from the
+  # commit message, so a code change can never ride along unchecked — and
+  # against the commit the site was last published from, not against the
+  # push before this one. The push before may never have been checked: its
+  # run can have been dropped while it waited. Compared with it, a Save on
+  # top of an unchecked code change looked like "only data" and published
+  # the code. Compared with the last run on main that succeeded, the code is
+  # in the difference and everything runs. No such run, or none that can be
+  # fetched, counts as code.
   changes:
     name: What changed
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       data_only: ${{ steps.diff.outputs.data_only }}
     steps:
@@ -57,12 +74,18 @@ jobs:
 
       - id: diff
         env:
-          BEFORE: ${{ github.event_name == 'push' && github.event.before || '' }}
+          GH_TOKEN: ${{ github.token }}
+          IS_PUSH: ${{ github.event_name == 'push' }}
         run: |
           data_only=false
-          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
-             && git fetch --quiet --depth=1 origin "$BEFORE"; then
-            files=$(git diff --name-only "$BEFORE" HEAD)
+          BASE=""
+          if [ "$IS_PUSH" = true ]; then
+            BASE=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+                     --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null || true)
+          fi
+          echo "Last published: ${BASE:-none found}"
+          if [ -n "$BASE" ] && git fetch --quiet --depth=1 origin "$BASE"; then
+            files=$(git diff --name-only "$BASE" HEAD)
             echo "Changed: $files"
             # The chart, and the pictures a Save puts beside it.
             others=$(printf '%s\n' "$files" | grep -v -e '^src/data\.js$' -e '^src/media/[^/]*$' || true)
@@ -87,10 +110,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      # There is no package-lock.json yet, so this is `install`, not `ci`.
-      # Add a lockfile and this becomes `npm ci`.
+      # Exactly what package-lock.json says, so a run cannot pick up a
+      # newer eslint or ajv than the one the checks were written against.
       - name: Install eslint
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       # Before the build, deliberately. A checkout has no dist/, so this is
       # the one moment the chart in the REPOSITORY can be seen on its own —
@@ -99,6 +122,11 @@ jobs:
       # been made from src/ a step earlier.
       - name: What chart this checkout carries
         run: python3 tools/data_check.py
+
+      # The chart is data and only data, and fits its schema: the same
+      # check a data-only push is published on (see the pages job).
+      - name: The chart is data
+        run: node tools/chart_check.js
 
       # esbuild came with the install above. Required, so a run where it is
       # missing fails rather than quietly publishing the program unminified.
@@ -149,7 +177,7 @@ jobs:
 
       - name: Install Playwright
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
 
       # The src suite serves src/ directly, but building first is what proves
@@ -196,6 +224,18 @@ jobs:
         run: |
           v=$(node -p "require('./package.json').devDependencies.esbuild")
           npm install --no-audit --no-fund --no-save --prefix "$RUNNER_TEMP/esb" "esbuild@$v"
+
+      # A data-only push comes here without the build job, and so without
+      # the browser suite — the owner asked not to wait for it. What it is
+      # not published without is this: every region of the chart is data
+      # and nothing else (the reader the write service refuses a save
+      # with), and the chart fits its schema. A region that would run as
+      # code, or a chart the page cannot read, stops here.
+      - name: The chart is data
+        run: |
+          v=$(node -p "require('./package.json').devDependencies.ajv")
+          npm install --no-audit --no-fund --no-save --prefix "$RUNNER_TEMP/ajv" "ajv@$v"
+          NODE_PATH="$RUNNER_TEMP/ajv/node_modules" node tools/chart_check.js
 
       # The visitor counter's token is a repository variable, not a secret:
       # it is printed into every page anyway. Unset, the site has no counter.
@@ -250,10 +290,13 @@ jobs:
   # and the session key) live in Cloudflare and a deploy leaves them alone.
   worker:
     name: Deploy the write service
-    # A data-only push skips build, and with it this: the service did not change.
+    # After the browser suite as well as the service's own tests, as the
+    # site is: the page and the service it talks to go out on the same
+    # evidence. A data-only push skips build, and with it this: the service
+    # did not change.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -271,4 +314,5 @@ jobs:
             echo "No Cloudflare secrets in this repository; the write service is not deployed."
             exit 0
           fi
-          npx --yes wrangler@4 deploy
+          # An exact version: a deploy is not the place to meet a new one.
+          npx --yes wrangler@4.150.0 deploy

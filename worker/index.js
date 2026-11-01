@@ -302,6 +302,247 @@ export function mergeRegions(base, theirs, mine){
   return out;
 }
 
+/* ---- a region is data, and nothing else ------------------------------
+
+   src/data.js is written into the published page as a script, so the text
+   of a region RUNS in every reader's browser. A save that is also a push
+   of only data.js is published at once, without the checks a code change
+   waits for (the owner asked for that). Between the two, whatever a save
+   sent became code on the site, unread: an emptied bracket broke the page
+   for everybody, and a region holding a statement after its list would
+   have run it for everybody — with only a stolen session between that and
+   anyone who wanted to.
+
+   So a region is read here as what it claims to be: `const NAME = ` one
+   literal `;`, where a literal is a string, a number, true, false, null,
+   undefined, NaN, Infinity, or an array or object of literals with plain or
+   quoted keys. No name is looked up, nothing is called, no expression is
+   formed — what passes cannot do anything when it runs but exist. Comments
+   and trailing commas are allowed, because the serializers in the page
+   and a hand-edited data.js may write them, and they are inert.
+
+   It is a reader of the page's own output, not of JavaScript: anything the
+   serializers (jsStr, jsVal in 23-quick-edit.js; 29-editors.js) can write
+   reads; anything else is refused with where it stopped. */
+const REGION_CONST = {NODES: 'NODES', COMMENTS: 'COMMENTS', STICKERS: 'STICKERS', MEDIA: 'MEDIA',
+                      EDGESTYLES: 'EDGE_STYLES', TAGCATS: 'TAG_CATS', REFS: 'REFS', SETTINGS: 'SETTINGS'};
+const LITERAL_WORDS = {true: true, false: false, null: null, undefined: undefined, NaN: NaN, Infinity: Infinity};
+const MAX_DEPTH = 32;
+
+export function parseRegion(name, text){
+  const want = REGION_CONST[name];
+  if(!want) throw new Error(`no region is called ${name}`);
+  /* The page is HTML first: inside a script element these two end it or
+     bend how the rest of it is read, wherever they stand — a string
+     included. jsStr writes every "<" as \x3c, so only a hand edit has one. */
+  if(/<\/script|<!--/i.test(text)) throw new Error('it contains a sequence that would end the page\'s script');
+  let i = 0;
+  const n = text.length;
+  const fail = what => {
+    const line = text.slice(0, i).split('\n').length;
+    throw new Error(`${what} (line ${line} of the region)`);
+  };
+  const space = () => {
+    for(;;){
+      while(i < n && /\s/.test(text[i])) i++;
+      if(text.startsWith('//', i)){ while(i < n && text[i] !== '\n') i++; continue; }
+      if(text.startsWith('/*', i)){
+        const e = text.indexOf('*/', i + 2);
+        if(e < 0) fail('a comment is never closed');
+        i = e + 2; continue;
+      }
+      return;
+    }
+  };
+  const word = () => {
+    const m = /^[A-Za-z_$][\w$]*/.exec(text.slice(i, i + 64));
+    if(!m) return null;
+    i += m[0].length;
+    return m[0];
+  };
+  const hex = (len) => {
+    const h = text.slice(i, i + len);
+    if(h.length !== len || !/^[0-9a-fA-F]+$/.test(h)) fail('a broken escape in a string');
+    i += len;
+    return parseInt(h, 16);
+  };
+  const string = () => {
+    const q = text[i++];
+    let out = '';
+    for(;;){
+      if(i >= n) fail('a string is never closed');
+      const c = text[i];
+      if(c === q){ i++; return out; }
+      if(c === '\n' || c === '\r') fail('a string runs past the end of its line');
+      if(c !== '\\'){ out += c; i++; continue; }
+      const e = text[i + 1];
+      i += 2;
+      if(e === undefined) fail('a string is never closed');
+      else if(e === 'n') out += '\n';
+      else if(e === 'r') out += '\r';
+      else if(e === 't') out += '\t';
+      else if(e === 'b') out += '\b';
+      else if(e === 'f') out += '\f';
+      else if(e === 'v') out += '\v';
+      else if(e === '0' && !/[0-9]/.test(text[i] || '')) out += '\0';
+      else if(e === 'x') out += String.fromCharCode(hex(2));
+      else if(e === 'u'){
+        if(text[i] === '{'){
+          const end = text.indexOf('}', i);
+          if(end < 0 || end - i > 7) fail('a broken escape in a string');
+          i++;
+          const cp = hex(end - i);
+          if(cp > 0x10FFFF) fail('a broken escape in a string');
+          out += String.fromCodePoint(cp);
+          i++;
+        } else out += String.fromCharCode(hex(4));
+      }
+      else if(e === '\n' || e === ' ' || e === ' '){ /* a line continuation */ }
+      else if(e === '\r'){ if(text[i] === '\n') i++; }
+      else if(/[1-9]/.test(e)) fail('an octal escape in a string');
+      else out += e;
+    }
+  };
+  const number = () => {
+    const m = /^-?(?:Infinity|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)/.exec(text.slice(i, i + 64));
+    if(!m) fail('something that is not a number, a string or a list');
+    i += m[0].length;
+    return Number(m[0]);
+  };
+  const value = (depth) => {
+    if(depth > MAX_DEPTH) fail('lists nested too deeply');
+    space();
+    const c = text[i];
+    if(c === '[') {
+      i++;
+      const out = [];
+      for(;;){
+        space();
+        if(text[i] === ']'){ i++; return out; }
+        out.push(value(depth + 1));
+        space();
+        if(text[i] === ','){ i++; continue; }
+        if(text[i] === ']'){ i++; return out; }
+        fail('a list where a comma or its close should be');
+      }
+    }
+    if(c === '{') {
+      i++;
+      const out = {};
+      for(;;){
+        space();
+        if(text[i] === '}'){ i++; return out; }
+        let key;
+        if(text[i] === "'" || text[i] === '"') key = string();
+        else key = word();
+        if(key === null) fail('a record whose field has no name');
+        space();
+        if(text[i] !== ':') fail(`a record field "${key}" with no value`);
+        i++;
+        // Defined, not assigned: assigned, "__proto__" would set the prototype.
+        Object.defineProperty(out, key, {value: value(depth + 1), enumerable: true, writable: true, configurable: true});
+        space();
+        if(text[i] === ','){ i++; continue; }
+        if(text[i] === '}'){ i++; return out; }
+        fail('a record where a comma or its close should be');
+      }
+    }
+    if(c === "'" || c === '"') return string();
+    if(c === '-' || c === '.' || /[0-9]/.test(c || '')) return number();
+    const at = i, w = word();
+    if(w !== null && Object.prototype.hasOwnProperty.call(LITERAL_WORDS, w)) return LITERAL_WORDS[w];
+    i = at;
+    fail(w === null ? 'something that is not data' : `a name, "${w}", where only data may stand`);
+  };
+  space();
+  if(word() !== 'const') fail(`the region does not open with "const ${want} ="`);
+  space();
+  if(word() !== want) fail(`the region does not open with "const ${want} ="`);
+  space();
+  if(text[i] !== '=') fail(`the region does not open with "const ${want} ="`);
+  i++;
+  const got = value(0);
+  space();
+  if(text[i] !== ';') fail('something follows the region\'s value');
+  i++;
+  space();
+  if(i < n) fail('something follows the region\'s value');
+  if(name === 'SETTINGS' ? (!got || typeof got !== 'object' || Array.isArray(got)) : !Array.isArray(got)){
+    fail(name === 'SETTINGS' ? 'the settings are not a record' : 'the region is not a list');
+  }
+  return got;
+}
+
+/* Every region a save changes is read as data before anything is
+   committed; a region the save leaves as the repository has it is not the
+   save's to answer for. */
+export function checkRegions(parts, file){
+  const was = regionsOf(file) || {};
+  const out = {};
+  for(const name of REGIONS){
+    if(typeof parts[name] !== 'string') throw httpError(400, `the save has no ${name} region.`);
+    if(parts[name] === was[name]) continue;
+    try{ out[name] = parseRegion(name, parts[name]); }
+    catch(e){ throw httpError(400, `the ${name} region is not the chart's data: ${e.message}.`); }
+  }
+  return out;
+}
+
+/* What an entry or a connector names: an entry's parents, the members of
+   an array, a leader's two ends, a connector's two ends. A connector with
+   an empty end is a bar's, and names nothing. */
+function namesIn(regions){
+  const ids = new Set(), refs = [];
+  const say = (region, item, to) => { if(typeof to === 'string' && to) refs.push({region, item, to}); };
+  for(const e of regions.NODES || []){
+    if(Array.isArray(e)){                      // a chart kept in the first form
+      if(typeof e[0] === 'string') ids.add(e[0]);
+      [].concat(e[2] || []).forEach(p => say('NODES', e[0], p));
+      continue;
+    }
+    if(!e || typeof e !== 'object') continue;
+    if(typeof e.id === 'string') ids.add(e.id);
+    [].concat(e.parent || []).forEach(p => say('NODES', e.id, p));
+    if(Array.isArray(e.members)) e.members.forEach(m => say('NODES', e.id, m));
+    if(e.leader && typeof e.leader === 'object'){ say('NODES', e.id, e.leader.from); say('NODES', e.id, e.leader.to); }
+  }
+  for(const s of regions.EDGESTYLES || []){
+    if(!s || typeof s !== 'object') continue;
+    const item = `${s.from} → ${s.to}`;
+    say('EDGESTYLES', item, s.from); say('EDGESTYLES', item, s.to);
+  }
+  return {ids, refs};
+}
+export function looseEnds(regions){ return dangling(regions); }
+function dangling(regions){
+  const {ids, refs} = namesIn(regions);
+  return refs.filter(r => !ids.has(r.to));
+}
+/* A merge puts together two edits that were each whole on their own, and
+   can still leave a name pointing nowhere: one device took an entry out
+   while the other drew a line to it. Neither side's text collides, so the
+   item-by-item merge passes it. What is refused is only a loose end the
+   MERGE made — one in neither side's chart — so a chart that already had
+   one (a hand edit, an older bug) is not held hostage to it. */
+export function mergeLeftLooseEnds(merged, theirs, mine){
+  const read = parts => {
+    const out = {};
+    for(const name of ['NODES', 'EDGESTYLES']){
+      try{ out[name] = parseRegion(name, parts[name]); }catch(e){ out[name] = null; }
+    }
+    return out;
+  };
+  const M = read(merged), T = read(theirs), Y = read(mine);
+  if(!M.NODES || !M.EDGESTYLES) return [];   // unreadable is checkRegions' to refuse
+  const key = r => `${r.region}\u0000${r.item}\u0000${r.to}`;
+  const had = new Set();
+  for(const side of [T, Y]){
+    if(!side.NODES || !side.EDGESTYLES) return [];
+    dangling(side).forEach(r => had.add(key(r)));
+  }
+  return dangling(M).filter(r => !had.has(key(r)));
+}
+
 /* ---- GitHub ---------------------------------------------------------- */
 
 function httpError(status, message){ const e = new Error(message); e.status = status; return e; }
@@ -584,6 +825,7 @@ async function save(env, request, ctx){
   }
   const now = await currentData(env, s.gh);
   const file = await readBlob(env, s.gh, now.sha);
+  checkRegions(body.parts, file);
   let next = applyRegions(file, body.parts);
   let media = await checkMedia(body.media, next, file, now.media);
   // A save of exactly what is there changes nothing, whatever it was made
@@ -606,6 +848,16 @@ async function save(env, request, ctx){
     const theirs = regionsOf(file);
     if(!base || !theirs) throw httpError(409, 'the repository has a newer chart.');
     merged = mergeRegions(base, theirs, body.parts);
+    const loose = mergeLeftLooseEnds(merged, theirs, body.parts);
+    if(loose.length){
+      const e = httpError(409, 'the repository has a newer chart, and put together with this save it would leave ' +
+        (loose.length === 1 ? 'a name' : loose.length + ' names') + ' pointing at an entry that is no longer there.');
+      // Named by the entry that is gone, which is what the page can show
+      // by name; what still points at it rides along.
+      e.conflicts = loose.map(r => ({region: 'NODES', item: r.to, from: {region: r.region, item: r.item}}));
+      throw e;
+    }
+    checkRegions(merged, file);
     next = applyRegions(file, merged);
     media = await checkMedia(body.media, next, file, now.media);
     if(next === file && !media.length) return {sha: now.sha, unchanged: true, merged: true, parts: merged};

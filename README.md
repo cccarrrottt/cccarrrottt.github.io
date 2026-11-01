@@ -35,6 +35,10 @@ tools/lint.py  lints the ASSEMBLED program and reports per part, and asks
 tools/data_check.py
                is the chart in the repository the chart that is live? see
                "Where the chart's contents actually live" below
+tools/chart_check.js
+               is every region of src/data.js data and nothing else, and
+               does the chart fit chart.schema.json? what a data-only push
+               is published on
 tools/shards.js
                the browser suite in parallel shards — see "Tests" below
 tools/bench.js what a rebuild costs, and how much of it is text measurement;
@@ -788,6 +792,8 @@ Both cost real bugs in this codebase, and both look fine in the source:
 ## Tests
 
     python3 tools/data_check.py       # is the repository's chart the live one
+    node tools/chart_check.js         # is it data and nothing else, and does it fit the schema
+    node tests/worker.js              # the write service, against a GitHub in memory
     python3 tests/build_guard.py      # the built page against what src/ says
     python3 tools/lint.py             # the assembled program, reported per part
     node tests/regression.js          # against dist/nexus.html
