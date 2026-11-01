@@ -11,9 +11,13 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.22.0';
+const APP_VERSION = '0.23.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.23.0', date:'2026-11-01', title:'The chart as data', notes:[
+'The chart is a file of its own now, chart.json, and the page reads it as data rather than running it as part of its program. Export the contents writes that same file, which Import reads back; the older contents file, data.js, is gone from the menu, and a file of that kind from before still opens.',
+'Two saves made on one chart are put together by what they changed, not by the lines of a file: two different settings changed on two devices are both kept, and a chart written another way merges the same.'
+  ]},
   {v:'0.22.0', date:'2026-11-01', title:'One home', notes:[
 'The chart is not published on claude.ai any more, and the page no longer asks an artifact host anything: on the site the owner saves into the repository, and anywhere else a copy saves into its own browser and Export hands you the file. Opened inside claude.ai it behaves as any other copy does.',
 'A save on the site is read as data before it is committed, and refused if a region holds anything else; a save merged with a newer one is refused if it would leave a line or an entry pointing at one the other took out.'
@@ -514,7 +518,7 @@ async function readOwnSource(){
   /* Neither source carried the markers. Rather than hand back something
      that might be the host's document, say so — a refused save the user
      can see beats a save that quietly breaks the page. */
-  if(raw && extractRegion(raw, 'NODES') !== null) return raw;
+  if(raw && chartSpanIn(raw)) return raw;
   throw new Error('Could not read this page\u2019s own source.');
 }
 /* On the site the program and the stylesheet are files beside the page,
@@ -613,32 +617,33 @@ function ensureFullDocument(src){
        + '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
        + head.trim() + '\n</head>\n<body>\n' + body.trim() + '\n</body>\n</html>\n';
 }
+/* The regions an older page or an older "Export the contents" wrote: the
+   chart as eight `const` statements between @@EDIT markers. Nothing writes
+   them any more; Import still reads them (chartOfText), so every file made
+   before the chart was JSON opens as it did. */
 function extractRegion(src, name){
   const start = `/* @@EDIT:${name}:START@@ */`, end = `/* @@EDIT:${name}:END@@ */`;
   const i = src.indexOf(start), j = src.indexOf(end);
   if(i===-1 || j===-1 || j<i) return null;
   return src.slice(i+start.length, j).trim();
 }
-function patchRegion(src, name, newText){
-  const start = `/* @@EDIT:${name}:START@@ */`, end = `/* @@EDIT:${name}:END@@ */`;
-  const i = src.indexOf(start), j = src.indexOf(end);
-  if(i===-1 || j===-1 || j<i) throw new Error(`Could not find the ${name} markers in the live page — it may have been edited outside this tool.`);
-  return src.slice(0, i+start.length) + '\n' + newText + '\n' + src.slice(j);
-}
 /* The chart as data, and as a document.
 
-   Everything that can be edited lives in the marked regions of this
-   file (REGION_NAMES). `chartData` is that same content as plain values, which is what
-   the standalone backend stores; `writeChart` is the other direction —
-   the regions rendered back into a copy of the page. */
+   `chartData` is the chart as the page holds it, which is what this
+   browser's storage keeps. `chartFileText` is the chart as a file: the
+   JSON of src/chart.json, which Save sends, Export as JSON hands over, and
+   chart.schema.json describes. `writeChart` puts that file into a copy of
+   this page, where the build put src/chart.json. */
 function chartData(){
   return {v:1, nodes: workingNodes, edgeStyles: EDGE_STYLES,
           stickers: STICKERS, media: MEDIA, comments: COMMENTS,
           tagCats: TAG_CATS, refs: REFS, settings: SETTINGS};
 }
-/* The regions and what each one is written as. One list, so a
-   region cannot be added to the document and forgotten by the writer —
-   the same reasoning as SAVED_REGIONS, which must stay in step with it. */
+/* The regions and what each one is written as. One list, so a region
+   cannot be written and forgotten by the reader — the same reasoning as
+   SAVED_REGIONS, which must stay in step with it. The serializers are what
+   decide what a chart says (defaults written out, colours that are not
+   colours left out); chartJsonOf turns what they write into the file. */
 const REGION_NAMES = ['NODES','EDGESTYLES','STICKERS','MEDIA','COMMENTS','TAGCATS','REFS','SETTINGS'];
 function writeChartParts(){
   return {
@@ -652,16 +657,32 @@ function writeChartParts(){
     SETTINGS:   serializeSettings(SETTINGS)
   };
 }
+function chartFileText(){ return chartJsonText(chartJsonOf(chartDataOnly())); }
+/* Where the chart stands in a page: the content of its one JSON script
+   element. Written in pieces for the reason PAGE_BEGIN_MARK is — whole, the
+   tag would stand in this program too, and on the site's page the program
+   comes first. */
+const CHART_OPEN_TAG = '<script type="application/json" id="' + CHART_ELEMENT_ID + '">';
+const CHART_CLOSE_TAG = '</' + 'script>';
+function chartSpanIn(src){
+  const i = src.indexOf(CHART_OPEN_TAG);
+  if(i < 0) return null;
+  const from = i + CHART_OPEN_TAG.length;
+  const to = src.indexOf(CHART_CLOSE_TAG, from);
+  return to < 0 ? null : {from, to};
+}
+/* JSON in an HTML script element. The parser ends the element at the first
+   closing script tag it meets, wherever it stands, and "<!--" bends how the
+   rest is read — so every "<" is written as <, which JSON reads back as
+   the same character. Outside a string a JSON text has no "<" to change.
+   build.py does the same to src/chart.json. */
+function chartForScript(text){
+  return String(text).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
 function writeChart(src){
-  let out = src;
-  if(extractRegion(out, 'NODES') === null){
-    throw new Error('could not find the editable data in the page.');
-  }
-  const parts = writeChartParts();
-  REGION_NAMES.forEach(name=>{
-    if(extractRegion(out, name) !== null) out = patchRegion(out, name, parts[name]);
-  });
-  return out;
+  const at = chartSpanIn(src);
+  if(!at) throw new Error('could not find the chart in the page.');
+  return src.slice(0, at.from) + '\n' + chartForScript(chartFileText()).replace(/\n$/, '') + '\n' + src.slice(at.to);
 }
 
 /* ---------------------------------------------------------------------

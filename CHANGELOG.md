@@ -6,6 +6,41 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.23.0 — "The chart as data" (2026-11-01)
+
+The next step of the plan agreed after the project review: with the
+claude.ai copy gone, nothing needed the chart to be a script any more.
+
+- **`src/chart.json` replaces `src/data.js`.** The chart is JSON, one item
+  to a line, in the form "Export the contents" already wrote and
+  `chart.schema.json` already described. The build checks that it parses
+  and puts it into the page as a `<script type="application/json"
+  id="chart-data">`, every `<` written `\u003c`; `CHART_IN`
+  (`01-store.js`) reads it with `JSON.parse` into the names every part
+  already used. `src/index.html` fetches the file and puts it in the same
+  element. Before, the chart was eight `const` statements in the program's
+  own script: code on every reader's screen.
+- **The write service reads JSON.** A save is `{base, chart}`, read with
+  `JSON.parse` and checked for its shape (`readChart`), and the service
+  writes what it commits itself (`chartText`), the same bytes the page
+  writes. `parseRegion`, the parser that made sure a region could not run,
+  is gone with the regions. A page from before this that sends regions is
+  told to reload.
+- **A merge reads values, not lines** (`mergeCharts`): a list record by
+  record, named by id or by a connector's two ends, and the settings
+  field by field, so two devices changing two different settings no
+  longer collide. A conflict names its part as the file does (`nodes`,
+  `refs`, `settings`, …).
+- **Export the contents writes the JSON**, the same file as
+  `src/chart.json` with its pictures inside; the data.js tile is gone from
+  the menu, which is four tiles across the same width. Import still reads
+  every older form — a page, a contents file of regions, a list-form chart
+  — and a page's JSON element. A Save kept offline by a 0.22 page is sent
+  as the chart it is.
+- CI's data-only path is `src/chart.json` and `src/media/`;
+  `tools/chart_check.js` reads the file with the service's reader and holds
+  it to the schema.
+
 ## 0.22.0 — "One home" (2026-11-01)
 
 The owner's decision of 31.10, after the project review: the copy on

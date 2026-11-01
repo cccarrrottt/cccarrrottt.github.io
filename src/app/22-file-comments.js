@@ -8,10 +8,11 @@
    is the way back in: point it at any Rhizome Project page and this one takes
    on that chart.
 
-   Import reads only the four marked regions, and parses them with a JSON
-   reader rather than by running them. A chart file is data someone may
-   have sent you; it should not be able to run code just because you opened
-   it here.
+   Import reads only the chart — the JSON a page or Export the contents
+   writes, or the marked regions of a file from before that — and reads it
+   with a JSON reader rather than by running it. A chart file is data
+   someone may have sent you; it should not be able to run code just
+   because you opened it here.
    ------------------------------------------------------------------ */
 const filePopover = document.getElementById('filePopover');
 const fileStatusEl = document.getElementById('fileStatus');
@@ -40,40 +41,31 @@ function saveViaLink(text, name){
   setTimeout(()=> URL.revokeObjectURL(url), 30000);
 }
 
-/* The chart's CONTENTS, without the page around them.
- *
- * A full export is the whole application — six hundred kilobytes of
- * drawing code wrapped around a few kilobytes of entries — which is the
- * right thing to keep, and the wrong thing to hand to somebody who is
- * going to rebuild the page anyway. This writes the seven data regions and
- * nothing else, carrying the same markers, so the build step reads it with
- * exactly the same code it reads a full export with.
- *
- * It is small enough to attach to a message, which is the point: it is how
- * work done in the browser gets back to whoever maintains the sources
- * without anyone having to move six hundred kilobytes around. */
+/* The chart's regions, as a page before 0.23 kept them and as the
+ * serializers still write them. Not a file anybody is handed any more:
+ * chartJsonOf reads it into the chart's JSON, which is what Save sends and
+ * what Export the contents writes. */
 function chartDataOnly(){
   const parts = writeChartParts();
-  return [
-    '/* Rhizome Project — chart contents only.',
-    '   Not a page: the entries, connector styles, stickers, tags,',
-    '   references and settings, in the form the page stores them.',
-    '   Open the chart and use Import to read it back; its regions are',
-    '   also exactly what src/data.js holds between the same markers. */',
-    ''
-  ].join('\n') + '\n' + REGION_NAMES.map(name=>
+  return REGION_NAMES.map(name=>
     `/* @@EDIT:${name}:START@@ */\n${parts[name]}\n/* @@EDIT:${name}:END@@ */`
   ).join('\n\n') + '\n';
 }
-async function exportChartData(asJson){
+/* The chart's CONTENTS, without the page around them: the same file as
+ * src/chart.json, with the pictures inside it. A full export is the whole
+ * application — hundreds of kilobytes of drawing code wrapped around a few
+ * kilobytes of entries — which is the right thing to keep, and the wrong
+ * thing to hand to somebody who is going to rebuild the page anyway. Put
+ * in place of src/chart.json, it is the chart the next build draws; opened
+ * with Import, it is the chart this page shows. */
+async function exportChartData(){
   clearFileStatus();
   let out, name;
   try{
     /* A file is opened where the site's media folder is not, so the
        pictures it names go inside it. */
-    out = await inlineMediaRefs(chartDataOnly());
-    if(asJson) out = chartJsonText(chartJsonOf(out));
-    name = chartFileName().replace(/\.html?$/i, '') + (asJson ? '.json' : '-data.js');
+    out = await inlineMediaRefs(chartFileText());
+    name = chartFileName().replace(/\.html?$/i, '') + '.json';
   }catch(e){
     setFileStatus('err', 'Export failed: ' + (e && e.message ? e.message : 'unknown error'));
     return;
@@ -230,21 +222,25 @@ function readRegionObject(src, name){
   }catch(e){ return null; }
 }
 /* The chart in a file, as plain values, whichever form the file is in:
-   the regions a page or Export data writes, or the JSON Export as JSON
-   writes (chartJsonOf). Everything after this reads the values and does
-   not care which. */
+   the JSON this page saves and exports (chartFileText), a page with that
+   JSON inside it, or the regions every page before 0.23 and its "Export
+   the contents" wrote. Everything after this reads the values and does not
+   care which. */
 function chartOfText(text){
   if(/^\s*\{/.test(text)){
     let d;
     try{ d = JSON.parse(text); }catch(e){ throw new Error('that file is not a chart: it reads as JSON, but not as JSON that parses.'); }
-    if(!d || typeof d !== 'object' || !Array.isArray(d.nodes)) throw new Error('that file has no Rhizome Project chart in it.');
-    const list = v=> Array.isArray(v) ? v : null;
-    /* The form is said once, at the top, rather than inside the settings
-       as the regions say it: it is about the whole file. */
-    const settings = (d.settings && typeof d.settings === 'object' && !Array.isArray(d.settings)) ? Object.assign({}, d.settings) : {};
-    if(typeof d.format === 'number') settings.format = d.format;
-    return {nodes: d.nodes, edgeStyles: list(d.edgeStyles), stickers: list(d.stickers), media: list(d.media),
-            comments: list(d.comments), tagCats: list(d.tagCats), refs: list(d.refs), settings};
+    const c = chartOfJson(d);
+    if(!c) throw new Error('that file has no Rhizome Project chart in it.');
+    return c;
+  }
+  const at = chartSpanIn(text);
+  if(at){
+    let d;
+    try{ d = JSON.parse(text.slice(at.from, at.to)); }catch(e){ throw new Error('that page’s chart is not JSON that parses.'); }
+    const c = chartOfJson(d);
+    if(!c) throw new Error('that page has no Rhizome Project chart in it.');
+    return c;
   }
   return {nodes: readRegionArray(text, 'NODES'), edgeStyles: readRegionArray(text, 'EDGESTYLES'),
           stickers: readRegionArray(text, 'STICKERS'), media: readRegionArray(text, 'MEDIA'),
@@ -269,7 +265,10 @@ function chartJsonOf(text){
     comments: c.comments || [], tagCats: c.tagCats || [], refs: c.refs || [], settings
   };
 }
-// One item to a line, as data.js is, so two exports compare line by line.
+/* One item to a line, so two charts compare line by line and a commit of
+   one edit is a diff of one line. The write service writes src/chart.json
+   the same way (chartText in worker/index.js), and the suite holds the two
+   to each other. */
 function chartJsonText(d){
   const keys = Object.keys(d);
   return '{\n' + keys.map((k, i)=>{
@@ -380,8 +379,7 @@ document.getElementById('fileToggle').onclick = ()=>{
 document.getElementById('fileClose').onclick = ()=> filePopover.classList.remove('open');
 filePopover.addEventListener('click', ev=> ev.stopPropagation());
 document.getElementById('fileExport').onclick = (ev)=>{ ev.stopPropagation(); exportChart(); };
-document.getElementById('fileExportData').onclick = (ev)=>{ ev.stopPropagation(); exportChartData(); };
-document.getElementById('fileExportJson').onclick = (ev)=>{ ev.stopPropagation(); exportChartData(true); };
+document.getElementById('fileExportJson').onclick = (ev)=>{ ev.stopPropagation(); exportChartData(); };
 /* ---------------------------------------------------------------------
    The chart as a picture
    ---------------------------------------------------------------------

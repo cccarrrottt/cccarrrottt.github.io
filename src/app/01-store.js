@@ -120,7 +120,7 @@ if(ON_SITE && SITE_API){
    because every rebuild draws their marks, and the first rebuild runs long
    before the part that fetches them. */
 let siteSuggestions = null;
-/* The git blob id of the src/data.js this page was built from, written in
+/* The git blob id of the src/chart.json this page was built from, written in
    by build.py. The write service refuses a save whose base is not the file
    currently in the repository, so a page that is behind — a second tab, or
    this one reloaded before the site caught up with the last save — cannot
@@ -192,6 +192,57 @@ function carryOverKey(oldKey, newKey){
   }catch(e){}
 })();
 
+/* -------------------------------------------------------------------------
+   THE CHART, READ AS DATA
+
+   The chart is src/chart.json, and the build puts it into the page as a
+   script element of type application/json, id CHART_ELEMENT_ID — an
+   element a browser never runs, which this reads with JSON.parse. It used
+   to be src/data.js: eight `const` statements written into the same script
+   as the program, so
+   the chart was CODE on every reader's screen, and the write service had to
+   read each region with a parser of its own to be sure a save held nothing
+   that could run. As JSON there is nothing to be sure of. src/index.html
+   fetches the same file and puts it in the same element before the program
+   runs, so both ways in read it here.
+
+   The names below are what every part has always used, and they stay
+   arrays and one record that are refilled, never replaced (see refill). A
+   page with no chart in it — src/index.html read as text, which is all an
+   export from the sources has — is an empty chart rather than a page that
+   stops on its first line. */
+const CHART_ELEMENT_ID = 'chart-data';
+/* The chart in a file as plain values, from the JSON this page writes
+   (chartJsonText). The form is said once, at the top, rather than inside
+   the settings as the regions of an older file say it: it is about the
+   whole file. Inside the page it stands in SETTINGS.format, where it always
+   has. */
+function chartOfJson(d){
+  if(!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.nodes)) return null;
+  const list = v=> Array.isArray(v) ? v : null;
+  const settings = (d.settings && typeof d.settings === 'object' && !Array.isArray(d.settings)) ? Object.assign({}, d.settings) : {};
+  if(typeof d.format === 'number') settings.format = d.format;
+  return {nodes: d.nodes, edgeStyles: list(d.edgeStyles), stickers: list(d.stickers), media: list(d.media),
+          comments: list(d.comments), tagCats: list(d.tagCats), refs: list(d.refs), settings};
+}
+const CHART_IN = (()=>{
+  const el = document.getElementById(CHART_ELEMENT_ID);
+  let c = null;
+  if(el){
+    try{ c = chartOfJson(JSON.parse(el.textContent)); }
+    catch(e){ console.error('the chart in this page is not JSON that parses: ' + e.message); }
+  }
+  return c || {nodes: [], settings: {}};
+})();
+const NODES = CHART_IN.nodes;
+const EDGE_STYLES = CHART_IN.edgeStyles || [];
+const STICKERS = CHART_IN.stickers || [];
+const MEDIA = CHART_IN.media || [];
+const COMMENTS = CHART_IN.comments || [];
+const TAG_CATS = CHART_IN.tagCats || [];
+const REFS = CHART_IN.refs || [];
+const SETTINGS = CHART_IN.settings;
+
 /* Replace the contents of an array in place. The rest of the page holds
    references to these arrays — EDGE_STYLES especially is captured by
    closures all over — so they must never be reassigned, only refilled. */
@@ -257,7 +308,7 @@ const PRISTINE_HTML = (()=>{
 /* Every colour the chart keeps is a hex value, and is asked to be one
    wherever it is READ, not only where it is typed. The editors have always
    refused anything else, but a chart also arrives from a file, from browser
-   storage and from a hand-edited data.js, and a colour goes into inline
+   storage and from a hand-edited chart.json, and a colour goes into inline
    styles (`style="background:…"`) where escaping the quotes is not enough —
    `red;background:url(//elsewhere)` is still one well-formed attribute, and
    it fetches. So a value that is not a hex colour is treated as absent. */

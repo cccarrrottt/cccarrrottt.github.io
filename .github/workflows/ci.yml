@@ -15,7 +15,7 @@
 # green run on one says nothing about the other. Each takes around six
 # minutes, so they run as two jobs rather than one after the other.
 #
-# A Save on the site is a commit that changes src/data.js and nothing else,
+# A Save on the site is a commit that changes src/chart.json and nothing else,
 # but for the pictures it adds beside it in src/media/.
 # That is the chart's content, not the program, and the owner asked not to
 # wait minutes of browser tests to see it published; so such a push skips
@@ -88,7 +88,7 @@ jobs:
             files=$(git diff --name-only "$BASE" HEAD)
             echo "Changed: $files"
             # The chart, and the pictures a Save puts beside it.
-            others=$(printf '%s\n' "$files" | grep -v -e '^src/data\.js$' -e '^src/media/[^/]*$' || true)
+            others=$(printf '%s\n' "$files" | grep -v -e '^src/chart\.json$' -e '^src/media/[^/]*$' || true)
             [ -n "$files" ] && [ -z "$others" ] && data_only=true
           fi
           echo "data_only=$data_only" >> "$GITHUB_OUTPUT"
@@ -115,9 +115,9 @@ jobs:
       - name: Install eslint
         run: npm ci --no-audit --no-fund
 
-      # The chart is data and only data, and fits its schema: the same
-      # check a data-only push is published on (see the pages job).
-      - name: The chart is data
+      # The chart reads as one and fits its schema: the same check a
+      # data-only push is published on (see the pages job).
+      - name: The chart is the chart
         run: node tools/chart_check.js
 
       # esbuild came with the install above. Required, so a run where it is
@@ -219,11 +219,11 @@ jobs:
 
       # A data-only push comes here without the build job, and so without
       # the browser suite — the owner asked not to wait for it. What it is
-      # not published without is this: every region of the chart is data
-      # and nothing else (the reader the write service refuses a save
-      # with), and the chart fits its schema. A region that would run as
-      # code, or a chart the page cannot read, stops here.
-      - name: The chart is data
+      # not published without is this: the chart reads as one (the reader
+      # the write service takes a save with), and it fits its schema. A
+      # chart the page cannot read stops here — and so would one the build
+      # cannot, which refuses a chart.json that is not JSON.
+      - name: The chart is the chart
         run: |
           v=$(node -p "require('./package.json').devDependencies.ajv")
           npm install --no-audit --no-fund --no-save --prefix "$RUNNER_TEMP/ajv" "ajv@$v"

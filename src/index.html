@@ -564,16 +564,17 @@
         <button class="detail-close" aria-label="Close" id="fileClose">✕</button>
       </div>
       <div class="editor-status" id="fileStatus"></div>
-      <!-- As the owner drew it (22.10, the second sketch): a row of five
-           file icons, one per thing the chart can be written out as, and
-           Import across the bottom. The icons are one family, a sheet with
-           its corner turned and a band naming the format, so the five read
-           as kinds of one thing; the band's colour is the only thing that
-           tells them apart at a glance. What each does is on its title. -->
+      <!-- As the owner drew it (22.10, the second sketch): a row of file
+           icons, one per thing the chart can be written out as, and Import
+           across the bottom. The icons are one family, a sheet with its
+           corner turned and a band naming the format, so the tiles read as
+           kinds of one thing; the band's colour is the only thing that
+           tells them apart at a glance. What each does is on its title.
+           There were five: the contents went out as data.js too, which the
+           chart stopped being in 0.23, and the JSON is that file now. -->
       <div class="file-actions">
         <button type="button" class="editor-btn file-tile fmt-html" id="fileExport" title="Export the page: the whole chart as one HTML file, drawing, editor and contents. Opens anywhere, needs no server and no account." aria-label="Export the page"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M13 8.5l-2.5 2.6 2.5 2.6M19.5 8.5l2.5 2.6-2.5 2.6M17.2 7.8l-1.9 6.6"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">HTML</text></svg></button>
-        <button type="button" class="editor-btn file-tile fmt-js" id="fileExportData" title="Export the contents: the entries without the page around them, as the data.js the page is built from. A few kilobytes instead of a few hundred." aria-label="Export the contents"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11.5 8h6M11.5 11h10M11.5 14h10"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">JS</text></svg></button>
-        <button type="button" class="editor-btn file-tile fmt-json" id="fileExportJson" title="Export the contents as JSON, for other programs: chart.schema.json beside the site describes it, and Import reads it back." aria-label="Export the contents as JSON, for other programs"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11.5 8h6M11.5 11h10M11.5 14h10"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">JSON</text></svg></button>
+        <button type="button" class="editor-btn file-tile fmt-json" id="fileExportJson" title="Export the contents: the chart without the page around it, as the chart.json the page is built from. A few kilobytes instead of a few hundred; chart.schema.json beside the site describes it, and Import reads it back." aria-label="Export the contents as JSON"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11.5 8h6M11.5 11h10M11.5 14h10"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">JSON</text></svg></button>
         <button type="button" class="editor-btn file-tile fmt-png" id="fileExportPng" title="Export a picture (PNG)" aria-label="Export a picture (PNG)"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11 14.5l3.2-3.6 2.4 2.6 1.6-1.5 3 2.5"/><circle class="fmt-dot" cx="19.2" cy="8.6" r="1.2"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">PNG</text></svg></button>
         <button type="button" class="editor-btn file-tile fmt-svg" id="fileExportSvg" title="Export a picture (SVG)" aria-label="Export a picture (SVG)"><svg class="fmt-icon" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path class="fmt-sheet" d="M8 2.5h11.5l5.5 5.5v21.5H8z"/><path class="fmt-fold" d="M19.5 2.5V8h5.5"/><path class="fmt-glyph" d="M11 14.2c1.6-6 7.6-6.6 10.6-4.4"/><rect class="fmt-dot" x="10" y="13.2" width="2" height="2"/><rect class="fmt-dot" x="20.6" y="8.8" width="2" height="2"/><rect class="fmt-band" x="4" y="17.5" width="24" height="8.5" rx="1.2"/><text class="fmt-label" x="16" y="24.1" text-anchor="middle">SVG</text></svg></button>
         <button type="button" class="editor-btn file-wide" id="fileImport" title="Open a page, a contents file or a JSON file exported from a chart">Import file</button>
@@ -649,7 +650,6 @@
   </div>
 </div>
 <!-- @@BODY:END@@ -->
-<script src="data.js"></script>
 <script>
 /* The parts of this program, run as the one program they are.
  *
@@ -714,12 +714,22 @@
     '41-text-view.js',
   ];
   var NL = String.fromCharCode(10);
-  Promise.all(PARTS.map(function(p){
-    return fetch('app/' + p).then(function(r){
-      if(!r.ok) throw new Error('app/' + p + ' — ' + r.status);
+  function get(path){
+    return fetch(path).then(function(r){
+      if(!r.ok) throw new Error(path + ' — ' + r.status);
       return r.text();
     });
-  })).then(function(sources){
+  }
+  /* The chart is fetched with the parts and put where the build puts it,
+     in a JSON script element a browser does not run, so the program reads
+     it the one way it reads it in the built page (CHART_IN, 01-store.js). */
+  Promise.all([get('chart.json')].concat(PARTS.map(function(p){ return get('app/' + p); }))).then(function(got){
+    var chart = document.createElement('script');
+    chart.type = 'application/json';
+    chart.id = 'chart-data';
+    chart.textContent = got[0];
+    document.body.appendChild(chart);
+    var sources = got.slice(1);
     var s = document.createElement('script');
     /* Named, so a debugger shows the assembled program under one honest name
        rather than as an anonymous blob. It is the same text the build inlines

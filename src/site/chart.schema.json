@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://cccarrrottt.github.io/chart.schema.json",
   "title": "Rhizome Project chart",
-  "description": "The contents of a Rhizome Project chart as JSON: what the page's 'Export the contents as JSON' writes and what its Import reads. The same contents are kept in src/data.js as JavaScript, one record to a line; this is that file's open form. Fields this schema does not name are allowed, so a file written by a newer page still validates; the page itself refuses a file whose format is higher than its own.",
+  "description": "The contents of a Rhizome Project chart as JSON: the chart's own file, src/chart.json, written one record to a line, which is also what the page's 'Export the contents' writes and what its Import reads. Fields this schema does not name are allowed inside a record, so a file written by a newer page still validates; the page itself refuses a file whose format is higher than its own, and the write service refuses a save with a part at the top that it does not know.",
   "type": "object",
   "required": ["format", "nodes"],
   "properties": {

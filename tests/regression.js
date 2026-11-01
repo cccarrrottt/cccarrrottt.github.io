@@ -644,7 +644,7 @@ async function main(){
     try { await importChartFromText('not a chart'); } catch(e){ rejected = true; }
     /* A file whose settings name no citation colour brings the default
        one, not the colour the replaced chart had been given. */
-    const noRef = full.replace(/refColor:\s*(['"])[^'"]*\1,?\s*/, '');
+    const noRef = full.replace(/"refColor":"[^"]*",?/, '');
     applyEdit(() => { SETTINGS.refColor = '#123456'; });
     await importChartFromText(noRef);
     const refAfter = refColor();
@@ -1531,7 +1531,7 @@ async function main(){
     return {
       // Our own source is a fragment, never a whole document.
       realIsFragment: !isFullDocument(real),
-      realHasNodes: extractRegion(real, 'NODES') !== null,
+      realHasNodes: chartSpanIn(real) !== null,
       // Carving the host's document gives back exactly our content.
       carvedMatches: carved === real,
       carvedDropsHost: !!carved && carved.indexOf('__HOST__') < 0
@@ -3105,8 +3105,9 @@ async function main(){
     SETTINGS.refColor = beforeColour;
 
     /* A reader's own words can never break the document that stores them.
-       The data lives inside this page's script element, and an HTML parser
-       ends that element at a closing script tag wherever it appears. */
+       The chart lives inside a script element of this page, and an HTML
+       parser ends that element at a closing script tag wherever it
+       appears. */
     applyEdit(()=>{
       workingNodes.length = 0;
       workingNodes.push(['sc', 'a </' + 'script> tag', undefined, undefined,
@@ -3118,9 +3119,13 @@ async function main(){
     try{ doc = writeChart(PRISTINE_HTML); }catch(e){ doc = null; }
     out.canWrite = !!doc;
     out.scriptSurvives = !doc ? true : (()=>{
-      const m = /<script[^>]*>([\s\S]*?)<\/script>/.exec(doc);
-      if(!m) return 'no script block';
-      try{ new Function(m[1]); return true; }catch(e){ return 'ERR ' + e.message; }
+      const at = chartSpanIn(doc);
+      if(!at) return 'no chart element';
+      const inside = doc.slice(at.from, at.to);
+      if(/<\/script/i.test(inside)) return 'the tag stands in the chart as written';
+      let c;
+      try{ c = JSON.parse(inside); }catch(e){ return 'ERR ' + e.message; }
+      return c.nodes[0].label === 'a </' + 'script> tag' && c.nodes[0].note === 'note with </' + 'script> too' ? true : 'the words came back changed';
     })();
 
     /* Export and import back is the one path that owes nothing to any
@@ -10399,13 +10404,13 @@ async function main(){
   const SITE_BUILT = path.join(DIR, 'site');
   const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
   const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
+  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
-  const regionOf = (text, name) => {
-    const a = `/* @@EDIT:${name}:START@@ */`, b = `/* @@EDIT:${name}:END@@ */`;
-    return text.slice(text.indexOf(a) + a.length, text.indexOf(b)).replace(/^\n/, '').replace(/\n$/, '');
-  };
+  /* The service's own writer, so what the page sends can be held to what
+     the service would commit (chartText, worker/index.js). */
+  const {chartText} = await import(require('url').pathToFileURL(path.join(ROOT, 'worker', 'index.js')).href);
+  const chartEdited = (text, fn) => { const ch = JSON.parse(text); fn(ch); return chartText(ch); };
 
   /* The write service, as the page sees it. */
   const api = {sha: dataSha, saves: [], asked: 0, offline: false, renewNext: false, files: {}};
@@ -10472,8 +10477,8 @@ async function main(){
           const over = api.sha;
           api.sha = 'merged-sha';
           api.saves[api.saves.length - 1].merged = true;
-          const parts = {...b.parts, REFS: b.parts.REFS.replace(/\n\];$/, "\n  {key:'desk-ref', title:'From the desk'},\n];")};
-          return reply(200, {sha: api.sha, over, merged: true, parts});
+          const chart = chartEdited(b.chart, ch => ch.refs.push({key: 'desk-ref', title: 'From the desk'}));
+          return reply(200, {sha: api.sha, over, merged: true, chart});
         }
         return reply(409, {error: 'the repository has a newer chart.'});
       }
@@ -10513,7 +10518,7 @@ async function main(){
       oldEditShown: workingNodes.some(n => n[1] === 'A READER’S OLD EDIT'),
       saveHidden: !shown('saveBtn'),
       signIn: shown('ownerBtn') ? document.getElementById('ownerBtn').getAttribute('aria-label') : null,
-      exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(shown),
+      exportOffered: ['fileToggle', 'fileExport', 'fileExportJson'].every(shown),
       importRefused: !shown('fileImport') || readOnlyView
     };
     /* Nothing that offers to change the chart: no ✕ on a tag, and a click
@@ -10629,21 +10634,21 @@ async function main(){
     return out;
   });
   const first = api.saves[0], second = api.saves[1];
-  check('the page knows which data.js it was built from', saved.sha === dataSha, `${saved.sha} vs ${dataSha}`);
-  check('Save sends the chart to the write service, on top of that data.js',
-        !!first && first.base === dataSha && first.parts.NODES.includes('THE OWNER WROTE THIS'),
+  check('the page knows which chart.json it was built from', saved.sha === dataSha, `${saved.sha} vs ${dataSha}`);
+  check('Save sends the chart to the write service, on top of that chart.json',
+        !!first && first.base === dataSha && first.chart.includes('THE OWNER WROTE THIS'),
         first ? first.base : 'nothing was sent');
   check('and says the site will catch up, leaving nothing unsaved',
         !saved.dirty && /Saved/.test(saved.state) && /few minutes/.test(saved.state), saved.state);
   check('a second save stacks on the first rather than on the file the page was built from',
         !!second && second.base === 'sha-after-save-1' && /Saved/.test(saved.state2), second ? second.base : 'nothing sent');
-  /* The regions the page sends are the text between the markers of the file
-     it will be written into. If they were not — a different indent, a
-     trailing newline — every save would rewrite the whole of data.js, and
+  /* What the page sends is the file it will be written into, as the
+     service writes it. If it were not — a different indent, a field in
+     another order — every save would rewrite the whole of chart.json, and
      the history of the chart would be a list of commits that each changed
      everything. */
   /* …but for the pictures embedded in it, which go to the site as files of
-     their own, named by the SHA-256 of their bytes (MEDIA_REF): the region
+     their own, named by the SHA-256 of their bytes (MEDIA_REF): the chart
      goes with each one's path where its bytes stood. A tiny one stays. */
   const sha256 = b => require('crypto').createHash('sha256').update(b).digest('hex');
   const EXT = {'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
@@ -10652,17 +10657,13 @@ async function main(){
   const lifted = text => text.replace(/data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g,
     (u, mime, _, b64) => u.length < 2048 || !EXT[mime.toLowerCase()] ? u
       : 'media/' + sha256(Buffer.from(b64, 'base64')) + '.' + EXT[mime.toLowerCase()]);
-  /* …and for the settings of a chart written before entries were records,
-     which gain the number of the form they are now written in. */
-  const formed = (n, t) => n !== 'SETTINGS' ? t : /\bformat:/.test(t) ? t.replace(/\bformat: \d+/, 'format: 4')
-                                                 : t.replace('const SETTINGS = {', 'const SETTINGS = {format: 4, ');
-  const same = first ? ['EDGESTYLES', 'STICKERS', 'MEDIA', 'COMMENTS', 'TAGCATS', 'REFS', 'SETTINGS']
-    .filter(n => first.parts[n] !== formed(n, lifted(regionOf(html, n)))) : ['everything'];
-  check('what it sends for an untouched region is that region, byte for byte, but for its pictures', same.length === 0, same.join(', '));
+  const want = chartEdited(lifted(dataRaw.toString('utf8')), ch => { ch.nodes[0].label = 'THE OWNER WROTE THIS'; });
+  check('what it sends is the repository\'s chart.json, byte for byte as the service writes it, but for the edit and its pictures',
+        !!first && first.chart === want, first ? `${first.chart.length} chars against ${want.length}` : 'nothing sent');
   const named = first ? Object.keys(first.media || {}) : [];
   check('and each picture it lifted out goes with it, named for what its bytes are',
         !!first && named.every(k => sha256(Buffer.from(first.media[k], 'base64')) === /[0-9a-f]{64}/.exec(k)[0])
-        && named.every(k => Object.values(first.parts).some(t => t.includes(k))), named.join(', '));
+        && named.every(k => first.chart.includes(k)), named.join(', '));
   check('a second save sends none of them again', !!second && Object.keys(second.media || {}).length === 0,
         second ? Object.keys(second.media || {}).join(', ') : 'nothing sent');
 
@@ -10684,16 +10685,16 @@ async function main(){
   const s3 = api.saves[api.saves.length - 2], s4 = api.saves[api.saves.length - 1];
   const probeRef = 'media/' + sha256(Buffer.from(pic.b64, 'base64')) + '.png';
   check('a picture added in the browser is sent as a file, and the chart names its path',
-        pic.len > 2048 && !!s3 && !!(s3.media || {})[probeRef] && s3.parts.NODES.includes(probeRef) && !s3.parts.NODES.includes(pic.b64.slice(0, 200)),
-        JSON.stringify({len: pic.len, saves: api.saves.length, keys: s3 && Object.keys(s3.media || {}), probe: s3 && s3.parts.NODES.includes('pic-probe'), ref: s3 && s3.parts.NODES.includes(probeRef)}));
-  check('and once only', !!s4 && !Object.keys(s4.media || {}).length && s4.parts.NODES.includes(probeRef));
+        pic.len > 2048 && !!s3 && !!(s3.media || {})[probeRef] && s3.chart.includes(probeRef) && !s3.chart.includes(pic.b64.slice(0, 200)),
+        JSON.stringify({len: pic.len, saves: api.saves.length, keys: s3 && Object.keys(s3.media || {}), probe: s3 && s3.chart.includes('pic-probe'), ref: s3 && s3.chart.includes(probeRef)}));
+  check('and once only', !!s4 && !Object.keys(s4.media || {}).length && s4.chart.includes(probeRef));
   const fromPath = await site.evaluate(async ref => {
     const out = {};
     applyEdit(() => { workingNodes.find(n => n[0] === 'pic-probe')[6].image = ref; });
     for(let i = 0; i < 40 && !(imgAspects.get(ref) > 0); i++){ imageAspect(ref); await new Promise(res => setTimeout(res, 50)); }
     out.drawn = imgAspects.get(ref) > 0;
     out.onChart = [...document.querySelectorAll('[data-id="pic-probe"] image')].some(im => im.getAttribute('href') === ref);
-    const copy = await inlineMediaRefs(chartDataOnly());
+    const copy = await inlineMediaRefs(chartFileText());
     out.exportInlined = !copy.includes(ref) && copy.includes('data:image/png;base64,');
     const picture = (await chartPictureText()).text;
     out.pictureInlined = !picture.includes(ref) && /<image[^>]+data:image\/png;base64,/.test(picture);
@@ -10790,7 +10791,7 @@ async function main(){
     await saveNow();
     const kept = await readOutbox();
     return {dirty: isDirty(), said: document.getElementById('saveStateText').textContent,
-            kept: !!kept && kept.parts.NODES.includes('WRITTEN WITH NO SIGNAL'), base: kept && kept.base};
+            kept: !!kept && kept.chart.includes('WRITTEN WITH NO SIGNAL'), base: kept && kept.base};
   });
   check('Save with no connection keeps the chart on this device instead of failing',
         !p1.dirty && p1.kept && /on this device/.test(p1.said) && api.saves.length === savesBefore, JSON.stringify(p1));
@@ -10815,12 +10816,30 @@ async function main(){
   const p3 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()),
                                                 said: document.getElementById('saveStateText').textContent}));
   check('when the connection comes back the kept Save is sent by itself',
-        api.saves.length === savesBefore + 1 && !!sent && sent.base === dataSha && sent.parts.NODES.includes('WRITTEN WITH NO SIGNAL'),
+        api.saves.length === savesBefore + 1 && !!sent && sent.base === dataSha && sent.chart.includes('WRITTEN WITH NO SIGNAL'),
         sent ? sent.base : 'nothing sent');
   check('and nothing is left waiting', !p3.pending && !p3.kept && /Sent to the site/.test(p3.said), JSON.stringify(p3));
   check('a service that does not say it takes pictures as files is sent them embedded, as before',
-        !!sent && !Object.keys(sent.media || {}).length && sent.parts.MEDIA === regionOf(html, 'MEDIA'));
+        !!sent && !Object.keys(sent.media || {}).length &&
+        JSON.stringify(JSON.parse(sent.chart).media) === JSON.stringify(JSON.parse(dataRaw.toString('utf8')).media));
   api.noMedia = false;
+
+  /* A Save kept on the device by a page from before 0.23 holds the chart
+     as data.js's regions, which the service no longer takes. The page that
+     finds it sends it as the file it now is. */
+  const oldKept = await phone.evaluate(async () => {
+    applyEdit(() => { workingNodes[0][1] = 'KEPT BY AN OLDER PAGE'; });
+    await putOutbox({at: Date.now(), base: siteBase, parts: writeChartParts(), data: JSON.parse(JSON.stringify(chartData()))});
+    sitePending = true;
+    savedParts = snapshotParts();
+    return {sent: await flushOutbox(), left: !!(await readOutbox())};
+  });
+  const sentOld = api.saves[api.saves.length - 1];
+  let oldChart = null;
+  try{ oldChart = JSON.parse(sentOld.chart); }catch(e){}
+  check('a Save kept by a page from before the chart was JSON is sent as the chart, not as regions',
+        oldKept.sent === true && !oldKept.left && !!oldChart && !('parts' in sentOld) && oldChart.nodes[0].label === 'KEPT BY AN OLDER PAGE',
+        JSON.stringify({oldKept, keys: sentOld && Object.keys(sentOld)}));
 
   /* Somebody saved from another device in between. */
   api.offline = true;
@@ -10834,14 +10853,14 @@ async function main(){
   await wait(600);
   const p4 = await phone.evaluate(async () => {
     const kept = await readOutbox();
-    return {pending: sitePending, kept: !!kept && kept.parts.NODES.includes('AND THIS ON THE TRAIN'),
+    return {pending: sitePending, kept: !!kept && kept.chart.includes('AND THIS ON THE TRAIN'),
             said: document.getElementById('saveStateText').textContent};
   });
   check('a kept Save the repository has moved past is refused, and stays kept rather than lost',
         p4.pending && p4.kept && /newer chart/.test(p4.said) && /Export/.test(p4.said), JSON.stringify(p4));
   /* The service puts the two together, and refuses only where both
      changed the same thing — naming it, by the name it has on the chart. */
-  api.conflicts = [{region: 'NODES', item: await phone.evaluate(() => workingNodes[0][0])}];
+  api.conflicts = [{region: 'nodes', item: await phone.evaluate(() => workingNodes[0][0])}];
   await phone.evaluate(() => window.dispatchEvent(new Event('online')));
   await wait(600);
   const p5 = await phone.evaluate(async () => ({pending: sitePending, kept: !!(await readOutbox()),
@@ -10887,7 +10906,7 @@ async function main(){
   const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
   const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'data.js'));
+  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   const api = {asked: 0, loginAs: [], account: 'reader', posted: [], resolved: [], list: [], ghAsked: 0};
@@ -17185,7 +17204,7 @@ async function main(){
       out.exportClean = await p.evaluate(async () => {
         const src = await readOwnSource();
         return !src.includes('<g id="prerendered"') && !src.includes('rhizome:prerendered--' + '>') &&
-               !src.includes('prerenderedView\').setAttribute') && src.includes('@@EDIT:NODES:START@@');
+               !src.includes('prerenderedView\').setAttribute') && chartSpanIn(src) !== null;
       });
       /* The version log is a file beside the program on the site, fetched
          when the history is unfolded; a copy holds it again, as a program
@@ -18349,13 +18368,13 @@ async function main(){
   const r = await page.evaluate(async ()=>{
     const out = {};
     const pause = ms => new Promise(ok => setTimeout(ok, ms));
-    // The file menu: titled Export/Import, five file icons in a row, no prose.
+    // The file menu: titled Export/Import, four file icons in a row, no prose.
     const pop = document.getElementById('filePopover');
     pop.classList.add('open');
     out.file = {
       head: pop.querySelector('.edge-popover-head span').textContent.trim(),
       cols: new Set([...pop.querySelectorAll('.file-tile')].map(b=> b.getBoundingClientRect().top)).size === 1 &&
-            pop.querySelectorAll('.file-tile').length === 5 ? 5 : -1,
+            pop.querySelectorAll('.file-tile').length === 4 ? 4 : -1,
       where: !!document.getElementById('fileWhere'),
       note: !!pop.querySelector('.file-note, p'),
       pics: [...pop.querySelectorAll('.file-tile .fmt-label')].map(t=> t.textContent.trim()),
@@ -18392,8 +18411,10 @@ async function main(){
   });
   check('the file menu is called Export/Import and says nothing else',
         r.file.head === 'Export/Import' && !r.file.where && !r.file.note, JSON.stringify(r.file));
-  check('…its exports are a row of five file icons, HTML, JS, JSON, PNG and SVG, Import across the bottom',
-        r.file.cols === 5 && r.file.pics.join() === 'HTML,JS,JSON,PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
+  /* Five until 0.23: the contents went out as data.js too, which the chart
+     is not any more, and the JSON is the file it is. */
+  check('…its exports are a row of four file icons, HTML, JSON, PNG and SVG, Import across the bottom',
+        r.file.cols === 4 && r.file.pics.join() === 'HTML,JSON,PNG,SVG' && r.file.wide.includes('fileImport'), JSON.stringify(r.file));
   check('there is one Sign in, and it asks for a reader\'s session',
         r.sign.label === 'Sign in' && r.sign.mark && /\/login\?/.test(r.sign.url) && /as=reader/.test(r.sign.url), JSON.stringify(r.sign));
   check('Suggestions and Stickers carry no notes', !r.suggestNote && !r.stickerProse, JSON.stringify(r));

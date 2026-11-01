@@ -2275,15 +2275,17 @@
   }
   .file-popover.open{display:flex;}
   .file-popover .editor-status{margin:0;}
-  /* A little smaller than they were (the owner's ask, 22.10). */
-  .file-actions{display:grid;grid-template-columns:repeat(5, 40px);gap:6px;}
+  /* A little smaller than they were (the owner's ask, 22.10). Four now,
+     spread across the width five of them took, so the buttons below keep
+     the line they had. */
+  .file-actions{display:grid;grid-template-columns:repeat(4, 40px);gap:6px;width:224px;justify-content:space-between;}
   .file-actions .editor-btn{width:100%;margin:0;}
   .file-actions .file-tile{
     height:42px;padding:0;display:flex;align-items:center;justify-content:center;
   }
   .file-actions .file-tile:disabled .fmt-icon{opacity:0.4;}
   .file-actions .file-wide{grid-column:1 / -1;}
-  /* The file icons (index.html): one sheet for all five, and a band whose
+  /* The file icons (index.html): one sheet for all of them, and a band whose
      colour is the format's. The colours are held a step quieter than the
      programs' own, so the row sits in the page rather than on it. */
   .fmt-icon{display:block;overflow:visible;width:28px;height:28px;}
@@ -2296,7 +2298,6 @@
   .fmt-band{fill:var(--fmt);}
   .fmt-label{fill:#fff;font:700 6.4px 'IBM Plex Mono',monospace;letter-spacing:0.1px;}
   .fmt-html{--fmt:#2b74b8;}
-  .fmt-js{--fmt:#b88a0c;}
   .fmt-json{--fmt:#1f4a86;}
   .fmt-png{--fmt:#7d7d34;}
   .fmt-svg{--fmt:#8a55ad;}

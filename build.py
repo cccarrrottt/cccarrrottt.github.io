@@ -9,7 +9,7 @@ A copy of the chart has to be one file — Export hands a person exactly one,
 and it must open from their disk with nothing beside it — so the page is one
 file with the CSS and JavaScript inside it. That is a bad way to WRITE the
 thing, so the sources live apart — src/index.html, src/style.css,
-src/data.js, and the ordered parts in src/app/ — and this script welds them
+src/chart.json, and the ordered parts in src/app/ — and this script welds them
 into dist/nexus.html. The site is the same page with its program beside it
 (build_site). See APP_PARTS for what "ordered" means and why it is not a
 module system.
@@ -31,9 +31,15 @@ browser. One file, so there is no second copy to forget to republish.
 
 WHERE THE CHART'S CONTENTS LIVE
 
-In src/data.js, and only there. Save on the site commits the chart to it
+In src/chart.json, and only there. Save on the site commits the chart to it
 through the write service (worker/), so the repository is current by
 construction, and a build is a function of src/ and nothing else.
+
+It goes into the page as JSON in a script element a browser does not run
+(chart_script), and the program reads it with JSON.parse. Until 0.23 it was
+src/data.js, eight `const` statements written into the program's own script:
+the chart was code on every reader's screen, and the write service needed a
+parser of its own to be sure a save held nothing that would run.
 
 It used to be otherwise. A copy published on claude.ai saved by rewriting
 its own page, so the newest chart lived in a page nobody had committed, a
@@ -44,6 +50,7 @@ with it: there is no second place for the chart to be ahead.
 """
 import base64
 import hashlib
+import json
 import re
 import os
 import shutil
@@ -324,12 +331,46 @@ def lift_version_log(app_js):
     return (app_js[:start] + f'const VERSION_LOG = "{name}"' + app_js[end:], name, literal)
 
 
-def build_site(head_rest, css, body, data_js, app_js, data_sha):
+def chart_script(text):
+    """src/chart.json as the page carries it: a JSON script element.
+
+    The file has to be JSON that parses — the page reads it with JSON.parse
+    and nothing else, so a file that does not would make a page with no
+    chart in it, published. And it has to be an object with its entries in
+    `nodes`, which is the least the page reads a chart from. What else it
+    holds is the schema's to say (tools/chart_check.js, in CI).
+
+    Inside a script element the HTML parser ends the element at the first
+    closing script tag it meets, string or not, and "<!--" changes how the
+    rest is read. So every "<" is written \\u003c, which JSON reads back as
+    the same character; outside a string a JSON text has no "<" to change.
+    The page does the same when it writes the chart into an export
+    (chartForScript, src/app/20-about.js). U+2028 and U+2029 are escaped
+    with it, as the page escapes them.
+    """
+    try:
+        data = json.loads(text)
+    except ValueError as e:
+        sys.exit(f'build: src/chart.json is not JSON that parses: {e}')
+    if not isinstance(data, dict) or not isinstance(data.get('nodes'), list):
+        sys.exit('build: src/chart.json is not a chart: it has no list of entries under "nodes"')
+    body = (text.rstrip('\n').replace('<', '\\u003c')
+            .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
+    return f'<script type="application/json" id="{CHART_ID}">\n{body}\n</script>'
+
+
+# The id of the chart's element. The program finds it by this name
+# (CHART_ELEMENT_ID, src/app/01-store.js), and the build refuses a program
+# that does not.
+CHART_ID = 'chart-data'
+
+
+def build_site(head_rest, css, body, chart, app_js, data_sha):
     """dist/site/: the published site, as CI puts it on Pages.
 
     The same page as dist/nexus.html but for where the program and the
     stylesheet are: beside it, in files named by the hash of their bytes,
-    instead of inside it. A Save on the site changes src/data.js and nothing
+    instead of inside it. A Save on the site changes src/chart.json and nothing
     else, and Pages publishes the result at once — so with everything in one
     file, every Save made every reader download the whole program again, a
     megabyte and a half of it, to see a chart of a few kilobytes change.
@@ -365,7 +406,7 @@ def build_site(head_rest, css, body, data_js, app_js, data_sha):
     charset = '<meta charset="utf-8">'
     content = (f'{charset}\n{PAGE_BEGIN}\n{head_rest}\n\n'
                f'<link rel="stylesheet" href="{names["style"]}" data-inline>{body}\n\n'
-               f'<script>\n{data_js.rstrip(chr(10))}\n</script>\n'
+               f'{chart}\n'
                f'<script src="{names["app"]}" data-inline></script>\n{PAGE_END}\n')
     origin = site_origin()
     # What a link to the site shows when it is pasted into a chat. Only the
@@ -449,7 +490,7 @@ def build():
     body = slice_between(index, '<!-- @@BODY:BEGIN@@ -->', '<!-- @@BODY:END@@ -->',
                          'src/index.html body block').rstrip('\n')
     css = read(SRC / 'style.css')
-    data_js = read(SRC / 'data.js')
+    chart = chart_script(read(SRC / 'chart.json'))
     app_js = read_app()
 
     # Markers around everything the page is made of.
@@ -472,9 +513,9 @@ def build():
     charset = '<meta charset="utf-8">'
     head_rest = head[len(charset):].lstrip('\n') if head.startswith(charset) else head
     page = (f'{charset}\n{PAGE_BEGIN}\n{head_rest}\n\n<style>{css}</style>{body}\n\n'
-            f'<script>\n{data_js.rstrip(chr(10))}\n{app_js}</script>\n{PAGE_END}\n')
+            f'{chart}\n<script>\n{app_js}</script>\n{PAGE_END}\n')
 
-    # Which data.js this page was built from, as git names it: the blob id
+    # Which chart.json this page was built from, as git names it: the blob id
     # of the file's bytes. The write service compares it with the file in
     # the repository before it commits a save, so a page that is behind the
     # repository cannot write an older chart over a newer one. In CI — the
@@ -485,8 +526,10 @@ def build():
     # into the program it would make the program different after every Save,
     # and on the site the program is a file named by its hash, kept by every
     # reader's browser for exactly as long as it does not change.
-    raw = (SRC / 'data.js').read_bytes()
+    raw = (SRC / 'chart.json').read_bytes()
     data_sha = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
+    if f"CHART_ELEMENT_ID = '{CHART_ID}'" not in app_js:
+        sys.exit(f'build: the program does not read the chart from #{CHART_ID}; see CHART_ELEMENT_ID in src/app/01-store.js')
     if SHA_META not in app_js:
         sys.exit(f'build: the program does not read <meta name="{SHA_META}">; see DATA_SHA in src/app/01-store.js')
 
@@ -501,7 +544,7 @@ def build():
     (DIST / 'nexus.html').write_text(page, encoding='utf-8')
     print(f'  dist/nexus.html        {len(page):>8,} chars')
 
-    build_site(head_rest, css, body, data_js, app_js, data_sha)
+    build_site(head_rest, css, body, chart, app_js, data_sha)
 
     # The pictures beside the page. On the site the chart names them by path
     # (media/<sha256>.<ext>, see MEDIA_REF in src/app/04-assets.js) rather
@@ -536,7 +579,7 @@ if __name__ == '__main__':
     # quietly ignored one of those now would let someone believe it had run.
     if sys.argv[1:]:
         sys.exit(f'build: takes no arguments, and was given {" ".join(sys.argv[1:])}.\n'
-                 '       The chart is src/data.js; there is nothing to pull it from.')
+                 '       The chart is src/chart.json; there is nothing to pull it from.')
     print('building…')
     build()
     print('done')
