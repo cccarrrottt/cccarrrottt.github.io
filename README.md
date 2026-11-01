@@ -223,12 +223,12 @@ another account or repository is a matter of changing those two files.
 1. **Cloudflare.** Make a free account and open *Workers & Pages* once, which
    gives the account its `*.workers.dev` subdomain. The service will live at
    `https://<worker name>.<subdomain>.workers.dev` — here
-   `https://cccarrrottt-github-io.wowwodptr2.workers.dev`, which is what
+   `https://rhizome-api.wowwodptr2.workers.dev`, which is what
    `api` in `src/app/00-config.js` names. Another account or Worker name
    means changing it there and `name` in `worker/wrangler.toml`.
 2. **A GitHub App** (GitHub → Settings → Developer settings → GitHub Apps →
    New). Homepage: the site. Callback URL:
-   `https://cccarrrottt-github-io.wowwodptr2.workers.dev/callback`. Keep *Expire user
+   `https://rhizome-api.wowwodptr2.workers.dev/callback`. Keep *Expire user
    authorization tokens* on. Webhook: off. Repository permissions:
    **Contents — Read and write** and **Issues — Read and write**, nothing
    else. Installable only on this account. Generate a client secret, then

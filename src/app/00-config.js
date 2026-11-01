@@ -28,6 +28,6 @@
    ========================================================================= */
 const SITE_CONFIG = {
   site: 'https://cccarrrottt.github.io',
-  api: 'https://cccarrrottt-github-io.wowwodptr2.workers.dev',
+  api: 'https://rhizome-api.wowwodptr2.workers.dev',
   repo: 'cccarrrottt/cccarrrottt.github.io',
 };
