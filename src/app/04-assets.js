@@ -44,17 +44,24 @@ const MEDIA_KINDS = new Set(['image', 'video']);
  * build and the site put the folder. Nothing else in the drawing has to
  * know. What does is anything that has to carry the picture somewhere the
  * folder is not — an exported page, a picture of the chart — and that
- * asks inlineMediaRefs for the bytes. */
+ * asks inlineMediaRefs for the bytes.
+ *
+ * An SVG has no extension here, so it stays embedded (see below). A file
+ * of one on the site would have an address, and an SVG opened at its
+ * address is a document whose scripts run as the site, beside the owner's
+ * session. As a data: URI it can only ever be drawn, and drawn as an
+ * <img> or an <image> an SVG runs nothing. The service refuses the file
+ * too (MEDIA_REF, worker/index.js). */
 const MEDIA_EXT = {
   'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
-  'image/svg+xml':'svg', 'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
+  'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
   'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov'
 };
 /* Its patterns are written inside it rather than kept beside it: the model
    asks mediaSrcOk while it loads the chart, in part 02, before anything
    this part declares has been given a value. */
 function mediaRefKind(src){
-  const m = typeof src === 'string' && /^media\/[0-9a-f]{64}\.(png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)$/.exec(src);
+  const m = typeof src === 'string' && /^media\/[0-9a-f]{64}\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)$/.exec(src);
   return m ? (/^(webm|mp4|ogv|mov)$/.test(m[1]) ? 'video' : 'image') : null;
 }
 /* Embedded pictures in a region's text, lifted out into the files they
@@ -66,7 +73,7 @@ function mediaRefKind(src){
    comma. A type with no extension to its name stays embedded. */
 const LIFT_MIN = 2048;
 const DATA_URI_IN_TEXT = /data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g;
-const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|svg|bmp|ico|webm|mp4|ogv|mov)/g;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)/g;
 const liftedRefs = new Map();   // data: URI -> its path, once worked out
 const mediaSent = new Set();    // paths the service has taken in this page's life
 async function mediaRefOf(uri, mime, b64){

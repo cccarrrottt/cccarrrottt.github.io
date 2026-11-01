@@ -12,7 +12,9 @@ can touch the real src/chart.json.
     python3 tests/build_guard.py
 """
 import atexit
+import base64
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -340,10 +342,21 @@ def main():
     # The program goes out without its version log, which is a file of its
     # own beside it; the program names it where the log stood.
     lifted, log_name, log_text = built_by.lift_version_log(sources['js'])
-    check('the version log is beside the program, named by its bytes, and is the log as written',
+    # As JSON, which the page reads as data (the site's policy lets nothing
+    # run from a string), and which is the log as written: node evaluates
+    # the literal and must get the same value.
+    lit_at = sources['js'].index(built_by.VERSION_LOG_OPEN) + len(built_by.VERSION_LOG_OPEN) - 1
+    lit_end = sources['js'].index(built_by.VERSION_LOG_CLOSE, lit_at) + 2
+    as_js = subprocess.run(['node', '-e', 'process.stdout.write(JSON.stringify(Function("return (" + '
+                            'require("fs").readFileSync(0, "utf8") + ")")()))'],
+                           input=sources['js'][lit_at:lit_end], capture_output=True, text=True)
+    check('the version log is beside the program, named by its bytes, and is the log as written, as JSON',
           (tmp / 'dist' / 'site' / log_name).read_text(encoding='utf-8') == log_text
-          and log_text.startswith('[') and log_text.endswith(']') and "v:'" in log_text
-          and lifted.replace(f'"{log_name}"', log_text) == sources['js'], log_name)
+          and log_text.startswith('[') and log_text.endswith(']') and '{"v":"' in log_text
+          and as_js.returncode == 0 and json.loads(log_text) == json.loads(as_js.stdout)
+          and lifted.replace(f'"{log_name}"', sources['js'][lit_at:lit_end]) == sources['js'], log_name)
+    check('and it keeps every "<" escaped, since an export puts it back inside a script',
+          '<' not in log_text)
     site_sources = {'js': lifted, 'css': sources['css']}
     minified = all(
         (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8').split('\n//# sourceMappingURL=')[0].rstrip('\n')
@@ -379,6 +392,28 @@ def main():
     check('and only the site: neither the single page nor an export cut from it carries it',
           not any(k in built for k in og) and not any(k in cut(site) for k in og))
 
+    # The site's Content-Security-Policy, which is what stands between a
+    # script nobody wrote and the owner's session in localStorage
+    # (site_policy, build.py). In the head, outside the markers: an export
+    # runs its program inline and would be refused by it.
+    policy = re.search(r'<meta http-equiv="Content-Security-Policy" content="([^"]*)">', site)
+    handlers = re.findall(r'<[^>]*\son[a-z]+="([^"]*)"', site)
+    check('the site has a policy, in its head, before anything it governs',
+          bool(policy) and policy.start() < site.index('</head>') and policy.start() < site.index('<script')
+          and policy.start() < site.index('<link rel="stylesheet"'))
+    pol = policy.group(1) if policy else ''
+    check('it runs nothing from a string, nothing inline but by hash, and embeds nothing',
+          "script-src 'self'" in pol and 'unsafe-eval' not in pol and "'unsafe-inline'" not in pol.split('style-src')[0]
+          and "object-src 'none'" in pol and "base-uri 'none'" in pol and "form-action 'none'" in pol, pol)
+    check('every handler the page carries inline is in it by its hash',
+          bool(handlers) and all(
+              "'sha256-" + base64.b64encode(hashlib.sha256(h.replace('&#39;', "'").encode()).digest()).decode() + "'" in pol
+              for h in handlers), handlers)
+    check('and it lets requests go to the write service',
+          built_by.site_config()['api'].rstrip('/') in pol.split('connect-src')[1].split(';')[0])
+    check('only the site has one: not the single page, nor an export cut from it',
+          'Content-Security-Policy' not in built and 'Content-Security-Policy' not in cut(site))
+
     # The visitor counter: the site has it when CI passes a token, and like
     # the preview it stands outside the markers, so an export cut from the
     # site never counts its holder's visits on the owner's account.
@@ -398,7 +433,7 @@ def main():
     r = run(tmp, extra_env={'CF_WEB_ANALYTICS_TOKEN': snippet})
     counted = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8')
     check('the whole snippet Cloudflare offers, pasted as the token, gives the same counter',
-          r.returncode == 0 and counted.count('cloudflareinsights') == 1 and f'"token": "{token}"' in counted
+          r.returncode == 0 and counted.count('beacon.min.js') == 1 and f'"token": "{token}"' in counted
           and 'End Cloudflare' not in counted, r.stdout + r.stderr)
     r = run(tmp, extra_env={'CF_WEB_ANALYTICS_TOKEN': '"><script>alert(1)</script>'})
     check('a token that is not one stops the build rather than being written into the page',

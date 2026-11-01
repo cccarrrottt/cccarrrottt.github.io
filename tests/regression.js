@@ -10504,6 +10504,8 @@ async function main(){
   /* ---- a reader ---- */
   const site = await c.newPage();
   site.on('pageerror', e => errs.push(e.message));
+  // Anything the site's policy refuses is the page broken by its own guard.
+  site.on('console', m => { if(/Content Security Policy/i.test(m.text())) errs.push(m.text()); });
   await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
   await site.waitForFunction(() => typeof rebuildChart === 'function');
   await wait(300);
@@ -10652,7 +10654,7 @@ async function main(){
      goes with each one's path where its bytes stood. A tiny one stays. */
   const sha256 = b => require('crypto').createHash('sha256').update(b).digest('hex');
   const EXT = {'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
-               'image/svg+xml':'svg', 'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
+               'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
                'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov'};
   const lifted = text => text.replace(/data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g,
     (u, mime, _, b64) => u.length < 2048 || !EXT[mime.toLowerCase()] ? u
@@ -10688,6 +10690,20 @@ async function main(){
         pic.len > 2048 && !!s3 && !!(s3.media || {})[probeRef] && s3.chart.includes(probeRef) && !s3.chart.includes(pic.b64.slice(0, 200)),
         JSON.stringify({len: pic.len, saves: api.saves.length, keys: s3 && Object.keys(s3.media || {}), probe: s3 && s3.chart.includes('pic-probe'), ref: s3 && s3.chart.includes(probeRef)}));
   check('and once only', !!s4 && !Object.keys(s4.media || {}).length && s4.chart.includes(probeRef));
+  /* An SVG is the exception: a file of one would have an address on the
+     site, and opened there its scripts run beside the owner's session. */
+  const svgSent = await site.evaluate(async () => {
+    const body = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><!--' + 'x'.repeat(3000) + '--><rect width="10" height="10"/></svg>';
+    const uri = 'data:image/svg+xml;base64,' + btoa(body);
+    applyEdit(() => { workingNodes.push(['svg-probe', 'SVG probe', null, null, null, null, {pos:[1100, 900], card:true, image: uri}]); });
+    await saveNow();
+    return uri;
+  });
+  const s5 = api.saves[api.saves.length - 1];
+  check('an SVG past that size stays embedded, and is never sent as a file',
+        !!s5 && s5.chart.includes(svgSent) && !Object.keys(s5.media || {}).some(k => /\.svg$/.test(k)),
+        s5 ? Object.keys(s5.media || {}).join(', ') : 'nothing sent');
+  await site.evaluate(() => { applyEdit(() => { workingNodes.splice(workingNodes.findIndex(n => n[0] === 'svg-probe'), 1); }); });
   const fromPath = await site.evaluate(async ref => {
     const out = {};
     applyEdit(() => { workingNodes.find(n => n[0] === 'pic-probe')[6].image = ref; });
@@ -10974,6 +10990,8 @@ async function main(){
   const errs = [];
   const site = await c.newPage();
   site.on('pageerror', e => errs.push(e.message));
+  // Anything the site's policy refuses is the page broken by its own guard.
+  site.on('console', m => { if(/Content Security Policy/i.test(m.text())) errs.push(m.text()); });
   await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
   await site.waitForFunction(() => typeof rebuildChart === 'function');
   await wait(300);
@@ -11198,6 +11216,8 @@ async function main(){
   const site = await c.newPage();
   const errs = [];
   site.on('pageerror', e => errs.push(e.message));
+  // Anything the site's policy refuses is the page broken by its own guard.
+  site.on('console', m => { if(/Content Security Policy/i.test(m.text())) errs.push(m.text()); });
   await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
   await site.waitForFunction(() => typeof rebuildChart === 'function');
   await wait(200);
@@ -11304,11 +11324,27 @@ async function main(){
     const kept = await p.evaluate(async src => { try{ return await (await fetch(src)).text(); }catch(e){ return 'failed: ' + e.message; } },
                                   PICTURE.slice(1)).catch(e => 'failed: ' + e.message);
     check('and a picture it has shown before is still there', seen === files[PICTURE].toString() && kept === seen, kept);
+    /* A clip is played by Range. Answered from the kept file, a piece is
+       a 206 with its bytes — the whole file with a 200 is what Safari
+       will not play. */
+    const pieces = await p.evaluate(async src => {
+      const ask = async range => { const r = await fetch(src, {headers: {Range: range}});
+        return {status: r.status, range: r.headers.get('content-range'), text: await r.text()}; };
+      try{ return {mid: await ask('bytes=2-8'), open: await ask('bytes=30-'), tail: await ask('bytes=-5'), past: await ask('bytes=999-')}; }
+      catch(e){ return {error: e.message}; }
+    }, PICTURE.slice(1)).catch(e => ({error: e.message}));
+    const whole = files[PICTURE].toString(), size = whole.length;
+    check('a piece of a kept picture is answered as a piece, as a clip asks for it',
+          pieces.mid && pieces.mid.status === 206 && pieces.mid.text === whole.slice(2, 9) && pieces.mid.range === `bytes 2-8/${size}` &&
+          pieces.open.status === 206 && pieces.open.text === whole.slice(30) &&
+          pieces.tail.status === 206 && pieces.tail.text === whole.slice(-5) && pieces.past.status === 416,
+          JSON.stringify(pieces));
 
     /* Online again, the network's page is the one shown — a kept copy is
        for when there is nothing else, never in preference. */
     up = true;
-    files['/'] = Buffer.concat([files['/'], Buffer.from('\n<!-- a newer page -->\n')]);
+    // The newer page's chart names the picture, as a chart that shows it does.
+    files['/'] = Buffer.concat([files['/'], Buffer.from('\n<!-- a newer page -->\n<!-- ' + PICTURE.slice(1) + ' -->\n')]);
     await p.reload({waitUntil: 'load'});
     const fresh = await p.evaluate(() => [...document.childNodes, ...document.documentElement.childNodes, ...document.body.childNodes].some(n => n.nodeType === 8 && n.data.includes('a newer page')));
     check('with a connection, the page is fetched afresh rather than taken from the copy', fresh);
@@ -11350,6 +11386,22 @@ async function main(){
     check('a release keeps the new program, and the one before it for a page still showing',
           afterOne.join() === [first, second].sort().join(), JSON.stringify(afterOne));
     check('and the one before that is let go', afterTwo.join() === [second, third].sort().join(), JSON.stringify(afterTwo));
+    /* A picture goes the same way: kept while the page, or the one it
+       replaced, names it, and let go after. */
+    const keptPicture = () => p.evaluate(async ([name, src]) => !!(await (await caches.open(name)).match(src)),
+                                         [cacheName, new URL(PICTURE.slice(1), at).href]);
+    const namedStill = await keptPicture();
+    files['/'] = Buffer.from(files['/'].toString().split('<!-- ' + PICTURE.slice(1) + ' -->').join(''));
+    release(3);
+    await p.reload({waitUntil: 'load'});
+    await wait(500);
+    const sparedOnce = await keptPicture();
+    release(4);
+    await p.reload({waitUntil: 'load'});
+    await wait(500);
+    const letGo = !(await keptPicture());
+    check('a picture is kept while a page names it, and the page before; then it is let go',
+          namedStill && sparedOnce && letGo, JSON.stringify({namedStill, sparedOnce, letGo}));
     up = false;
     await p.reload({waitUntil: 'load'}).catch(e => errs.push('reload: ' + e.message));
     const offlineAfter = await p.waitForFunction(() => typeof rebuildChart === 'function', null, {timeout: 8000}).then(() => true, () => false);
@@ -17181,8 +17233,9 @@ async function main(){
     const c = await browser.newContext({viewport: opts.viewport || {width: 1500, height: 950}, serviceWorkers: 'block'});
     const p = await c.newPage();
     await silence(p);
-    const errs = [];
+    const errs = [], violations = [];
     p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => { if(/Content Security Policy/i.test(m.text())) violations.push(m.text()); });
     if(opts.view) await p.addInitScript(v => { try{ localStorage.setItem('rhizome.view:' + (location.pathname + location.search || 'default'), JSON.stringify(v)); }catch(e){} }, opts.view);
     if(opts.noProgram) await p.route(/app\.[0-9a-f]+\.js$/, r => r.abort());
     await p.goto(at, {waitUntil: 'load'});
@@ -17219,11 +17272,18 @@ async function main(){
         const heads = d ? [...d.querySelectorAll('.version-head b')].map(b => b.textContent) : [];
         const src = await readOwnSource();
         const program = [...src.matchAll(/<script>\n?([\s\S]*?)<\/script>/g)].map(m => m[1]).find(t => t.includes('const APP_VERSION')) || '';
-        let parses = false;
-        try{ new Function(program); parses = true; }catch(e){}
         return {named, folded, heads, copyNames: VERSION_LOG_FILE_RE.test(src),
-                copyHolds: src.includes("{v:'" + APP_VERSION + "'"), parses};
+                copyHolds: src.includes('{"v":"' + APP_VERSION + '"'), program};
       });
+      /* Parsed here rather than in the page: the site's policy forbids
+         making a function from a string, as it should. */
+      try{ new Function(out.history.program); out.history.parses = true; }catch(e){ out.history.parses = false; }
+      delete out.history.program;
+      out.history.policy = await p.evaluate(() => {
+        const m = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+        return m ? m.content : '';
+      });
+      out.history.violations = violations.slice();
     }
     await c.close();
     return out;
@@ -17251,6 +17311,41 @@ async function main(){
           JSON.stringify(h.heads) === JSON.stringify(logHere), JSON.stringify({named: h.named, folded: h.folded, heads: (h.heads || []).slice(0, 3)}));
     check('and a copy exported from the site holds the log again, in a program that parses',
           h.copyHolds && !h.copyNames && h.parses, JSON.stringify({holds: h.copyHolds, names: h.copyNames, parses: h.parses}));
+    /* The owner's session is in localStorage; the policy is what keeps a
+       script nobody wrote from reading it (site_policy, build.py). It has
+       to let everything the page itself does through — the program, the
+       drawing's placement, the fonts' onload, the history — or the page
+       is broken by its own guard. */
+    const policy = h.policy || '';
+    check('the site carries a policy that runs no string as code and lets nothing embedded in',
+          /script-src 'self'/.test(policy) && !/unsafe-eval/.test(policy) && !/script-src[^;]*'unsafe-inline'/.test(policy)
+          && /object-src 'none'/.test(policy) && /base-uri 'none'/.test(policy), policy);
+    check('and the page breaks none of it: the drawing is placed, the program runs, the history unfolds',
+          !before.history && !(after.history.violations || []).length && JSON.stringify(h.heads) === JSON.stringify(logHere)
+          && beforeV.preView === afterV.view, JSON.stringify((after.history.violations || []).slice(0, 3)));
+    {
+      const c = await browser.newContext({serviceWorkers: 'block'});
+      const p = await c.newPage();
+      await silence(p);
+      const v = [];
+      p.on('console', m => { if(/Content Security Policy/i.test(m.text())) v.push(m.text()); });
+      await p.goto(at, {waitUntil: 'load'});
+      await p.waitForFunction(() => typeof rebuildChart === 'function');
+      const ran = await p.evaluate(() => {
+        const s = document.createElement('script');
+        s.textContent = 'window.__planted = localStorage.length;';
+        document.body.appendChild(s);
+        /* As a timer's string rather than Function() here: the tool that
+           runs this line is let past the policy itself, the timer is not. */
+        setTimeout('window.__made = 1', 0);
+        return {planted: '__planted' in window};
+      });
+      await p.waitForTimeout(200);
+      ran.made = await p.evaluate(() => '__made' in window);
+      await c.close();
+      check('a script put into the page from outside is refused, and so is code from a string',
+            !ran.planted && !ran.made && v.length >= 2, JSON.stringify(ran) + ' ' + v.length);
+    }
     check('the drawing asks for no pictures, which would hold the program up', !/<image[^>]*href=/.test(snap.view + snap.defs));
   } finally {
     srv.close();

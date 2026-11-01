@@ -50,6 +50,7 @@ with it: there is no second place for the chart to be ahead.
 """
 import base64
 import hashlib
+import html
 import json
 import re
 import os
@@ -317,8 +318,9 @@ def lift_version_log(app_js):
     shown only when someone unfolds the history in About. So on the site
     it is a file beside the program, named by its bytes like the program,
     and the program holds that name in its place (renderVersionInfo,
-    20-about.js). The file is the literal exactly as the source writes it;
-    an export puts it back where the name stands (inlineSiteFiles).
+    20-about.js). The file is the literal as JSON (js_literal_json), which
+    the page reads as data; an export puts it back where the name stands
+    (inlineSiteFiles), where JSON is an expression like the literal was.
     """
     start = app_js.find(VERSION_LOG_OPEN)
     end = app_js.find(VERSION_LOG_CLOSE, start)
@@ -326,9 +328,56 @@ def lift_version_log(app_js):
         sys.exit('build: 20-about.js has no single `const VERSION_LOG = [` closed by a line '
                  'of its own, so the site cannot carry the log beside the program')
     end += 2
-    literal = app_js[start + len(VERSION_LOG_OPEN) - 1:end]
+    literal = js_literal_json(app_js[start + len(VERSION_LOG_OPEN) - 1:end])
     name = f'versions.{hashlib.sha256(literal.encode("utf-8")).hexdigest()[:16]}.js'
     return (app_js[:start] + f'const VERSION_LOG = "{name}"' + app_js[end:], name, literal)
+
+
+def js_literal_json(literal):
+    """The version log, which the source writes as a JavaScript literal, as JSON.
+
+    The site's page reads the file with JSON.parse. It used to run it, with
+    Function(), and a page that may run text as code cannot have a
+    Content-Security-Policy that keeps a stray script from reading the
+    owner's session (site_policy). JSON is also an expression, so an export
+    still puts the file back where its name stands and has a program.
+
+    Only what the log is written with is read: arrays, objects with bare
+    keys, single-quoted strings with \\u escapes. Anything else stops the
+    build and says where, rather than being guessed at.
+    """
+    out, at, n = [], 0, len(literal)
+    token = re.compile(r"\s+|[\[\]{},:]|[A-Za-z_]\w*(?=\s*:)|'((?:[^'\\\n]|\\u[0-9a-fA-F]{4}|\\['\\])*)'")
+    while at < n:
+        m = token.match(literal, at)
+        if not m:
+            line = literal.count('\n', 0, at) + 1
+            sys.exit(f'build: the version log has something at its line {line} that is not '
+                     f'an array, an object, a bare key or a single-quoted string: {literal[at:at + 40]!r}')
+        text = m.group(0)
+        if m.group(1) is not None:
+            raw = re.sub(r"\\u([0-9a-fA-F]{4})|\\(['\\])",
+                         lambda e: chr(int(e.group(1), 16)) if e.group(1) else e.group(2), m.group(1))
+            # An emoji is written as its two halves, \ud83d\ude00; joined here.
+            raw = raw.encode('utf-16', 'surrogatepass').decode('utf-16')
+            # "<" stays escaped, as in the chart's element (chart_script): an
+            # export puts this text back inside a <script>.
+            out.append(json.dumps(raw, ensure_ascii=False).replace('<', '\\u003c')
+                       .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
+        elif text[0].isalpha() or text[0] == '_':
+            out.append(json.dumps(text))
+        else:
+            out.append(text)
+        at = m.end()
+    # A comma before a closing bracket is allowed in the source, not in JSON.
+    for i, t in enumerate(out):
+        if t == ',':
+            k = next((k for k in range(i + 1, len(out)) if out[k].strip()), None)
+            if k is not None and out[k] in (']', '}'):
+                out[i] = ''
+    text = ''.join(out)
+    json.loads(text)   # what was read is what JSON reads
+    return text
 
 
 def chart_script(text):
@@ -413,7 +462,8 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
     # site's own document says it: an exported copy is cut out between the
     # markers and is nobody's address.
     preview = (
-        f'<meta name="{SHA_META}" content="{data_sha}">\n'
+        site_policy(content, bool(analytics_beacon()))
+        + f'<meta name="{SHA_META}" content="{data_sha}">\n'
         f'<meta name="description" content="{html_attr(OG_DESCRIPTION)}">\n'
         '<meta property="og:type" content="website">\n'
         f'<meta property="og:site_name" content="{html_attr(OG_TITLE)}">\n'
@@ -444,6 +494,48 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
     print(f'  dist/site/index.html   {len(page):>8,} chars, '
           f'{names["app"]} {sizes["app"]:,}, {names["style"]} {sizes["style"]:,}'
           + ('' if esbuild_path() else ' (not minified: no esbuild)'))
+
+
+def site_policy(content, counted):
+    """The site's Content-Security-Policy, as a <meta>: Pages sends no headers.
+
+    The owner's session is in localStorage, and it opens a GitHub token
+    that can write to the repository. Any script that runs on the site's
+    origin can read it, so the policy is about which scripts may run: the
+    site's own files, Cloudflare's counter when there is one, and the few lines the page
+    carries inline, each by the hash of its text — the font stylesheet's
+    onload, found in the page rather than listed here, and the prerendered
+    drawing's placement, which tools/prerender.js adds when it writes it.
+    Nothing may be run from a string (no 'unsafe-eval'), nothing embedded,
+    no <base>, no form sent anywhere. Requests go to the site, the write
+    service, GitHub's API (the suggestions list), the fonts and the counter.
+
+    Styles may be inline: the page sets hundreds of them as it draws, and a
+    style cannot read localStorage. Pictures may come from anywhere on
+    https, since an entry's picture may be any address.
+
+    Outside the page's markers, like the preview: an exported copy runs its
+    program inline and would be refused by it.
+    """
+    api = site_config()['api'].rstrip('/')
+    handlers = sorted(set(re.findall(r'<[^>]*\son[a-z]+=(?:"([^"]*)"|\'([^\']*)\')', content)))
+    hashes = ' '.join(f"'sha256-{base64.b64encode(hashlib.sha256(html.unescape(a or b).encode('utf-8')).digest()).decode()}'"
+                      for a, b in handlers)
+    policy = '; '.join([
+        "default-src 'self'",
+        "script-src 'self'" + (' https://static.cloudflareinsights.com' if counted else '')
+        + (f" 'unsafe-hashes' {hashes}" if hashes else ''),
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' data: blob: https:",
+        f"connect-src 'self' {api} https://api.github.com https://fonts.googleapis.com"
+        " https://fonts.gstatic.com" + (' https://cloudflareinsights.com' if counted else ''),
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+    ])
+    return f'<meta http-equiv="Content-Security-Policy" content="{policy}">\n'
 
 
 def analytics_beacon():

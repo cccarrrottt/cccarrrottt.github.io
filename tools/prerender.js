@@ -83,11 +83,29 @@ function withSnapshot(html, snap){
   const drawing = `${BEGIN}<g id="prerendered" aria-hidden="true"><defs>${snap.defs}</defs>` +
                   `<g id="prerenderedView">${snap.view}</g></g>${END}`;
   const after = close + '</svg>'.length;
-  return html.slice(0, at + VIEWPORT.length) + drawing + html.slice(at + VIEWPORT.length, after) +
-         `\n${BEGIN}<script>${place(snap.stats || ['0', '0', '0'])}</script>${END}` + html.slice(after);
+  const script = place(snap.stats || ['0', '0', '0']);
+  return withPolicyHash(html.slice(0, at + VIEWPORT.length) + drawing + html.slice(at + VIEWPORT.length, after) +
+         `\n${BEGIN}<script>${script}</script>${END}` + html.slice(after), scriptHash(script), true);
 }
 function withoutSnapshot(html){
+  for(const m of html.matchAll(new RegExp(BEGIN + '<script>([\\s\\S]*?)</script>' + END, 'g'))) html = withPolicyHash(html, scriptHash(m[1]), false);
   return html.split(BEGIN).map((piece, i)=> i ? piece.slice(piece.indexOf(END) + END.length) : piece).join('');
+}
+/* The page's Content-Security-Policy runs an inline script only by the
+   hash of its text (site_policy, build.py), and the build cannot know this
+   one's: it holds the counts of the chart it is published with. So the
+   hash goes in here, beside the script, and comes out with it. A page
+   with no policy is left as it is. */
+const POLICY = /(<meta http-equiv="Content-Security-Policy" content="[^"]*?script-src [^;"]*)/;
+function scriptHash(text){
+  return `'sha256-${require('crypto').createHash('sha256').update(text, 'utf8').digest('base64')}'`;
+}
+function withPolicyHash(html, hash, add){
+  if(!POLICY.test(html)) return html;
+  return html.replace(POLICY, src => {
+    const rest = src.split(' ' + hash).join('');
+    return add ? rest + ' ' + hash : rest;
+  });
 }
 
 function serve(dir){
