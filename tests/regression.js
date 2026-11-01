@@ -828,19 +828,43 @@ async function main(){
     const e2 = []; p2.on('pageerror', e => e2.push(e.message));
     await p2.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
     await wait(1200);
-    const hosted = await p2.evaluate(() => eval('HOSTED'));
     await p2.evaluate(() => applyEdit(() => { workingNodes[0][1] = '__PERSIST__'; }));
     await p2.evaluate(() => saveNow());
     await wait(400);
     await p2.reload({waitUntil:'networkidle'});
     await wait(1200);
     const after = await p2.evaluate(() => ({label: workingNodes[0][1], dirty: isDirty()}));
-    eq('runs unhosted', hosted, false);
     eq('save survives a reload with no host', after.label, '__PERSIST__');
     eq('and comes back clean', after.dirty, false);
     check('no page errors while unhosted', e2.length === 0, e2.join('; '));
     await p2.evaluate(() => { try { localStorage.clear(); } catch(e){} });
     await c2.close();
+  }
+  /* The page is not published to claude.ai any more, and does not ask a
+     host anything: a page that finds an artifact host's global saves into
+     the browser like any other copy, and never hands the host a version
+     of itself. */
+  {
+    const c3 = await browser.newContext();
+    await c3.addInitScript(() => {
+      window.__asked = [];
+      window.claude = {use: async (what) => { window.__asked.push(what);
+        return {publish: async () => { window.__asked.push('publish'); }, save: async () => { window.__asked.push('save'); }}; }};
+    });
+    const p3 = await c3.newPage();
+    const e3 = []; p3.on('pageerror', e => e3.push(e.message));
+    await p3.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(1200);
+    await p3.evaluate(() => applyEdit(() => { workingNodes[0][1] = '__NOT_PUBLISHED__'; }));
+    await p3.evaluate(() => saveNow());
+    await wait(400);
+    const got = await p3.evaluate(() => ({asked: window.__asked.slice(), stored: !!readStoredChart(),
+                                          readOnly: readOnlyView}));
+    check('a host\'s global is not asked for anything, and Save goes to this browser',
+          got.asked.length === 0 && got.stored && !got.readOnly, JSON.stringify(got));
+    check('and no page errors beside one', e3.length === 0, e3.join('; '));
+    await p3.evaluate(() => { try { localStorage.clear(); } catch(e){} });
+    await c3.close();
   }
 
   });
@@ -1510,9 +1534,7 @@ async function main(){
       realHasNodes: extractRegion(real, 'NODES') !== null,
       // Carving the host's document gives back exactly our content.
       carvedMatches: carved === real,
-      carvedDropsHost: !!carved && carved.indexOf('__HOST__') < 0,
-      // And what we hand the host is always a fragment.
-      fragmentOfDoc: !isFullDocument(ensureFragment(hostDoc))
+      carvedDropsHost: !!carved && carved.indexOf('__HOST__') < 0
     };
   });
   check('the page reads its own source as a fragment',
@@ -1520,8 +1542,6 @@ async function main(){
   check('carving the host document returns exactly our own content',
         selfSource.carvedMatches, selfSource.carvedMatches);
   check('and leaves the host\u2019s own scripts behind', selfSource.carvedDropsHost);
-  check('what is published is always a fragment, never a nested document',
-        selfSource.fragmentOfDoc);
   }
 
   });
@@ -6233,7 +6253,9 @@ async function main(){
 
     /* Saving names what actually went wrong. */
     out.tooLargeSpeaks = /figure|sticker|picture|chart itself/.test(heaviestPartOfChart());
-    out.shapesTried = typeof publishOwnPage === 'function';
+    // Publishing the page to a host is gone (0.22.0), and with it the
+    // guessing between a fragment and a document.
+    out.noPublishing = typeof publishOwnPage === 'undefined' && typeof saveToArtifact === 'undefined';
 
     refill(MEDIA, beforeMedia); rebuildMediaMap();
     refill(TAG_CATS, beforeCats);
@@ -6283,7 +6305,8 @@ async function main(){
   check('a long comment scrolls instead of pushing the panel off the screen',
         r30.lockedScrolls);
   check('a failed save can say which picture is the heavy one',
-        r30.tooLargeSpeaks && r30.shapesTried);
+        r30.tooLargeSpeaks);
+  check('and the page has no way left to publish itself to a host', r30.noPublishing);
 
   /* The weave is gold, not a warm grey. */
   const weave = await page.evaluate(()=>{
@@ -9418,8 +9441,7 @@ async function main(){
     }catch(e){ out.carryThrew = String(e); }
     out.keysRenamed = STORE_PREFIX === 'rhizome.chart:' &&
                       ALIGN_GRID_KEY.indexOf('rhizome.') === 0 &&
-                      CLIP_KEY.indexOf('rhizome.') === 0 &&
-                      READONLY_KEY.indexOf('rhizome.') === 0;
+                      CLIP_KEY.indexOf('rhizome.') === 0;
     out.fileName  = chartFileName();
     out.fileNamed = /^rhizome-project-\d{4}-\d{2}-\d{2}\.html$/.test(out.fileName);
 
@@ -13465,7 +13487,7 @@ async function main(){
        on one pans instead of doing nothing. */
     const reader = await pp.evaluate(async ()=>{
       if(typeof closeNodeEditor === 'function') closeNodeEditor(true);
-      deselect(); markReadOnly(false);
+      deselect(); markReadOnly();
       vs = 1; vx = 20; vy = 20; applyTransform();
       await new Promise(r=> setTimeout(r, 300));
       const r = document.querySelector('#nodeLayer [data-id="tpA"]').getBoundingClientRect();
@@ -16360,7 +16382,7 @@ async function main(){
     out.legendOwnRow = (SETTINGS.legendOwn || []).some(r=> r.name === 'Entity') &&
                        /legendOwn:/.test(serializeSettings(SETTINGS));
     setSideTab(document.getElementById('keyPanel'), false);
-    markReadOnly(false); await wait(200);
+    markReadOnly(); await wait(200);
     out.legendHiddenForReader = getComputedStyle(document.getElementById('keyPanel')).display === 'none';
     markEditable(); await wait(200);
 
@@ -16718,10 +16740,10 @@ async function main(){
   check('picking the entry lights its scenery too', rS.entryLightsScenery, rS.entryLit);
   });
   await scenario("a page told late that it is read-only", async () => {
-  /* On claude.ai the host answers "may this viewer write?" after the
-     first draw, so everything left out by asking readOnlyView while it
-     was built had already been built for an editor. The owner found the
-     side tabs' + buttons there: a tag, a category, a reference. */
+  /* An answer to "may this viewer write?" that arrives after the first
+     draw (on claude.ai it always did) finds everything left out by asking
+     readOnlyView already built for an editor. The owner found the side
+     tabs' + buttons that way: a tag, a category, a reference. */
   const late = await page.evaluate(async ()=>{
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
     document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, true));
@@ -16730,7 +16752,7 @@ async function main(){
     const ask = ()=> ({plus: shown('#sideTabs .plus-mini'), refTools: shown('#sideTabs .ref-tools button'),
                        refColour: shown('#refColorRow'), tagDel: shown('.legend-tag-del')});
     const before = ask();
-    markReadOnly(false);
+    markReadOnly();
     await wait(250);
     const after = ask();
     /* And refused, not only hidden: a stale button or a key path still
@@ -19424,7 +19446,7 @@ async function main(){
     document.body.dispatchEvent(new PointerEvent('pointermove', {bubbles:true, clientX:2, clientY:2}));
     await wait(400);
     out.playerGoes = anim().hidden;
-    markReadOnly(false); await wait(150);
+    markReadOnly(); await wait(150);
     pointAt('tw_i'); await wait(50);
     out.readerNoPlayer = anim().hidden || getComputedStyle(anim()).display === 'none';
     markEditable(); await wait(200);
@@ -19639,7 +19661,7 @@ async function main(){
                                                          t.right <= stats.right + 0.5);
       out.inTopbar = !!document.getElementById('guideToggle').closest('.topbar') &&
                      !!document.getElementById('touchTools').closest('.topbar');
-      markReadOnly(false); await wait(150);
+      markReadOnly(); await wait(150);
       out.readerNoTools = getComputedStyle(document.querySelector('.topbar-tools')).display === 'none';
       markEditable(); await wait(200);
 

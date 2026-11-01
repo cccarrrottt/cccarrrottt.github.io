@@ -6,6 +6,31 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.22.0 — "One home" (2026-11-01)
+
+The owner's decision of 31.10, after the project review: the copy on
+claude.ai goes, entirely.
+
+- **The page asks no artifact host anything.** `HOSTED`, the `artifact`
+  and `downloads` capabilities, `publishOwnPage`/`saveToArtifact` and the
+  fragment-or-document guessing, the export gate and the `.html.txt`
+  fallback, and the read-only flag remembered from a host's refusal are
+  gone. Read-only is the site's alone now: a reader until the write
+  service confirms the owner, and `not_writer` from a save. A page that
+  finds a host's global saves into the browser like any other copy (a new
+  check in "no host").
+- **A build is a function of `src/`.** The chart is no longer carried over
+  from the `dist/nexus.html` a build replaces; `--pull`, `--partial`,
+  `--force`, `.backups/` and `tools/data_check.py` are gone, and
+  `build.py` refuses any argument rather than ignore one. `build_guard`
+  checks that a build takes the chart from `src/data.js` even when the
+  page it replaces says otherwise.
+- **Since 0.21.1 (#77):** the write service reads every region it is
+  sent as data and nothing else, and refuses a merge that leaves a loose
+  end; `tools/chart_check.js` runs the same reader and the schema before a
+  data-only publish; CI on `main` no longer cancels a run in progress and
+  decides "only data" against the last publish.
+
 ## 0.21.1 — "Fastened again" (2026-10-31)
 
 - **Ports do not move, without exception** (the owner, 31.10: "a

@@ -588,9 +588,7 @@ searchInput.addEventListener('input', ()=>{
    showing if it is not the main one — so a link sent to somebody opens
    the entry the way the sender was looking at it. The fragment never
    reaches a server, and the page reads it on the way in (below), so the
-   same link works on the site, from a disk and from a copy elsewhere.
-   Inside claude.ai the address is the viewer's sandbox, which is nobody's
-   link, so the button is not offered there. */
+   same link works on the site, from a disk and from a copy elsewhere. */
 function entryLink(id){
   const n = nodes.get(id);
   if(!n) return '';
@@ -721,7 +719,6 @@ async function copyEntryLink(id, button, idleTitle){
 }
 const detailLink = document.getElementById('detailLink');
 if(detailLink){
-  detailLink.hidden = HOSTED;
   detailLink.addEventListener('click', ev=>{
     ev.stopPropagation();
     if(selectedId) copyEntryLink(selectedId, detailLink, 'Copy a link to this entry');

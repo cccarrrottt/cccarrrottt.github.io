@@ -59,59 +59,27 @@ the suite validates the owner's chart and a chart of every kind against it.
 
 ## Where the chart's contents actually live
 
-**On the published site, in `src/data.js`** — Save there commits the regions
-to the repository through the write service (`worker/`), so the repository is
-current by construction. **On claude.ai, not in `src/data.js`.** The artifact
-rewrites its own `@@EDIT@@` regions when someone presses Save, so the live
-artifact holds the current chart and the repository holds a seed. Everything
-below is about that second case.
+**In `src/data.js`, and only there.** Save on the published site commits the
+regions to the repository through the write service (`worker/`), so the
+repository is current by construction, and `build.py` makes the page from
+`src/` and nothing else.
 
-Before doing anything that will be published, pull the live copy back:
-
-```bash
-python3 build.py --pull saved-live-page.html
-```
-
-A plain `python3 build.py` already carries the regions over from the existing
-`dist/nexus.html`; `--pull` is for when the browser has edits that no local
-build has seen. The pull refuses a region that is missing, emptied, or has
-lost most of its contents (`--partial`, `--force` to override), and keeps
-three generations of `src/data.js` and `dist/nexus.html` in `.backups/`.
-
-**The plain build carries them in memory only.** It writes the chart into the
-page it is building and leaves `src/data.js` exactly as stale as it was; only
-`--pull` writes back. That is the right split — a build should not quietly
-rewrite a source file, and `--pull` is the guarded version of that write — but
-it has a consequence worth stating plainly:
-
-> `dist/` is generated and ignored, so a clean checkout has no live page at
-> all. CI is a clean checkout. **What CI builds, and therefore what the
-> published site becomes, is `src/data.js` and nothing else** — however far
-> behind the artifact it has drifted.
-
-So the two copies can disagree indefinitely while every local build looks
-correct, because every local build carries the data across. Nothing about
-that is visible until a publish loses work nobody deleted.
-
-`python3 tools/data_check.py` asks the question directly. It reads only,
-compares the regions of `src/data.js` against `dist/nexus.html`, and exits
-non-zero when the sources are behind. A missing `dist/` is reported as a
-fresh clone rather than as a failure — otherwise it would cry wolf on every
-CI run, which is where it runs unattended. The comparison is on region
-TEXT, not on item counts: renaming an entry changes no count, and most
-staleness looks like that.
-
-The build says the same two things itself — that it had nothing to carry
-from, or that what it carried differs from the sources — so neither case
-can happen in silence any more.
+It used to be two places, and it is worth knowing why it is not. A copy on
+claude.ai saved by rewriting its own `@@EDIT@@` regions, so the newest chart
+lived in a page nobody had committed; a build carried the chart over from the
+`dist/nexus.html` it replaced, `build.py --pull` brought it back into the
+sources by hand, and `tools/data_check.py` asked whether the two had drifted —
+because a clean checkout, which is what CI is, built from `src/data.js` alone
+however far behind it was. The owner dropped the claude.ai copy (0.22.0), and
+the carrying, `--pull`, `.backups/` and the data check went with it. Do not
+bring a second home for the chart back without bringing all of that back too.
 
 ## Before you say anything is done
 
-Seven checks, and all seven have to be green:
+Six checks, and all six have to be green:
 
 ```bash
 python3 build.py
-python3 tools/data_check.py      # ~instant, and run it AFTER the build
 node tools/chart_check.js        # ~instant: the chart is data, and fits its schema
 python3 tests/build_guard.py     # ~seconds
 python3 tools/lint.py            # ~seconds, and tools/tdz.js with it
@@ -176,7 +144,6 @@ page decides when it opens:
 
 | where it is opened | what it is |
 | --- | --- |
-| claude.ai | asks the artifact host, as it always did |
 | `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner |
 | anywhere else (disk, other hosts, the test server) | its holder's own copy, saving into their browser |
 
@@ -598,10 +565,11 @@ Do not re-propose these without new evidence:
 
 ## Priorities
 
-1. **Independence from the claude.ai runtime.** This is the standing top
-   priority. Pages serves the page and Save on the site commits to the
-   repository through `worker/`, and pictures are files beside the page.
-   What a copy on claude.ai cannot do now is show those pictures.
+1. **Independence from the claude.ai runtime.** Done as of 0.22.0: Pages
+   serves the page, Save on the site commits to the repository through
+   `worker/`, pictures are files beside the page, and the page no longer
+   asks an artifact host anything. What is left of the artifact's shape is
+   the chart as `@@EDIT@@` regions of a script; moving it to JSON is next.
 2. **Bughunting**, and removing behaviour that is unwanted or surprising, over
    new features.
 

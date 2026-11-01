@@ -293,9 +293,9 @@
   body.read-only .detail-note-btn,
   body.read-only .node-handles,
   body.read-only #saveState,
-  /* Drawn before the page learns it is read-only (on claude.ai that
-     answer comes late), the ✕ on a tag would otherwise stay up until the
-     panel is next built. */
+  /* Drawn before the page learns it is read-only (an answer that can come
+     late), the ✕ on a tag would otherwise stay up until the panel is next
+     built. */
   body.read-only .legend-tag-del,
   body.read-only #sideTabs .plus-mini,
   body.read-only #refColorRow, body.read-only .ref-tools,

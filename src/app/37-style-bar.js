@@ -346,8 +346,7 @@ const styleBar = (()=>{
     });
   });
   /* A link to an array, as an entry has one in its drawer: an array has no
-     drawer, and its bar is where everything else about it is. Not inside
-     claude.ai, where the address is the viewer's sandbox (see entryLink). */
+     drawer, and its bar is where everything else about it is. */
   const linkRow = document.createElement('div');
   linkRow.className = 'style-bar-group';
   linkRow.dataset.group = 'link';
@@ -563,7 +562,7 @@ function syncStyleBarRows(){
   };
   const isArr = isArrayNode(n);
   rows.hatch.hidden = rows.arrayInk.hidden = !isArr;
-  rows.link.hidden = !isArr || HOSTED;
+  rows.link.hidden = !isArr;
   // An array is as big as what it holds and stands the way that does.
   rows.turn.hidden = !n || styleBarFree(n) || isArr;
   /* Furniture's bar is the stack and nothing else. A caption and a

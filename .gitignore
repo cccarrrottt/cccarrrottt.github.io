@@ -6,8 +6,10 @@
 # the run.
 dist/
 
-# build.py keeps three generations of src/data.js and dist/nexus.html here
-# before it overwrites either. They are a local undo, not project history.
+# Where build.py once kept copies of src/data.js and dist/nexus.html, back
+# when a build carried the chart over from the page it replaced. It does
+# not any more (0.22.0); ignored so a folder an older build left is not
+# committed by accident.
 .backups/
 
 # tools/lint.py assembles src/app/*.js into one file here so eslint can see
