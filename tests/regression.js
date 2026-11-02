@@ -19837,16 +19837,24 @@ async function main(){
       const xs = [await centreAt('above'), await centreAt('on'), await centreAt('below')];
       out.sideXs = xs.map(v=> +v.toFixed(1));
       out.levelAcrossSides = Math.max(...xs) - Math.min(...xs) < 1.5;
-      out.unframedByDefault = !document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
+      /* Framed as a level note is, by the one flag both read (the owner's
+         list of 3.11: the frame button answered to the mode, and turning
+         the words level took a frame set along the line away). */
+      out.unframedByDefault = !!document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
 
-      /* …and may be framed, from the style bar's frame button, by a band
-         that bends with the words. */
+      /* …and the style bar's frame button takes it off and puts it back,
+         a band that bends with the words. */
       openStyleBar({kind:'note', from:'ev_a', to:'ev_b'}); await wait(80);
       const frameBtn = styleBar.querySelector('[data-group="frame"] button[data-value="frame"]');
       out.frameOffered = !!frameBtn && !frameBtn.disabled;
       if(frameBtn) frameBtn.click();
       await wait(250);
-      out.frameStored = edgeStyleFor('ev_a','ev_b').noteAlongFrame === true;
+      const bare = edgeStyleFor('ev_a','ev_b').noteFrame === false &&
+                   !document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
+      out.savedBare = /noteFrame:false/.test(serializeEdgeStyles ? serializeEdgeStyles(EDGE_STYLES) : chartDataOnly());
+      if(frameBtn) frameBtn.click();
+      await wait(250);
+      out.frameStored = bare && edgeStyleFor('ev_a','ev_b').noteFrame !== false;
       const frame = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
       const ground = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-ground');
       out.frameDrawn = !!frame && !!ground && +frame.getAttribute('stroke-width') > +ground.getAttribute('stroke-width');
@@ -19857,7 +19865,7 @@ async function main(){
       }
       const cornersBtn = styleBar.querySelector('[data-group="corners"] button');
       out.cornersOffered = !!cornersBtn && !cornersBtn.disabled;
-      out.savedAsSuch = /noteAlongFrame:true/.test(serializeEdgeStyles ? serializeEdgeStyles(EDGE_STYLES) : chartDataOnly());
+      out.savedAsSuch = out.savedBare;
       closeStyleBar();
       // The face of the button is drawn as the font draws its arrows.
       const glyph = styleBar.querySelector('[data-group="noteAlong"] svg');
@@ -19918,7 +19926,7 @@ async function main(){
   check('…and undo lights after an edit made with a mouse', r.undoLit);
   check('words along a line stay level with their point when moved above, onto or below it',
         r.levelAcrossSides, JSON.stringify(r.sideXs));
-  check('words along a line are bare until framed, and the frame button frames them with a band that bends with them',
+  check('words along a line are framed as level ones are, and the frame button takes off and puts back a band that bends with them',
         r.unframedByDefault && r.frameOffered && r.frameStored && r.frameDrawn && r.frameRoundWords && r.cornersOffered && r.savedAsSuch,
         JSON.stringify({bare:r.unframedByDefault, offered:r.frameOffered, stored:r.frameStored, drawn:r.frameDrawn,
                         round:r.frameRoundWords, corners:r.cornersOffered, saved:r.savedAsSuch}));
@@ -21267,7 +21275,10 @@ async function main(){
       r.band = [c1.cardTop, +(c1.w * 2).toFixed(2)];
       const img = document.querySelector('.node[data-id="to_c1"] > image');
       r.imgBottom = img ? +(+img.getAttribute('y') + +img.getAttribute('height') - c1.y).toFixed(2) : null;
-      r.wavy = [c1.w - c2.w, c1.h - c2.h];
+      /* Since the owner's list of 3.11 a card closes on its words as an
+         entry does, so a ripple widens it by what it widens an entry by —
+         the difference in their insets — and no more. */
+      r.wavy = [+(c2.w - c1.w).toFixed(2), +(2 * (textInsetFor(c2) - textInsetFor(c1))).toFixed(2)];
       r.chips = [c3.w, c3.chipRight - c3.x];
       r.labels = ['editMediumInput', 'editImageInput', 'freeMenuImageUrl']
         .map(id=> document.querySelector(`label[for="${id}"]`).textContent).join('|');
@@ -21335,8 +21346,8 @@ async function main(){
   check('a card\'s picture is as wide as its heading and stops at its rule',
         Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - 0.5)) < 0.05,
         JSON.stringify(out.card));
-  check('a wavy card is no bigger than a plain one, and an entry is as wide as its chips',
-        Math.abs(out.card.wavy[0] - 3) < 0.01 && Math.abs(out.card.wavy[1] - 3) < 0.01 && out.card.chips[0] >= out.card.chips[1],
+  check('a wavy card is bigger than a plain one only as a wavy entry is, and an entry is as wide as its chips',
+        Math.abs(out.card.wavy[0] - out.card.wavy[1]) < 0.02 && out.card.wavy[1] < 1.5 && out.card.chips[0] >= out.card.chips[1],
         JSON.stringify(out.card));
   check('the fields say what they are and nothing after it', out.card.labels === 'Medium|Portrait|Image', out.card.labels);
   check('a style bar choice leaves the bar where it was', out.bar.length === 3 && out.bar[0] === out.bar[1] && out.bar[2] === 'wavy',
@@ -21632,7 +21643,7 @@ async function main(){
     out.noteFrames = await page.evaluate(async ([X, Y])=>{
       applyEdit(()=>{
         const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above'};
-        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}], ['ab', {noteAlong:true}]].forEach(([k, o], i)=>{
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true}], ['ab', {noteAlong:true, noteFrame:false}]].forEach(([k, o], i)=>{
           workingNodes.push(['o111_' + k + 'a','A',null,null,null,null,{pos:[X - 600, Y + 300 + i * 60]}]);
           workingNodes.push(['o111_' + k + 'b','B','o111_' + k + 'a',null,null,null,{pos:[X - 420, Y + 300 + i * 60]}]);
           EDGE_STYLES.push(Object.assign({from:'o111_' + k + 'a', to:'o111_' + k + 'b'}, base, o));
@@ -21849,7 +21860,7 @@ async function main(){
       applyEdit(()=>{
         workingNodes.push(['o211_c','Card',null,null,'A note',null,{pos:[X, Y], card:true, image:cv.toDataURL(), border:'wavy'}]);
         const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above', noteSquare:false};
-        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}]].forEach(([k, o], i)=>{
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true}]].forEach(([k, o], i)=>{
           workingNodes.push(['o211_' + k + 'a','A',null,null,null,null,{pos:[X + 400, Y + i * 80]}]);
           workingNodes.push(['o211_' + k + 'b','B','o211_' + k + 'a',null,null,null,{pos:[X + 600, Y + i * 80]}]);
           EDGE_STYLES.push(Object.assign({from:'o211_' + k + 'a', to:'o211_' + k + 'b'}, base, o));

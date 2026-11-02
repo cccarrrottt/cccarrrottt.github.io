@@ -595,7 +595,12 @@ const drawOne = (n)=>{
      arrived wider than the words it was put over). The minimum is for the
      bands of smaller words, which wrap. */
   const cardPicOnly = isCard && !cardBare && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
-  const inkPad = closesOnInk || cardPicOnly ? textInsetFor(n) : NODE_PAD_X;
+  /* …and so is every other card, since (the owner's list of 3.11) its
+     words stood seven pixels in from the sides and four and a half from
+     the rules, where every other entry's stand one pixel off its border:
+     a card's bands are boxes of words like any other, and each is closed
+     on its ink at the same inset, from the border and from the rules. */
+  const inkPad = closesOnInk || isCard ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
      inkCornerR. A card and a picture keep the old one. */
   const cornerR = closesOnInk ? inkCornerR(n) : 5;
@@ -675,11 +680,34 @@ const drawOne = (n)=>{
   const cardBodyScale = cardBodyFS / NODE_FS;
   const cardBodyLineH = LINE_H * cardBodyScale;
   const cardBody = isCard && drawsOnChart(n.note || '') ? String(n.note).trim() : '';
-  const cardBodyFit = { maxWidth: w - 14, fontSize: cardBodyFS, family: fontFamily };
-  const cardBodyChars = Math.max(8, Math.round((w - 14) / (cardBodyFS*0.55)));
+  const cardBodyFit = { maxWidth: w - inkPad*2, fontSize: cardBodyFS, family: fontFamily };
+  const cardBodyChars = Math.max(8, Math.round((w - inkPad*2) / (cardBodyFS*0.55)));
+  const cardBodyOpts = {fontSize:cardBodyFS, family:fontFamily};
+  const cardBodyInk = cardBody
+    ? measureTextBlock(cardBody, cardBodyChars, cardBodyLineH, cardBodyScale, cardBodyOpts, cardBodyFit) : null;
+  /* The middle band, between the heading and the note. */
+  const cardMedFS = fontSize * CARD_MEDIUM_SCALE;
+  const cardMedScale = cardMedFS / NODE_FS;
+  const cardMedLineH = LINE_H * cardMedScale;
+  const cardMedium = isCard && drawsOnChart(n.medium || '') ? String(n.medium).trim() : '';
+  const cardMedFit = { maxWidth: w - inkPad*2, fontSize: cardMedFS, family: fontFamily };
+  const cardMedChars = Math.max(8, Math.round((w - inkPad*2) / (cardMedFS*0.55)));
+  const cardMedOpts = {fontSize:cardMedFS, family:fontFamily};
+  const cardMedInk = cardMedium
+    ? measureTextBlock(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedOpts, cardMedFit) : null;
+  /* The bands wrap at the width worked out above, and the card then closes
+     on the widest ink any of them made, as an entry does: shrinking to it
+     cannot change a wrap, since every line already fits inside the widest
+     of them. The minimum is what the bands wrap at, not a margin. */
+  if(isCard && !manual && !cardBare && !cardPicOnly){
+    const widest = Math.max(maxInkW, cardBodyInk ? cardBodyInk.width : 0, cardMedInk ? cardMedInk.width : 0);
+    if(widest > 0) n.w = w = Math.min(w, round2(widest + inkPad*2));
+  }
+  /* Each band is its ink and the inset above and below it, measured as
+     the entry's own words are (measureTextBlock), not as lines of type:
+     a line's box has more above the baseline than below it. */
   const cardHeadH = !isCard ? 0
-    : cardBare ? (maxInkW > 0 ? round2(maxTotalH + inkPad*2) : GRID)
-    : Math.max(22, CARD_PAD_Y + maxTotalH);
+    : (maxInkW > 0 ? round2(maxTotalH + inkPad*2) : GRID);
   /* The picture band, which a card without a picture does not have — and
      which is as deep as the picture needs rather than a fixed slab. A
      fixed band can only be honoured by cropping, and cropping a picture
@@ -698,19 +726,8 @@ const drawOne = (n)=>{
        : (()=>{ const r = imageAspect(n.image);
                 return r ? Math.max(1, round2(w * r)) : CARD_IMG_H; })())
     : 0;
-  const cardBodyH = cardBody
-    ? CARD_PAD_Y + wrapAndMeasure(cardBody, cardBodyChars, cardBodyLineH, cardBodyScale, cardBodyFit).totalH
-    : 0;
-  /* The middle band, between the heading and the note. */
-  const cardMedFS = fontSize * CARD_MEDIUM_SCALE;
-  const cardMedScale = cardMedFS / NODE_FS;
-  const cardMedLineH = LINE_H * cardMedScale;
-  const cardMedium = isCard && drawsOnChart(n.medium || '') ? String(n.medium).trim() : '';
-  const cardMedFit = { maxWidth: w - 14, fontSize: cardMedFS, family: fontFamily };
-  const cardMedChars = Math.max(8, Math.round((w - 14) / (cardMedFS*0.55)));
-  const cardMedH = cardMedium
-    ? CARD_PAD_Y + wrapAndMeasure(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedFit).totalH
-    : 0;
+  const cardBodyH = cardBodyInk ? round2(cardBodyInk.height + inkPad*2) : 0;
+  const cardMedH = cardMedInk ? round2(cardMedInk.height + inkPad*2) : 0;
   /* The smallest box this entry may be made by hand: the one it closes to
      by itself, its words a pixel inside the border — never past the widest
      box it would allow itself, where it clips instead. A corner dragged
@@ -757,8 +774,10 @@ const drawOne = (n)=>{
      crests stand where a plain card's border did. */
   /* A card that is only a heading closes on its words like an entry, and
      its ripple is placed as an entry's is (textReachIn). */
-  const cardRipple = (isCard && isWavy && !closesOnInk && !manual && !turned) ? POCKET_AMP : 0;
-  if(cardRipple){ n.w = w = w - 2 * cardRipple; h -= 2 * cardRipple; }
+  /* …and so, since the owner's list of 3.11, does every card: each band
+     is closed on its ink at the inset textInsetFor gives, which for a
+     ripple already holds its depth. Taking the box in by the depth as
+     well put the troughs across the words. */
   /* Placed as the turned box — where it stands is decided by the shape
      the reader sees, which is also how a turned entry has always been
      saved. Drawn upright below, at the same middle. */
@@ -813,12 +832,8 @@ const drawOne = (n)=>{
        level, one with a second line, would no longer be. Centring keeps
        every middle where it was, which is where connectors meet a box. */
     n.growShift = closesOnInk ? round2((h - NODE_GROW_REF) / 2)
-                              : snapToGrid(Math.max(0, h + 2 * cardRipple - NODE_GROW_REF) / 2);
+                              : snapToGrid(Math.max(0, h - NODE_GROW_REF) / 2);
     n.y = n.pos.y - n.growShift;
-    if(cardRipple){
-      n.growShift -= cardRipple; n.y = n.pos.y - n.growShift;
-      n.growShiftX = -cardRipple; n.x = n.pos.x - n.growShiftX;
-    }
     /* And sideways, by what the border takes beyond a plain one.
      *
        Height was already spread either side of the stored position, but
@@ -862,12 +877,6 @@ const drawOne = (n)=>{
      be honoured whatever the box: the bands went below the picture and so
      below the card, and the heading was written across its bottom border.
      The words are what the card is FOR; the picture gives way. */
-  /* Measured from the top of the card it would be unrippled: a ripple
-     takes the box in by its depth all round (cardRipple), and the picture
-     keeps the band it had, reaching out to the crests as it reached the
-     plain border. Taken in with the box, the band was a little narrower
-     and shallower than the picture's own proportions, and turning a card
-     wavy drew its picture smaller (the owner's list of 1.11). */
   const cardImgDepth = !isCard ? 0
     /* A card sized by hand gives its picture's band whatever the words
        leave, whatever size the picture itself was given: the picture keeps
@@ -875,15 +884,15 @@ const drawOne = (n)=>{
        cover is filled (see the drawing). It used to take a picture's depth
        set by hand as the band's, and the rest went to the heading. */
     : (manual && n.image) ? Math.max(0, h - cardTextH)
-    : Math.max(0, Math.min(cardImgH, h + 2 * cardRipple - cardTextH));
-  const cardImgB = isCard ? n.y + (cardImgDepth > 0 ? cardImgDepth - cardRipple : 0) : 0;
+    : Math.max(0, Math.min(cardImgH, h - cardTextH));
+  const cardImgB = isCard ? n.y + cardImgDepth : 0;
   /* Each band below the picture takes the height its own words need, in
      order, and the heading takes whatever is left over — so a card given
      more room by hand grows where the room was given rather than
      redistributing every band. */
   const cardHeadB = isCard
     ? ((cardMedium || cardBody)
-        ? Math.min(h + n.y - 14, cardImgB + Math.max(22, h - (cardImgB - n.y) - cardMedH - cardBodyH))
+        ? Math.min(h + n.y - 14, cardImgB + Math.max(cardHeadH, h - (cardImgB - n.y) - cardMedH - cardBodyH))
         : n.y + h)
     : 0;
   const cardMedB = isCard ? (cardBody ? cardHeadB + cardMedH : n.y + h) : 0;
@@ -1343,10 +1352,9 @@ const drawOne = (n)=>{
     const bleed = isWavy ? POCKET_AMP + 1 : 0;
     /* How wide the picture is drawn. A picture pulled in from the sides
        stands in the middle of its band; one at full width reaches the
-       border. Both are measured on the card as it would be unrippled
-       (see cardImgDepth), so a ripple changes nothing about the picture
-       but the outline it is cut to. */
-    const bandW = w + 2 * cardRipple;
+       border. A ripple changes nothing about the picture but the outline
+       it is cut to. */
+    const bandW = w;
     const imgW = Math.max(0, Math.min(bandW, n.cardImgW == null ? bandW : n.cardImgW));
     const imgX = n.x + (w - imgW)/2;
     /* Down to the rule under it and not across it: the rule is drawn
@@ -1354,7 +1362,7 @@ const drawOne = (n)=>{
        line between the picture and the heading (the owner's list of
        30.10). */
     const ruleCut = cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0;
-    const bandY = n.y - cardRipple, bandH = Math.max(0, cardImgB - bandY - ruleCut);
+    const bandY = n.y, bandH = Math.max(0, cardImgB - bandY - ruleCut);
     /* As deep as it was made, in the middle of its band — which is the
        whole band unless the card was sized by hand round it. */
     const imgH = Math.min(bandH, n.cardImgH == null ? bandH : n.cardImgH);
@@ -1678,17 +1686,17 @@ const drawOne = (n)=>{
   if(isCard && cardMedium){
     const medEl = el('text', {x:centerX, y:0, 'font-size':cardMedFS,
       class:'card-medium', style:`font-family:${fontFamily};`}, g);
-    renderNodeText(medEl, cardMedium, (cardHeadB + cardMedB)/2, centerX,
-                   cardMedChars, cardMedLineH, cardMedScale,
-                   {fontSize:cardMedFS, family:fontFamily}, cardMedFit);
+    renderNodeText(medEl, cardMedium, (cardHeadB + cardMedB)/2 - (cardMedInk.mid || 0),
+                   centerX - (cardMedInk.midX || 0), cardMedChars, cardMedLineH, cardMedScale,
+                   cardMedOpts, cardMedFit);
   }
   // The card's body: the note, set smaller and quieter than the heading.
   if(isCard && cardBody){
     const bodyEl = el('text', {x:centerX, y:0, 'font-size':cardBodyFS,
       class:'card-body', style:`font-family:${fontFamily};`}, g);
-    renderNodeText(bodyEl, cardBody, (cardMedB + n.y + h)/2, centerX,
-                   cardBodyChars, cardBodyLineH, cardBodyScale,
-                   {fontSize:cardBodyFS, family:fontFamily}, cardBodyFit);
+    renderNodeText(bodyEl, cardBody, (cardMedB + n.y + h)/2 - (cardBodyInk.mid || 0),
+                   centerX - (cardBodyInk.midX || 0), cardBodyChars, cardBodyLineH, cardBodyScale,
+                   cardBodyOpts, cardBodyFit);
   }
 
   if(turn){
