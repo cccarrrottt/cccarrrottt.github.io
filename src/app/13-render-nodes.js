@@ -2112,16 +2112,14 @@ const drawOne = (n)=>{
        other entry answers to. Opening the card on the first click meant a
        reader could not simply select a callout to move or delete it
        without a form appearing over the drawing each time. */
-    /* A link node goes where it points — once it is plain the press was
-       not the first half of a double click, which opens its settings. One
-       that goes nowhere is picked up as any entry is, to be told where. */
-    if(isLinkNode && linkNodeTarget(liveN())){
+    /* A link node is picked up by one press, as any entry is, and goes
+       where it points on two (the owner's list of 2.11). It used to go on
+       one, so it could not be picked to be moved, recoloured or deleted
+       without the view leaving it. */
+    if(isLinkNode){
       clearTimeout(nodeClickTimer);
-      nodeClickTimer = setTimeout(()=>{
-        nodeClickTimer = null;
-        const to = linkNodeTarget(liveN());
-        if(to) openEntryOn(to.id, to.tab);
-      }, DOUBLE_CLICK_GRACE);
+      selectNode(n.id, {quiet: true});
+      paintMultiSelection();
       return;
     }
     if(isCallout || isArray){
@@ -2156,6 +2154,12 @@ const drawOne = (n)=>{
     ev.stopPropagation(); ev.preventDefault();
     // The pending single-click panel never happens: this was a double.
     clearTimeout(nodeClickTimer); nodeClickTimer = null;
+    /* A link node goes where it points on two presses — for a reader too,
+       for whom it is the one thing a double click does. */
+    if(isLinkNode){
+      const to = linkNodeTarget(liveN());
+      if(to){ openEntryOn(to.id, to.tab); return; }
+    }
     if(document.body.classList.contains('read-only')) return;
     // An array has no words to write and no settings beyond its bar.
     if(isArray) return;
@@ -2219,6 +2223,7 @@ const drawOne = (n)=>{
        the size, the side its card hangs on. */
     if(isBio){ openEntrySettings(n.id); return; }
     /* A link node has no words either: where it goes is on its bar. */
+    // One that goes nowhere yet is asked where it goes.
     if(isLinkNode){ selectNode(n.id); paintMultiSelection(); askWhereLinkGoes(n.id); return; }
     /* A split has nothing to write and nothing to set but its colour,
        which is on its bar; a double click picks it up, as one click does. */

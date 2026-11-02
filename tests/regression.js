@@ -20112,8 +20112,11 @@ async function main(){
       const lg = document.querySelector('.node[data-id="tf_l"]');
       const lr = lg.getBoundingClientRect();
       lg.dispatchEvent(new MouseEvent('click', {clientX: lr.left + lr.width / 2, clientY: lr.top + lr.height / 2, bubbles:true}));
-      out.notAtOnce = selectedId !== 'tf_r';
+      /* (the owner's list of 2.11) one click picks it, two go. */
       await wait(DOUBLE_CLICK_GRACE + 150);
+      out.notAtOnce = selectedId === 'tf_l';
+      lg.dispatchEvent(new MouseEvent('dblclick', {clientX: lr.left + lr.width / 2, clientY: lr.top + lr.height / 2, bubbles:true}));
+      await wait(150);
       out.went = selectedId === 'tf_r';
       deselect();
     } finally {
@@ -20148,7 +20151,7 @@ async function main(){
   check('…it points by a link or a bare id, never at itself, and the text view says where',
         r.linkTarget === 'tf_r' && r.bareId === 'tf_q' && r.notItself &&
         r.names[0] === 'Link to R' && r.names[1] === 'Link to nowhere', JSON.stringify(r.names));
-  check('…and a click on it goes there, once a double click is plainly not coming', r.notAtOnce && r.went);
+  check('…and a click on it picks it up, and a double click goes there', r.notAtOnce && r.went);
 
   /* 5, 6 and 9: the picture player, a picture in the dark while the view
      moves, and a sticker in the in-entry field. */
