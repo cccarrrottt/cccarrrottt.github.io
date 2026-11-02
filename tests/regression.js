@@ -10345,8 +10345,11 @@ async function main(){
     /* ---- the sheets of a stack are half a turn apart ---- */
     {
       const a = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      resumeAnimation(a, LIVELY_CYCLE.sheet, 0, -LIVELY_CYCLE.sheet / LOCAL_SHEETS);
+      /* Three in the stream since the owner's list of 2.11, a third of a
+         turn apart: the delay is in seconds, the stagger in milliseconds. */
+      resumeAnimation(a, LIVELY_CYCLE.sheet, 0, -LIVELY_CYCLE.sheet / (LOCAL_SHEETS + 1));
       out.sheetStagger = a.style.animationDelay;
+      out.sheetStaggerWant = -LIVELY_CYCLE.sheet / (LOCAL_SHEETS + 1) / 1000;
     }
 
     applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
@@ -10378,8 +10381,8 @@ async function main(){
         rMv.otherDropStays, rMv.dropAt);
   check('a carried lineage gives way to a still one, and only nearby',
         rMv.carriedGivesWay && rMv.farUntouched && rMv.neighbourHeld);
-  check('a local multiverse\'s two sheets are half a turn apart',
-        Math.abs(parseFloat(rMv.sheetStagger) + 0.85) < 1e-6, rMv.sheetStagger);
+  check('a local multiverse\'s sheets are a third of a turn apart',
+        Math.abs(parseFloat(rMv.sheetStagger) - rMv.sheetStaggerWant) < 1e-3, rMv.sheetStagger);
   });
 
   /* ---- 32. the page on the published site ----
@@ -20112,8 +20115,11 @@ async function main(){
       const lg = document.querySelector('.node[data-id="tf_l"]');
       const lr = lg.getBoundingClientRect();
       lg.dispatchEvent(new MouseEvent('click', {clientX: lr.left + lr.width / 2, clientY: lr.top + lr.height / 2, bubbles:true}));
-      out.notAtOnce = selectedId !== 'tf_r';
+      /* (the owner's list of 2.11) one click picks it, two go. */
       await wait(DOUBLE_CLICK_GRACE + 150);
+      out.notAtOnce = selectedId === 'tf_l';
+      lg.dispatchEvent(new MouseEvent('dblclick', {clientX: lr.left + lr.width / 2, clientY: lr.top + lr.height / 2, bubbles:true}));
+      await wait(150);
       out.went = selectedId === 'tf_r';
       deselect();
     } finally {
@@ -20148,7 +20154,7 @@ async function main(){
   check('…it points by a link or a bare id, never at itself, and the text view says where',
         r.linkTarget === 'tf_r' && r.bareId === 'tf_q' && r.notItself &&
         r.names[0] === 'Link to R' && r.names[1] === 'Link to nowhere', JSON.stringify(r.names));
-  check('…and a click on it goes there, once a double click is plainly not coming', r.notAtOnce && r.went);
+  check('…and a click on it picks it up, and a double click goes there', r.notAtOnce && r.went);
 
   /* 5, 6 and 9: the picture player, a picture in the dark while the view
      moves, and a sticker in the in-entry field. */
@@ -21535,6 +21541,22 @@ async function main(){
     out.side0 = await page.evaluate(()=> mergedArrowPorts.get('o111_m').p2.side);
     out.across = await carry(-480);
     out.undone = await page.evaluate(()=>{ undoLastEdit(); return [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]; });
+    /* …and (the owner's list of 2.11) a face chosen by hand is the one a
+       carry keeps, as on every connector: unset, the face is autoSides'. */
+    await page.evaluate(()=>{
+      applyEdit(()=> setEdgeStyleOverride('', 'o111_m', Object.assign({}, edgeStyleFor('', 'o111_m'), {toSide: 'top'})));
+      rebuildChart();
+    });
+    out.handAcross = await carry(-480);
+    await page.evaluate(()=>{ undoLastEdit(); undoLastEdit(); rebuildChart(); });
+    out.beside = await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o111_m'); e[6].pos = [X + 700, Y + 40]; });
+      rebuildChart();
+      const side = mergedArrowPorts.get('o111_m').p2.side;
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o111_m'); e[6].pos = [X + 100, Y + 300]; });
+      rebuildChart();
+      return side;
+    }, [X, Y]);
     /* 3. A card's picture: the same size rippled or not, the band it
           leaves filled with itself blurred, unlit when the card is picked,
           and kept at its size when the card is resized. */
@@ -21644,19 +21666,30 @@ async function main(){
         .map(r=> [r.b.x, r.b.y, r.b.width, r.b.height, r.o].map(v=> +v.toFixed(1)).join(','))
         .sort();
       const still = {h: look('o111_h'), m: look('o111_m2')};
-      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.add('tag-lively'));
-      const anims = (name)=> document.getAnimations().filter(a=> a.animationName === name &&
-        (aura('o111_h').contains(a.effect.target) || aura('o111_m2').contains(a.effect.target)));
-      const at = (name, ms)=>{ anims(name).forEach(a=>{ a.pause(); a.currentTime = ms; }); };
+      /* Set going the way the page sets it going — by picking the entry,
+         which writes each piece's delay (applyVisibility) — and then
+         stopped at moments of the turn. Adding the class by hand skipped
+         that, and passed while the page ran something else. */
+      const anims = (name, id)=> document.getAnimations().filter(a=> a.animationName === name && aura(id).contains(a.effect.target));
+      const at = (name, id, ms)=>{ anims(name, id).forEach(a=>{ a.pause(); a.currentTime = ms; }); };
+      const settle = ()=> new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok)));
       const moving = [];
-      for(const [h, m] of [[0, 0], [600, 600], [1800, 1200]]){
-        at('hub-echo-out', h); at('local-sheet-away', m);
-        await new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok)));
-        moving.push({h: look('o111_h'), m: look('o111_m2')});
-      }
-      const between = (()=>{ at('hub-echo-out', 300); return look('o111_h'); })();
-      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.remove('tag-lively'));
-      return {still, moving, between, counts: [anims('hub-echo-out').length, anims('local-sheet-away').length]};
+      const run = async (id, name, times)=>{
+        deselect(); await settle();
+        selectNode(id, {quiet: true}); await settle();
+        const got = [];
+        for(const ms of times){ at(name, id, ms); await settle(); got.push(look(id)); }
+        return got;
+      };
+      const hs = await run('o111_h', 'hub-echo-out', [0, 600, 1800, 2400 * 7 + 1200]);
+      const counts = [anims('hub-echo-out', 'o111_h').length];
+      at('hub-echo-out', 'o111_h', 300); await settle();
+      const between = look('o111_h');
+      const ms = await run('o111_m2', 'local-sheet-away', [0, 600, 1200, 1800 * 5 + 600]);
+      counts.push(anims('local-sheet-away', 'o111_m2').length);
+      hs.forEach((h, i)=> moving.push({h, m: ms[i]}));
+      deselect();
+      return {still, moving, between, counts};
     }, [X, Y]);
     /* 2. Beside every entry, a link node too, a faint button copies a
           link to it, standing clear of the box and of its right port. */
@@ -21694,8 +21727,9 @@ async function main(){
       rebuildChart();
     });
   }
-  check('a merged arrow keeps its face when its entry is carried past the bar',
-        out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
+  check('a merged arrow, carried past the bar, takes the face any connector would, and keeps one set by hand',
+        out.side0 === 'top' && out.across[0] === 'bottom' && !out.across[1] && out.undone[0] === 'top' &&
+        out.handAcross[0] === 'top' && out.beside === 'left', JSON.stringify(out));
   check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
         out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
   {
@@ -21710,7 +21744,8 @@ async function main(){
       r.split(',').every((v, k)=> Math.abs(+v - +b[i].split(',')[k]) <= (k === 4 ? 0.02 : 0.6)));
     check('a hub\'s echo and a local multiverse\'s stack, moving, stand again and again as they stand still',
           sc.still && sc.still.h.length === 3 && sc.still.m.length === 2 &&
-          sc.moving.every(f=> near(f.h, sc.still.h) && near(f.m, sc.still.m)) && !near(sc.between, sc.still.h),
+          sc.moving.every(f=> near(f.h, sc.still.h) && near(f.m, sc.still.m)) && !near(sc.between, sc.still.h)
+          && sc.counts[0] === 4 && sc.counts[1] === 3,
           JSON.stringify(sc));
   }
   check('a faint button beside an entry copies a link to it, outside its box',
@@ -21794,6 +21829,135 @@ async function main(){
   check('…a phone\'s Enter in a field is a new line, and the field\'s ✓ settles it',
         sheet.typing && sheet.typing.open && /\ntwo$/.test(sheet.typing.value) && sheet.done && !sheet.done.open
         && /\ntwo$/.test(sheet.done.label), JSON.stringify(sheet.typing) + JSON.stringify(sheet.done));
+  });
+
+  await scenario("the owner's list of 2.11: a card's blur, a note's width, a line held open, a sheet that follows", async () => {
+  const X = 143000, Y = 143000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      /* 1. A card's blurred band keeps its blur while a finger moves the
+            view, and at night. */
+      const cv = document.createElement('canvas'); cv.width = 300; cv.height = 100;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#3a7'; cx.fillRect(0, 0, 300, 100);
+      applyEdit(()=>{
+        workingNodes.push(['o211_c','Card',null,null,'A note',null,{pos:[X, Y], card:true, image:cv.toDataURL(), border:'wavy'}]);
+        const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above', noteSquare:false};
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}]].forEach(([k, o], i)=>{
+          workingNodes.push(['o211_' + k + 'a','A',null,null,null,null,{pos:[X + 400, Y + i * 80]}]);
+          workingNodes.push(['o211_' + k + 'b','B','o211_' + k + 'a',null,null,null,{pos:[X + 600, Y + i * 80]}]);
+          EDGE_STYLES.push(Object.assign({from:'o211_' + k + 'a', to:'o211_' + k + 'b'}, base, o));
+        });
+        workingNodes.push(['o211_t','Typed',null,null,null,null,{pos:[X, Y + 300]}]);
+      });
+      rebuildChart();
+      await new Promise(ok=> setTimeout(ok, 250));
+      const back = document.querySelector('.node[data-id="o211_c"] .card-img-backdrop image');
+      const blurred = ()=> /url\(/.test(getComputedStyle(back).filter);
+      const theme = document.documentElement.getAttribute('data-theme');
+      const touch = document.body.classList.contains('touch-input');
+      document.body.classList.add('touch-input', 'view-moving');
+      r.blurMoving = blurred();
+      document.documentElement.setAttribute('data-theme', 'dark');
+      r.blurDark = blurred();
+      document.body.classList.remove('view-moving');
+      if(!touch) document.body.classList.remove('touch-input');
+      if(theme) document.documentElement.setAttribute('data-theme', theme);
+      else document.documentElement.removeAttribute('data-theme');
+      /* 5. Round and framed, a note along its line reaches as far as a
+            level one, both ways. */
+      const plate = document.querySelector('.edge-note[data-from="o211_lva"] .edge-note-plate');
+      const frame = document.querySelector('.edge-note[data-from="o211_ala"] .edge-note-along-frame');
+      const pb = plate.getBBox(), fb = frame.getBBox();
+      r.note = {plate: [pb.width + EDGE_NOTE_FRAME_W, pb.height + EDGE_NOTE_FRAME_W].map(v=> +v.toFixed(2)),
+                along: [fb.width, fb.height].map(v=> +v.toFixed(2))};
+      /* 6. A line opened at the end of an entry's field grows the entry
+            before anything is typed on it. */
+      openNodeEditor('o211_t');
+      await new Promise(ok=> setTimeout(ok, 100));
+      const h0 = nodes.get('o211_t').h;
+      const surface = richFields.get('nodeEditorText').surface;
+      const sel = getSelection(); sel.selectAllChildren(surface); sel.collapseToEnd();
+      document.execCommand('insertLineBreak');
+      surface.dispatchEvent(new Event('input', {bubbles: true}));
+      await new Promise(ok=> setTimeout(ok, 120));
+      r.grew = [h0, nodes.get('o211_t').h, nodeEditorText.value];
+      closeNodeEditor(false);
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; keep.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; keep.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('a card\'s blurred band stays blurred while a finger moves the view, and at night',
+        out.blurMoving && out.blurDark, JSON.stringify(out));
+  check('a round, framed note along its line reaches exactly as far as a level one',
+        out.note && Math.abs(out.note.plate[0] - out.note.along[0]) < 0.3 && Math.abs(out.note.plate[1] - out.note.along[1]) < 0.3,
+        JSON.stringify(out.note));
+  check('a line opened at the end of a field grows its entry at once, and is not written into the text',
+        out.grew && out.grew[1] > out.grew[0] + 4 && !/\n$/.test(out.grew[2]), JSON.stringify(out.grew));
+
+  /* 2. On a phone the sheet comes up without changing its height, follows
+        a finger on its heading, and open all the way stays under the top
+        bar, however long its form. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  const sheet = {};
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(700);
+    await pp.evaluate(()=>{
+      applyEdit(()=> workingNodes.push(['o211_p','Phone entry',null,null,'A note\n'.repeat(80),null,{pos:[143000, 143000]}]));
+      rebuildChart();
+      const n = nodes.get('o211_p'); vs = 1.2; vx = -(n.x - 100) * 1.2; vy = -(n.y - 150) * 1.2; applyTransform();
+      window.__sheetH = [];
+      const d = document.getElementById('detail');
+      let frames = 0;
+      const f = ()=>{
+        if(d.classList.contains('open')) __sheetH.push(Math.round(d.getBoundingClientRect().height));
+        if(++frames < 90) requestAnimationFrame(f);
+      };
+      requestAnimationFrame(f);
+    });
+    const c = await pp.evaluate(()=>{ const b = document.querySelector('.node[data-id="o211_p"]').getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2}; });
+    await pp.touchscreen.tap(c.x, c.y); await wait(700);
+    sheet.rising = await pp.evaluate(()=> [...new Set(__sheetH.filter(h=> h > 0))]);
+    const cdp = await phone.newCDPSession(pp);
+    const h = await pp.evaluate(()=>{ const b = document.querySelector('#detail .detail-head').getBoundingClientRect();
+      return {x: b.x + 40, y: b.y + 10}; });
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:h.x, y:h.y}]});
+    sheet.held = [];
+    for(let i = 1; i <= 6; i++){
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:h.x, y:h.y - i * 30}]});
+      await wait(60);
+      sheet.held.push(await pp.evaluate(()=> Math.round(document.getElementById('detail').getBoundingClientRect().height)));
+    }
+    for(let i = 7; i <= 30; i++){
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:h.x, y:Math.max(2, h.y - i * 30)}]});
+      await wait(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+    await wait(400);
+    sheet.open = await pp.evaluate(()=>{ const d = document.getElementById('detail');
+      return {full: d.classList.contains('full'), top: d.getBoundingClientRect().top,
+              bar: document.querySelector('.topbar').getBoundingClientRect().bottom}; });
+  } finally {
+    await phone.close();
+  }
+  check('on a phone a picked entry\'s sheet rises at the one height, without a jump',
+        sheet.rising && sheet.rising.length === 1, JSON.stringify(sheet.rising));
+  check('…follows a finger on its heading as it goes',
+        sheet.held && sheet.held.length === 6 && sheet.held.every((v, i)=> !i || v > sheet.held[i-1]), JSON.stringify(sheet.held));
+  check('…and open all the way, however long its form, stops under the top bar',
+        sheet.open && sheet.open.full && sheet.open.top >= sheet.open.bar, JSON.stringify(sheet.open));
   });
 
   await scenario("nothing threw along the way", async () => {

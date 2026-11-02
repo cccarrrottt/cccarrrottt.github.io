@@ -1087,24 +1087,55 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   if(half > 0){
     const framed = !!(style && style.noteAlongFrame);
     const pad = TEXT_GAP;
-    const piece = alongSlice(run, at - half - pad, at + half + pad);
+    /* The letters' ink, scaled to the length the path actually gives
+       them (its advance and the canvas's can differ by a hair). */
+    const k = inkH.adv ? half * 2 / inkH.adv : 1;
+    const a0 = Number.isFinite(inkH.from) ? at + inkH.from * k : at - half;
+    const a1 = Number.isFinite(inkH.to) ? at + inkH.to * k : at + half;
+    const piece = alongSlice(run, a0 - pad, a1 + pad);
     /* The ink runs a frame's width past the ground at either end, or a
        square band showed its frame above and below the words and nothing
        at their ends (the owner's list of 30.10). */
-    const outer = alongSlice(run, at - half - pad - EDGE_NOTE_FRAME_W, at + half + pad + EDGE_NOTE_FRAME_W);
+    const outer = alongSlice(run, a0 - pad - EDGE_NOTE_FRAME_W, a1 + pad + EDGE_NOTE_FRAME_W);
     if(piece.length > 1){
       const dOf = (q)=> q.map((p, i)=> (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2)).join(' ');
       const d = dOf(piece);
       const band = inkH.up + inkH.down + TEXT_GAP * 2;
       const round = !!(style && style.noteSquare === false);
-      const look = {fill:'none', 'stroke-linecap': round ? 'round' : 'butt',
+      /* Its ends are cut square either way, as far out as a plate's
+         sides: a round cap reached half the band past them, and a plate's
+         corners are rounded by no more than its inset. Round, it is the
+         turns that are round. */
+      const look = {fill:'none', 'stroke-linecap': 'butt',
                     'stroke-linejoin': round ? 'round' : 'miter'};
+      /* Round and straight, it is a plate turned to the line's angle, with
+         a plate's corners — rounded by its inset, as the level one is. */
+      const p0 = piece[0], pN = piece[piece.length - 1];
+      const L = Math.hypot(pN.x - p0.x, pN.y - p0.y);
+      const straight = L > 0 && piece.every(q=>
+        Math.abs((q.x - p0.x) * (pN.y - p0.y) - (q.y - p0.y) * (pN.x - p0.x)) / L < 0.05);
+      if(round && straight){
+        const turn = `translate(${((p0.x + pN.x) / 2).toFixed(2)} ${((p0.y + pN.y) / 2).toFixed(2)}) ` +
+                     `rotate(${(Math.atan2(pN.y - p0.y, pN.x - p0.x) * 180 / Math.PI).toFixed(3)})`;
+        const box = (cls, w, h, r)=> el('rect', {class: cls, x: (-w / 2).toFixed(2), y: (-h / 2).toFixed(2),
+          width: w.toFixed(2), height: h.toFixed(2), rx: r.toFixed(2), transform: turn});
+        const ground = box('edge-note-along-ground plate-like', L, band, TEXT_GAP);
+        if(bg) ground.style.fill = bg;
+        g.insertBefore(ground, ring.t);
+        if(framed){
+          const F = EDGE_NOTE_FRAME_W;
+          const edge = box('edge-note-along-frame plate-like', L + F * 2, band + F * 2, TEXT_GAP + F);
+          if(paint) edge.style.fill = paint;
+          g.insertBefore(edge, ground);
+        }
+        return;
+      }
       const ground = el('path', Object.assign({class:'edge-note-along-ground', d,
                                                'stroke-width': band.toFixed(2)}, look));
       if(bg) ground.style.stroke = bg;
       g.insertBefore(ground, ring.t);
       if(framed){
-        const edge = el('path', Object.assign({class:'edge-note-along-frame', d: round || outer.length < 2 ? d : dOf(outer),
+        const edge = el('path', Object.assign({class:'edge-note-along-frame', d: outer.length < 2 ? d : dOf(outer),
                                                'stroke-width': (band + EDGE_NOTE_FRAME_W * 2).toFixed(2)}, look));
         if(paint) edge.style.stroke = paint;
         g.insertBefore(edge, ground);
@@ -1122,7 +1153,15 @@ function noteAlongInk(words, t){
   inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${(parseFloat(cs.fontSize) || EDGE_NOTE_FS) * INK_SCALE}px ${cs.fontFamily}`;
   const m = inkCtx.measureText(words);
   if(!Number.isFinite(m.actualBoundingBoxAscent) || !(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > 0)) return fallback;
-  return {up: m.actualBoundingBoxAscent / INK_SCALE, down: Math.max(0, m.actualBoundingBoxDescent / INK_SCALE)};
+  /* …and across: where the letters' ink starts and ends against the
+     advance the path lays them out by, centred on the point given. The
+     band was built on the advance, a unit wider than the letters, where a
+     plate is built on their ink (the owner's list of 2.11). */
+  const adv = m.width / INK_SCALE;
+  const l = Number.isFinite(m.actualBoundingBoxLeft) ? m.actualBoundingBoxLeft / INK_SCALE : 0;
+  const r = Number.isFinite(m.actualBoundingBoxRight) ? m.actualBoundingBoxRight / INK_SCALE : adv;
+  return {up: m.actualBoundingBoxAscent / INK_SCALE, down: Math.max(0, m.actualBoundingBoxDescent / INK_SCALE),
+          from: -adv / 2 - l, to: -adv / 2 + r, adv};
 }
 /* The point a fraction of the way along a line, by length. */
 function alongPoint(pts, f){

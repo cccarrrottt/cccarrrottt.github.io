@@ -657,10 +657,17 @@ function renderLabelPreview(){
   const n = nodes.get(labelPreview.id);
   if(!n) return;
   const k = labelPreview.tab;
+  /* A line just opened at the end, with nothing on it yet, is not in the
+     field's value — a text does not end in a break — so the entry did not
+     grow for it, and the field that sits over the entry did not either:
+     the caret went down into nothing until a letter was typed (the
+     owner's list of 2.11). The preview holds the line open. */
+  const open = typeof openLinesAtEnd === 'function' ? openLinesAtEnd(labelPreview.input) : 0;
+  const shown = labelPreview.input.value + (open ? '\n'.repeat(open) + '\u200b' : '');
   if(k !== null && k !== undefined && n.langTabs && n.langTabs[k]){
-    n.langTabs[k].text = labelPreview.input.value;
+    n.langTabs[k].text = shown;
   } else {
-    n.label = labelPreview.input.value;
+    n.label = shown;
   }
   renderNodes();
   redrawEdges();
