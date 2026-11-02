@@ -335,6 +335,8 @@ function importChartFromText(text){
     if(Object.keys(groundIn).length) SETTINGS.groundColors = groundIn; else delete SETTINGS.groundColors;
     const figuresIn = cleanFigureTemplates(settingsIn && settingsIn.figures);
     if(figuresIn.length) SETTINGS.figures = figuresIn; else delete SETTINGS.figures;
+    const mediaTypesIn = cleanMediaTypes(settingsIn && settingsIn.mediaTypes);
+    if(mediaTypesIn.length) SETTINGS.mediaTypes = mediaTypesIn; else delete SETTINGS.mediaTypes;
     ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
     });
@@ -696,10 +698,51 @@ function markEditable(){
   if(!readOnlyView) return;
   readOnlyView = false;
   document.body.classList.remove('read-only');
+  /* A look as a reader ends here too, if the site's answer comes in
+     during one. */
+  if(readerPreview){
+    readerPreview = false;
+    document.body.classList.remove('reader-preview');
+  }
   try{ rebuildChart(); }catch(e){}
   try{ refreshSaveUI(); }catch(e){}
   try{ lookForDraft(); }catch(e){}
 }
+/* The owner's look at the chart as a reader (the owner's list of 2.11).
+ *
+ * Exactly what a reader's page does — markReadOnly — and back exactly as
+ * the site lets the owner back in, but for one thing: nothing in this
+ * page is thrown away or re-read on the way back. Whatever the owner had
+ * not yet saved is still the chart in memory, and the save state reads it
+ * again; a draft is not looked for, since there is none newer than what
+ * is open. The service is not asked anything either way: this is a look,
+ * not a sign-out. */
+let readerPreview = false;
+function setReaderPreview(on){
+  on = !!on;
+  if(on === readerPreview) return;
+  if(on){
+    if(readOnlyView) return;
+    readerPreview = true;
+    document.body.classList.add('reader-preview');
+    try{ closeNodeEditor(); }catch(e){}
+    try{ deselect(); }catch(e){}
+    markReadOnly();
+  } else {
+    readerPreview = false;
+    document.body.classList.remove('reader-preview');
+    readOnlyView = false;
+    document.body.classList.remove('read-only');
+    try{ rebuildChart(); }catch(e){}
+    try{ refreshSaveUI(); }catch(e){}
+  }
+  const b = document.getElementById('readerToggle');
+  if(b){
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = on ? 'Back to editing' : 'See the chart as a reader sees it';
+  }
+}
+document.getElementById('readerToggle').addEventListener('click', ()=> setReaderPreview(!readerPreview));
 /* The write service's answer when the account signed in is not the
    chart's owner (siteError in 36-site-owner.js). */
 function isReadOnlyError(e){

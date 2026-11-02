@@ -97,6 +97,10 @@
         "hatch": {"enum": ["diag-r", "diag-l", "vert", "horiz"]},
         "card": {"type": "boolean"},
         "cardCrop": {"type": "boolean"},
+        "cardCut": {"type": "boolean", "description": "A card whose picture is smaller than its band has its frame cut round the picture instead of the band filled with a blurred copy (0.25.0)."},
+        "mediaType": {"type": "string", "description": "The id of the kind of medium (settings.mediaTypes) a card is of (0.25.0)."},
+        "mediaData": {"type": "object", "propertyNames": {"pattern": "^f\\d{1,6}$"}, "additionalProperties": {"type": "string"},
+                      "description": "The card's facts for its kind, by field id (0.25.0)."},
         "merge": {"description": "Which of the entry's parents merge into one bar and one arrow into it: all of them (true) or those named.",
                   "oneOf": [{"const": true}, {"type": "array", "items": {"$ref": "#/definitions/id"}, "minItems": 2}]},
         "anim": {"enum": ["still", "hover"], "description": "How the entry's moving picture moves: still, only on hover, or (absent) always."},
@@ -178,12 +182,24 @@
         "tagColors": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}},
         "groundColors": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}}},
         "figures": {"type": "array", "items": {"$ref": "#/definitions/figureTemplate"},
-                    "description": "The figure templates the + menu offers, brought in from SVG files (0.24.2). An entry drawn with one carries its own copy."}
+                    "description": "The figure templates the + menu offers, brought in from SVG files (0.24.2). An entry drawn with one carries its own copy."},
+        "mediaTypes": {"type": "array", "items": {"$ref": "#/definitions/mediaType"},
+                       "description": "Kinds of medium a card can be of, each with the facts it is given and the line they are written in (0.25.0)."}
       }
+    },
+    "mediaType": {
+      "type": "object", "required": ["id", "fields"],
+      "properties": {"id": {"type": "string", "pattern": "^[A-Za-z][\\w-]{0,40}$"},
+                     "name": {"type": "string"},
+                     "fields": {"type": "array", "items": {"type": "object", "required": ["id"],
+                       "properties": {"id": {"type": "string", "pattern": "^f\\d{1,6}$"}, "label": {"type": "string"}}}},
+                     "format": {"type": "string", "description": "The line the facts are written in: each %Label% is that field's fact."}}
     },
     "figureTemplate": {
       "type": "object", "required": ["d"],
       "properties": {"name": {"type": "string"},
+                     "ar": {"type": "number", "exclusiveMinimum": 0,
+                            "description": "Width over height of the drawing the outline was read from (0.25.0), which the hundred-unit square forgets: an entry wearing it keeps that proportion."},
                      "d": {"type": "string", "pattern": "^M[0-9MLZ .-]*$",
                            "description": "Closed runs of points, \"M x y L x y … Z\", every number from 0 to 100: the figure scaled into a hundred-unit square. The first run is the outline; any after it are lines drawn inside it."}}
     }

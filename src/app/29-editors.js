@@ -278,6 +278,7 @@ function commitNodeEdit(){
        answer back if it becomes one again with something else in it. */
     const cardImg = cardImageOptsFromForm();
     if(newCard && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
+    if(newCard && newImage && cardImg.cut) opts.cardCut = true; else delete opts.cardCut;
     /* The picture's own size is set on the picture, by dragging its
        corners, so this form carries whatever it already had rather than
        asking a control about it — and lets it go with the card or the
@@ -291,6 +292,7 @@ function commitNodeEdit(){
       const med = (typeof editMediumInput !== 'undefined' && editMediumInput)
         ? editMediumInput.value.trim() : '';
       if(newCard && med) opts.medium = med; else delete opts.medium;
+      mediaTypeOptsFromForm(opts, newCard);
     }
     /* Only a portrait keeps a card, so the choice goes with the archetype
        rather than lingering on an entry that has no card at all. */
@@ -373,6 +375,9 @@ function serializeSettings(o){
   // The figure templates the + menu offers (see figureTemplateOfSvg).
   const figures = cleanFigureTemplates(o.figures);
   if(figures.length) extra.figures = figures;
+  // The kinds of medium a card can be of (42-media-types.js).
+  const mediaTypes = cleanMediaTypes(o.mediaTypes);
+  if(mediaTypes.length) extra.mediaTypes = mediaTypes;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;

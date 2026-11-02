@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 42 files. **They are not modules.** The page is a single
+`src/app/` holds 43 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -108,7 +108,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 141 named scenarios, and they do not depend on one another —
+The suite is 142 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.

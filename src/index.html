@@ -53,6 +53,11 @@
     <button class="icon-btn" id="aboutToggle" title="About this chart">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
     </button>
+    <!-- The owner looking at the chart as a reader sees it, without signing
+         out (the owner's list of 2.11). Shown only to whoever may edit. -->
+    <button class="icon-btn" id="readerToggle" title="See the chart as a reader sees it" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+    </button>
     <div class="search-wrap">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="searchInput" type="text" aria-label="Search the chart" placeholder="Search realities, titles, characters…" autocomplete="off">
@@ -92,8 +97,8 @@
 
 
     <!-- The tags the chart filters by, the references it cites, what its
-         marks mean and the whole chart in small, as four drawers spaced down
-         the left edge. Each opens
+         marks mean, the whole chart in small and the kinds of media its
+         cards are of, as five drawers spaced down the left edge. Each opens
          and shuts on its own, into its own third of the edge, so any of
          them can be open together and no tab ever moves. -->
     <div class="side-tabs" id="sideTabs">
@@ -116,6 +121,16 @@
                 aria-controls="keyList" title="Legend — what the marks on the chart mean" aria-label="Legend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 6.4 8.8 4l6.4 2.4 6-2.4v13.6l-6 2.4-6.4-2.4-6 2.4z"/><path d="M8.8 4v13.6M15.2 6.4V20"/></svg></button>
         <div class="side-tab-body">
           <div class="legend-list" id="keyList"></div>
+        </div>
+      </section>
+      <!-- The kinds of media a card can be of, each with its fields and the
+           line they are written in (42-media-types.js). The author's, as
+           the legend's editing is: a reader is not shown it. -->
+      <section class="side-tab" id="mediaPanel">
+        <button type="button" class="side-tab-handle" id="mediaTab" aria-expanded="false"
+                aria-controls="mediaList" title="Media — kinds of medium a card can be of, and their fields" aria-label="Media"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M7 4.5v15M17 4.5v15M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></svg></button>
+        <div class="side-tab-body">
+          <div class="legend-list" id="mediaList"></div>
         </div>
       </section>
       <!-- The whole chart, small, with a frame for the view; press or drag on
@@ -176,6 +191,12 @@
                card has one, so the row is only there for one. -->
           <div class="editor-field" id="editMediumField" style="display:none;">
             <label for="editMediumInput">Medium</label>
+            <!-- A kind from the Media drawer, picked from a list as the
+                 entry's style is; with one, the card is given its facts
+                 field by field and the line is written from them, so the
+                 typed line steps aside. -->
+            <select id="editMediaTypeSelect" class="media-kind-select" aria-label="Kind of medium"></select>
+            <div class="media-facts" id="editMediaFields"></div>
             <input id="editMediumInput" type="text" placeholder="Collectible card [back]">
           </div>
           <div class="editor-field">
@@ -223,6 +244,15 @@
                 </span>
                 <span class="toggle-caption">Crop the picture to fill its band</span>
               </label>
+              <label class="checkbox-field-row" for="editCardCutCheck">
+                <span class="toggle-switch">
+                  <input type="checkbox" id="editCardCutCheck">
+                  <span class="toggle-track"></span>
+                  <span class="toggle-thumb"></span>
+                </span>
+                <span class="toggle-caption">Cut the frame to the picture</span>
+              </label>
+              <p class="editor-help">On, a picture narrower or shorter than its band is not set on a blurred copy of itself: the card's frame goes round the picture, and steps out to the bands below.</p>
               <p class="editor-help">Double-click the picture on the card to resize it by its own corners — hold Shift to keep its proportions.</p>
             </div>
           </div>
@@ -713,6 +743,7 @@
     '39-lod.js',
     '40-arrays.js',
     '41-text-view.js',
+    '42-media-types.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){

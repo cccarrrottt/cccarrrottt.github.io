@@ -247,14 +247,20 @@ const editCardField = document.getElementById('editCardField');
    a slider for a height is a poor way to say something the picture itself
    can be shown saying: double-click it and drag its corners. */
 const editCardCropCheck = document.getElementById('editCardCropCheck');
+/* …and whether the band round a picture smaller than it is filled, or
+   cut away with the frame going round the picture (the owner's list of
+   2.11, with a sketch: a tall picture standing on a wider card). */
+const editCardCutCheck = document.getElementById('editCardCutCheck');
 const editMediumInput = document.getElementById('editMediumInput');
 const editMediumField = document.getElementById('editMediumField');
 function fillCardImageOpts(n){
   if(editCardCropCheck) editCardCropCheck.checked = !!(n && n.cardCrop);
+  if(editCardCutCheck) editCardCutCheck.checked = !!(n && n.cardCut);
   if(editMediumInput) editMediumInput.value = (n && n.medium) || '';
 }
 function cardImageOptsFromForm(){
-  return { crop: !!(editCardCropCheck && editCardCropCheck.checked) };
+  return { crop: !!(editCardCropCheck && editCardCropCheck.checked),
+           cut: !!(editCardCutCheck && editCardCutCheck.checked) };
 }
 function syncMediumFieldVisibility(){
   if(!editMediumField) return;
@@ -264,6 +270,9 @@ function syncMediumFieldVisibility(){
 }
 if(editCardCropCheck){
   editCardCropCheck.addEventListener('change', ()=> queueNodeEditCommit(0));
+}
+if(editCardCutCheck){
+  editCardCutCheck.addEventListener('change', ()=> queueNodeEditCommit(0));
 }
 if(editMediumInput){
   editMediumInput.addEventListener('input', ()=> queueNodeEditCommit());
@@ -563,6 +572,7 @@ detailEditToggle.onclick = (ev)=>{
        still held the last entry's answer, meant opening a card's settings
        showed no picture field at all. */
     fillCardImageOpts(n);
+    fillMediaTypeForm(n);
     syncMediumFieldVisibility();
     syncImageFieldVisibility(editShapeInput, editImageField);
     if(typeof window.syncColorsResetState === 'function') window.syncColorsResetState();

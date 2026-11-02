@@ -3637,6 +3637,9 @@ async function main(){
     listDrag = {kind:'tag', key:'alpha-probe', label:'alpha-probe', moved:true};
     const eraBlock = document.querySelector('.legend-group[data-cat="Era"]');
     const looseBlock = document.querySelector('.legend-group.legend-loose');
+    /* A drawer is a fifth of the edge since 0.25.0, and the category may
+       be scrolled past; a drop is made where it can be seen. */
+    eraBlock.scrollIntoView({block:'nearest'});
     const eb = eraBlock.getBoundingClientRect();
     const ebMid = {x: eb.left + eb.width/2, y: eb.top + eb.height/2};
     /* The SPECIAL group refuses a drop — what is in it is there because of
@@ -16873,12 +16876,13 @@ async function main(){
     document.querySelectorAll('.side-tab').forEach(p=> setSideTab(p, false));
     return {before, after, back, pending, refsBefore, refsAfter};
   });
-  // Four since 0.12.0: the legend has a + of its own for the rows it shows.
-  check('an editor has the + buttons to begin with', late.before.plus === 4 && late.before.refColour === 1, JSON.stringify(late.before));
+  // Four since 0.12.0: the legend has a + of its own for the rows it shows;
+  // five since 0.25.0, with the Media drawer's.
+  check('an editor has the + buttons to begin with', late.before.plus === 5 && late.before.refColour === 1, JSON.stringify(late.before));
   check('a page told late that it is read-only offers no + for a tag, a category or a reference, nor a reference\'s ✎ ✕ or the citation colour',
         late.after.plus === 0 && late.after.refTools === 0 && late.after.refColour === 0 && late.after.tagDel === 0, JSON.stringify(late.after));
   check('and the functions behind them refuse a reader', !late.pending && late.refsBefore === late.refsAfter, JSON.stringify(late));
-  check('the way back gives them back', late.back.plus === 4 && late.back.refColour === 1, JSON.stringify(late.back));
+  check('the way back gives them back', late.back.plus === 5 && late.back.refColour === 1, JSON.stringify(late.back));
   });
   await scenario("squares, scenery, clusters and the view as of 2026-10-17", async () => {
   const r17 = await page.evaluate(async ()=>{
@@ -21275,11 +21279,13 @@ async function main(){
       r.band = [c1.cardTop, +(c1.w * 2).toFixed(2)];
       const img = document.querySelector('.node[data-id="to_c1"] > image');
       r.imgBottom = img ? +(+img.getAttribute('y') + +img.getAttribute('height') - c1.y).toFixed(2) : null;
-      /* Since the owner's list of 3.11 each band of a card stands its words
-         off the border and the rules at the inset an entry's stand, so a
-         ripple makes a card taller by what it adds to that inset, once a
-         band, as it makes an entry — and no wider, nor its picture smaller. */
-      r.wavy = [+(c2.w - c1.w).toFixed(2), +(c2.h - c1.h).toFixed(2), +(3 * 2 * (textInsetFor(c2) - textInsetFor(c1))).toFixed(2)];
+      /* Since the owner's list of 2.11 a band's words stand off a rule as
+         they would off the border of an entry of their own, and only the
+         words that meet the border itself stand off it by the entry's
+         inset — here the note, under the picture, heading and middle. So
+         a ripple makes the card taller by what it adds to that inset
+         once, and no wider, nor its picture smaller. */
+      r.wavy = [+(c2.w - c1.w).toFixed(2), +(c2.h - c1.h).toFixed(2), +(textInsetFor(c2) - textInsetFor(c1)).toFixed(2)];
       r.chips = [c3.w, c3.chipRight - c3.x];
       r.labels = ['editMediumInput', 'editImageInput', 'freeMenuImageUrl']
         .map(id=> document.querySelector(`label[for="${id}"]`).textContent).join('|');
@@ -22077,7 +22083,9 @@ async function main(){
         r.templateDrawn = !!document.querySelector(`.node[data-id="${id}"] > path`) &&
                           !!document.querySelector(`.node[data-id="${id}"] > path.figure-mark`);
         const file = chartFileText();
-        r.templateKept = /"figures":\[\{"name":"Box"/.test(file) && file.includes('"figure":{"name":"Box"');
+        /* Among the chart's own: the owner's chart keeps templates of its
+           own, and the one read here goes after them. */
+        r.templateKept = /"figures":\[[^\]]*\{"name":"Box"/.test(file) && file.includes('"figure":{"name":"Box"');
         applyEdit(()=>{ delete SETTINGS.figures; });
         rebuildChart();
         r.entryKeepsIt = !!document.querySelector(`.node[data-id="${id}"] > path.figure-mark`);
@@ -22097,7 +22105,7 @@ async function main(){
         out.cardSides && out.cardSides[0] >= out.cardSides[2] - 0.6 && out.cardSides[1] >= out.cardSides[2] - 0.6,
         JSON.stringify({bands: out.card, sides: out.cardSides}));
   check('beside Default stands the button that opens the flowchart figures, all of them',
-        out.besideDefault && out.figureButtons === 'process,decision,terminator,data,predefined,document,database,manualInput,manualOp,preparation,delay,display,storedData,connector,offPage,extract,merge',
+        out.besideDefault && out.figureButtons === 'decision,terminator,data,predefined,document,database,manualInput,manualOp,preparation,delay,display,storedData,connector,offPage,extract,merge',
         JSON.stringify([out.besideDefault, out.figureButtons]));
   check('a decision is a diamond with its words inside it, met by a connector at its point, and saved as one',
         out.diamond === 4 && out.wordsInside && Array.isArray(out.metAtPoint) &&
@@ -22133,6 +22141,207 @@ async function main(){
     }
   }, [X, Y]);
   check('a picked entry\'s bar stands clear of its panel', deskBar.open && deskBar.bar && deskBar.clear, JSON.stringify(deskBar));
+  });
+
+  await scenario("the owner's second list of 2.11: figures drawn in every border, a gear, a cut card, a note's ink, a reader's look, kinds of media", async () => {
+  const X = 153000, Y = 153000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const tall = document.createElement('canvas'); tall.width = 100; tall.height = 200;
+      const tx = tall.getContext('2d'); tx.fillStyle = '#37a'; tx.fillRect(0, 0, 100, 200);
+      const pic = tall.toDataURL();
+      applyEdit(()=>{
+        workingNodes.push(['o2b_plain','Plain',null,null,null,null,{pos:[X, Y], figure:'data', square:true}]);
+        workingNodes.push(['o2b_round','Round',null,null,null,null,{pos:[X + 200, Y], figure:'data', square:false}]);
+        workingNodes.push(['o2b_wavy','Wavy',null,null,null,null,{pos:[X + 400, Y], figure:'data', border:'wavy'}]);
+        workingNodes.push(['o2b_dbl','Double',null,null,null,null,{pos:[X + 600, Y], figure:'decision', border:'double'}]);
+        workingNodes.push(['o2b_wide','Wide',null,null,null,null,
+                           {pos:[X, Y + 160], figure:{name:'Wide', d:'M0 0 L100 0 L100 100 L0 100 L0 0 Z', ar:3}}]);
+        workingNodes.push(['o2b_cut','A card cut to its picture',null,null,'Its note',null,
+                           {pos:[X + 300, Y + 160], card:true, image:pic, medium:'Its medium', cardImgW:40, cardImgH:80, cardCut:true}]);
+        workingNodes.push(['o2b_blur','A card set on a blur',null,null,'Its note',null,
+                           {pos:[X + 600, Y + 160], card:true, image:pic, medium:'Its medium', cardImgW:40, cardImgH:80}]);
+        workingNodes.push(['o2b_g1','From',null,null,null,null,{pos:[X, Y + 500]}]);
+        workingNodes.push(['o2b_g2','To','o2b_g1',null,null,null,{pos:[X + 600, Y + 500]}]);
+        EDGE_STYLES.push({from:'o2b_g1', to:'o2b_g2', routing:'straight', dash:'solid', arrow:true,
+                          gradient:['#ff0000', '#0000ff'], note:'Halfway'});
+      });
+      rebuildChart();
+      await wait(250);
+
+      /* 1. A figure is drawn in every border a box is: rounded unless
+            square, waved, and as two outlines when double. */
+      const outlineOf = id=>{
+        const g = document.querySelector(`.node[data-id="${id}"]`);
+        return g ? [...g.querySelectorAll(':scope > path:not(.figure-mark)')].map(p=> p.getAttribute('d') || '') : [];
+      };
+      r.plainSharp = outlineOf('o2b_plain').length >= 1 && !/[QC]/.test(outlineOf('o2b_plain')[0]);
+      r.roundCurved = /Q/.test(outlineOf('o2b_round')[0] || '');
+      r.wavyCurves = ((outlineOf('o2b_wavy')[0] || '').match(/[QC]/g) || []).length;
+      r.doubleRings = outlineOf('o2b_dbl').length;
+      /* …and every corner of a rounded figure is visibly rounded, the
+         blunt ones too: the top and bottom of a wide diamond were cut by
+         under a pixel. Each corner is cut at least the radius back. */
+      {
+        const d = figureOutlineD(nodeFigure({figure:'decision'}), 0, 0, 150, 40, {r: 2.5});
+        const cuts = [...d.matchAll(/L([-\d.]+),([-\d.]+) Q([-\d.]+),([-\d.]+)/g)]
+          .map(m=> Math.hypot(+m[1] - +m[3], +m[2] - +m[4]));
+        r.diamondCuts = cuts.map(c=> +c.toFixed(2));
+        r.picks = figurePicks().map(p=> p.value);
+        applyEdit(()=> workingNodes.push(['o2b_sd','Stored',null,null,null,null,{pos:[X + 1100, Y], figure:'storedData', square:false}]));
+        rebuildChart();
+        r.storedSharp = !/Q/.test(outlineOf('o2b_sd')[0] || 'Q');
+        /* A subroutine's bars, in a double border, run on to its outer line. */
+        applyEdit(()=> workingNodes.push(['o2b_sub','Sub',null,null,null,null,{pos:[X + 900, Y], figure:'predefined', border:'double'}]));
+        rebuildChart();
+        const sub = nodes.get('o2b_sub');
+        const bar = document.querySelector('.node[data-id="o2b_sub"] path.figure-mark');
+        const ys = bar ? (bar.getAttribute('d').match(/[-\d.]+/g) || []).map(Number).filter((v, i)=> i % 2 === 1) : [];
+        r.barReach = ys.length ? [+(sub.y - Math.min(...ys)).toFixed(2), +(Math.max(...ys) - (sub.y + sub.h)).toFixed(2), +DOUBLE_LINE_OFF.toFixed(2)] : null;
+        r.processKept = isBuiltinFigure('process') && !!nodeFigure({figure:'process'});
+      }
+      /* …and a template keeps the proportion of the drawing it was read from. */
+      {
+        const n = nodes.get('o2b_wide');
+        r.wideAspect = +(n.w / n.h).toFixed(2);
+        const t = figureTemplateOfSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100"><rect width="300" height="100"/></svg>', 'Flat.svg');
+        r.readAspect = t && t.ar;
+      }
+      /* …and the field the words are typed into is the figure's own shape. */
+      openNodeEditor('o2b_dbl');
+      await wait(120);
+      {
+        const rec = richFields.get('nodeEditorText');
+        r.editorOnFigure = nodeEditor.classList.contains('on-figure') && !!rec &&
+                           /url\(/.test(rec.surface.style.getPropertyValue('--figure-frame'));
+      }
+      closeNodeEditor(true);
+      await wait(60);
+      /* …and the button that opens the figures is a gear on Default's corner. */
+      openAddFab();
+      await wait(60);
+      {
+        const def = document.querySelector('#addFabStyles .node-style-btn[data-value="rect"]');
+        const more = document.getElementById('addFabCustomize');
+        const a = def.getBoundingClientRect(), b = more.getBoundingClientRect();
+        r.gear = !!more.querySelector('svg path') && b.left < a.left + 4 && b.right > a.left && b.top < a.top + 4 && b.bottom > a.top;
+      }
+      closeAddFab();
+
+      /* 2. A card cut to its picture is framed round the picture, steps
+            out to its bands, and is not set on a blurred copy. */
+      {
+        const cut = nodes.get('o2b_cut');
+        const gc = document.querySelector('.node[data-id="o2b_cut"]');
+        const gb = document.querySelector('.node[data-id="o2b_blur"]');
+        r.cutRun = Array.isArray(cut.cardCutRun) ? cut.cardCutRun.length : 0;
+        r.cutBlur = !!gc.querySelector('image[filter]');
+        r.otherBlur = !!gb.querySelector('image[filter]');
+        r.cutSaved = /"cardCut":true/.test(chartFileText());
+      }
+
+      /* 4. A note's field is the colour its line has where the note stands. */
+      {
+        const ink = noteInkOf('o2b_g1', 'o2b_g2');
+        const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(ink);
+        r.noteInk = ink;
+        r.inkMixed = !!m && +m[1] > 40 && +m[3] > 40;
+      }
+
+      /* 6. Kinds of medium: a kind's line, an empty fact taking its comma
+            with it, written in italics on the card and kept in the file. */
+      applyEdit(()=>{
+        SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Director'}, {id:'f3', label:'Year'}],
+                                format:'%Studio%, %Director%, %Year%'}];
+        workingNodes.push(['o2b_film','A film',null,null,null,null,
+                           {pos:[X + 900, Y + 160], card:true, medium:'typed by hand', mediaType:'film', mediaData:{f1:'Toei', f3:'1986'}}]);
+      });
+      rebuildChart();
+      await wait(120);
+      const kind = mediaTypeById('film');
+      r.lineFull = mediaLineFor(kind, {f1:'Toei', f2:'Nelson Shin', f3:'1986'});
+      r.lineGap = mediaLineFor(kind, {f1:'Toei', f3:'1986'});
+      r.lineFirstGone = mediaLineFor(kind, {f2:'Nelson Shin', f3:'1986'});
+      {
+        const t = document.querySelector('.node[data-id="o2b_film"] text.card-medium');
+        r.drawn = t ? t.textContent.replace(/\s+/g, '') : null;
+        r.drawnItalic = !!t && [...t.querySelectorAll('tspan')].some(s=> /italic/.test(s.getAttribute('font-style') || s.style.fontStyle || ''));
+        const file = chartFileText();
+        r.kindSaved = /"mediaTypes":\[\{"id":"film"/.test(file) && /"mediaType":"film"/.test(file) && /"mediaData":\{"f1":"Toei","f3":"1986"\}/.test(file);
+      }
+      /* …picked in the card's panel as a tag is, and built in the drawer. */
+      selectNode('o2b_film');
+      await wait(120);
+      document.getElementById('detailEditToggle').click();
+      await wait(300);
+      { const sel = document.getElementById('editMediaTypeSelect'); r.panelKind = sel.tagName + ':' + sel.selectedOptions[0].textContent; }
+      r.panelFacts = [...document.querySelectorAll('#editMediaFields input')].map(i=> i.value).join('|');
+      r.typedHidden = document.getElementById('editMediumInput').style.display === 'none';
+      document.getElementById('detailEditToggle').click();
+      await wait(200);
+      deselect();
+      setSideTab(document.getElementById('mediaPanel'), true);
+      await wait(60);
+      r.drawer = [...document.querySelectorAll('#mediaList .media-kind-name')].map(i=> i.value).join() + ':' +
+                 [...document.querySelectorAll('#mediaList .media-field-label')].map(i=> i.value).join();
+
+      /* 5. The owner looks as a reader does, and comes back to the same
+            unsaved chart; the media drawer is the author's, as the legend is. */
+      const toggle = document.getElementById('readerToggle');
+      r.toggleShown = getComputedStyle(toggle).display !== 'none';
+      toggle.click();
+      await wait(200);
+      r.asReader = readOnlyView && document.body.classList.contains('reader-preview') &&
+                   getComputedStyle(toggle).display !== 'none' &&
+                   getComputedStyle(document.getElementById('mediaPanel')).display === 'none' &&
+                   getComputedStyle(document.getElementById('keyPanel')).display === 'none';
+      toggle.click();
+      await wait(200);
+      r.back = !readOnlyView && !document.body.classList.contains('reader-preview') &&
+               workingNodes.some(x=> x[0] === 'o2b_film') &&
+               getComputedStyle(document.getElementById('mediaPanel')).display !== 'none';
+      setSideTab(document.getElementById('mediaPanel'), false);
+    } finally {
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('a figure is square or rounded as a box is, waved when wavy, and two outlines when double',
+        out.plainSharp && out.roundCurved && out.wavyCurves >= 8 && out.doubleRings >= 2,
+        JSON.stringify([out.plainSharp, out.roundCurved, out.wavyCurves, out.doubleRings]));
+  check('every corner of a rounded diamond is rounded, the blunt top and bottom too, and stored data is never rounded',
+        out.diamondCuts.length === 4 && out.diamondCuts.every(c=> c >= 2.49) && out.storedSharp, JSON.stringify(out.diamondCuts));
+  check('a subroutine\'s bars run on to the outer line of a double border',
+        !!out.barReach && Math.abs(out.barReach[0] - out.barReach[2]) < 0.05 && Math.abs(out.barReach[1] - out.barReach[2]) < 0.05,
+        JSON.stringify(out.barReach));
+  check('Process is not offered among the figures, Default being a rectangle already, and one drawn before still is',
+        !out.picks.includes('process') && out.processKept, JSON.stringify([out.picks, out.processKept]));
+  check('a figure read from an SVG keeps its drawing\'s proportion, and an entry wearing it does too',
+        out.readAspect === 3 && Math.abs(out.wideAspect - 3) < 0.05, JSON.stringify([out.readAspect, out.wideAspect]));
+  check('the field a figure\'s words are typed into is the figure\'s outline', out.editorOnFigure, String(out.editorOnFigure));
+  check('the figures open from a gear on Default\'s corner', out.gear, String(out.gear));
+  check('a card cut to its picture is framed round it and set on no blurred copy; one not cut still is',
+        out.cutRun >= 6 && !out.cutBlur && out.otherBlur && out.cutSaved,
+        JSON.stringify([out.cutRun, out.cutBlur, out.otherBlur, out.cutSaved]));
+  check('a note on a gradient line is edited in the colour the line has where it stands',
+        out.inkMixed, String(out.noteInk));
+  check('a kind of medium writes its facts in its order, an empty one taking its comma with it',
+        out.lineFull === 'Toei, Nelson Shin, 1986' && out.lineGap === 'Toei, 1986' && out.lineFirstGone === 'Nelson Shin, 1986',
+        JSON.stringify([out.lineFull, out.lineGap, out.lineFirstGone]));
+  check('…in italics on the card, in place of what was typed, and kept in the file',
+        out.drawn === 'Toei,1986' && out.drawnItalic && out.kindSaved, JSON.stringify([out.drawn, out.drawnItalic, out.kindSaved]));
+  check('…picked in the card\'s panel, with a field for each fact, and built in the Media drawer',
+        out.panelKind === 'SELECT:Film' && out.panelFacts === 'Toei||1986' && out.typedHidden && out.drawer === 'Film:Studio,Director,Year',
+        JSON.stringify([out.panelKind, out.panelFacts, out.typedHidden, out.drawer]));
+  check('the owner looks at the chart as a reader without the Media drawer, and comes back to the same chart',
+        out.toggleShown && out.asReader && out.back, JSON.stringify([out.toggleShown, out.asReader, out.back]));
   });
 
   await scenario("nothing threw along the way", async () => {
