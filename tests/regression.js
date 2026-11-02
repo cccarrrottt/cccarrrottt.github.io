@@ -20737,7 +20737,8 @@ async function main(){
       out.beadsAt = beads.map(c=> c.getAttribute('r'));
 
       /* 2. Carried across a held bar, the merged arrow — bent by hand or
-            not — comes into the face towards the bar, beside a lineage too. */
+            not — keeps its face, beside a lineage too (3.11; it turned to
+            the face towards the bar from 28.10). */
       const sideAt = (x, y)=>{
         applyEdit(()=>{ const f = workingEntry('ol_m'); const o = entryOpts(f.entry); o.pos = [x, y]; putEntry(f.index, f.entry, o); });
         rebuildChart();
@@ -20831,10 +20832,13 @@ async function main(){
     return out;
   });
   check('every point on a merge\'s bar is the size of a callout\'s point', r.beads, JSON.stringify(r.beadsAt));
-  check('carried across a held bar, the merged arrow comes into the face towards the bar, beside a lineage too',
-        r.plain.join() === 'top,bottom,bottom,bottom', JSON.stringify(r.plain));
-  check('…bent by hand as well, keeping its corners for the side they were set on',
-        r.bent.join() === 'bottom,bottom' && r.bentBack, JSON.stringify([r.bent, r.bentBack]));
+  /* The owner's list of 3.11 took back the turn to the face towards the
+     bar (28.10): a held bar's arrow keeps the face it had, wherever the
+     entry is carried, and goes round to it. */
+  check('carried across a held bar, the merged arrow keeps the face it had, beside a lineage too',
+        r.plain.join() === 'top,top,top,top', JSON.stringify(r.plain));
+  check('…bent by hand as well, keeping its corners for when they fit',
+        r.bent.join() === 'top,top' && r.bentBack, JSON.stringify([r.bent, r.bentBack]));
   check('a connector squeezed short comes out of its port as far as a squeezed lineage comes to its bar', r.stub);
   check('the field typed into an entry with no words yet is in the ink it will be drawn in',
         r.inks[0] === 'rgb(34, 51, 204)' && r.inks[1] === 'rgb(17, 170, 68)', JSON.stringify(r.inks));
@@ -21727,9 +21731,9 @@ async function main(){
       rebuildChart();
     });
   }
-  check('a merged arrow, carried past the bar, takes the face any connector would, and keeps one set by hand',
-        out.side0 === 'top' && out.across[0] === 'bottom' && !out.across[1] && out.undone[0] === 'top' &&
-        out.handAcross[0] === 'top' && out.beside === 'left', JSON.stringify(out));
+  check('a merged arrow, carried past the bar or beside it, keeps its face, and one set by hand (the owner, 3.11)',
+        out.side0 === 'top' && out.across[0] === 'top' && !out.across[1] && out.undone[0] === 'top' &&
+        out.handAcross[0] === 'top' && out.beside === 'top', JSON.stringify(out));
   check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
         out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
   {

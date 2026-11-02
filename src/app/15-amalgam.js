@@ -233,7 +233,13 @@ function amalgamGeometry(list, ports){
          behind the entry included. Turned to the lineages regardless, it
          came in by a side face while the entry stood above a held bar and
          beside the lineage at its end (the owner's list of 28.10). */
-      const facing = (behind && !fixed) ? after : (past === after);
+      /* …and, held, it faces the way it was set: the entry carried across
+         it keeps the face it had, and the arrow goes round to it (the
+         owner's list of 3.11). It used to turn to the face towards the bar
+         from wherever the entry now stood — a rule from before a face
+         could be set by hand, and the one thing about the arrow that moved
+         by itself. */
+      const facing = fixed ? after : behind ? after : (past === after);
       side = k === 'x' ? (facing ? 'left' : 'right')
                        : (facing ? 'top' : 'bottom');
       resting = {at, k, after, lead, fixed: !!fixed, spLo: sp.lo, spHi: sp.hi, clear,
@@ -1428,23 +1434,12 @@ function drawMergedArrow(b, stem, colors, ring, side){
      (the owner's list of 31.10); a drag now writes the new face into the
      pin as well (movePortTo), and a pin that disagrees with the face set
      by hand is one from before that, which the corners give way to. */
-  /* Unset, the face is chosen as it is for every other connector (the
-     owner's list of 2.11): autoSides, with the point the arrow leaves the
-     bar from standing in for the entry it comes from. It used to be the
-     stem's to choose — whichever face looks at the bar — a rule from the
-     days when nothing else could take an arrow to another face. A face
-     set by hand with the grip at its end is kept, as on any connector,
-     wherever the entry is carried. */
-  /* Two things stay the stem's, as they are a bent connector's or a
-     crowded one's elsewhere: corners set by hand, whose sides are written
-     down with them (bendSides), and an entry too near the bar for either
-     gap to hold a line, where autoSides would wrap round the outside and
-     the stem knows the way in. */
-  const foot = stem.pts[0];
-  const gap = Math.max(b.x - foot.x, foot.x - b.x - b.w, b.y - foot.y, foot.y - b.y - b.h);
-  const autoFace = !set && gap >= MIN_SIDE_GAP ? autoSides({x: foot.x, y: foot.y, w: 0, h: 0}, b).to : null;
-  const handSide = SIDES.includes(os.toSide) ? os.toSide
-    : autoFace && autoFace !== stem.port.side ? autoFace : null;
+  /* Set by hand with the grip at its end, the face is kept wherever the
+     entry goes, as on any connector. Unset, it is the face the bar's side
+     names (amalgamGeometry), which a carry does not change either. For a
+     day (0.24.1) it was autoSides', the nearest face: the owner's list of
+     3.11 asked for no face that moves by itself. */
+  const handSide = SIDES.includes(os.toSide) ? os.toSide : SIDES.includes(side) ? side : null;
   const pinned = set && set[1] === (handSide || stem.port.side) ? set : null;
   /* Bent, it arrives at the middle of its side, as any connector does: the
      stem's own port stands in front of the foot, and with the foot under
@@ -1452,8 +1447,20 @@ function drawMergedArrow(b, stem, colors, ring, side){
      dragged across the entry pulled the head along the border after it,
      and the drag was refused as a shape it had not asked for. */
   const hasBends = os.routing !== 'straight' && os.bends && os.bends.length && !(set && !pinned);
+  /* The stem is trusted only where it really ends on that face: with the
+     entry carried in between the lineages and a held bar, its own ways in
+     came up into whichever face looked at the bar, under the name of the
+     one asked for. */
+  const ask = handSide ? portOnSide(b, handSide, 0, 1, ring) : null;
+  const last = stem.pts[stem.pts.length - 1];
+  const before = [...stem.pts].reverse().find(q=> Math.hypot(q.x - last.x, q.y - last.y) > 0.5);
+  const nrmH = handSide && SIDE_NORMAL[handSide];
+  const stemFits = !ask || (stem.port.side === handSide &&
+    (sideIsVertical(handSide) ? Math.abs(last.y - ask.y) < 1 : Math.abs(last.x - ask.x) < 1) &&
+    /* …and comes to it from outside the box, not up through it. */
+    (!before || (before.x - last.x) * nrmH.x + (before.y - last.y) * nrmH.y > 0.5));
   let head = hasBends ? portOnSide(b, pinned ? pinned[1] : (handSide || stem.port.side), 0, 1, ring)
-    : handSide && handSide !== stem.port.side ? portOnSide(b, handSide, 0, 1, ring) : stem.port;
+    : !stemFits ? ask : stem.port;
   /* `slides`: the one end of any connector that is not a fixed point. It
      stands on the bar, and a bend drag that moves the stretch out of it
      carries it along the bar instead of stepping off it (see shiftArm). */
@@ -1461,7 +1468,18 @@ function drawMergedArrow(b, stem, colors, ring, side){
                  stub: AMALGAM_APPROACH, slides: true};
   let route = os.routing === 'straight' ? [stem.pts[0], head === stem.port ? stem.pts[stem.pts.length - 1] : head] : stem.pts;
   if(hasBends || (head !== stem.port && os.routing !== 'straight')){
-    const bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
+    let bent = pathFromPorts(start, head, os, new Set([b.id]), 0);
+    /* Corners that cannot reach the face set by hand give way to it, not
+       the face to them: it used to fall back to the stem's own face, so a
+       bent arrow could not be taken to the far face at all — the grip let
+       go there and the arrow stayed where it was (the owner's list of
+       3.11). The corners are kept for when they fit again. */
+    if((bent.ignored || bent.pts.length < 2) && handSide && hasBends){
+      const free = Object.assign({}, os, {bends: null, bendSides: null});
+      const plain = Object.assign({}, start, {side: OPPOSITE_SIDE[side] || side});
+      head = portOnSide(b, handSide, 0, 1, ring);
+      bent = pathFromPorts(plain, head, free, new Set([b.id]), 0);
+    }
     if(!bent.ignored && bent.pts.length >= 2) route = bent.pts;
     else head = stem.port;
   }
