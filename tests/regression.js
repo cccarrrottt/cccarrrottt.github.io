@@ -566,9 +566,14 @@ async function main(){
     if(box){
       box.click();
       await new Promise(res => setTimeout(res, 400));
-      r.nodeHidden = !document.querySelector(`[data-id="${id}"]`) ||
-                     getComputedStyle(document.querySelector(`[data-id="${id}"]`)).display === 'none';
-      const live = e => getComputedStyle(e).display !== 'none';
+      /* Hidden is faded and out of the pointer's way since the owner's
+         list of 2.11 (evening), not taken off the chart. */
+      const gone = e => !e || getComputedStyle(e).display === 'none' || e.classList.contains('tag-hidden');
+      r.nodeHidden = gone(document.querySelector(`.node[data-id="${id}"]`));
+      r.faintNotGone = (()=>{ const e = document.querySelector(`.node[data-id="${id}"]`);
+        return !!e && getComputedStyle(e).display !== 'none' && +getComputedStyle(e).opacity < 0.3 &&
+               getComputedStyle(e).pointerEvents === 'none'; })();
+      const live = e => !gone(e);
       const touching = [...document.querySelectorAll('#edgeLayer path.edge-hit')]
         .filter(e => e.dataset.from === id || e.dataset.to === id);
       r.touching = touching.length;
@@ -581,8 +586,8 @@ async function main(){
     applyEdit(() => { const i = workingNodes.findIndex(n => n[0] === id); if(i >= 0) workingNodes.splice(i, 1); });
     return r;
   });
-  check('hiding a tag hides its node and its connector',
-        tagFilter.found && tagFilter.nodeHidden &&
+  check('hiding a tag fades its node and its connector, barely there and not to be pressed',
+        tagFilter.found && tagFilter.nodeHidden && tagFilter.faintNotGone &&
         tagFilter.touching > 0 && tagFilter.stillVisible === 0 && tagFilter.othersVisible > 0,
         JSON.stringify(tagFilter));
 
@@ -2531,7 +2536,7 @@ async function main(){
        else they carry. */
     hiddenTags.clear(); hiddenTags.add('probe-a');
     applyVisibility(); await new Promise(r=> setTimeout(r, 220));
-    const onScreen = (id)=> getComputedStyle(qNode(`.node[data-id="${id}"]`)).display !== 'none';
+    const onScreen = (id)=> !qNode(`.node[data-id="${id}"]`).classList.contains('tag-hidden');
     out.taggedGone = !onScreen('ms0');     // carries probe-a AND probe-b
     out.otherStays = onScreen('ms1');      // carries probe-b only
     hiddenTags.clear(); applyVisibility();
@@ -9702,9 +9707,9 @@ async function main(){
       // Hide the tag, then type in the tab row and see whether they return.
       hiddenTags.add('probe-hidden');
       applyVisibility(); await wait(150);
-      const hiddenBefore = document.querySelectorAll('.node.hidden, .node[style*="display: none"]').length;
+      const hiddenBefore = document.querySelectorAll('.node.tag-hidden').length;
       out.hidTheTagged = !document.querySelector('.node[data-id="s64x"]') ||
-        getComputedStyle(document.querySelector('.node[data-id="s64x"]')).display === 'none';
+        document.querySelector('.node[data-id="s64x"]').classList.contains('tag-hidden');
       selectNode('s64t');
       await wait(200);
       // The tab rows are built when the entry's settings are opened.
@@ -9723,7 +9728,7 @@ async function main(){
         await wait(250);
       }
       const other = document.querySelector('.node[data-id="s64x"]');
-      out.stillHiddenAfterTyping = !other || getComputedStyle(other).display === 'none';
+      out.stillHiddenAfterTyping = !other || other.classList.contains('tag-hidden');
       out.hiddenBefore = hiddenBefore;
       hiddenTags.delete('probe-hidden');
       applyVisibility(); await wait(150);
@@ -22342,6 +22347,191 @@ async function main(){
         JSON.stringify([out.panelKind, out.panelFacts, out.typedHidden, out.drawer]));
   check('the owner looks at the chart as a reader without the Media drawer, and comes back to the same chart',
         out.toggleShown && out.asReader && out.back, JSON.stringify([out.toggleShown, out.asReader, out.back]));
+  });
+
+  await scenario("the owner's list of 2.11, evening: a gear within reach, folded kinds, a player that goes, a preview in the clear, a card's even bands, a reader's three drawers, faded tags", async () => {
+  const X = 157000, Y = 157000;
+  /* 1. The figures open from the gear and stay open on the way to them:
+        the pointer crossing from the column to the card left the menu
+        and closed it, as there was a gap between the two. */
+  await page.evaluate(()=>{ deselect(); });
+  const fab = await page.evaluate(()=>{ const b = document.getElementById('addFab').getBoundingClientRect();
+                                       return {x: b.right - 20, y: b.bottom - 20}; });
+  await page.mouse.move(fab.x, fab.y);
+  await wait(150);
+  const gear = await page.evaluate(()=>{ const b = document.getElementById('addFabCustomize').getBoundingClientRect();
+                                        return {x: b.left + b.width / 2, y: b.top + b.height / 2}; });
+  await page.mouse.move(gear.x, gear.y, {steps: 5});
+  await page.mouse.click(gear.x, gear.y);
+  await wait(120);
+  const far = await page.evaluate(()=>{ const bs = [...document.querySelectorAll('#addFabFigures .node-style-btn')];
+                                       const b = bs[bs.length - 1].getBoundingClientRect();
+                                       return {x: b.left + b.width / 2, y: b.top + b.height / 2}; });
+  await page.mouse.move(far.x, far.y, {steps: 25});
+  await wait(80);
+  const reached = await page.evaluate(()=>{ const f = document.getElementById('addFab');
+                                           return f.classList.contains('open') && f.classList.contains('figures'); });
+  await page.mouse.move(400, 400, {steps: 4});
+  await wait(80);
+  await page.evaluate(()=>{ openFigureMenu(false); closeAddFab(); });
+
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const c = document.createElement('canvas'); c.width = 100; c.height = 150;
+      const cx = c.getContext('2d'); cx.fillStyle = '#37a'; cx.fillRect(0, 0, 100, 150);
+      const pic = c.toDataURL();
+      applyEdit(()=>{
+        SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Year'}]},
+                               {id:'book', name:'Book', fields:[{id:'f1', label:'Author'}]}];
+        workingNodes.push(['oe_card','The Transformers: The Movie',null,null,null,null,
+                           {pos:[X, Y], card:true, image:pic, medium:'Aoa', border:'double'}]);
+        workingNodes.push(['oe_cut','Cut to it',null,null,null,null,
+                           {pos:[X + 300, Y], card:true, image:pic, medium:'Aoa', size:[260, 330], cardCut:true}]);
+        workingNodes.push(['oe_both','Both asked',null,null,null,null,
+                           {pos:[X + 700, Y], card:true, image:pic, cardCut:true, cardCrop:true}]);
+        workingNodes.push(['oe_far','Where it goes',null,null,null,null,{pos:[X + 2000, Y + 2000]}]);
+        workingNodes.push(['oe_link','',null,null,null,'link',{pos:[X, Y + 600], link:'oe_far'}]);
+        workingNodes.push(['oe_right','In the way',null,null,null,null,{pos:[X + 40, Y + 570], size:[260, 90]}]);
+      });
+      rebuildChart();
+      await wait(250);
+
+      /* 2. Kinds fold; a new one comes unfolded; the medium line is two
+            thirds of the heading. */
+      setSideTab(document.getElementById('mediaPanel'), true);
+      await wait(60);
+      const kinds = ()=> [...document.querySelectorAll('#mediaList .media-kind')];
+      r.folded = kinds().map(k=> k.classList.contains('shut') && !k.querySelector('.media-field-label').offsetParent);
+      kinds()[0].querySelector('.media-fold').click();
+      await wait(30);
+      r.unfolded = !kinds()[0].classList.contains('shut') && !!kinds()[0].querySelector('.media-field-label').offsetParent &&
+                   kinds()[1].classList.contains('shut');
+      document.querySelector('#mediaPanel button[title="Add a kind of medium"]').click();
+      await wait(30);
+      { const ks = kinds(); r.newOpen = ks.length === 3 && !ks[2].classList.contains('shut'); }
+      setSideTab(document.getElementById('mediaPanel'), false);
+      {
+        const g = document.querySelector('.node[data-id="oe_card"]');
+        r.medScale = +(+g.querySelector('text.card-medium').getAttribute('font-size') /
+                       +g.querySelector('text.node-label-text').getAttribute('font-size')).toFixed(3);
+      }
+
+      /* 3. The picture player goes on a press elsewhere, the window's blur and the wheel. */
+      {
+        picturePlayerFor = 'oe_card'; picturePlayer.hidden = false;
+        document.body.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+        r.pressGone = picturePlayer.hidden && !picturePlayerFor;
+        picturePlayerFor = 'oe_card'; picturePlayer.hidden = false;
+        window.dispatchEvent(new Event('blur'));
+        r.blurGone = picturePlayer.hidden;
+        picturePlayerFor = 'oe_card'; picturePlayer.hidden = false;
+        svg.dispatchEvent(new WheelEvent('wheel', {bubbles: true, deltaY: 1}));
+        r.wheelGone = picturePlayer.hidden;
+      }
+
+      /* 4. A link's preview stands where it covers nothing. */
+      showLinkPreview('oe_link');
+      {
+        const p = document.querySelector('#linkPreviewLayer .link-preview-copy');
+        const b = p && p.getBoundingClientRect();
+        const w = document.querySelector('.node[data-id="oe_right"]').getBoundingClientRect();
+        r.previewClear = !!b && (b.right <= w.left + 0.5 || b.left >= w.right - 0.5 || b.bottom <= w.top + 0.5 || b.top >= w.bottom - 0.5);
+      }
+      showLinkPreview(null);
+
+      /* 5. A card's heading stands the same inset off its band above and
+            below, a medium line under it or not, a picture over it or not. */
+      {
+        const g = document.querySelector('.node[data-id="oe_card"]');
+        const rules = [...g.querySelectorAll('.card-rule')].map(l=> +l.getAttribute('y1')).sort((a, b)=> a - b);
+        const hb = inkBoxOf(g.querySelector('text.node-label-text'), []);
+        const inset = TEXT_GAP + CARD_RULE_W / 2;
+        r.headInsets = [+(hb.y - rules[0]).toFixed(2), +(rules[1] - hb.y - hb.height).toFixed(2), +inset.toFixed(2)];
+      }
+      /* …a frame cut to its picture goes round the picture, not round the
+         slot it is fitted into; and a card asked for both is cropped. */
+      {
+        const n = nodes.get('oe_cut');
+        const img = document.querySelector('.node[data-id="oe_cut"] > image:not([filter])');
+        const iw = +img.getAttribute('width'), ih = +img.getAttribute('height');
+        const run = n.cardCutRun || [];
+        const xs = run.map(p=> p.x * n.w);
+        r.cut = [+(iw / ih).toFixed(2), +(Math.max(...xs.filter(x=> x < n.w - 0.5)) - Math.min(...xs.filter(x=> x > 0.5))).toFixed(1), +iw.toFixed(1)];
+        r.bothIsCrop = nodes.get('oe_both').cardCrop && !nodes.get('oe_both').cardCut;
+      }
+      /* …the two toggles turn each other off, and the panel is unburdened. */
+      selectNode('oe_cut');
+      await wait(100);
+      document.getElementById('detailEditToggle').click();
+      await wait(300);
+      {
+        const crop = document.getElementById('editCardCropCheck'), cut = document.getElementById('editCardCutCheck');
+        r.cutBefore = cut.checked && !crop.checked;
+        crop.click();
+        r.cropTurnsCutOff = crop.checked && !cut.checked;
+        cut.click();
+        r.cutTurnsCropOff = cut.checked && !crop.checked;
+        const form = document.getElementById('editImageField').closest('form') || document.getElementById('detail');
+        const help = [...form.querySelectorAll('.editor-help')].map(p=> p.textContent).join(' | ');
+        r.helpGone = !/embedded in the chart|frame goes round|Double-click the picture|Press a square/.test(help) &&
+                     !document.querySelector('.editor-pair-help');
+        const sel = document.getElementById('editMediaTypeSelect');
+        sel.value = 'film'; sel.dispatchEvent(new Event('change'));
+        await wait(50);
+        const fact = document.querySelector('#editMediaFields .media-fact');
+        const field = document.querySelector('#editMediaFields');
+        r.noPreview = !document.querySelector('.media-preview');
+        r.factIn = !!fact && fact.getBoundingClientRect().left - field.getBoundingClientRect().left >= 10 &&
+                   parseFloat(getComputedStyle(fact.querySelector('input')).fontSize) < 12;
+      }
+      document.getElementById('detailEditToggle').click();
+      await wait(200);
+      deselect();
+
+      /* 6. A reader's edge is three drawers, not five with two gaps. */
+      setReaderPreview(true);
+      await wait(150);
+      {
+        const box = id=> document.getElementById(id).getBoundingClientRect();
+        const t = box('tagsPanel'), f = box('refsPanel'), m = box('minimapPanel');
+        r.reader = [t.height, f.height, m.height].map(v=> +v.toFixed(1)).concat([+(f.top - t.bottom).toFixed(1), +(m.top - f.bottom).toFixed(1)]);
+      }
+      setReaderPreview(false);
+      await wait(150);
+    } finally {
+      showLinkPreview(null);
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('the figures stay open while the pointer goes from the gear to the furthest of them', reached, String(reached));
+  check('kinds of media are folded to a line, a fold opens one, and a kind just added comes open',
+        out.folded.length === 2 && out.folded.every(Boolean) && out.unfolded && out.newOpen,
+        JSON.stringify([out.folded, out.unfolded, out.newOpen]));
+  check('a card\'s medium line is written two thirds the size of its heading', Math.abs(out.medScale - 0.667) < 0.01, String(out.medScale));
+  check('the picture player goes on a press elsewhere, when the window loses the focus, and on the wheel',
+        out.pressGone && out.blurGone && out.wheelGone, JSON.stringify([out.pressGone, out.blurGone, out.wheelGone]));
+  check('a link\'s preview stands clear of the entry beside it', out.previewClear, String(out.previewClear));
+  check('a card\'s heading stands a pixel off the rule above it and the rule below, whatever its medium line needs',
+        Math.abs(out.headInsets[0] - out.headInsets[2]) < 0.6 && Math.abs(out.headInsets[1] - out.headInsets[2]) < 0.6,
+        JSON.stringify(out.headInsets));
+  check('a card cut to its picture is framed round the picture in its own proportions, not round its slot',
+        Math.abs(out.cut[0] - 100 / 150) < 0.02 && Math.abs(out.cut[1] - out.cut[2]) < 0.6, JSON.stringify(out.cut));
+  check('cropping and cutting turn each other off, and a card that asked for both is cropped',
+        out.cutBefore && out.cropTurnsCutOff && out.cutTurnsCropOff && out.bothIsCrop,
+        JSON.stringify([out.cutBefore, out.cropTurnsCutOff, out.cutTurnsCropOff, out.bothIsCrop]));
+  check('the entry\'s panel carries no help under the picture or the colours, no medium preview, and its facts stepped in and smaller',
+        out.helpGone && out.noPreview && out.factIn, JSON.stringify([out.helpGone, out.noPreview, out.factIn]));
+  check('a reader\'s edge is shared by the three drawers they have',
+        out.reader[0] > 100 && Math.abs(out.reader[0] - out.reader[1]) < 1 && Math.abs(out.reader[1] - out.reader[2]) < 1 &&
+        out.reader[3] < 20 && out.reader[3] >= 0 && Math.abs(out.reader[3] - out.reader[4]) < 1, JSON.stringify(out.reader));
   });
 
   await scenario("nothing threw along the way", async () => {

@@ -6,6 +6,29 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.1 — "Room to read" (2026-11-03)
+
+The owner's list of 2.11, evening, on 0.25.0.
+
+- **The gear's figures within reach**: `.add-fab-figures` stands against
+  the column, so the pointer crossing to them does not leave the widget.
+- **Folded kinds**: a kind in the Media drawer is one line until its arrow
+  opens it (`mediaKindsOpen`); a new one comes open. `CARD_MEDIUM_SCALE`
+  is 2/3.
+- **The picture player goes** on the pointer leaving the window, the
+  window's blur, a press elsewhere and the wheel.
+- **A link's preview in the clear** (`linkPreviewSpot`): right, left,
+  below or above, by what it covers of other entries and of the screen.
+- **A card's bands**: the bands under the heading keep their own depth
+  (they were held to 14 px together, which came out of the heading, and
+  its words ran across the rules). The cut goes round the
+  picture's own box, set on the rule under it; cut and crop exclude each
+  other in the form and in the model. Help texts under the picture and
+  the colours, and the medium preview, are gone; facts are stepped in.
+- **Reader and tags**: a reader's three drawers share the edge; an entry
+  hidden by tags, and its lines, are faded and cannot be pressed
+  (`fadeForTags`).
+
 ## 0.25.0 — "Kinds of things" (2026-11-03)
 
 The owner's list of 2.11, on 0.24.2.

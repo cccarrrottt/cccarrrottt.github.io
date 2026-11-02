@@ -401,10 +401,13 @@ const LOCAL_SHEETS = 2, LOCAL_SHEET_STEP = 5;
    than the heading, which is what makes the heading read as a heading. */
 const CARD_MINW = 132, CARD_MAXW = 210;
 const CARD_IMG_H = 66, CARD_BODY_SCALE = 0.82;
-/* The card's middle voice. Between the heading and the body in size, for
-   the line that says what the thing IS — "collectible card, back" — as
-   against the heading, which names it, and the body, which cites it. */
-const CARD_MEDIUM_SCALE = 0.9;
+/* The card's middle voice, for the line that says what the thing IS —
+   "Toei, Nelson Shin, 1986" — as against the heading, which names it, and
+   the body, which cites it. A size and a half below the heading (the
+   owner's list of 2.11, evening): it was nine tenths of it, and with a
+   kind of medium writing three or four facts there it read as a second
+   heading. */
+const CARD_MEDIUM_SCALE = 1 / 1.5;
 /* …that was the whole story while a picture was CROPPED to the band: any
    picture fits a fixed band if enough of it is thrown away. A picture is
    now fitted whole by default, so the band takes the depth the picture
@@ -1094,7 +1097,10 @@ workingNodes.forEach(item=>{
        was once the only answer, which meant a wide picture arrived with
        both its ends cut off and no way to say otherwise. */
     cardCrop: !!(opts && opts.cardCrop),
-    cardCut: !!(opts && opts.cardCut),
+    /* Never with cardCrop: a cropped picture fills its band, and a chart
+       saved with both (before the form made them exclusive) is read as
+       the crop it draws. */
+    cardCut: !!(opts && opts.cardCut && !opts.cardCrop),
     /* How its picture moves, if it moves: still, on hover, or (absent)
        always. See wearPicture. */
     anim: pictureAnimOf(opts && opts.anim),

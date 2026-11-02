@@ -268,12 +268,19 @@ function syncMediumFieldVisibility(){
     && CARD_CAPABLE.has((editShapeInput && editShapeInput.value) || 'rect');
   editMediumField.style.display = isCardNow ? '' : 'none';
 }
-if(editCardCropCheck){
-  editCardCropCheck.addEventListener('change', ()=> queueNodeEditCommit(0));
+/* The two answer one question — what becomes of the band a picture does
+   not fill — and only one answer can stand: cropping makes the picture
+   fill its band, so there is nothing left round it for the frame to be
+   cut back from (the owner's list of 2.11, evening). Turning one on turns
+   the other off; the model refuses both at once as well (cardCut). */
+function exclusiveCardToggle(on, off){
+  on.addEventListener('change', ()=>{
+    if(on.checked && off && off.checked) off.checked = false;
+    queueNodeEditCommit(0);
+  });
 }
-if(editCardCutCheck){
-  editCardCutCheck.addEventListener('change', ()=> queueNodeEditCommit(0));
-}
+if(editCardCropCheck) exclusiveCardToggle(editCardCropCheck, editCardCutCheck);
+if(editCardCutCheck) exclusiveCardToggle(editCardCutCheck, editCardCropCheck);
 if(editMediumInput){
   editMediumInput.addEventListener('input', ()=> queueNodeEditCommit());
   editMediumInput.addEventListener('blur', ()=> flushNodeEditCommit());

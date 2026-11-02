@@ -278,7 +278,7 @@ function commitNodeEdit(){
        answer back if it becomes one again with something else in it. */
     const cardImg = cardImageOptsFromForm();
     if(newCard && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
-    if(newCard && newImage && cardImg.cut) opts.cardCut = true; else delete opts.cardCut;
+    if(newCard && newImage && cardImg.cut && !cardImg.crop) opts.cardCut = true; else delete opts.cardCut;
     /* The picture's own size is set on the picture, by dragging its
        corners, so this form carries whatever it already had rather than
        asking a control about it — and lets it go with the card or the

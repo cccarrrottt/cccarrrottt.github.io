@@ -913,10 +913,18 @@ const drawOne = (n)=>{
   /* Each band below the picture takes the height its own words need, in
      order, and the heading takes whatever is left over — so a card given
      more room by hand grows where the room was given rather than
-     redistributing every band. */
+     redistributing every band.
+   *
+     The bands under the heading keep exactly their own depth. They were
+     held to at least fourteen pixels together, from when the middle line
+     was written as large as the heading; at two thirds of it a medium
+     line needs less, and the difference came out of the heading's band —
+     whose words then stood across the rule above them and the rule below
+     (the owner's list of 2.11, evening, with a screenshot). */
   const cardHeadB = isCard
     ? ((cardMedium || cardBody)
-        ? Math.min(h + n.y - 14, cardImgB + Math.max(cardHeadH, h - (cardImgB - n.y) - cardMedH - cardBodyH))
+        ? Math.min(n.y + h - cardMedH - cardBodyH,
+                   cardImgB + Math.max(cardHeadH, h - (cardImgB - n.y) - cardMedH - cardBodyH))
         : n.y + h)
     : 0;
   const cardMedB = isCard ? (cardBody ? cardHeadB + cardMedH : n.y + h) : 0;
@@ -1366,12 +1374,29 @@ const drawOne = (n)=>{
        bands under it. One outline, as everywhere else on a card — the
        ground, the clip, the border and its rings all take it, and the
        ports meet it (n.cardCutRun, borderProfileOf). */
-    const cutPts = (n.cardCut && n.image && cardImgB > n.y + 0.5 &&
-                    (imgW < w - 0.5 || imgY > n.y + 0.5))
-      ? (imgW < w - 0.5
-          ? [{x:imgX, y:imgY}, {x:imgX + imgW, y:imgY}, {x:imgX + imgW, y:cardImgB}, {x:n.x + w, y:cardImgB},
-             {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}, {x:n.x, y:cardImgB}, {x:imgX, y:cardImgB}]
-          : [{x:n.x, y:imgY}, {x:n.x + w, y:imgY}, {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}])
+    /* …to the PICTURE, not to the slot it is fitted into: a picture kept
+       whole stands inside its slot with margins wherever their shapes
+       differ, and a frame cut to the slot left those margins inside it,
+       empty, which is not cut to the picture at all (the owner's list of
+       2.11, evening). So the picture's own box is worked out from its
+       proportions, and set on the rule under it — a picture cut free of
+       its band and floating in the middle of it would have the frame
+       step out round nothing below it. */
+    const cutting = !!(n.cardCut && !n.cardCrop && n.image && cardImgB > n.y + 0.5);
+    let picX = imgX, picY = imgY, picW = imgW, picH = imgH;
+    if(cutting){
+      const r = imageAspect(n.image);
+      if(r > 0 && imgW > 0 && imgH > 0){
+        if(imgW * r <= imgH){ picH = imgW * r; } else { picW = imgH / r; }
+        picX = imgX + (imgW - picW) / 2;
+      }
+      picY = bandY + bandH - picH;
+    }
+    const cutPts = (cutting && (picW < w - 0.5 || picY > n.y + 0.5))
+      ? (picW < w - 0.5
+          ? [{x:picX, y:picY}, {x:picX + picW, y:picY}, {x:picX + picW, y:cardImgB}, {x:n.x + w, y:cardImgB},
+             {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}, {x:n.x, y:cardImgB}, {x:picX, y:cardImgB}]
+          : [{x:n.x, y:picY}, {x:n.x + w, y:picY}, {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}])
       : null;
     n.cardCutRun = cutPts ? cutPts.map(p=> ({x: (p.x - n.x) / w, y: (p.y - n.y) / h})) : null;
     const cutD = (i, r)=>{
@@ -1447,7 +1472,7 @@ const drawOne = (n)=>{
         wearPicture(back, n.image, n.anim);
       }
       const img = el('image', {
-        x:imgX, y:imgY, width:imgW, height:imgH,
+        x:picX, y:picY, width:picW, height:picH,
         'clip-path': `url(#${clipId})`,
         /* Fit the whole picture unless this card has asked for the
            other thing. `slice` fills the band and throws the rest away;
@@ -2379,7 +2404,7 @@ arraysInFitOrder().forEach(a=>{
     if(g){
       g.classList.toggle('selected', selectedId === a.id || multiSelection.has(a.id));
       if(selectedId === a.id) nodeControlsOn(a.id);
-      if(nodeHidden(a)) g.style.display = 'none';
+      fadeForTags(g, nodeHidden(a));
     }
   }
 });
