@@ -663,10 +663,8 @@ function syncStyleBarRows(){
   } else {
     rows.border.hidden = true;
     rows.frame.hidden = false;
-    /* Words written along the line are framed by a band that bends with
-       them, and bare unless asked (see drawNoteAlong) — so the button
-       there reads noteAlongFrame, not the plate's own noteFrame. */
-    const framed = style.noteAlong ? style.noteAlongFrame : style.noteFrame !== false;
+    /* One frame flag, whichever way the words run (see noteFramed). */
+    const framed = noteFramed(style);
     light(rows.frame, framed ? 'frame' : '');
     /* A note with its frame taken off has no corners left to choose: the
        button is greyed rather than left to look as if it did nothing. */
@@ -896,12 +894,13 @@ function applyStyleBar(group, value){
       if(!o) return;
       if(group === 'noteSide'){
         o.notePos = value;
-      } else if(group === 'frame' && o.noteAlong){
-        // Along the line, bare is the absence of the flag.
-        if(o.noteAlongFrame) delete o.noteAlongFrame; else o.noteAlongFrame = true;
       } else if(group === 'frame'){
-        // A toggle: framed is the absence of the flag.
-        if(o.noteFrame === false) delete o.noteFrame; else o.noteFrame = false;
+        /* A toggle: framed is the absence of the flag, along the line or
+           level — one flag for both (the owner's list of 3.11). The older
+           along-the-line flag goes as soon as the button is used. */
+        const was = noteFramed(o);
+        delete o.noteAlongFrame;
+        if(was) o.noteFrame = false; else delete o.noteFrame;
       } else if(group === 'corners'){
         // Square is the default, so only the rounding is written down.
         if(o.noteSquare === false) delete o.noteSquare; else o.noteSquare = false;

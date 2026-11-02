@@ -1085,7 +1085,11 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
      outline of its letters on one along its line (the owner's list of
      1.11). */
   if(half > 0){
-    const framed = !!(style && style.noteAlongFrame);
+    /* Framed by the flag a level note is framed by, so the frame button
+       means one thing whichever way the words run (the owner's list of
+       3.11). A chart from before kept the along-the-line frame apart, as
+       noteAlongFrame, and is read as framed where it says so. */
+    const framed = noteFramed(style);
     const pad = TEXT_GAP;
     /* The letters' ink, scaled to the length the path actually gives
        them (its advance and the canvas's can differ by a hair). */
@@ -1146,6 +1150,9 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
 /* How far a note's letters reach above their baseline and below it, in
    the note's face — the same measure inkBoxOf takes of a level note. A
    note with no ink measures as a capital and a descender would. */
+function noteFramed(style){
+  return !!style && (style.noteFrame !== false || style.noteAlongFrame === true);
+}
 function noteAlongInk(words, t){
   const fallback = {up: EDGE_NOTE_FS * 0.72, down: EDGE_NOTE_FS * 0.21};
   if(!inkCtx || !words || !t) return fallback;

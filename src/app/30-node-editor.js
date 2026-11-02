@@ -479,7 +479,11 @@ function syncNodeEditorLook(){
     rec.surface.style.fontSize = (EDGE_NOTE_FS * vs).toFixed(2) + 'px';
     rec.surface.dataset.lineH = (EDGE_NOTE_LINE_H * vs).toFixed(2);
     rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
-    rec.surface.style.color = '';
+    /* …in the connector's ink, which the note is drawn in: the field
+       showed the page's default black over a note drawn red (the owner's
+       list of 3.11). A line in two colours writes its note in a gradient,
+       which a field cannot wear; it takes the first. */
+    rec.surface.style.color = noteInkOf(nodeEditorTarget.from, nodeEditorTarget.to);
     return finishNodeEditorLook(rec);
   }
   const n = nodes.get(nodeEditorTarget.id);
@@ -497,6 +501,16 @@ function syncNodeEditorLook(){
      were saved and drawn (the owner's list of 28.10). */
   rec.surface.style.color = n.labelInk || '';
   return finishNodeEditorLook(rec);
+}
+function noteInkOf(from, to){
+  const t = document.querySelector(`.edge-note[data-from="${CSS.escape(from)}"][data-to="${CSS.escape(to)}"] text`);
+  if(!t) return '';
+  const fill = getComputedStyle(t).fill || '';
+  const ref = /url\(["']?#([^"')]+)["']?\)/.exec(fill);
+  if(!ref) return fill && fill !== 'none' ? fill : '';
+  const stop = document.getElementById(ref[1]);
+  const first = stop && stop.querySelector('stop');
+  return first ? (first.getAttribute('stop-color') || getComputedStyle(first).stopColor || '') : '';
 }
 function finishNodeEditorLook(rec){
   /* A remark on a connector is written in the CONNECTOR'S ink — a note and
