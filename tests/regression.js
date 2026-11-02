@@ -21831,6 +21831,135 @@ async function main(){
         && /\ntwo$/.test(sheet.done.label), JSON.stringify(sheet.typing) + JSON.stringify(sheet.done));
   });
 
+  await scenario("the owner's list of 2.11: a card's blur, a note's width, a line held open, a sheet that follows", async () => {
+  const X = 143000, Y = 143000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      /* 1. A card's blurred band keeps its blur while a finger moves the
+            view, and at night. */
+      const cv = document.createElement('canvas'); cv.width = 300; cv.height = 100;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#3a7'; cx.fillRect(0, 0, 300, 100);
+      applyEdit(()=>{
+        workingNodes.push(['o211_c','Card',null,null,'A note',null,{pos:[X, Y], card:true, image:cv.toDataURL(), border:'wavy'}]);
+        const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above', noteSquare:false};
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}]].forEach(([k, o], i)=>{
+          workingNodes.push(['o211_' + k + 'a','A',null,null,null,null,{pos:[X + 400, Y + i * 80]}]);
+          workingNodes.push(['o211_' + k + 'b','B','o211_' + k + 'a',null,null,null,{pos:[X + 600, Y + i * 80]}]);
+          EDGE_STYLES.push(Object.assign({from:'o211_' + k + 'a', to:'o211_' + k + 'b'}, base, o));
+        });
+        workingNodes.push(['o211_t','Typed',null,null,null,null,{pos:[X, Y + 300]}]);
+      });
+      rebuildChart();
+      await new Promise(ok=> setTimeout(ok, 250));
+      const back = document.querySelector('.node[data-id="o211_c"] .card-img-backdrop image');
+      const blurred = ()=> /url\(/.test(getComputedStyle(back).filter);
+      const theme = document.documentElement.getAttribute('data-theme');
+      const touch = document.body.classList.contains('touch-input');
+      document.body.classList.add('touch-input', 'view-moving');
+      r.blurMoving = blurred();
+      document.documentElement.setAttribute('data-theme', 'dark');
+      r.blurDark = blurred();
+      document.body.classList.remove('view-moving');
+      if(!touch) document.body.classList.remove('touch-input');
+      if(theme) document.documentElement.setAttribute('data-theme', theme);
+      else document.documentElement.removeAttribute('data-theme');
+      /* 5. Round and framed, a note along its line reaches as far as a
+            level one, both ways. */
+      const plate = document.querySelector('.edge-note[data-from="o211_lva"] .edge-note-plate');
+      const frame = document.querySelector('.edge-note[data-from="o211_ala"] .edge-note-along-frame');
+      const pb = plate.getBBox(), fb = frame.getBBox();
+      r.note = {plate: [pb.width + EDGE_NOTE_FRAME_W, pb.height + EDGE_NOTE_FRAME_W].map(v=> +v.toFixed(2)),
+                along: [fb.width, fb.height].map(v=> +v.toFixed(2))};
+      /* 6. A line opened at the end of an entry's field grows the entry
+            before anything is typed on it. */
+      openNodeEditor('o211_t');
+      await new Promise(ok=> setTimeout(ok, 100));
+      const h0 = nodes.get('o211_t').h;
+      const surface = richFields.get('nodeEditorText').surface;
+      const sel = getSelection(); sel.selectAllChildren(surface); sel.collapseToEnd();
+      document.execCommand('insertLineBreak');
+      surface.dispatchEvent(new Event('input', {bubbles: true}));
+      await new Promise(ok=> setTimeout(ok, 120));
+      r.grew = [h0, nodes.get('o211_t').h, nodeEditorText.value];
+      closeNodeEditor(false);
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; keep.nodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; keep.styles.forEach(x=> EDGE_STYLES.push(x)); });
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('a card\'s blurred band stays blurred while a finger moves the view, and at night',
+        out.blurMoving && out.blurDark, JSON.stringify(out));
+  check('a round, framed note along its line reaches exactly as far as a level one',
+        out.note && Math.abs(out.note.plate[0] - out.note.along[0]) < 0.3 && Math.abs(out.note.plate[1] - out.note.along[1]) < 0.3,
+        JSON.stringify(out.note));
+  check('a line opened at the end of a field grows its entry at once, and is not written into the text',
+        out.grew && out.grew[1] > out.grew[0] + 4 && !/\n$/.test(out.grew[2]), JSON.stringify(out.grew));
+
+  /* 2. On a phone the sheet comes up without changing its height, follows
+        a finger on its heading, and open all the way stays under the top
+        bar, however long its form. */
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  const sheet = {};
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(700);
+    await pp.evaluate(()=>{
+      applyEdit(()=> workingNodes.push(['o211_p','Phone entry',null,null,'A note\n'.repeat(80),null,{pos:[143000, 143000]}]));
+      rebuildChart();
+      const n = nodes.get('o211_p'); vs = 1.2; vx = -(n.x - 100) * 1.2; vy = -(n.y - 150) * 1.2; applyTransform();
+      window.__sheetH = [];
+      const d = document.getElementById('detail');
+      let frames = 0;
+      const f = ()=>{
+        if(d.classList.contains('open')) __sheetH.push(Math.round(d.getBoundingClientRect().height));
+        if(++frames < 90) requestAnimationFrame(f);
+      };
+      requestAnimationFrame(f);
+    });
+    const c = await pp.evaluate(()=>{ const b = document.querySelector('.node[data-id="o211_p"]').getBoundingClientRect();
+      return {x: b.x + b.width/2, y: b.y + b.height/2}; });
+    await pp.touchscreen.tap(c.x, c.y); await wait(700);
+    sheet.rising = await pp.evaluate(()=> [...new Set(__sheetH.filter(h=> h > 0))]);
+    const cdp = await phone.newCDPSession(pp);
+    const h = await pp.evaluate(()=>{ const b = document.querySelector('#detail .detail-head').getBoundingClientRect();
+      return {x: b.x + 40, y: b.y + 10}; });
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:h.x, y:h.y}]});
+    sheet.held = [];
+    for(let i = 1; i <= 6; i++){
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:h.x, y:h.y - i * 30}]});
+      await wait(60);
+      sheet.held.push(await pp.evaluate(()=> Math.round(document.getElementById('detail').getBoundingClientRect().height)));
+    }
+    for(let i = 7; i <= 30; i++){
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:h.x, y:Math.max(2, h.y - i * 30)}]});
+      await wait(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+    await wait(400);
+    sheet.open = await pp.evaluate(()=>{ const d = document.getElementById('detail');
+      return {full: d.classList.contains('full'), top: d.getBoundingClientRect().top,
+              bar: document.querySelector('.topbar').getBoundingClientRect().bottom}; });
+  } finally {
+    await phone.close();
+  }
+  check('on a phone a picked entry\'s sheet rises at the one height, without a jump',
+        sheet.rising && sheet.rising.length === 1, JSON.stringify(sheet.rising));
+  check('…follows a finger on its heading as it goes',
+        sheet.held && sheet.held.length === 6 && sheet.held.every((v, i)=> !i || v > sheet.held[i-1]), JSON.stringify(sheet.held));
+  check('…and open all the way, however long its form, stops under the top bar',
+        sheet.open && sheet.open.full && sheet.open.top >= sheet.open.bar, JSON.stringify(sheet.open));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

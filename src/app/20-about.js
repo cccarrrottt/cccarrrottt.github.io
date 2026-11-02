@@ -11,9 +11,18 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.24.0';
+const APP_VERSION = '0.24.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.24.1', date:'2026-11-02', title:'Second look', notes:[
+'A merged arrow comes into its entry by the face any connector would take, from where it leaves the bar; one set by hand with the grip at its end is kept wherever the entry is carried.',
+'A card\'s blurred band stays blurred while the view is moved on a phone, and at night.',
+'On a phone the entry\'s sheet rises without changing its height, follows a finger on its heading and settles on the nearer of folded and open, and open all the way stops under the top bar, so a long form can always be put away.',
+'A link entry is picked by one press, like any other, and followed by two.',
+'A hub\'s rings and a local multiverse\'s sheets, when the entry is picked, stream in the count and time that pass through the still picture every quarter (third) of a turn, with no ring running over another.',
+'A note along its line, framed, is exactly as wide and as round as a level one.',
+'A line opened at the end of an entry\'s field grows the entry at once, before anything is written on it.'
+  ]},
   {v:'0.24.0', date:'2026-11-01', title:'As it was asked', notes:[
 'A merged arrow keeps the face of its entry it came in on when the entry is carried past the bar, rather than being moved to the other side.',
 'A faint button beside every entry copies a link to it, so a link entry can be pointed at another link entry too. It stands clear of the box and of its port.',

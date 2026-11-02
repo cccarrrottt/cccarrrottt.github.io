@@ -6,6 +6,27 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.24.1 — "Second look" (2026-11-02)
+
+The owner's list of 2.11, on 0.24.0.
+
+- **A merged arrow's face is chosen as any connector's** (`autoSides`,
+  the bar's foot standing in for the entry it comes from); one set by
+  hand is kept. The pin a carry wrote in 0.24.0 is gone.
+- **A card's blurred band keeps its blur** while a finger moves the view
+  and at night: the blur is a variable the stylesheet composes with.
+- **The phone's entry sheet** rests folded, open or shut, so it rises
+  without a jump; follows a finger on its heading; and stops under the
+  top bar (`--sheet-room`).
+- **A link entry**: one press picks it, two follow it.
+- **The hub's echo and the local stack, picked**, take each piece's delay
+  from its own phase (`applyVisibility`): the page had set them going on
+  an older count and turn. The suite now starts them by picking.
+- **A note along its line** spans its words' ink and is cut square, or,
+  round and straight, is a plate turned to the line.
+- **An Enter at the end of a field** grows the entry at once
+  (`openLinesAtEnd`).
+
 ## 0.24.0 — "As it was asked" (2026-11-01)
 
 The owner's list of seven, from 1.11.
