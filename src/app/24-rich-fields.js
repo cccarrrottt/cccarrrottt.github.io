@@ -375,6 +375,14 @@ const richFields = new Map();   // textarea id -> {textarea, surface}
 /* Whether the keys being typed with are drawn on the screen: a finger
    has been used on this page, and the device's own pointer is one. A
    laptop with a touch screen that was touched once still has its keys. */
+/* How many empty lines a field's surface ends in, past its last words:
+   the editor keeps one break more than it shows, so the last is not one. */
+function openLinesAtEnd(textarea){
+  const rec = textarea && richFields.get(textarea.id);
+  if(!rec) return 0;
+  const tail = /\n*$/.exec(rec.surface.innerText || '')[0].length;
+  return Math.max(0, tail - 1);
+}
 function keysAreOnScreen(){
   return document.body.classList.contains('touch-input') &&
          !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
