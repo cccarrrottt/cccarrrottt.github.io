@@ -745,11 +745,7 @@ const phoneSheet = window.matchMedia('(max-width: 720px)');
 const SHEET_SWIPE = 24, SHEET_TAP = 8, SHEET_TAGS_SHOWN = 64;
 function setEntrySheet(state){
   if(!entrySheet) return;
-  if(state === 'peek'){
-    const tags = document.getElementById('detailTags');
-    const tagsH = tags && tags.offsetParent ? Math.min(SHEET_TAGS_SHOWN, tags.offsetHeight) : 0;
-    entrySheet.style.setProperty('--sheet-peek', (entrySheetHead.offsetHeight + tagsH + 1) + 'px');
-  }
+  if(state === 'peek') measureSheetPeek();
   entrySheet.classList.toggle('peek', state === 'peek');
   entrySheet.classList.toggle('full', state === 'full');
 }
@@ -758,15 +754,63 @@ function entrySheetState(){
        : entrySheet.classList.contains('peek') ? 'peek'
        : entrySheet.classList.contains('full') ? 'full' : 'half';
 }
+/* The room a sheet opened all the way may take: down from under the top
+   bar, so the bar — Save, undo, the search — is never under it, and the
+   sheet's own heading never goes off the top of the screen (the owner's
+   list of 2.11: an entry's form, opened, covered everything and there was
+   no way to put it away). */
+function measureSheetRoom(){
+  if(!entrySheet) return;
+  const bar = document.querySelector('.topbar');
+  const top = bar ? bar.getBoundingClientRect().bottom : 0;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  entrySheet.style.setProperty('--sheet-room', Math.max(160, Math.round(vh - top - 8)) + 'px');
+}
+function measureSheetPeek(){
+  if(!entrySheet || !entrySheetHead) return;
+  const tags = document.getElementById('detailTags');
+  const tagsH = tags && tags.offsetParent ? Math.min(SHEET_TAGS_SHOWN, tags.offsetHeight) : 0;
+  entrySheet.style.setProperty('--sheet-peek', (entrySheetHead.offsetHeight + tagsH + 1) + 'px');
+}
 if(entrySheet && entrySheetHead){
+  /* Folded is where it rests, open or shut. It used to be put back to
+     the drawer's own height as it went and folded again as it came, and
+     the two ran into each other: a tap on an entry brought up a tall
+     sheet that shrank as it rose — the jump. Now opening and shutting is
+     only the slide, and the fold is set while nothing is showing. */
+  if(phoneSheet.matches) setEntrySheet('peek');
+  measureSheetRoom();
   let wasOpen = entrySheet.classList.contains('open');
+  let refold = null;
   new MutationObserver(()=>{
     const open = entrySheet.classList.contains('open');
-    if(open && !wasOpen) setEntrySheet(phoneSheet.matches ? 'peek' : null);
-    else if(!open && wasOpen) setEntrySheet(null);
+    if(open && !wasOpen){
+      clearTimeout(refold);
+      measureSheetRoom();
+      /* The fold is measured for the entry now in it, with no easing:
+         it is still rising, and two movements at once is the jump. */
+      if(phoneSheet.matches){
+        entrySheet.classList.add('sheet-dragging');
+        setEntrySheet('peek');
+        requestAnimationFrame(()=> requestAnimationFrame(()=>{
+          if(!swipe) entrySheet.classList.remove('sheet-dragging');
+        }));
+      }
+    } else if(!open && wasOpen && phoneSheet.matches){
+      refold = setTimeout(()=>{ if(!entrySheet.classList.contains('open')) setEntrySheet('peek'); }, 220);
+    }
     wasOpen = open;
   }).observe(entrySheet, {attributes: true, attributeFilter: ['class']});
-  phoneSheet.addEventListener('change', q=>{ if(!q.matches) setEntrySheet(null); });
+  phoneSheet.addEventListener('change', q=> setEntrySheet(q.matches ? 'peek' : null));
+  /* The fold is the heading and the tags, whatever entry fills them. */
+  if(typeof ResizeObserver === 'function'){
+    const ro = new ResizeObserver(()=>{ if(entrySheet.classList.contains('peek')) measureSheetPeek(); });
+    ro.observe(entrySheetHead);
+    const tags = document.getElementById('detailTags');
+    if(tags) ro.observe(tags);
+  }
+  window.addEventListener('resize', measureSheetRoom);
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', measureSheetRoom);
   /* Anything in it being written in opens it: a field folded out of
      sight under the heading is a field nobody can see. */
   const unfold = ()=>{ if(entrySheetState() === 'peek') setEntrySheet('full'); };
@@ -774,26 +818,60 @@ if(entrySheet && entrySheetHead){
   if(toggle) toggle.addEventListener('click', unfold, true);
   entrySheet.addEventListener('focusin', ev=>{ if(!entrySheetHead.contains(ev.target)) unfold(); });
 
+  /* The heading is a handle: the sheet follows the finger the whole way,
+     and on letting go settles on the nearer of folded and open — or goes,
+     pulled down past its fold. It used to move only on letting go, in one
+     step to one or the other. */
   let swipe = null;
+  const heightNow = ()=> entrySheet.getBoundingClientRect().height;
+  const pxOf = (name, fallback)=>{
+    const v = parseFloat(getComputedStyle(entrySheet).getPropertyValue(name));
+    return isFinite(v) ? v : fallback;
+  };
   entrySheetHead.addEventListener('pointerdown', ev=>{
     if(!phoneSheet.matches || !entrySheetState()) return;
     if(ev.target.closest && ev.target.closest('button, a, input')) return;
-    swipe = {id: ev.pointerId, y0: ev.clientY, x0: ev.clientX};
+    swipe = {id: ev.pointerId, y0: ev.clientY, x0: ev.clientX, h0: heightNow(), moved: false,
+             t0: performance.now(), lastY: ev.clientY, lastT: performance.now(), v: 0};
+    try{ entrySheetHead.setPointerCapture(ev.pointerId); }catch(e){}
+  });
+  entrySheetHead.addEventListener('pointermove', ev=>{
+    const st = swipe;
+    if(!st || ev.pointerId !== st.id) return;
+    const dy = ev.clientY - st.y0;
+    if(!st.moved && Math.hypot(ev.clientX - st.x0, dy) <= SHEET_TAP) return;
+    st.moved = true;
+    const now = performance.now();
+    if(now > st.lastT) st.v = (ev.clientY - st.lastY) / (now - st.lastT);
+    st.lastY = ev.clientY; st.lastT = now;
+    entrySheet.classList.add('sheet-dragging');
+    const room = pxOf('--sheet-room', window.innerHeight * 0.8);
+    entrySheet.style.maxHeight = Math.max(24, Math.min(room, st.h0 - dy)) + 'px';
   });
   const settle = (ev)=>{
     const st = swipe;
     if(!st || ev.pointerId !== st.id) return;
     swipe = null;
-    const dy = ev.clientY - st.y0, far = Math.hypot(ev.clientX - st.x0, dy);
     const now = entrySheetState();
+    const h = heightNow();
+    entrySheet.classList.remove('sheet-dragging');
+    entrySheet.style.maxHeight = '';
     if(!now) return;
-    if(far <= SHEET_TAP) setEntrySheet(now === 'peek' ? 'full' : 'peek');
-    else if(dy <= -SHEET_SWIPE) setEntrySheet('full');
-    else if(dy >= SHEET_SWIPE){
-      if(now === 'peek') deselect();
-      else setEntrySheet('peek');
-    }
+    if(!st.moved){ setEntrySheet(now === 'peek' ? 'full' : 'peek'); return; }
+    const peek = pxOf('--sheet-peek', 96), room = pxOf('--sheet-room', window.innerHeight * 0.8);
+    /* A flick decides by its direction; a slow drag by where it was let
+       go — under the fold it puts the sheet away, as ✕ does. */
+    const flick = Math.abs(st.v) > 0.5 ? Math.sign(st.v) : 0;
+    if(h < peek - SHEET_SWIPE || (flick > 0 && now === 'peek')){ deselect(); return; }
+    if(flick < 0) setEntrySheet('full');
+    else if(flick > 0) setEntrySheet('peek');
+    else setEntrySheet(h > (peek + Math.min(room, entrySheet.scrollHeight)) / 2 ? 'full' : 'peek');
   };
   entrySheetHead.addEventListener('pointerup', settle);
-  entrySheetHead.addEventListener('pointercancel', ()=>{ swipe = null; });
+  entrySheetHead.addEventListener('pointercancel', ev=>{
+    if(!swipe || ev.pointerId !== swipe.id) return;
+    swipe = null;
+    entrySheet.classList.remove('sheet-dragging');
+    entrySheet.style.maxHeight = '';
+  });
 }

@@ -3401,9 +3401,11 @@
        by it (see setEntrySheet, 38-touch.js). The bar at the top says the
        heading is a handle; the heading keeps the finger to itself, so a
        swipe on it is not the page scrolling. */
-    .detail{transition:transform 180ms ease, max-height 200ms ease;}
-    .detail.open.peek{max-height:var(--sheet-peek, 96px);}
-    .detail.open.full{max-height:88dvh;}
+    .detail{transition:transform 180ms ease, max-height 220ms cubic-bezier(.2,.8,.2,1);}
+    .detail.peek{max-height:var(--sheet-peek, 96px);}
+    .detail.full{max-height:min(88dvh, var(--sheet-room, 88dvh));}
+    /* While a finger holds the heading the sheet is where the finger is. */
+    .detail.sheet-dragging{transition:transform 180ms ease;}
     .detail-head{position:relative;touch-action:none;cursor:grab;padding-top:18px;}
     .detail-head::before{content:'';position:absolute;top:6px;left:50%;width:36px;height:4px;
       margin-left:-18px;border-radius:2px;background:var(--line);}
