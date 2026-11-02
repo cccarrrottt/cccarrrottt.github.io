@@ -291,17 +291,27 @@ function sweepColourAt(paint, p){
    painted. Only what was drawn in the inherited colour changes. */
 function recolourCalloutCard(n, ink){
   const was = calloutInheritedColor(n);
-  if(!was || !ink || was === ink) return;
+  if(!was || !ink) return;
   /* …and the field typed over its words takes it too (the owner's list of
      31.10: the words were written in the colour from before the leader
      was drawn, which is not the one on the chart). */
   if(n.labelInk === was) n.labelInk = ink;
   const g = qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
   if(!g) return;
-  g.querySelectorAll('[stroke], [fill]').forEach(e=>{
-    if(e.getAttribute('stroke') === was) e.setAttribute('stroke', ink);
-    if(e.getAttribute('fill') === was) e.setAttribute('fill', ink);
+  /* A drawing kept from the pass before (drawOrKeep) already wears the
+     leader's colour of then, which is what changes if the leader's has. */
+  const rec = drawnEntries.get(n.id);
+  const from = new Set([was]);
+  if(rec && rec.pieces[0] === g && rec.calloutInk) from.add(rec.calloutInk);
+  from.delete(ink);
+  if(from.size) g.querySelectorAll('[stroke], [fill]').forEach(e=>{
+    if(from.has(e.getAttribute('stroke'))) e.setAttribute('stroke', ink);
+    if(from.has(e.getAttribute('fill'))) e.setAttribute('fill', ink);
   });
+  /* The drawing is the pass's own plus this, so it is what the next pass
+     asks after: a card recoloured here was "touched since it was drawn"
+     and drawn afresh on every edit anywhere on the chart (code 1, 2.11). */
+  if(rec && rec.pieces[0] === g){ rec.calloutInk = ink; rec.after = drawingSig(rec.pieces); }
 }
 /* `pts` is the line as drawn, which is what the callouts stand on;
    `route`, when the line is drawn through its route rather than along it

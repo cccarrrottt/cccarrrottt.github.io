@@ -1242,8 +1242,8 @@
        drawers should take a click. */
     pointer-events:none;
   }
-  /* Each drawer's third. The tab sits at the top of it; the drawer, when
-     open, fills it beside the tab. */
+  /* Each drawer's fifth of the edge. The tab sits at the top of it; the
+     drawer, when open, fills it beside the tab. */
   .side-tab{
     position:absolute;left:0;
     height:calc((100% - var(--side-tab-gap) * 4) / 5);
@@ -2524,7 +2524,6 @@
   .comments-card .comment-list::-webkit-scrollbar{width:10px;}
   .comments-card .comment-list::-webkit-scrollbar-track{background:var(--panel-2);border-radius:5px;}
   .comments-card .comment-list::-webkit-scrollbar-thumb{background:var(--ink-faint);border-radius:5px;border:2px solid var(--panel-2);}
-  .comment-note{font-size:11.5px;color:var(--ink-faint);line-height:1.6;margin:2px 0 0;}
 
   /* What a suggestion is about: an entry, which can be flown to, or the
      chart as a whole. */
@@ -3249,7 +3248,6 @@
   .editor-field-pair{display:flex;gap:10px;align-items:flex-start;}
   .editor-field-pair > .editor-field{flex:1 1 0;min-width:0;margin-bottom:0;}
   .editor-field-pair > .editor-field[hidden]{display:none;}
-  .editor-pair-help{margin:4px 0 12px;}
   .field-with-reset input{flex:1;min-width:0;}
   .hex-reset{
     background:none;border:none;padding:0 2px;cursor:pointer;line-height:1;

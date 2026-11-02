@@ -673,7 +673,14 @@ function paintUnderlines(txtEl){
     if(e.dataset.forText === (txtEl.dataset.ulKey || '')) e.remove();
   });
   if(!runs.length) return;
-  const key = txtEl.dataset.ulKey || (txtEl.dataset.ulKey = 'ul' + (++underlineSeq));
+  /* Named by its place among the texts of what it hangs in, which is all
+     the name has to tell apart. It was a number counted up over the whole
+     page, so the same entry drawn twice came out with a different name
+     each time, and an entry with a rule in its words never matched the
+     drawing it already had and was drawn afresh on every edit anywhere
+     on the chart (drawOrKeep; code 1, 2.11). */
+  const key = txtEl.dataset.ulKey ||
+    (txtEl.dataset.ulKey = 'ul' + Array.prototype.filter.call(host.children, c=> c.tagName === 'text').indexOf(txtEl));
   /* Measured first and drawn after, so runs that meet are drawn as ONE
      line: a rule along "Beast Wars:" is three runs now that the space
      between the words carries it (see layoutLine), and three dashed or
@@ -737,7 +744,6 @@ function paintUnderlines(txtEl){
     });
   });
 }
-let underlineSeq = 0;
 /* What is drawn BESIDE a text is cut where the text is cut.
  *
  * A label too long for its box is clipped at the border (see clipText in

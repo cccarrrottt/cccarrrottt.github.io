@@ -343,7 +343,9 @@ function drawOrKeep(n, kept, draw){
       if(v === null){ if(p.hasAttribute(a)) p.removeAttribute(a); }
       else if(p.getAttribute(a) !== v) p.setAttribute(a, v);
     }));
-    return drawingSig(old.pieces) === old.sig;
+    /* …as it was left: a callout's card is recoloured after it is
+       drawn, once its leader's colour is known (recolourCalloutCard). */
+    return drawingSig(old.pieces) === (old.after || old.sig);
   })();
   /* The old drawing is out of sight of anything that looks an entry up by
      its id while the new one is drawn — renamed, not unnamed, so the

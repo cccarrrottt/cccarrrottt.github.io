@@ -22414,7 +22414,21 @@ async function main(){
       document.querySelector('#mediaPanel button[title="Add a kind of medium"]').click();
       await wait(30);
       { const ks = kinds(); r.newOpen = ks.length === 3 && !ks[2].classList.contains('shut'); }
+      /* Code 1: a field renamed renames itself in the kind's line. */
+      applyEdit(()=>{ SETTINGS.mediaTypes[0].format = '%Studio% (%Year%)'; });
+      buildMediaTab();
+      {
+        const label = document.querySelector('#mediaList .media-kind[data-kind="film"] .media-field-label');
+        label.value = 'Company'; label.dispatchEvent(new Event('change'));
+        await wait(30);
+        r.renamed = mediaTypeById('film').format;
+      }
       setSideTab(document.getElementById('mediaPanel'), false);
+      {
+        const k = {fields:[{id:'f1', label:'Year'}, {id:'f2', label:'Country'}, {id:'f3', label:'Studio'}], format:'%Studio%, %Year% (%Country%)'};
+        r.brackets = [mediaLineFor(k, {f1:'1986', f3:'Toei'}), mediaLineFor(k, {f2:'JP'}),
+                      mediaLineFor(Object.assign({}, k, {format:'(%Country%) %Year%'}), {f2:'JP'})];
+      }
       {
         const g = document.querySelector('.node[data-id="oe_card"]');
         r.medScale = +(+g.querySelector('text.card-medium').getAttribute('font-size') /
@@ -22488,10 +22502,45 @@ async function main(){
         r.noPreview = !document.querySelector('.media-preview');
         r.factIn = !!fact && fact.getBoundingClientRect().left - field.getBoundingClientRect().left >= 10 &&
                    parseFloat(getComputedStyle(fact.querySelector('input')).fontSize) < 12;
+        /* Code 1: a fact is the kind's own — a film's studio is not a
+           book's author when the card is switched — and comes back with
+           its kind. */
+        const first = ()=> document.querySelector('#editMediaFields input');
+        first().value = 'Toei'; first().dispatchEvent(new Event('input'));
+        sel.value = 'book'; sel.dispatchEvent(new Event('change'));
+        await wait(30);
+        const asBook = first().value;
+        sel.value = 'film'; sel.dispatchEvent(new Event('change'));
+        await wait(30);
+        r.factsPerKind = [asBook, first().value];
       }
       document.getElementById('detailEditToggle').click();
       await wait(200);
       deselect();
+
+      /* Code 1: an underlined entry and a callout keep their drawings
+         through an edit elsewhere, and the callout still takes a new
+         colour from its connector. */
+      applyEdit(()=>{
+        workingNodes.push(['oe_ul','{{u:solid|Underlined}} words',null,null,null,null,{pos:[X, Y + 900]}]);
+        workingNodes.push(['oe_ca','From',null,null,null,null,{pos:[X + 300, Y + 900]}]);
+        workingNodes.push(['oe_cb','To','oe_ca',null,null,null,{pos:[X + 700, Y + 900]}]);
+        workingNodes.push(['oe_co','Said',null,null,null,'callout',{pos:[X + 450, Y + 800], leader:{from:'oe_ca', to:'oe_cb', at:0.5}}]);
+        EDGE_STYLES.push({from:'oe_ca', to:'oe_cb', routing:'straight', dash:'solid', arrow:true, color:'#22b836', colorFixed:true});
+      });
+      rebuildChart();
+      await wait(80);
+      {
+        const ul = drawnEntries.get('oe_ul').pieces[0], co = drawnEntries.get('oe_co').pieces[0];
+        applyEdit(()=>{ entryOpts(workingEntry('oe_ca').entry).colors = ['#c23b22']; });
+        await wait(80);
+        r.keptUl = drawnEntries.get('oe_ul').pieces[0] === ul;
+        r.keptCo = drawnEntries.get('oe_co').pieces[0] === co;
+        applyEdit(()=>{ EDGE_STYLES.find(x=> x.from === 'oe_ca').color = '#2266cc'; });
+        await wait(80);
+        const g = document.querySelector('.node[data-id="oe_co"]');
+        r.coInk = [...g.querySelectorAll('[stroke]')].map(e=> e.getAttribute('stroke')).filter(v=> v !== 'none' && !/var|url/.test(v));
+      }
 
       /* 6. A reader's edge is three drawers, not five with two gaps. */
       setReaderPreview(true);
@@ -22515,6 +22564,15 @@ async function main(){
   check('kinds of media are folded to a line, a fold opens one, and a kind just added comes open',
         out.folded.length === 2 && out.folded.every(Boolean) && out.unfolded && out.newOpen,
         JSON.stringify([out.folded, out.unfolded, out.newOpen]));
+  check('a fact in the card\'s panel belongs to its kind, and comes back with it', JSON.stringify(out.factsPerKind) === '["","Toei"]',
+        JSON.stringify(out.factsPerKind));
+  check('an underlined entry and a callout keep their drawings through an edit elsewhere',
+        out.keptUl && out.keptCo, JSON.stringify([out.keptUl, out.keptCo]));
+  check('…and a kept callout still takes its connector\'s new colour',
+        out.coInk.length > 0 && out.coInk.includes('#2266cc') && !out.coInk.includes('#22b836'), JSON.stringify(out.coInk));
+  check('a field renamed in the drawer is renamed in its kind\'s line', out.renamed === '%Company% (%Year%)', String(out.renamed));
+  check('a missing fact takes no bracket of its neighbour\'s with it',
+        JSON.stringify(out.brackets) === '["Toei, 1986","(JP)","(JP)"]', JSON.stringify(out.brackets));
   check('a card\'s medium line is written two thirds the size of its heading', Math.abs(out.medScale - 0.667) < 0.01, String(out.medScale));
   check('the picture player goes on a press elsewhere, when the window loses the focus, and on the wheel',
         out.pressGone && out.blurGone && out.wheelGone, JSON.stringify([out.pressGone, out.blurGone, out.wheelGone]));

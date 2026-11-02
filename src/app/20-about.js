@@ -11,9 +11,15 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.1';
+const APP_VERSION = '0.25.2';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.2', date:'2026-11-03', title:'Code 1', notes:[
+'A card switched from one kind of medium to another no longer hands the first kind\'s facts to the second: a film\'s studio became a book\'s author. Each kind keeps its own while the panel is open.',
+'A field renamed in the Media drawer is renamed in its kind\'s line too, where it used to drop out of every card\'s line.',
+'A missing fact takes no bracket of its neighbour\'s with it: "1986 (Japan)" with no country is "1986", not "1986)".',
+'An entry with underlined words and a callout are no longer drawn afresh on every edit anywhere on the chart.'
+  ]},
   {v:'0.25.1', date:'2026-11-03', title:'Room to read', notes:[
 'The figures behind the gear stay open while the pointer goes to them: there was a gap between the + column and the figures, and crossing it shut the menu.',
 'Kinds of medium in the Media drawer fold to one line each and open with the arrow beside the name; a kind just added comes open. A card\'s medium line is written two thirds the size of its heading.',
