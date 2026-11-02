@@ -377,6 +377,7 @@ const styleBar = (()=>{
          connector's own panel included: its choices unfold downward, and
          that is where the panel usually is (the owner's list of 24.10). */
       bar.classList.toggle('dropping', open);
+      if(open) unfoldStyleBarList(row);
       return;
     }
     shutStyleBarMenus();
@@ -662,10 +663,8 @@ function syncStyleBarRows(){
   } else {
     rows.border.hidden = true;
     rows.frame.hidden = false;
-    /* Words written along the line are framed by a band that bends with
-       them, and bare unless asked (see drawNoteAlong) — so the button
-       there reads noteAlongFrame, not the plate's own noteFrame. */
-    const framed = style.noteAlong ? style.noteAlongFrame : style.noteFrame !== false;
+    /* One frame flag, whichever way the words run (see noteFramed). */
+    const framed = noteFramed(style);
     light(rows.frame, framed ? 'frame' : '');
     /* A note with its frame taken off has no corners left to choose: the
        button is greyed rather than left to look as if it did nothing. */
@@ -690,6 +689,50 @@ function syncStyleBarRows(){
    again over the new box, moved out from under the pointer, which it
    then took for the hand leaving, and went. */
 let styleBarPlacedFor = '';
+/* A menu that floats over the chart stands clear of the entry's own
+   panel (the owner's list of 3.11): on a phone the panel is a sheet from
+   the bottom, with its handle, and a bar or a menu placed under an entry
+   low on the screen came down over it — the sheet could not be taken
+   hold of, nor its fields reached. Moved up off a sheet, or left off a
+   drawer at the side, by as much as it overlaps; positions are in the
+   same frame before and after, so a difference is all it needs. */
+function keepClearOfEntryPanel(elm){
+  const d = document.getElementById('detail');
+  if(!elm || !d || !d.classList.contains('open') || elm.hidden) return;
+  const r = elm.getBoundingClientRect(), p = d.getBoundingClientRect();
+  if(!r.width || !(r.right > p.left && r.left < p.right && r.bottom > p.top && r.top < p.bottom)) return;
+  const sheet = p.left <= 1 && p.right >= window.innerWidth - 1;
+  if(sheet) elm.style.top = Math.max(4, (parseFloat(elm.style.top) || 0) - (r.bottom - p.top + 6)) + 'px';
+  else elm.style.left = Math.max(4, (parseFloat(elm.style.left) || 0) - (r.right - p.left + 6)) + 'px';
+}
+/* Everything floating over the chart, placed again clear of the panel
+   once the panel has arrived: it slides in, so where it is when a bar is
+   first placed is where it is coming from, not where it stops. */
+function clearFloatersOfPanel(){
+  if(!styleBar.hidden){ styleBarPlacedFor = null; positionStyleBar(); }
+  ['freeMenu', 'edgePopover'].forEach(id=>{
+    const m = document.getElementById(id);
+    if(m && m.classList.contains('open')) keepClearOfEntryPanel(m);
+  });
+}
+{
+  const d = document.getElementById('detail');
+  if(d) d.addEventListener('transitionend', ev=>{
+    if(ev.target === d && d.classList.contains('open')) clearFloatersOfPanel();
+  });
+}
+/* …and an open list in the bar unfolds upward where downward would put
+   it over the panel or off the screen. */
+function unfoldStyleBarList(row){
+  const list = row && row.querySelector('.style-bar-drop-list');
+  if(!list) return;
+  row.classList.remove('drop-up');
+  const r = list.getBoundingClientRect();
+  const d = document.getElementById('detail');
+  const p = d && d.classList.contains('open') ? d.getBoundingClientRect() : null;
+  const under = p && r.right > p.left && r.left < p.right && r.bottom > p.top;
+  if(under || r.bottom > window.innerHeight - 4) row.classList.add('drop-up');
+}
 function positionStyleBar(){
   const t = styleBarTarget;
   if(!t || styleBar.hidden) return;
@@ -766,6 +809,7 @@ function positionStyleBar(){
   const room = host.width - styleBar.offsetWidth - 4;
   styleBar.style.left = Math.max(4, Math.min(left, room)) + 'px';
   styleBar.style.top = (above >= 4 ? above : bottom + 6) + 'px';
+  keepClearOfEntryPanel(styleBar);
 }
 function applyStyleBar(group, value){
   const t = styleBarTarget;
@@ -866,12 +910,13 @@ function applyStyleBar(group, value){
       if(!o) return;
       if(group === 'noteSide'){
         o.notePos = value;
-      } else if(group === 'frame' && o.noteAlong){
-        // Along the line, bare is the absence of the flag.
-        if(o.noteAlongFrame) delete o.noteAlongFrame; else o.noteAlongFrame = true;
       } else if(group === 'frame'){
-        // A toggle: framed is the absence of the flag.
-        if(o.noteFrame === false) delete o.noteFrame; else o.noteFrame = false;
+        /* A toggle: framed is the absence of the flag, along the line or
+           level — one flag for both (the owner's list of 3.11). The older
+           along-the-line flag goes as soon as the button is used. */
+        const was = noteFramed(o);
+        delete o.noteAlongFrame;
+        if(was) o.noteFrame = false; else delete o.noteFrame;
       } else if(group === 'corners'){
         // Square is the default, so only the rounding is written down.
         if(o.noteSquare === false) delete o.noteSquare; else o.noteSquare = false;

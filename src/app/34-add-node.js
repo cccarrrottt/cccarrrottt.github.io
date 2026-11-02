@@ -85,7 +85,7 @@ function openAddFab(){
 /* Whether it was open, so Escape knows it had something to put away. */
 function closeAddFab(){
   const was = addFab.classList.contains('open');
-  addFab.classList.remove('open');
+  addFab.classList.remove('open', 'figures');
   addFabBtn.setAttribute('aria-expanded', 'false');
   return was;
 }
@@ -386,3 +386,555 @@ function viewCentreSpot(shapeVal){
   return {x, y};
 }
 
+
+/* ---------------------------------------------------------------------
+   Flowchart figures (the owner's list of 3.11).
+
+   Beside Default in the + menu stands a button that opens the figures a
+   flowchart is drawn with — a decision's diamond, a terminator's pill,
+   data's parallelogram and the rest — and the chart's own templates, read
+   from an SVG file. A figure is a LOOK of an ordinary entry, the way a
+   border style is: the entry keeps everything an entry has, its words,
+   its connectors, its tags, and is drawn as that outline instead of a box.
+
+   One description per figure serves everything that asks: the outline the
+   drawing strokes (figureLayout), how big the box must be for the words
+   to stand inside the outline (figureFit), and where the outline stands
+   for a connector's port (figureProfile, through borderProfileOf). The
+   words close on their ink as an entry's do; the figure is what is round
+   that, so a diamond is twice its words each way, which is what makes a
+   rectangle of words fit inside one.
+
+   A template is kept as the outline's points, scaled into a hundred-unit
+   square — numbers and nothing else, so nothing a file brought in can run
+   when the page draws it. The chart keeps the ones it was given in
+   SETTINGS.figures, so the menu offers them again; an entry that wears one
+   carries its own copy, so taking a template out of the menu, or copying
+   the entry into another chart, leaves the entry looking as it did.
+   ------------------------------------------------------------------ */
+function figurePicks(){
+  return [
+    {value:'process',     label:'Process'},
+    {value:'decision',    label:'Decision'},
+    {value:'terminator',  label:'Start / end'},
+    {value:'data',        label:'Data'},
+    {value:'predefined',  label:'Subroutine'},
+    {value:'document',    label:'Document'},
+    {value:'database',    label:'Database'},
+    {value:'manualInput', label:'Manual input'},
+    {value:'manualOp',    label:'Manual step'},
+    {value:'preparation', label:'Preparation'},
+    {value:'delay',       label:'Delay'},
+    {value:'display',     label:'Display'},
+    {value:'storedData',  label:'Stored data'},
+    {value:'connector',   label:'Connector'},
+    {value:'offPage',     label:'Off-page'},
+    {value:'extract',     label:'Extract'},
+    {value:'merge',       label:'Merge'}
+  ];
+}
+function isBuiltinFigure(v){ return typeof v === 'string' && figurePicks().some(p=> p.value === v); }
+/* A template's outline as the file stores it: one or more closed runs of
+   points, "M x y L x y … Z", every number between 0 and 100. The first run
+   is the outline; any after it are lines drawn inside (a subroutine's
+   bars, a cylinder's lip). Anything else is not a template. */
+function parseFigurePath(d){
+  if(typeof d !== 'string' || d.length > 20000) return null;
+  const runs = [];
+  const re = /([MLZ])([^MLZ]*)/g;
+  let m, cur = null;
+  while((m = re.exec(d))){
+    const nums = m[2].trim() ? m[2].trim().split(/[\s,]+/).map(Number) : [];
+    if(nums.some(v=> !Number.isFinite(v) || v < -0.001 || v > 100.001)) return null;
+    if(m[1] === 'M'){ cur = []; runs.push(cur); }
+    else if(m[1] === 'Z'){ cur = null; continue; }
+    if(!cur || nums.length % 2) return null;
+    for(let i = 0; i < nums.length; i += 2) cur.push({x: nums[i] / 100, y: nums[i+1] / 100});
+  }
+  if(!runs.length || runs[0].length < 3) return null;
+  return runs.filter(r=> r.length >= 2);
+}
+/* What an entry's `figure` says it is: a figure's name, or a template
+   ({name, d}) with its outline read once here. Only an ordinary box takes
+   one — a portrait, a picture, a caption, a callout or an array has a shape
+   of its own. */
+function figureOf(v, shape){
+  if(shape && shape !== 'rect') return null;
+  if(isBuiltinFigure(v)) return v;
+  if(v && typeof v === 'object' && !Array.isArray(v)){
+    const runs = parseFigurePath(v.d);
+    if(runs) return {name: typeof v.name === 'string' ? v.name : 'Template', d: v.d, runs};
+  }
+  return null;
+}
+/* The figure this entry is drawn as, if any. A card has bands to divide
+   and a merge wears its lineages round a box, so both stay boxes. */
+function nodeFigure(n){
+  if(!n || !n.figure || n.card) return null;
+  if(mergePainted(n)) return null;
+  return n.figure;
+}
+function figureArc(cx, cy, rx, ry, a0, a1, steps){
+  const out = [];
+  const k = steps || 16;
+  for(let i = 0; i <= k; i++){
+    const a = a0 + (a1 - a0) * i / k;
+    out.push({x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a)});
+  }
+  return out;
+}
+/* How far in from the side a curved end has to stand the words, for words
+   `ih` tall in a figure `H` tall whose end is a half-ellipse `rx` across. */
+function curvedEndInset(rx, H, ih){
+  const t = Math.min(1, ih / H);
+  return rx * (1 - Math.sqrt(Math.max(0, 1 - t * t)));
+}
+/* How deep the words of a figure with curved ends are, against its height:
+   the curve needs room above and below the words to come round. A
+   function, not a constant: the first drawing asks it before this part
+   has run. */
+function figureCurveH(){ return 1.3; }
+/* The outline, any lines inside it, and where the words are centred, for a
+   figure W by H standing at the origin. */
+function figureLayout(fig, W, H){
+  const P = (x, y)=> ({x, y});
+  const PI = Math.PI;
+  let outline, marks = [], cx = W/2, cy = H/2;
+  switch(fig){
+    case 'decision':
+      outline = [P(W/2,0), P(W,H/2), P(W/2,H), P(0,H/2)]; break;
+    case 'terminator': {
+      const r = Math.min(H/2, W/2);
+      outline = [...figureArc(W - r, H/2, r, H/2, -PI/2, PI/2), ...figureArc(r, H/2, r, H/2, PI/2, 3*PI/2)];
+      break;
+    }
+    case 'data': {
+      const s = Math.min(H * 0.35, W / 3);
+      outline = [P(s,0), P(W,0), P(W - s,H), P(0,H)]; break;
+    }
+    case 'predefined': {
+      const d = Math.min(Math.max(4, H * 0.35), W / 5);
+      outline = [P(0,0), P(W,0), P(W,H), P(0,H)];
+      marks = [[P(d,0), P(d,H)], [P(W - d,0), P(W - d,H)]];
+      break;
+    }
+    case 'document': {
+      const a = H * 0.07;
+      const wave = [];
+      for(let i = 24; i >= 0; i--){ const x = W * i / 24; wave.push(P(x, H - a + a * Math.sin(2 * PI * i / 24))); }
+      outline = [P(0,0), P(W,0), ...wave];
+      cy = (H - 2*a) / 2;
+      break;
+    }
+    case 'database': {
+      const ry = Math.min(Math.max(3, H * 0.12), H / 4);
+      outline = [...figureArc(W/2, H - ry, W/2, ry, PI, 0), ...figureArc(W/2, ry, W/2, ry, 0, -PI)];
+      marks = [figureArc(W/2, ry, W/2, ry, PI, 0)];
+      cy = (2*ry + H - ry) / 2;
+      break;
+    }
+    case 'manualInput': {
+      const t = H * 0.28;
+      outline = [P(0,t), P(W,0), P(W,H), P(0,H)];
+      cy = (t + H) / 2;
+      break;
+    }
+    case 'manualOp': {
+      const d = Math.min(H * 0.3, W / 3);
+      outline = [P(0,0), P(W,0), P(W - d,H), P(d,H)]; break;
+    }
+    case 'preparation': {
+      const d = Math.min(H * 0.3, W / 3);
+      outline = [P(d,0), P(W - d,0), P(W,H/2), P(W - d,H), P(d,H), P(0,H/2)]; break;
+    }
+    case 'delay': {
+      const r = Math.min(H/2, W);
+      outline = [P(0,0), ...figureArc(W - r, H/2, r, H/2, -PI/2, PI/2), P(0,H)];
+      cx = (W - curvedEndInset(r, H, H / figureCurveH())) / 2;
+      break;
+    }
+    case 'display': {
+      const d = Math.min(H * 0.3, W / 3), rx = Math.min(H * 0.3, W / 3);
+      outline = [P(0,H/2), P(d,0), ...figureArc(W - rx, H/2, rx, H/2, -PI/2, PI/2), P(d,H)];
+      const ih = H / figureCurveH();
+      cx = (d * ih / H + W - curvedEndInset(rx, H, ih)) / 2;
+      break;
+    }
+    case 'storedData': {
+      const d = Math.min(H * 0.25, W / 3);
+      /* The right side cut in, the left bowed out: a drum seen side on. */
+      const cut = [];
+      for(let i = 0; i <= 16; i++){
+        const a = -PI/2 + PI * i / 16;
+        cut.push(P(W - d * Math.cos(a), H/2 + H/2 * Math.sin(a)));
+      }
+      outline = [P(d,0), ...cut, P(d,H), ...figureArc(d, H/2, d, H/2, PI/2, 3*PI/2)];
+      const ih = H / 1.2;
+      cx = (curvedEndInset(d, H, ih) + W - d - 2) / 2;
+      break;
+    }
+    case 'connector':
+      outline = figureArc(W/2, H/2, W/2, H/2, 0, 2*PI, 40).slice(0, -1); break;
+    case 'offPage': {
+      const p = H * 0.3;
+      outline = [P(0,0), P(W,0), P(W,H - p), P(W/2,H), P(0,H - p)];
+      cy = (H - p) / 2;
+      break;
+    }
+    case 'extract':
+      outline = [P(W/2,0), P(W,H), P(0,H)]; cy = H * 0.72; break;
+    case 'merge':
+      outline = [P(0,0), P(W,0), P(W/2,H)]; cy = H * 0.28; break;
+    case 'process':
+      outline = [P(0,0), P(W,0), P(W,H), P(0,H)]; break;
+    default: {
+      if(fig && fig.runs){
+        const sc = (r)=> r.map(p=> P(p.x * W, p.y * H));
+        outline = sc(fig.runs[0]);
+        marks = fig.runs.slice(1).map(sc);
+      } else outline = [P(0,0), P(W,0), P(W,H), P(0,H)];
+    }
+  }
+  return {outline, marks, cx, cy};
+}
+/* The box a figure needs round words whose ink, with the entry's inset
+   round it, is iw by ih. */
+function figureFit(fig, iw, ih){
+  switch(fig){
+    case 'decision':    return {w: iw * 2, h: ih * 2};
+    case 'terminator': {
+      const H = ih * figureCurveH();
+      return {w: Math.max(H, iw + 2 * curvedEndInset(H/2, H, ih)), h: H};
+    }
+    case 'data': case 'manualOp': case 'preparation': {
+      const k = fig === 'data' ? 0.35 : 0.3;
+      return {w: iw + 2 * k * ih, h: ih};
+    }
+    /* The words stand clear of a bar as they do of a border: the bar is
+       a line of the figure, and the inset is measured from its middle. */
+    case 'predefined':  return {w: iw + 2 * (Math.max(4, ih * 0.35) + 2), h: ih};
+    case 'document':    return {w: iw, h: ih / 0.86};
+    case 'database': {
+      const H = ih / 0.64 >= 25 ? ih / 0.64 : ih + 9;
+      return {w: iw, h: H};
+    }
+    case 'manualInput': return {w: iw, h: ih / 0.72};
+    case 'delay': {
+      const H = ih * figureCurveH();
+      return {w: Math.max(H * 0.75, iw + curvedEndInset(H/2, H, ih)), h: H};
+    }
+    case 'display': {
+      const H = ih * figureCurveH(), d = H * 0.3;
+      return {w: iw + d * ih / H + curvedEndInset(d, H, ih) + d * 0.2, h: H};
+    }
+    case 'storedData': {
+      const H = ih * 1.2, d = H * 0.25;
+      return {w: iw + curvedEndInset(d, H, ih) + d + 2, h: H};
+    }
+    case 'connector': { const D = Math.hypot(iw, ih); return {w: D, h: D}; }
+    case 'offPage':     return {w: Math.max(iw, ih * 0.9), h: ih / 0.7};
+    case 'extract': case 'merge': return {w: iw * 2, h: ih * 2};
+    case 'process':     return {w: iw, h: ih};
+    default:            return {w: iw / 0.6, h: ih / 0.6};
+  }
+}
+function figurePolyD(pts, x, y, close){
+  return pts.map((p, i)=> (i ? 'L' : 'M') + (x + p.x).toFixed(2) + ',' + (y + p.y).toFixed(2)).join(' ') + (close ? ' Z' : '');
+}
+/* Where the outline stands for a port on `side` at (px, py): how far OUT
+   of the box, negative for inside — the question borderProfileOf answers
+   for every border. A line across the box at that point meets the outline;
+   the meeting furthest towards the side is the one a connector reaches. */
+function figureProfile(fig, box){
+  const L = figureLayout(fig, box.w, box.h);
+  const pts = L.outline.map(p=> ({x: box.x + p.x, y: box.y + p.y}));
+  return {kind:'figure', amp: 0, structural: true,
+    offsetAt: (side, px, py)=>{
+      const vert = side === 'top' || side === 'bottom';
+      const hits = [];
+      for(let i = 0; i < pts.length; i++){
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        if(vert){
+          if((a.x - px) * (b.x - px) > 0 || a.x === b.x) continue;
+          hits.push(a.y + (b.y - a.y) * (px - a.x) / (b.x - a.x));
+        } else {
+          if((a.y - py) * (b.y - py) > 0 || a.y === b.y) continue;
+          hits.push(a.x + (b.x - a.x) * (py - a.y) / (b.y - a.y));
+        }
+      }
+      if(!hits.length) return 0;
+      if(side === 'top')    return box.y - Math.min(...hits);
+      if(side === 'bottom') return Math.max(...hits) - (box.y + box.h);
+      if(side === 'left')   return box.x - Math.min(...hits);
+      return Math.max(...hits) - (box.x + box.w);
+    }};
+}
+
+/* The templates the chart keeps for its menu: a name and an outline each,
+   and nothing that does not read as one. */
+function cleanFigureTemplates(v){
+  if(!Array.isArray(v)) return [];
+  return v.filter(t=> t && typeof t === 'object' && parseFigurePath(t.d))
+          .map(t=> ({name: typeof t.name === 'string' && t.name.trim() ? t.name.trim().slice(0, 60) : 'Template', d: t.d}));
+}
+/* An SVG file read as a template: the shapes in it, walked with their
+   transforms, sampled into points and scaled into the hundred-unit square.
+   The file is never put into the page as it is. Its shapes are rebuilt
+   from their geometry alone — path data, points, sizes and transforms,
+   no scripts, handlers, links or styles — inside a hidden drawing that is
+   only measured, and then thrown away. Each closed run becomes one run of
+   points; the largest is the outline. */
+const FIGURE_SVG_TAGS = ['path', 'rect', 'circle', 'ellipse', 'polygon', 'polyline', 'line'];
+const FIGURE_SVG_ATTRS = ['d', 'points', 'x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry',
+                          'x1', 'y1', 'x2', 'y2', 'transform'];
+function figureTemplateOfSvg(text, name){
+  const SVG = 'http://www.w3.org/2000/svg';
+  let doc;
+  try{ doc = new DOMParser().parseFromString(text, 'image/svg+xml'); }catch(e){ return null; }
+  const root = doc && doc.documentElement;
+  if(!root || root.localName !== 'svg' || doc.querySelector('parsererror')) return null;
+  const host = document.createElementNS(SVG, 'svg');
+  host.setAttribute('style', 'position:absolute;left:-9999px;top:0;width:10px;height:10px;visibility:hidden;');
+  const copy = (from, to)=>{
+    Array.from(from.children).forEach(c=>{
+      const tag = c.localName;
+      let made = null;
+      if(tag === 'g' || tag === 'svg') made = document.createElementNS(SVG, 'g');
+      else if(FIGURE_SVG_TAGS.includes(tag)) made = document.createElementNS(SVG, tag);
+      if(!made) return;
+      FIGURE_SVG_ATTRS.forEach(a=>{
+        const v = c.getAttribute(a);
+        if(v != null && v.length < 20000) made.setAttribute(a, v);
+      });
+      if(tag === 'svg'){
+        const x = parseFloat(c.getAttribute('x')) || 0, y = parseFloat(c.getAttribute('y')) || 0;
+        made.removeAttribute('x'); made.removeAttribute('y');
+        if(x || y) made.setAttribute('transform', `translate(${x},${y})`);
+      }
+      to.appendChild(made);
+      if(tag === 'g' || tag === 'svg') copy(c, made);
+    });
+  };
+  copy(root, host);
+  document.body.appendChild(host);
+  const runs = [];
+  try{
+    const hostM = host.getScreenCTM();
+    const inv = hostM ? hostM.inverse() : null;
+    host.querySelectorAll(FIGURE_SVG_TAGS.join(',')).forEach(el=>{
+      let len = 0;
+      try{ len = el.getTotalLength(); }catch(e){ return; }
+      if(!(len > 0)) return;
+      const elM = el.getScreenCTM();
+      const m = (elM && inv) ? inv.multiply(elM) : null;
+      const steps = Math.min(600, Math.max(24, Math.round(len / 2)));
+      const step = len / steps;
+      let run = [], prev = null;
+      for(let i = 0; i <= steps; i++){
+        let p = el.getPointAtLength(Math.min(len, i * step));
+        if(m) p = p.matrixTransform(m);
+        /* A jump much longer than a step is the pen lifted: a new run. */
+        if(prev && Math.hypot(p.x - prev.x, p.y - prev.y) > step * 4){
+          if(run.length >= 2) runs.push(run);
+          run = [];
+        }
+        run.push({x: p.x, y: p.y});
+        prev = p;
+      }
+      if(run.length >= 2) runs.push(run);
+    });
+  } finally {
+    host.remove();
+  }
+  if(!runs.length) return null;
+  const all = runs.flat();
+  const x0 = Math.min(...all.map(p=> p.x)), x1 = Math.max(...all.map(p=> p.x));
+  const y0 = Math.min(...all.map(p=> p.y)), y1 = Math.max(...all.map(p=> p.y));
+  if(!(x1 - x0 > 0) || !(y1 - y0 > 0)) return null;
+  const area = r=> Math.abs(r.reduce((s, p, i)=>{ const q = r[(i + 1) % r.length]; return s + p.x * q.y - q.x * p.y; }, 0)) / 2;
+  runs.sort((a, b)=> area(b) - area(a));
+  if(area(runs[0]) <= 0) return null;
+  const num = v=> String(Math.round(v * 10) / 10);
+  /* Points closer together than a tenth of a unit say nothing more, and
+     nor does a point on the straight line between its neighbours: a
+     rectangle sampled every two pixels is four corners. */
+  const d = runs.map((r, k)=>{
+    const out = [];
+    simplifyRun(r.map(p=> ({x: (p.x - x0) / (x1 - x0) * 100, y: (p.y - y0) / (y1 - y0) * 100})), 0.15).forEach(p=>{
+      const q = {x: num(p.x), y: num(p.y)};
+      const last = out[out.length - 1];
+      if(!last || last.x !== q.x || last.y !== q.y) out.push(q);
+    });
+    return 'M' + out.map(q=> q.x + ' ' + q.y).join(' L') + (k === 0 ? ' Z' : '');
+  }).join(' ');
+  if(!parseFigurePath(d)) return null;
+  return {name: String(name || 'Template').replace(/\.svg$/i, '').trim().slice(0, 60) || 'Template', d};
+}
+
+/* Ramer–Douglas–Peucker: the fewest of a run's points that keep it within
+   `tol` of where it was. */
+function simplifyRun(pts, tol){
+  if(pts.length < 3) return pts;
+  const keep = new Array(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  const stack = [[0, pts.length - 1]];
+  while(stack.length){
+    const [i, j] = stack.pop();
+    const a = pts[i], b = pts[j];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    let far = -1, at = -1;
+    for(let k = i + 1; k < j; k++){
+      const p = pts[k];
+      const dist = len ? Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / len
+                       : Math.hypot(p.x - a.x, p.y - a.y);
+      if(dist > far){ far = dist; at = k; }
+    }
+    if(far > tol){ keep[at] = true; stack.push([i, at], [at, j]); }
+  }
+  return pts.filter((p, k)=> keep[k]);
+}
+/* The menu of figures: the flowchart's own, then the chart's templates,
+   then a way to bring one in. Opened from the button beside Default and
+   standing beside the column it came from, inside the same widget, so
+   the pointer travelling to it does not shut the menu. */
+function figureIcon(fig){
+  const SVG = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(SVG, 'svg');
+  svg.setAttribute('viewBox', '0 0 40 30');
+  svg.setAttribute('class', 'node-style-icon');
+  const W = (fig === 'connector') ? 18 : (fig === 'decision' || fig === 'extract' || fig === 'merge') ? 26 : 28;
+  const H = (fig === 'connector') ? 18 : (fig === 'decision' || fig === 'extract' || fig === 'merge') ? 20 : 15;
+  const x = (40 - W) / 2, y = (30 - H) / 2;
+  const L = figureLayout(isBuiltinFigure(fig) ? fig : figureOf(fig), W, H);
+  const add = (d, cls)=>{
+    const e = document.createElementNS(SVG, 'path');
+    e.setAttribute('d', d); e.setAttribute('class', cls);
+    svg.appendChild(e);
+  };
+  add(figurePolyD(L.outline, x, y, true), 'nsi-box');
+  L.marks.forEach(m=> add(figurePolyD(m, x, y, false), 'nsi-line'));
+  return svg;
+}
+const addFabFigures = document.createElement('div');
+addFabFigures.className = 'add-fab-figures';
+addFabFigures.id = 'addFabFigures';
+addFabFigures.setAttribute('role', 'menu');
+addFab.appendChild(addFabFigures);
+const figureFileInput = document.createElement('input');
+figureFileInput.type = 'file';
+figureFileInput.accept = '.svg,image/svg+xml';
+figureFileInput.hidden = true;
+addFab.appendChild(figureFileInput);
+function figureButton(label, icon, onPick){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'node-style-btn';
+  b.setAttribute('role', 'menuitem');
+  b.title = label;
+  b.appendChild(icon);
+  const cap = document.createElement('span');
+  cap.className = 'node-style-cap';
+  cap.textContent = label;
+  b.appendChild(cap);
+  b.addEventListener('click', ev=>{ ev.stopPropagation(); onPick(ev); });
+  return b;
+}
+function buildFigureMenu(){
+  addFabFigures.textContent = '';
+  /* A card inside a clear band: the band is the pointer's way across from
+     the column to the card, and is still the widget, so crossing it does
+     not shut the menu. */
+  const card = document.createElement('div');
+  card.className = 'add-fab-figures-card';
+  addFabFigures.appendChild(card);
+  const head = (t)=>{ const h = document.createElement('div'); h.className = 'add-fab-figures-head'; h.textContent = t; card.appendChild(h); };
+  const grid = ()=>{ const g = document.createElement('div'); g.className = 'add-fab-figures-grid'; card.appendChild(g); return g; };
+  head('Flowchart');
+  const g1 = grid();
+  figurePicks().forEach(p=>{
+    const b = figureButton(p.label, figureIcon(p.value), ()=>{ closeAddFab(); addEntryOfFigure(p.value); });
+    b.dataset.value = p.value;
+    g1.appendChild(b);
+  });
+  head('Templates');
+  const g2 = grid();
+  cleanFigureTemplates(SETTINGS.figures).forEach((t, i)=>{
+    const b = figureButton(t.name, figureIcon(t), ()=>{ closeAddFab(); addEntryOfFigure({name: t.name, d: t.d}); });
+    b.classList.add('figure-template');
+    b.dataset.template = String(i);
+    const x = document.createElement('span');
+    x.className = 'figure-template-drop';
+    x.textContent = '×';
+    x.title = 'Take this template out of the menu (entries drawn with it keep it)';
+    x.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      applyEdit(()=>{
+        const next = cleanFigureTemplates(SETTINGS.figures);
+        next.splice(i, 1);
+        if(next.length) SETTINGS.figures = next; else delete SETTINGS.figures;
+      });
+      buildFigureMenu();
+    });
+    b.appendChild(x);
+    g2.appendChild(b);
+  });
+  const up = document.createElement('button');
+  up.type = 'button';
+  up.className = 'node-style-btn figure-upload';
+  up.title = 'Bring in a template from an SVG file: its outline becomes a figure';
+  up.innerHTML = '<span class="figure-upload-plus">+</span><span class="node-style-cap">Upload SVG</span>';
+  up.addEventListener('click', ev=>{ ev.stopPropagation(); figureFileInput.click(); });
+  g2.appendChild(up);
+}
+function openFigureMenu(on){
+  const open = on === undefined ? !addFab.classList.contains('figures') : on;
+  if(open) buildFigureMenu();
+  addFab.classList.toggle('figures', open);
+  const btn = document.getElementById('addFabCustomize');
+  if(btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+figureFileInput.addEventListener('change', ()=>{
+  const f = figureFileInput.files && figureFileInput.files[0];
+  figureFileInput.value = '';
+  if(!f) return;
+  if(f.size > 2e6){ flashStatus('That file is too big to be a template.'); return; }
+  f.text().then(text=>{
+    const t = figureTemplateOfSvg(text, f.name);
+    if(!t){ flashStatus('No outline could be read from that SVG.'); return; }
+    applyEdit(()=>{ SETTINGS.figures = cleanFigureTemplates(SETTINGS.figures).concat([t]); });
+    openAddFab();
+    openFigureMenu(true);
+  });
+});
+/* The button itself, beside Default: a small one, so Default is still the
+   one thing a quick press finds. */
+(()=>{
+  const def = addFabStyles.querySelector('.node-style-btn[data-value="rect"]');
+  if(!def) return;
+  const row = document.createElement('div');
+  row.className = 'add-fab-row';
+  def.replaceWith(row);
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.id = 'addFabCustomize';
+  more.className = 'add-fab-customize';
+  more.title = 'More shapes — the flowchart figures, and templates of your own';
+  more.setAttribute('aria-haspopup', 'menu');
+  more.setAttribute('aria-expanded', 'false');
+  more.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">' +
+                   '<path d="M12 3 L20 12 L12 21 L4 12 Z"/><circle cx="12" cy="12" r="2.2"/></svg>';
+  more.addEventListener('click', ev=>{ ev.stopPropagation(); openFigureMenu(); });
+  row.appendChild(more);
+  row.appendChild(def);
+})();
+/* An entry drawn as a figure, put down as Default puts one. */
+function addEntryOfFigure(fig){
+  if(readOnlyView) return null;
+  const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
+  const spot = emptySpotNearCentre(undefined);
+  applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, undefined,
+                                    {pos: [spot.x, spot.y], figure: fig}]));
+  selectNode(id);
+  openNodeEditor(id);
+  return id;
+}

@@ -748,6 +748,10 @@ function setEntrySheet(state){
   if(state === 'peek') measureSheetPeek();
   entrySheet.classList.toggle('peek', state === 'peek');
   entrySheet.classList.toggle('full', state === 'full');
+  /* A bar or a menu floating over the chart moves off the sheet as it
+     rises (keepClearOfEntryPanel), once it has risen. */
+  clearTimeout(setEntrySheet.later);
+  setEntrySheet.later = setTimeout(clearFloatersOfPanel, 240);
 }
 function entrySheetState(){
   return !entrySheet || !entrySheet.classList.contains('open') ? null

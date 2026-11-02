@@ -1901,6 +1901,9 @@
   .node.selected > rect.border-inner, .node.selected > path.border-inner,
   .node.selected > circle.border-inner,
   .border-inner{fill:none;filter:none;}
+  /* A figure's inner lines — a subroutine's bars, a cylinder's lip — are
+     strokes only, drawn over the figure's own ground. */
+  .node > path.figure-mark{fill:none;pointer-events:none;}
 
   /* Swatches beside the border-colors field, one per colour listed. */
   .swatch-strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:16px;}
@@ -1946,6 +1949,40 @@
     transition:opacity 0.16s, transform 0.16s;
   }
   .add-fab-styles .node-style-btn{box-shadow:var(--shadow);background:var(--panel);}
+  /* Default and, beside it, the button that opens the figures. */
+  .add-fab-row{display:flex;align-items:center;gap:5px;}
+  .add-fab-customize{
+    width:26px;height:26px;padding:3px;border-radius:5px;
+    background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);
+    cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;
+  }
+  .add-fab-customize svg{width:18px;height:18px;display:block;}
+  .add-fab-customize:hover, .add-fab.figures .add-fab-customize{border-color:var(--accent);color:var(--accent);}
+  /* The figures stand to the left of the column, inside the same widget,
+     so the pointer crossing to them has not left it; the padding on the
+     right is that crossing. */
+  .add-fab-figures{
+    position:absolute;right:93px;bottom:52px;padding-right:8px;display:none;
+  }
+  .add-fab.open.figures .add-fab-figures{display:block;}
+  .add-fab-figures-card{
+    display:flex;flex-direction:column;gap:4px;padding:6px 8px 8px;
+    max-height:calc(100vh - 150px);overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);
+  }
+  .add-fab-figures-head{
+    font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.6px;text-transform:uppercase;
+    color:var(--ink-faint);padding:2px 2px 0;
+  }
+  .add-fab-figures-grid{display:grid;grid-template-columns:repeat(4, 62px);gap:4px;}
+  .add-fab-figures .node-style-btn{background:var(--panel-2);position:relative;}
+  .figure-template-drop{
+    position:absolute;top:1px;right:3px;font-size:11px;line-height:1;color:var(--ink-faint);
+    display:none;
+  }
+  .figure-template:hover .figure-template-drop, body.touch-input .figure-template-drop{display:block;}
+  .figure-template-drop:hover{color:var(--accent);}
+  .figure-upload-plus{font-size:20px;line-height:30px;height:30px;color:var(--ink-dim);}
 
   /* Undo, redo and the guides, small, under the counts at the end of the
      bar (the owner's list of 23.10): they stood as two big round buttons
@@ -3291,6 +3328,7 @@
   .style-bar-group[data-group="endIn"]:not([hidden]) ~ .style-bar-group[data-group="endOut"]{padding-left:0;border-left:0;}
   .style-bar-group[data-group="endIn"]:not([hidden]) ~ .style-bar-group[data-group="endOut"] .style-bar-drop-list{left:0;}
   .style-bar-drop.open .style-bar-drop-list{display:flex;}
+  .style-bar-drop.drop-up .style-bar-drop-list{top:auto;bottom:100%;margin-top:0;margin-bottom:4px;}
   .style-bar-drop.open .style-bar-drop-face{color:var(--ink);border-color:var(--accent);}
   .style-bar button{
     width:24px;height:22px;padding:0;
@@ -3412,6 +3450,7 @@
     .detail-head::before{content:'';position:absolute;top:6px;left:50%;width:36px;height:4px;
       margin-left:-18px;border-radius:2px;background:var(--line);}
     .add-fab{right:12px;bottom:12px;}
+    .add-fab-figures-grid{grid-template-columns:repeat(3, 62px);}
     /* Under the open sheet there is nowhere for it to stand. */
     .add-fab.shifted{display:none;}
     /* The view's place stays on a phone too — it is how a reader says

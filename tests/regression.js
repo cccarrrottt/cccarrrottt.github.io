@@ -19837,16 +19837,24 @@ async function main(){
       const xs = [await centreAt('above'), await centreAt('on'), await centreAt('below')];
       out.sideXs = xs.map(v=> +v.toFixed(1));
       out.levelAcrossSides = Math.max(...xs) - Math.min(...xs) < 1.5;
-      out.unframedByDefault = !document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
+      /* Framed as a level note is, by the one flag both read (the owner's
+         list of 3.11: the frame button answered to the mode, and turning
+         the words level took a frame set along the line away). */
+      out.unframedByDefault = !!document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
 
-      /* …and may be framed, from the style bar's frame button, by a band
-         that bends with the words. */
+      /* …and the style bar's frame button takes it off and puts it back,
+         a band that bends with the words. */
       openStyleBar({kind:'note', from:'ev_a', to:'ev_b'}); await wait(80);
       const frameBtn = styleBar.querySelector('[data-group="frame"] button[data-value="frame"]');
       out.frameOffered = !!frameBtn && !frameBtn.disabled;
       if(frameBtn) frameBtn.click();
       await wait(250);
-      out.frameStored = edgeStyleFor('ev_a','ev_b').noteAlongFrame === true;
+      const bare = edgeStyleFor('ev_a','ev_b').noteFrame === false &&
+                   !document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
+      out.savedBare = /noteFrame:false/.test(serializeEdgeStyles ? serializeEdgeStyles(EDGE_STYLES) : chartDataOnly());
+      if(frameBtn) frameBtn.click();
+      await wait(250);
+      out.frameStored = bare && edgeStyleFor('ev_a','ev_b').noteFrame !== false;
       const frame = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-frame');
       const ground = document.querySelector('.edge-note[data-from="ev_a"] .edge-note-along-ground');
       out.frameDrawn = !!frame && !!ground && +frame.getAttribute('stroke-width') > +ground.getAttribute('stroke-width');
@@ -19857,7 +19865,7 @@ async function main(){
       }
       const cornersBtn = styleBar.querySelector('[data-group="corners"] button');
       out.cornersOffered = !!cornersBtn && !cornersBtn.disabled;
-      out.savedAsSuch = /noteAlongFrame:true/.test(serializeEdgeStyles ? serializeEdgeStyles(EDGE_STYLES) : chartDataOnly());
+      out.savedAsSuch = out.savedBare;
       closeStyleBar();
       // The face of the button is drawn as the font draws its arrows.
       const glyph = styleBar.querySelector('[data-group="noteAlong"] svg');
@@ -19918,7 +19926,7 @@ async function main(){
   check('…and undo lights after an edit made with a mouse', r.undoLit);
   check('words along a line stay level with their point when moved above, onto or below it',
         r.levelAcrossSides, JSON.stringify(r.sideXs));
-  check('words along a line are bare until framed, and the frame button frames them with a band that bends with them',
+  check('words along a line are framed as level ones are, and the frame button takes off and puts back a band that bends with them',
         r.unframedByDefault && r.frameOffered && r.frameStored && r.frameDrawn && r.frameRoundWords && r.cornersOffered && r.savedAsSuch,
         JSON.stringify({bare:r.unframedByDefault, offered:r.frameOffered, stored:r.frameStored, drawn:r.frameDrawn,
                         round:r.frameRoundWords, corners:r.cornersOffered, saved:r.savedAsSuch}));
@@ -20468,18 +20476,18 @@ async function main(){
       });
       rebuildChart(); fixAmalgamBars(['sl_m']); rebuildChart();
       const bar = amalgamBars.get('sl_m');
-      /* Carried towards its bar and across it, the entry is fed by the
-         face towards the bar, at its middle — the top below the bar, the
-         bottom above it — and by a side only while the bar runs through
-         it; never through the box (the owner's list of 24.10, evening). */
+      /* Carried towards its bar and across it, the entry is fed at the
+         middle of the face it had, and never through the box (the owner's
+         list of 24.10, evening). It used to be the face towards the bar —
+         the top below it, the bottom above it, a side while the bar ran
+         through — and the owner's list of 3.11 took that away: the face
+         changes by hand and only by hand. */
       out.crowded = [Y + 62, Y + 56, Y + 50, Y + 46, Y + 40, Y + 34, Y + 30, Y + 26, Y + 20, Y - 40].map(y=>{
         move('sl_m', X + 120, y);
         const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
         const inside = P.slice(0, -1).some(p=> p.x > n.x + 0.5 && p.x < n.x + n.w - 0.5 && p.y > n.y + 0.5 && p.y < n.y + n.h - 0.5);
-        const at = bar.cross, mid = n.x + n.w / 2;
-        const face = n.y > at + 0.5 ? Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - mid) < 0.01
-                   : n.y + n.h < at - 0.5 ? Math.abs(P[m].y - (n.y + n.h)) < 0.01 && Math.abs(P[m].x - mid) < 0.01
-                   : Math.abs(P[m].x - n.x) < 0.01 || Math.abs(P[m].x - (n.x + n.w)) < 0.01;
+        const mid = n.x + n.w / 2;
+        const face = Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - mid) < 0.01;
         return face && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
       });
       /* …and carried along past the end of its bar, it keeps the face it
@@ -20562,7 +20570,7 @@ async function main(){
     return out;
   });
   check('an end in a see-through colour is painted solid, in the shade its line has on the paper', r.solid);
-  check('an entry carried towards its merge\'s bar and across it, which stays put, is fed by the face towards the bar, never through the box', r.crowded.every(Boolean) && r.barBack,
+  check('an entry carried towards its merge\'s bar and across it, which stays put, is fed by the face it had, never through the box', r.crowded.every(Boolean) && r.barBack,
         JSON.stringify([r.crowded, r.barBack]));
   check('…and carried past the bar\'s end, by the face it had, at its middle', r.pastEnd.every(Boolean), JSON.stringify(r.pastEnd));
   check('the merged arrow\'s stretch out of the bar, dragged, takes its foot along the bar', r.bent && r.footMoved && r.footSquare,
@@ -20737,7 +20745,8 @@ async function main(){
       out.beadsAt = beads.map(c=> c.getAttribute('r'));
 
       /* 2. Carried across a held bar, the merged arrow — bent by hand or
-            not — comes into the face towards the bar, beside a lineage too. */
+            not — keeps its face, beside a lineage too (3.11; it turned to
+            the face towards the bar from 28.10). */
       const sideAt = (x, y)=>{
         applyEdit(()=>{ const f = workingEntry('ol_m'); const o = entryOpts(f.entry); o.pos = [x, y]; putEntry(f.index, f.entry, o); });
         rebuildChart();
@@ -20831,10 +20840,13 @@ async function main(){
     return out;
   });
   check('every point on a merge\'s bar is the size of a callout\'s point', r.beads, JSON.stringify(r.beadsAt));
-  check('carried across a held bar, the merged arrow comes into the face towards the bar, beside a lineage too',
-        r.plain.join() === 'top,bottom,bottom,bottom', JSON.stringify(r.plain));
-  check('…bent by hand as well, keeping its corners for the side they were set on',
-        r.bent.join() === 'bottom,bottom' && r.bentBack, JSON.stringify([r.bent, r.bentBack]));
+  /* The owner's list of 3.11 took back the turn to the face towards the
+     bar (28.10): a held bar's arrow keeps the face it had, wherever the
+     entry is carried, and goes round to it. */
+  check('carried across a held bar, the merged arrow keeps the face it had, beside a lineage too',
+        r.plain.join() === 'top,top,top,top', JSON.stringify(r.plain));
+  check('…bent by hand as well, keeping its corners for when they fit',
+        r.bent.join() === 'top,top' && r.bentBack, JSON.stringify([r.bent, r.bentBack]));
   check('a connector squeezed short comes out of its port as far as a squeezed lineage comes to its bar', r.stub);
   check('the field typed into an entry with no words yet is in the ink it will be drawn in',
         r.inks[0] === 'rgb(34, 51, 204)' && r.inks[1] === 'rgb(17, 170, 68)', JSON.stringify(r.inks));
@@ -21263,7 +21275,11 @@ async function main(){
       r.band = [c1.cardTop, +(c1.w * 2).toFixed(2)];
       const img = document.querySelector('.node[data-id="to_c1"] > image');
       r.imgBottom = img ? +(+img.getAttribute('y') + +img.getAttribute('height') - c1.y).toFixed(2) : null;
-      r.wavy = [c1.w - c2.w, c1.h - c2.h];
+      /* Since the owner's list of 3.11 each band of a card stands its words
+         off the border and the rules at the inset an entry's stand, so a
+         ripple makes a card taller by what it adds to that inset, once a
+         band, as it makes an entry — and no wider, nor its picture smaller. */
+      r.wavy = [+(c2.w - c1.w).toFixed(2), +(c2.h - c1.h).toFixed(2), +(3 * 2 * (textInsetFor(c2) - textInsetFor(c1))).toFixed(2)];
       r.chips = [c3.w, c3.chipRight - c3.x];
       r.labels = ['editMediumInput', 'editImageInput', 'freeMenuImageUrl']
         .map(id=> document.querySelector(`label[for="${id}"]`).textContent).join('|');
@@ -21331,8 +21347,8 @@ async function main(){
   check('a card\'s picture is as wide as its heading and stops at its rule',
         Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - 0.5)) < 0.05,
         JSON.stringify(out.card));
-  check('a wavy card is no bigger than a plain one, and an entry is as wide as its chips',
-        Math.abs(out.card.wavy[0] - 3) < 0.01 && Math.abs(out.card.wavy[1] - 3) < 0.01 && out.card.chips[0] >= out.card.chips[1],
+  check('a wavy card is no wider than a plain one and taller only by its ripple\'s inset, and an entry is as wide as its chips',
+        Math.abs(out.card.wavy[0]) < 0.01 && Math.abs(out.card.wavy[1] - out.card.wavy[2]) < 0.05 && out.card.chips[0] >= out.card.chips[1],
         JSON.stringify(out.card));
   check('the fields say what they are and nothing after it', out.card.labels === 'Medium|Portrait|Image', out.card.labels);
   check('a style bar choice leaves the bar where it was', out.bar.length === 3 && out.bar[0] === out.bar[1] && out.bar[2] === 'wavy',
@@ -21628,7 +21644,7 @@ async function main(){
     out.noteFrames = await page.evaluate(async ([X, Y])=>{
       applyEdit(()=>{
         const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above'};
-        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}], ['ab', {noteAlong:true}]].forEach(([k, o], i)=>{
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true}], ['ab', {noteAlong:true, noteFrame:false}]].forEach(([k, o], i)=>{
           workingNodes.push(['o111_' + k + 'a','A',null,null,null,null,{pos:[X - 600, Y + 300 + i * 60]}]);
           workingNodes.push(['o111_' + k + 'b','B','o111_' + k + 'a',null,null,null,{pos:[X - 420, Y + 300 + i * 60]}]);
           EDGE_STYLES.push(Object.assign({from:'o111_' + k + 'a', to:'o111_' + k + 'b'}, base, o));
@@ -21727,9 +21743,9 @@ async function main(){
       rebuildChart();
     });
   }
-  check('a merged arrow, carried past the bar, takes the face any connector would, and keeps one set by hand',
-        out.side0 === 'top' && out.across[0] === 'bottom' && !out.across[1] && out.undone[0] === 'top' &&
-        out.handAcross[0] === 'top' && out.beside === 'left', JSON.stringify(out));
+  check('a merged arrow, carried past the bar or beside it, keeps its face, and one set by hand (the owner, 3.11)',
+        out.side0 === 'top' && out.across[0] === 'top' && !out.across[1] && out.undone[0] === 'top' &&
+        out.handAcross[0] === 'top' && out.beside === 'top', JSON.stringify(out));
   check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
         out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
   {
@@ -21845,7 +21861,7 @@ async function main(){
       applyEdit(()=>{
         workingNodes.push(['o211_c','Card',null,null,'A note',null,{pos:[X, Y], card:true, image:cv.toDataURL(), border:'wavy'}]);
         const base = {routing:'orthogonal', dash:'solid', arrow:true, note:'Note gyp', notePos:'above', noteSquare:false};
-        [['lv', {noteFrame:true}], ['al', {noteAlong:true, noteAlongFrame:true}]].forEach(([k, o], i)=>{
+        [['lv', {noteFrame:true}], ['al', {noteAlong:true}]].forEach(([k, o], i)=>{
           workingNodes.push(['o211_' + k + 'a','A',null,null,null,null,{pos:[X + 400, Y + i * 80]}]);
           workingNodes.push(['o211_' + k + 'b','B','o211_' + k + 'a',null,null,null,{pos:[X + 600, Y + i * 80]}]);
           EDGE_STYLES.push(Object.assign({from:'o211_' + k + 'a', to:'o211_' + k + 'b'}, base, o));
@@ -21958,6 +21974,165 @@ async function main(){
         sheet.held && sheet.held.length === 6 && sheet.held.every((v, i)=> !i || v > sheet.held[i-1]), JSON.stringify(sheet.held));
   check('…and open all the way, however long its form, stops under the top bar',
         sheet.open && sheet.open.full && sheet.open.top >= sheet.open.bar, JSON.stringify(sheet.open));
+  });
+
+  await scenario("the owner's list of 3.11: menus clear of the panel, a note's ink and frame, a card's insets, flowchart figures", async () => {
+  const X = 151000, Y = 151000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const cv = document.createElement('canvas'); cv.width = 200; cv.height = 100;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#37a'; cx.fillRect(0, 0, 200, 100);
+      applyEdit(()=>{
+        workingNodes.push(['o311_a','A',null,null,null,null,{pos:[X, Y], colors:['#c03030']}]);
+        workingNodes.push(['o311_b','B','o311_a',null,null,null,{pos:[X + 260, Y]}]);
+        EDGE_STYLES.push({from:'o311_a', to:'o311_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          note:'Red words', noteAlong:true});
+        workingNodes.push(['o311_c','Card heading',null,null,'A body under it',null,
+                           {pos:[X, Y + 200], card:true, image:cv.toDataURL(), medium:'middle'}]);
+        workingNodes.push(['o311_d','Ready?',null,null,null,null,{pos:[X + 400, Y + 200], figure:'decision'}]);
+        workingNodes.push(['o311_e','Next','o311_d',null,null,null,{pos:[X + 400, Y + 420]}]);
+        EDGE_STYLES.push({from:'o311_d', to:'o311_e', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom'});
+      });
+      rebuildChart();
+      await wait(250);
+
+      /* 3. A note's field wears its line's ink, and its frame does not go
+            with the words' direction. */
+      openEdgeNoteEditor('o311_a', 'o311_b');
+      await wait(80);
+      const rec = richFields.get('nodeEditorText');
+      r.ink = rec ? getComputedStyle(rec.surface).color : null;
+      closeNodeEditor(true);
+      await wait(80);
+      r.alongFramed = !!document.querySelector('.edge-note[data-from="o311_a"] .edge-note-along-frame');
+      applyEdit(()=>{ const st = EDGE_STYLES.find(x=> x.from === 'o311_a'); delete st.noteAlong; });
+      rebuildChart();
+      await wait(120);
+      const plate = document.querySelector('.edge-note[data-from="o311_a"] .edge-note-plate');
+      r.levelFramed = !!plate && !plate.classList.contains('bare');
+
+      /* 4. A card's words stand off its border and its rules by the inset
+            every entry's do. */
+      {
+        const n = nodes.get('o311_c'), g = document.querySelector('.node[data-id="o311_c"]');
+        const inset = textInsetFor(n);
+        const rules = [...g.querySelectorAll('.card-rule')].map(l=> +l.getAttribute('y1')).sort((a, b)=> a - b);
+        const bands = [['node-label-text', rules[0], rules[1]], ['card-medium', rules[1], rules[2]], ['card-body', rules[2], n.y + n.h]];
+        r.card = bands.map(([cls, top, bottom])=>{
+          const t = g.querySelector('text.' + cls);
+          const b = t && inkBoxOf(t, []);
+          return b ? [+(b.y - top - inset).toFixed(2), +(bottom - (b.y + b.height) - inset).toFixed(2)] : null;
+        });
+        const head = g.querySelector('text.node-label-text');
+        const hb = inkBoxOf(head, []);
+        r.cardSides = hb ? [+(hb.x - n.x).toFixed(2), +(n.x + n.w - hb.x - hb.width).toFixed(2), +inset.toFixed(2)] : null;
+      }
+
+      /* 5. Figures: the button beside Default opens them, and a figure is
+            drawn as its outline with its words inside and a connector met
+            at its point. */
+      const def = document.querySelector('#addFabStyles .node-style-btn[data-value="rect"]');
+      const more = document.getElementById('addFabCustomize');
+      r.besideDefault = !!def && !!more && more.parentElement === def.parentElement;
+      openAddFab(); more.click();
+      await wait(50);
+      r.figureButtons = [...document.querySelectorAll('#addFabFigures .add-fab-figures-grid')[0].querySelectorAll('.node-style-btn')]
+        .map(b=> b.dataset.value).join();
+      closeAddFab();
+      {
+        const n = nodes.get('o311_d'), g = document.querySelector('.node[data-id="o311_d"]');
+        const outline = g.querySelector(':scope > path');
+        r.diamond = outline ? (outline.getAttribute('d').match(/[ML]/g) || []).length : 0;
+        const b = inkBoxOf(g.querySelector('text.node-label-text'), []);
+        /* Inside the diamond: |dx|/(w/2) + |dy|/(h/2) <= 1 at every corner of the ink. */
+        const cxm = n.x + n.w/2, cym = n.y + n.h/2;
+        r.wordsInside = !!b && [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]
+          .every(([px, py])=> Math.abs(px - cxm) / (n.w/2) + Math.abs(py - cym) / (n.h/2) <= 1.0001);
+        const line = document.querySelector('.edge[data-from="o311_d"] path.edge-line, .edge[data-from="o311_d"] path, path[data-from="o311_d"]');
+        const d = line ? line.getAttribute('d') : '';
+        const m = /M\s*([-\d.]+)[ ,]([-\d.]+)/.exec(d);
+        r.metAtPoint = m ? [+(+m[1] - cxm).toFixed(2), +(+m[2] - (n.y + n.h)).toFixed(2)] : d;
+        r.saved = /"figure":"decision"/.test(chartFileText());
+      }
+      /* …and a template comes in from an SVG as numbers only: nothing in
+         the file runs, its outline is kept for the menu, and an entry
+         drawn with it carries its own copy. */
+      window.__o311 = 0;
+      const t = figureTemplateOfSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" onload="window.__o311=1">' +
+        '<script>window.__o311=2</' + 'script><g transform="translate(10,10)"><rect width="120" height="60" onclick="window.__o311=3"/>' +
+        '<line x1="20" y1="0" x2="20" y2="60"/></g></svg>', 'Box.svg');
+      await wait(50);
+      r.template = t ? {name: t.name, d: t.d} : null;
+      r.ranNothing = window.__o311 === 0;
+      if(t){
+        applyEdit(()=>{ SETTINGS.figures = cleanFigureTemplates(SETTINGS.figures).concat([t]); });
+        const id = addEntryOfFigure({name: t.name, d: t.d});
+        closeNodeEditor(true);
+        await wait(80);
+        r.templateDrawn = !!document.querySelector(`.node[data-id="${id}"] > path`) &&
+                          !!document.querySelector(`.node[data-id="${id}"] > path.figure-mark`);
+        const file = chartFileText();
+        r.templateKept = /"figures":\[\{"name":"Box"/.test(file) && file.includes('"figure":{"name":"Box"');
+        applyEdit(()=>{ delete SETTINGS.figures; });
+        rebuildChart();
+        r.entryKeepsIt = !!document.querySelector(`.node[data-id="${id}"] > path.figure-mark`);
+      }
+    } finally {
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('a note\'s field is written in its line\'s ink, not the default black', out.ink === 'rgb(192, 48, 48)', String(out.ink));
+  check('a note framed along its line is still framed once it is level again',
+        out.alongFramed && out.levelFramed, JSON.stringify([out.alongFramed, out.levelFramed]));
+  check('a card\'s heading, middle and body each stand the entry\'s inset off the rules and the border',
+        Array.isArray(out.card) && out.card.every(v=> v && Math.abs(v[0]) < 0.6 && Math.abs(v[1]) < 0.6) &&
+        out.cardSides && out.cardSides[0] >= out.cardSides[2] - 0.6 && out.cardSides[1] >= out.cardSides[2] - 0.6,
+        JSON.stringify({bands: out.card, sides: out.cardSides}));
+  check('beside Default stands the button that opens the flowchart figures, all of them',
+        out.besideDefault && out.figureButtons === 'process,decision,terminator,data,predefined,document,database,manualInput,manualOp,preparation,delay,display,storedData,connector,offPage,extract,merge',
+        JSON.stringify([out.besideDefault, out.figureButtons]));
+  check('a decision is a diamond with its words inside it, met by a connector at its point, and saved as one',
+        out.diamond === 4 && out.wordsInside && Array.isArray(out.metAtPoint) &&
+        Math.abs(out.metAtPoint[0]) < 0.6 && Math.abs(out.metAtPoint[1]) < 1 && out.saved,
+        JSON.stringify({d: out.diamond, inside: out.wordsInside, at: out.metAtPoint, saved: out.saved}));
+  check('a template read from an SVG is its outline as numbers, and nothing in the file runs',
+        out.ranNothing && out.template && out.template.name === 'Box' &&
+        out.template.d === 'M0 0 L100 0 L100 100 L0 100 L0 0 Z M16.7 0 L16.7 100',
+        JSON.stringify([out.ranNothing, out.template]));
+  check('…kept for the menu, drawn on an entry, and the entry keeps it when the menu lets it go',
+        out.templateDrawn && out.templateKept && out.entryKeepsIt,
+        JSON.stringify([out.templateDrawn, out.templateKept, out.entryKeepsIt]));
+
+  /* 1. On a phone, the bar over a picked entry stands above its sheet,
+        and on a desk to the left of its panel. */
+  const deskBar = await page.evaluate(async ([X, Y])=>{
+    const keep = workingNodes.map(x=> x.slice());
+    try{
+      applyEdit(()=> workingNodes.push(['o311_p','Right edge',null,null,null,null,{pos:[X, Y]}]));
+      rebuildChart();
+      const rv = svg.getBoundingClientRect();
+      vs = 1; vx = rv.width - 60 - X; vy = rv.height / 2 - Y; applyTransform();
+      selectNode('o311_p');
+      openStyleBar({kind:'node', id:'o311_p'});
+      await new Promise(ok=> setTimeout(ok, 300));
+      const d = document.getElementById('detail');
+      const p = d.getBoundingClientRect(), b = styleBar.getBoundingClientRect();
+      return {open: d.classList.contains('open'), bar: !styleBar.hidden,
+              clear: !(b.right > p.left && b.left < p.right && b.bottom > p.top && b.top < p.bottom)};
+    } finally {
+      if(typeof closeStyleBar === 'function') closeStyleBar();
+      workingNodes = keep; rebuildChart();
+    }
+  }, [X, Y]);
+  check('a picked entry\'s bar stands clear of its panel', deskBar.open && deskBar.bar && deskBar.clear, JSON.stringify(deskBar));
   });
 
   await scenario("nothing threw along the way", async () => {

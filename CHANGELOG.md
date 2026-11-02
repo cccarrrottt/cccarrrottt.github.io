@@ -6,6 +6,32 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.24.2 — "Shapes of its own" (2026-11-03)
+
+The owner's list of 3.11, on 0.24.1.
+
+- **Flowchart figures**: a button beside Default in the + menu opens
+  seventeen of them and the chart's own templates. A figure is the
+  entry option `figure` — a name, or `{name, d}` carried by the entry —
+  drawn by `figureLayout`, sized round its words by `figureFit`, and met
+  by connectors at its outline (`figureProfile`, through
+  `borderProfileOf`). Templates come from an SVG file
+  (`figureTemplateOfSvg`): rebuilt from geometry alone, measured, and
+  kept as points in a hundred-unit square in `SETTINGS.figures`.
+- **A merged arrow's face moves only by hand**: a held bar no longer
+  flips it when the entry is carried across, and a face whose route
+  would pass through the entry is reached without the bends instead of
+  falling back to the stem's.
+- **Floating bars and menus stand clear of the entry's panel**
+  (`keepClearOfEntryPanel`), placed again once the panel has slid in;
+  a list in the bar opens upward where it must.
+- **A note's frame is one flag**, `noteFrame`, along or level;
+  `noteAlongFrame` is still read. The note's field takes its line's ink
+  (`noteInkOf`).
+- **A card's bands** are measured by their ink and stand `textInsetFor`
+  off the border and the rules, the card minimum still the width they
+  wrap at; a ripple is no longer taken out of its box as well.
+
 ## 0.24.1 — "Second look" (2026-11-02)
 
 The owner's list of 2.11, on 0.24.0.

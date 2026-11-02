@@ -370,6 +370,9 @@ function serializeSettings(o){
   if(Object.keys(tagColors).length) extra.tagColors = tagColors;
   const groundColors = cleanGroundColors(o.groundColors);
   if(Object.keys(groundColors).length) extra.groundColors = groundColors;
+  // The figure templates the + menu offers (see figureTemplateOfSvg).
+  const figures = cleanFigureTemplates(o.figures);
+  if(figures.length) extra.figures = figures;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
@@ -571,6 +574,7 @@ function positionEdgePopover(evt){
   y = Math.max(margin, Math.min(y, host.height - rect.height - margin));
   edgePopover.style.left = x + 'px';
   edgePopover.style.top = y + 'px';
+  keepClearOfEntryPanel(edgePopover);
 }
 
 

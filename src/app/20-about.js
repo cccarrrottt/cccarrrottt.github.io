@@ -11,9 +11,17 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.24.1';
+const APP_VERSION = '0.24.2';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.24.2', date:'2026-11-03', title:'Shapes of its own', notes:[
+'Beside Default in the + menu, a button opens the figures a flowchart is drawn with: process, decision, start and end, data, subroutine, document, database, manual input and step, preparation, delay, display, stored data, connector, off-page, extract and merge. Each is an ordinary entry drawn as that outline, its words inside it and its connectors meeting the outline itself.',
+'A template of your own comes in from an SVG file: its outline is read as numbers, kept in the chart for the menu, and carried by every entry drawn with it.',
+'A merged arrow\'s face changes only by hand: carrying its entry past the bar, or beside it, leaves it where it was, and the bottom face can be chosen like any other.',
+'A bar or a menu floating over the chart stands clear of a picked entry\'s panel, on a phone above its sheet and on a desk to its left, and a list in the bar opens upward where it would fall over the panel.',
+'A note\'s frame is one setting whichever way its words run: framed along its line, it stays framed laid level, and the other way round. A note\'s field is written in its line\'s colour.',
+'A card\'s words stand off its border, its picture and its rules by the pixel every entry\'s do, and each band is as deep as its words.'
+  ]},
   {v:'0.24.1', date:'2026-11-02', title:'Second look', notes:[
 'A merged arrow comes into its entry by the face any connector would take, from where it leaves the bar; one set by hand with the grip at its end is kept wherever the entry is carried.',
 'A card\'s blurred band stays blurred while the view is moved on a phone, and at night.',
