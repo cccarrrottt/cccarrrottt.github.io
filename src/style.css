@@ -3291,6 +3291,7 @@
   .style-bar-group[data-group="endIn"]:not([hidden]) ~ .style-bar-group[data-group="endOut"]{padding-left:0;border-left:0;}
   .style-bar-group[data-group="endIn"]:not([hidden]) ~ .style-bar-group[data-group="endOut"] .style-bar-drop-list{left:0;}
   .style-bar-drop.open .style-bar-drop-list{display:flex;}
+  .style-bar-drop.drop-up .style-bar-drop-list{top:auto;bottom:100%;margin-top:0;margin-bottom:4px;}
   .style-bar-drop.open .style-bar-drop-face{color:var(--ink);border-color:var(--accent);}
   .style-bar button{
     width:24px;height:22px;padding:0;

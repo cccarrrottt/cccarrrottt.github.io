@@ -35,6 +35,7 @@ function positionFreeMenu(evt, n){
   y = Math.max(margin, Math.min(y, host.height - rect.height - margin));
   freeMenu.style.left = x + 'px';
   freeMenu.style.top = y + 'px';
+  keepClearOfEntryPanel(freeMenu);
 }
 
 function closeFreeMenu(){

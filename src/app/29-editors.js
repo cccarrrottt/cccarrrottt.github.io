@@ -571,6 +571,7 @@ function positionEdgePopover(evt){
   y = Math.max(margin, Math.min(y, host.height - rect.height - margin));
   edgePopover.style.left = x + 'px';
   edgePopover.style.top = y + 'px';
+  keepClearOfEntryPanel(edgePopover);
 }
 
 
