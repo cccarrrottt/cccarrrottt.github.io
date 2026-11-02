@@ -1195,6 +1195,8 @@
   .edge-note-text.edge-note-along{pointer-events:visiblePainted;}
   .edge-note-along-frame{stroke:var(--ink);}
   .edge-note-along-ground{stroke:var(--paper);}
+  .edge-note-along-frame.plate-like{stroke:none;fill:var(--ink);}
+  .edge-note-along-ground.plate-like{stroke:none;fill:var(--paper);}
   .edge-note-text.edge-note-along-ring{
     fill:none;stroke:var(--paper);stroke-width:2px;stroke-linejoin:round;pointer-events:none;
   }
