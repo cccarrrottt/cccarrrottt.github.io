@@ -1381,7 +1381,12 @@ const drawOne = (n)=>{
                         el('g', {'clip-path': `url(#${clipId})`}, g));
         const pad = CARD_BACKDROP_BLUR * 3;
         const back = el('image', {x: -pad, y: -pad, width: (bw + pad*2).toFixed(2), height: (Math.max(0, bh) + pad*2).toFixed(2),
-                                  preserveAspectRatio: 'xMidYMid slice', filter: `url(#${blurId})`}, port);
+                                  preserveAspectRatio: 'xMidYMid slice', filter: `url(#${blurId})`,
+                                  /* …and again as a variable, which the stylesheet adds its own
+                                     filters to: the night theme's turn, and the rule that takes
+                                     every filter off while a finger moves the view, each replaced
+                                     the blur, and the band came up sharp (the owner's list of 2.11). */
+                                  style: `--card-blur:url(#${blurId})`}, port);
         wearPicture(back, n.image, n.anim);
       }
       const img = el('image', {

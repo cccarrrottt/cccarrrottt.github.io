@@ -1028,6 +1028,13 @@
      chart came out as its negative for as long as the view moved (the
      owner's list of 24.10). */
   :root[data-theme="dark"] body.touch-input.view-moving #viewport image{filter:invert(1) hue-rotate(180deg) !important;}
+  /* The blurred band behind a card's picture is its blur, not a shadow,
+     and keeps it through both of the above (see renderNodes). */
+  svg#canvas .card-img-backdrop > image{filter:var(--card-blur);}
+  :root[data-theme="dark"] svg#canvas .card-img-backdrop > image{filter:var(--card-blur) invert(1) hue-rotate(180deg);}
+  body.touch-input.view-moving #viewport .card-img-backdrop > image{filter:var(--card-blur) !important;}
+  :root[data-theme="dark"] body.touch-input.view-moving #viewport .card-img-backdrop > image{
+    filter:var(--card-blur) invert(1) hue-rotate(180deg) !important;}
   .connector-rubber{
     fill:none;stroke:var(--accent);stroke-width:1.8;stroke-dasharray:5 4;
     pointer-events:none;
