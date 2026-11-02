@@ -6,6 +6,23 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.2 — "Code 1" (2026-11-03)
+
+A review of 0.24–0.25.
+
+- **Facts belong to their kind** in the entry's panel (`editMediaState.byKind`):
+  every kind numbers its fields from f1, so switching a card's kind handed
+  one kind's facts to the other's fields.
+- **A renamed field renames itself in its kind's line.**
+- **Brackets in a kind's line** (`unpairedBracketsOut`): an empty fact
+  keeps a bracket closing the fact before it or opening the one after,
+  and an unpaired one goes.
+- **Kept drawings kept**: an underline's key is its text's place in its
+  entry, not a page-wide count, and a callout recoloured by its leader
+  records the drawing as left (`after`, `calloutInk`), so neither is
+  drawn afresh on every edit.
+- Two dead stylesheet rules out (`.editor-pair-help`, `.comment-note`).
+
 ## 0.25.1 — "Room to read" (2026-11-03)
 
 The owner's list of 2.11, evening, on 0.25.0.

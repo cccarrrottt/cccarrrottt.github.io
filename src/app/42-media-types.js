@@ -76,14 +76,41 @@ function mediaLineFor(kind, data){
   }
   parts.push({lit: format.slice(last)});
   /* An empty fact goes with the words before it, or — first in the line —
-     with the words after it. */
+     with the words after it. Not with a bracket in them, though: the
+     words between two facts are often a bracket closing one and opening
+     the next, ") (" or ", (", and taking them whole left "1986)" or "(JP"
+     behind (code 1, 2.11). A bracket closing the fact before is kept, as
+     is one opening the fact after, and whatever is still unpaired at the
+     end goes. */
   for(let i = 0; i < parts.length; i++){
     if(!('val' in parts[i]) || parts[i].val) continue;
     const before = parts.slice(0, i).some(p=> p.val);
-    if(before && i > 0) parts[i - 1].lit = '';
-    else if(i + 1 < parts.length) parts[i + 1].lit = '';
+    if(before && i > 0){
+      const m = /^\s*([)\]»]*)/.exec(parts[i - 1].lit);
+      parts[i - 1].lit = m[1];
+    } else if(i + 1 < parts.length){
+      const m = /([(\[«]*)\s*$/.exec(parts[i + 1].lit);
+      parts[i + 1].lit = m[1];
+    }
   }
-  return parts.map(p=> 'val' in p ? p.val : p.lit).join('').trim();
+  return unpairedBracketsOut(parts.map(p=> 'val' in p ? p.val : p.lit).join('')).replace(/\s{2,}/g, ' ').trim();
+}
+/* A line with every bracket that closes nothing, or is never closed,
+   taken out. */
+function unpairedBracketsOut(text){
+  const pairs = {')': '(', ']': '[', '»': '«'};
+  const chars = Array.from(text);
+  const open = [];
+  const drop = new Set();
+  chars.forEach((c, i)=>{
+    if(c === '(' || c === '[' || c === '«') open.push(i);
+    else if(pairs[c]){
+      if(open.length && chars[open[open.length - 1]] === pairs[c]) open.pop();
+      else drop.add(i);
+    }
+  });
+  open.forEach(i=> drop.add(i));
+  return chars.filter((c, i)=> !drop.has(i)).join('');
 }
 function mediaLineOf(n){
   if(!n || !n.mediaType) return '';
@@ -229,7 +256,17 @@ function buildMediaTab(){
         editMediaTypes(list=>{
           const t = list.find(x=> x.id === kind.id);
           const ff = t && t.fields.find(x=> x.id === f.id);
-          if(ff) ff.label = v.trim();
+          if(!ff) return;
+          /* The line names a field by its label, so a field renamed
+             under a line of its own took its fact out of every card's
+             line without a word (code 1, 2.11): the line is renamed
+             with it. */
+          const was = ff.label, now = v.trim();
+          if(t.format && was && now && was.toLowerCase() !== now.toLowerCase()){
+            const esc = was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            t.format = t.format.replace(new RegExp('%\\s*' + esc + '\\s*%', 'gi'), '%' + now + '%');
+          }
+          ff.label = now;
         })));
       row.appendChild(cross('Take this field out of the kind', ()=>
         editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.fields = t.fields.filter(x=> x.id !== f.id); })));
@@ -267,10 +304,15 @@ const editMediaTypeSelect = document.getElementById('editMediaTypeSelect');
 const editMediaFields = document.getElementById('editMediaFields');
 /* What the panel holds for the card being edited: its kind and its facts
    — the facts of every kind it has been, so switching kinds and back
-   loses nothing typed. */
-let editMediaState = {type: '', data: {}};
+   loses nothing typed. Kept kind by kind: a fact is filed under its
+   field's id, and every kind numbers its fields from f1, so one shared
+   set handed a film's studio to a book as its author the moment the
+   card was switched (code 1, 2.11). */
+let editMediaState = {type: '', data: {}, byKind: {}};
 function fillMediaTypeForm(n){
-  editMediaState = {type: (n && n.mediaType) || '', data: Object.assign({}, (n && n.mediaData) || {})};
+  const type = (n && n.mediaType) || '';
+  const data = Object.assign({}, (n && n.mediaData) || {});
+  editMediaState = {type, data, byKind: type ? {[type]: data} : {}};
   paintMediaTypeForm();
 }
 /* The list is made afresh each time: the kinds are the chart's, and the
@@ -318,7 +360,11 @@ function paintMediaTypeForm(){
 }
 if(editMediaTypeSelect){
   editMediaTypeSelect.addEventListener('change', ()=>{
-    editMediaState.type = editMediaTypeSelect.value;
+    const st = editMediaState;
+    if(st.type) st.byKind[st.type] = st.data;
+    st.type = editMediaTypeSelect.value;
+    st.data = (st.type && st.byKind[st.type]) || {};
+    if(st.type) st.byKind[st.type] = st.data;
     paintMediaTypeForm();
     queueNodeEditCommit(0);
   });
