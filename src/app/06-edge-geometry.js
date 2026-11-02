@@ -252,6 +252,13 @@ function pocketOutlineOfRing(n, ring){
  * has to bury itself past to be sure of touching at any phase. */
 function borderProfileOf(n, ring){
   if(!n) return null;
+  /* A figure's outline is somewhere else entirely, and the port goes there
+     (see figureProfile): a decision is met at its points. */
+  const fig = nodeFigure(n);
+  if(fig){
+    const grow = (ring || 0) * ringStepFor(n);
+    return figureProfile(fig, {x: n.x - grow, y: n.y - grow, w: n.w + grow*2, h: n.h + grow*2});
+  }
   if(isWavyBorder(n)){
     const o = pocketOutlineOfRing(n, ring || 0);
     if(!o) return null;

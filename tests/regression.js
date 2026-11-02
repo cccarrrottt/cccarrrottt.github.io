@@ -20476,18 +20476,18 @@ async function main(){
       });
       rebuildChart(); fixAmalgamBars(['sl_m']); rebuildChart();
       const bar = amalgamBars.get('sl_m');
-      /* Carried towards its bar and across it, the entry is fed by the
-         face towards the bar, at its middle — the top below the bar, the
-         bottom above it — and by a side only while the bar runs through
-         it; never through the box (the owner's list of 24.10, evening). */
+      /* Carried towards its bar and across it, the entry is fed at the
+         middle of the face it had, and never through the box (the owner's
+         list of 24.10, evening). It used to be the face towards the bar —
+         the top below it, the bottom above it, a side while the bar ran
+         through — and the owner's list of 3.11 took that away: the face
+         changes by hand and only by hand. */
       out.crowded = [Y + 62, Y + 56, Y + 50, Y + 46, Y + 40, Y + 34, Y + 30, Y + 26, Y + 20, Y - 40].map(y=>{
         move('sl_m', X + 120, y);
         const P = pts('', 'sl_m'), n = nodes.get('sl_m'), m = P.length - 1;
         const inside = P.slice(0, -1).some(p=> p.x > n.x + 0.5 && p.x < n.x + n.w - 0.5 && p.y > n.y + 0.5 && p.y < n.y + n.h - 0.5);
-        const at = bar.cross, mid = n.x + n.w / 2;
-        const face = n.y > at + 0.5 ? Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - mid) < 0.01
-                   : n.y + n.h < at - 0.5 ? Math.abs(P[m].y - (n.y + n.h)) < 0.01 && Math.abs(P[m].x - mid) < 0.01
-                   : Math.abs(P[m].x - n.x) < 0.01 || Math.abs(P[m].x - (n.x + n.w)) < 0.01;
+        const mid = n.x + n.w / 2;
+        const face = Math.abs(P[m].y - n.y) < 0.01 && Math.abs(P[m].x - mid) < 0.01;
         return face && !inside && Math.abs(amalgamBars.get('sl_m').cross - bar.cross) < 0.01;
       });
       /* …and carried along past the end of its bar, it keeps the face it
@@ -20570,7 +20570,7 @@ async function main(){
     return out;
   });
   check('an end in a see-through colour is painted solid, in the shade its line has on the paper', r.solid);
-  check('an entry carried towards its merge\'s bar and across it, which stays put, is fed by the face towards the bar, never through the box', r.crowded.every(Boolean) && r.barBack,
+  check('an entry carried towards its merge\'s bar and across it, which stays put, is fed by the face it had, never through the box', r.crowded.every(Boolean) && r.barBack,
         JSON.stringify([r.crowded, r.barBack]));
   check('…and carried past the bar\'s end, by the face it had, at its middle', r.pastEnd.every(Boolean), JSON.stringify(r.pastEnd));
   check('the merged arrow\'s stretch out of the bar, dragged, takes its foot along the bar', r.bent && r.footMoved && r.footSquare,
@@ -21275,10 +21275,11 @@ async function main(){
       r.band = [c1.cardTop, +(c1.w * 2).toFixed(2)];
       const img = document.querySelector('.node[data-id="to_c1"] > image');
       r.imgBottom = img ? +(+img.getAttribute('y') + +img.getAttribute('height') - c1.y).toFixed(2) : null;
-      /* Since the owner's list of 3.11 a card closes on its words as an
-         entry does, so a ripple widens it by what it widens an entry by —
-         the difference in their insets — and no more. */
-      r.wavy = [+(c2.w - c1.w).toFixed(2), +(2 * (textInsetFor(c2) - textInsetFor(c1))).toFixed(2)];
+      /* Since the owner's list of 3.11 each band of a card stands its words
+         off the border and the rules at the inset an entry's stand, so a
+         ripple makes a card taller by what it adds to that inset, once a
+         band, as it makes an entry — and no wider, nor its picture smaller. */
+      r.wavy = [+(c2.w - c1.w).toFixed(2), +(c2.h - c1.h).toFixed(2), +(3 * 2 * (textInsetFor(c2) - textInsetFor(c1))).toFixed(2)];
       r.chips = [c3.w, c3.chipRight - c3.x];
       r.labels = ['editMediumInput', 'editImageInput', 'freeMenuImageUrl']
         .map(id=> document.querySelector(`label[for="${id}"]`).textContent).join('|');
@@ -21346,8 +21347,8 @@ async function main(){
   check('a card\'s picture is as wide as its heading and stops at its rule',
         Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - 0.5)) < 0.05,
         JSON.stringify(out.card));
-  check('a wavy card is bigger than a plain one only as a wavy entry is, and an entry is as wide as its chips',
-        Math.abs(out.card.wavy[0] - out.card.wavy[1]) < 0.02 && out.card.wavy[1] < 1.5 && out.card.chips[0] >= out.card.chips[1],
+  check('a wavy card is no wider than a plain one and taller only by its ripple\'s inset, and an entry is as wide as its chips',
+        Math.abs(out.card.wavy[0]) < 0.01 && Math.abs(out.card.wavy[1] - out.card.wavy[2]) < 0.05 && out.card.chips[0] >= out.card.chips[1],
         JSON.stringify(out.card));
   check('the fields say what they are and nothing after it', out.card.labels === 'Medium|Portrait|Image', out.card.labels);
   check('a style bar choice leaves the bar where it was', out.bar.length === 3 && out.bar[0] === out.bar[1] && out.bar[2] === 'wavy',
@@ -21973,6 +21974,165 @@ async function main(){
         sheet.held && sheet.held.length === 6 && sheet.held.every((v, i)=> !i || v > sheet.held[i-1]), JSON.stringify(sheet.held));
   check('…and open all the way, however long its form, stops under the top bar',
         sheet.open && sheet.open.full && sheet.open.top >= sheet.open.bar, JSON.stringify(sheet.open));
+  });
+
+  await scenario("the owner's list of 3.11: menus clear of the panel, a note's ink and frame, a card's insets, flowchart figures", async () => {
+  const X = 151000, Y = 151000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const cv = document.createElement('canvas'); cv.width = 200; cv.height = 100;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#37a'; cx.fillRect(0, 0, 200, 100);
+      applyEdit(()=>{
+        workingNodes.push(['o311_a','A',null,null,null,null,{pos:[X, Y], colors:['#c03030']}]);
+        workingNodes.push(['o311_b','B','o311_a',null,null,null,{pos:[X + 260, Y]}]);
+        EDGE_STYLES.push({from:'o311_a', to:'o311_b', routing:'orthogonal', dash:'solid', arrow:true,
+                          note:'Red words', noteAlong:true});
+        workingNodes.push(['o311_c','Card heading',null,null,'A body under it',null,
+                           {pos:[X, Y + 200], card:true, image:cv.toDataURL(), medium:'middle'}]);
+        workingNodes.push(['o311_d','Ready?',null,null,null,null,{pos:[X + 400, Y + 200], figure:'decision'}]);
+        workingNodes.push(['o311_e','Next','o311_d',null,null,null,{pos:[X + 400, Y + 420]}]);
+        EDGE_STYLES.push({from:'o311_d', to:'o311_e', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom'});
+      });
+      rebuildChart();
+      await wait(250);
+
+      /* 3. A note's field wears its line's ink, and its frame does not go
+            with the words' direction. */
+      openEdgeNoteEditor('o311_a', 'o311_b');
+      await wait(80);
+      const rec = richFields.get('nodeEditorText');
+      r.ink = rec ? getComputedStyle(rec.surface).color : null;
+      closeNodeEditor(true);
+      await wait(80);
+      r.alongFramed = !!document.querySelector('.edge-note[data-from="o311_a"] .edge-note-along-frame');
+      applyEdit(()=>{ const st = EDGE_STYLES.find(x=> x.from === 'o311_a'); delete st.noteAlong; });
+      rebuildChart();
+      await wait(120);
+      const plate = document.querySelector('.edge-note[data-from="o311_a"] .edge-note-plate');
+      r.levelFramed = !!plate && !plate.classList.contains('bare');
+
+      /* 4. A card's words stand off its border and its rules by the inset
+            every entry's do. */
+      {
+        const n = nodes.get('o311_c'), g = document.querySelector('.node[data-id="o311_c"]');
+        const inset = textInsetFor(n);
+        const rules = [...g.querySelectorAll('.card-rule')].map(l=> +l.getAttribute('y1')).sort((a, b)=> a - b);
+        const bands = [['node-label-text', rules[0], rules[1]], ['card-medium', rules[1], rules[2]], ['card-body', rules[2], n.y + n.h]];
+        r.card = bands.map(([cls, top, bottom])=>{
+          const t = g.querySelector('text.' + cls);
+          const b = t && inkBoxOf(t, []);
+          return b ? [+(b.y - top - inset).toFixed(2), +(bottom - (b.y + b.height) - inset).toFixed(2)] : null;
+        });
+        const head = g.querySelector('text.node-label-text');
+        const hb = inkBoxOf(head, []);
+        r.cardSides = hb ? [+(hb.x - n.x).toFixed(2), +(n.x + n.w - hb.x - hb.width).toFixed(2), +inset.toFixed(2)] : null;
+      }
+
+      /* 5. Figures: the button beside Default opens them, and a figure is
+            drawn as its outline with its words inside and a connector met
+            at its point. */
+      const def = document.querySelector('#addFabStyles .node-style-btn[data-value="rect"]');
+      const more = document.getElementById('addFabCustomize');
+      r.besideDefault = !!def && !!more && more.parentElement === def.parentElement;
+      openAddFab(); more.click();
+      await wait(50);
+      r.figureButtons = [...document.querySelectorAll('#addFabFigures .add-fab-figures-grid')[0].querySelectorAll('.node-style-btn')]
+        .map(b=> b.dataset.value).join();
+      closeAddFab();
+      {
+        const n = nodes.get('o311_d'), g = document.querySelector('.node[data-id="o311_d"]');
+        const outline = g.querySelector(':scope > path');
+        r.diamond = outline ? (outline.getAttribute('d').match(/[ML]/g) || []).length : 0;
+        const b = inkBoxOf(g.querySelector('text.node-label-text'), []);
+        /* Inside the diamond: |dx|/(w/2) + |dy|/(h/2) <= 1 at every corner of the ink. */
+        const cxm = n.x + n.w/2, cym = n.y + n.h/2;
+        r.wordsInside = !!b && [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]
+          .every(([px, py])=> Math.abs(px - cxm) / (n.w/2) + Math.abs(py - cym) / (n.h/2) <= 1.0001);
+        const line = document.querySelector('.edge[data-from="o311_d"] path.edge-line, .edge[data-from="o311_d"] path, path[data-from="o311_d"]');
+        const d = line ? line.getAttribute('d') : '';
+        const m = /M\s*([-\d.]+)[ ,]([-\d.]+)/.exec(d);
+        r.metAtPoint = m ? [+(+m[1] - cxm).toFixed(2), +(+m[2] - (n.y + n.h)).toFixed(2)] : d;
+        r.saved = /"figure":"decision"/.test(chartFileText());
+      }
+      /* …and a template comes in from an SVG as numbers only: nothing in
+         the file runs, its outline is kept for the menu, and an entry
+         drawn with it carries its own copy. */
+      window.__o311 = 0;
+      const t = figureTemplateOfSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" onload="window.__o311=1">' +
+        '<script>window.__o311=2</' + 'script><g transform="translate(10,10)"><rect width="120" height="60" onclick="window.__o311=3"/>' +
+        '<line x1="20" y1="0" x2="20" y2="60"/></g></svg>', 'Box.svg');
+      await wait(50);
+      r.template = t ? {name: t.name, d: t.d} : null;
+      r.ranNothing = window.__o311 === 0;
+      if(t){
+        applyEdit(()=>{ SETTINGS.figures = cleanFigureTemplates(SETTINGS.figures).concat([t]); });
+        const id = addEntryOfFigure({name: t.name, d: t.d});
+        closeNodeEditor(true);
+        await wait(80);
+        r.templateDrawn = !!document.querySelector(`.node[data-id="${id}"] > path`) &&
+                          !!document.querySelector(`.node[data-id="${id}"] > path.figure-mark`);
+        const file = chartFileText();
+        r.templateKept = /"figures":\[\{"name":"Box"/.test(file) && file.includes('"figure":{"name":"Box"');
+        applyEdit(()=>{ delete SETTINGS.figures; });
+        rebuildChart();
+        r.entryKeepsIt = !!document.querySelector(`.node[data-id="${id}"] > path.figure-mark`);
+      }
+    } finally {
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('a note\'s field is written in its line\'s ink, not the default black', out.ink === 'rgb(192, 48, 48)', String(out.ink));
+  check('a note framed along its line is still framed once it is level again',
+        out.alongFramed && out.levelFramed, JSON.stringify([out.alongFramed, out.levelFramed]));
+  check('a card\'s heading, middle and body each stand the entry\'s inset off the rules and the border',
+        Array.isArray(out.card) && out.card.every(v=> v && Math.abs(v[0]) < 0.6 && Math.abs(v[1]) < 0.6) &&
+        out.cardSides && out.cardSides[0] >= out.cardSides[2] - 0.6 && out.cardSides[1] >= out.cardSides[2] - 0.6,
+        JSON.stringify({bands: out.card, sides: out.cardSides}));
+  check('beside Default stands the button that opens the flowchart figures, all of them',
+        out.besideDefault && out.figureButtons === 'process,decision,terminator,data,predefined,document,database,manualInput,manualOp,preparation,delay,display,storedData,connector,offPage,extract,merge',
+        JSON.stringify([out.besideDefault, out.figureButtons]));
+  check('a decision is a diamond with its words inside it, met by a connector at its point, and saved as one',
+        out.diamond === 4 && out.wordsInside && Array.isArray(out.metAtPoint) &&
+        Math.abs(out.metAtPoint[0]) < 0.6 && Math.abs(out.metAtPoint[1]) < 1 && out.saved,
+        JSON.stringify({d: out.diamond, inside: out.wordsInside, at: out.metAtPoint, saved: out.saved}));
+  check('a template read from an SVG is its outline as numbers, and nothing in the file runs',
+        out.ranNothing && out.template && out.template.name === 'Box' &&
+        out.template.d === 'M0 0 L100 0 L100 100 L0 100 L0 0 Z M16.7 0 L16.7 100',
+        JSON.stringify([out.ranNothing, out.template]));
+  check('…kept for the menu, drawn on an entry, and the entry keeps it when the menu lets it go',
+        out.templateDrawn && out.templateKept && out.entryKeepsIt,
+        JSON.stringify([out.templateDrawn, out.templateKept, out.entryKeepsIt]));
+
+  /* 1. On a phone, the bar over a picked entry stands above its sheet,
+        and on a desk to the left of its panel. */
+  const deskBar = await page.evaluate(async ([X, Y])=>{
+    const keep = workingNodes.map(x=> x.slice());
+    try{
+      applyEdit(()=> workingNodes.push(['o311_p','Right edge',null,null,null,null,{pos:[X, Y]}]));
+      rebuildChart();
+      const rv = svg.getBoundingClientRect();
+      vs = 1; vx = rv.width - 60 - X; vy = rv.height / 2 - Y; applyTransform();
+      selectNode('o311_p');
+      openStyleBar({kind:'node', id:'o311_p'});
+      await new Promise(ok=> setTimeout(ok, 300));
+      const d = document.getElementById('detail');
+      const p = d.getBoundingClientRect(), b = styleBar.getBoundingClientRect();
+      return {open: d.classList.contains('open'), bar: !styleBar.hidden,
+              clear: !(b.right > p.left && b.left < p.right && b.bottom > p.top && b.top < p.bottom)};
+    } finally {
+      if(typeof closeStyleBar === 'function') closeStyleBar();
+      workingNodes = keep; rebuildChart();
+    }
+  }, [X, Y]);
+  check('a picked entry\'s bar stands clear of its panel', deskBar.open && deskBar.bar && deskBar.clear, JSON.stringify(deskBar));
   });
 
   await scenario("nothing threw along the way", async () => {

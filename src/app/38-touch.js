@@ -751,13 +751,7 @@ function setEntrySheet(state){
   /* A bar or a menu floating over the chart moves off the sheet as it
      rises (keepClearOfEntryPanel), once it has risen. */
   clearTimeout(setEntrySheet.later);
-  setEntrySheet.later = setTimeout(()=>{
-    if(typeof positionStyleBar === 'function' && !styleBar.hidden){ styleBarPlacedFor = null; positionStyleBar(); }
-    ['freeMenu', 'edgePopover'].forEach(id=>{
-      const m = document.getElementById(id);
-      if(m && m.classList.contains('open')) keepClearOfEntryPanel(m);
-    });
-  }, 240);
+  setEntrySheet.later = setTimeout(clearFloatersOfPanel, 240);
 }
 function entrySheetState(){
   return !entrySheet || !entrySheet.classList.contains('open') ? null

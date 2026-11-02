@@ -103,6 +103,10 @@
         "cardImgW": {"type": "number"},
         "cardImgH": {"type": "number"},
         "bioCard": {"type": "boolean"},
+        "figure": {"description": "A flowchart figure the entry is drawn as instead of a box (0.24.2): one of the named figures, or a template the entry carries itself. Only an ordinary entry wears one; a card stays a card.",
+                   "oneOf": [{"enum": ["process", "decision", "terminator", "data", "predefined", "document", "database", "manualInput",
+                                       "manualOp", "preparation", "delay", "display", "storedData", "connector", "offPage", "extract", "merge"]},
+                             {"$ref": "#/definitions/figureTemplate"}]},
         "bioSide": {"enum": ["left", "right"]},
         "medium": {"type": "string"}
       }
@@ -172,8 +176,16 @@
           "properties": {"id": {"type": "string", "pattern": "^own\\d+$"}, "name": {"type": "string"},
                          "meaning": {"type": "string"}, "color": {"$ref": "#/definitions/hex"}}}},
         "tagColors": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}},
-        "groundColors": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}}}
+        "groundColors": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}}},
+        "figures": {"type": "array", "items": {"$ref": "#/definitions/figureTemplate"},
+                    "description": "The figure templates the + menu offers, brought in from SVG files (0.24.2). An entry drawn with one carries its own copy."}
       }
+    },
+    "figureTemplate": {
+      "type": "object", "required": ["d"],
+      "properties": {"name": {"type": "string"},
+                     "d": {"type": "string", "pattern": "^M[0-9MLZ .-]*$",
+                           "description": "Closed runs of points, \"M x y L x y … Z\", every number from 0 to 100: the figure scaled into a hundred-unit square. The first run is the outline; any after it are lines drawn inside it."}}
     }
   }
 }

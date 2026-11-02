@@ -143,7 +143,7 @@ function decorStyleOf(n){
 const WAVY_BORDER_SHAPES = ['ellipse', 'image', 'textbox', 'link', 'split'];
 function isWavyBorder(n){
   return !!n && borderStyleOf(n) === 'wavy' &&
-         !WAVY_BORDER_SHAPES.includes(n.shape || '');
+         !WAVY_BORDER_SHAPES.includes(n.shape || '') && !nodeFigure(n);
 }
 /* Whether this entry's corners are square rather than rounded.
  *
@@ -1105,6 +1105,10 @@ workingNodes.forEach(item=>{
        pointer and while the entry's panel is open on it; on, it is part
        of the drawing and is always there. */
     bioCard: !!(opts && opts.bioCard),
+    /* A flowchart figure the box is drawn as — a decision's diamond, a
+       terminator's pill, a template of the chart's own (the owner's list
+       of 3.11). Only an ordinary box wears one; see figureOf. */
+    figure: figureOf(opts && opts.figure, shape),
     /* Where an amalgam's bar stands, once it has been put somewhere: see
        amalgamBarOf and amalgamGeometry. */
     bar: amalgamBarOf(opts),

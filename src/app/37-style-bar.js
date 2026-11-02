@@ -705,6 +705,22 @@ function keepClearOfEntryPanel(elm){
   if(sheet) elm.style.top = Math.max(4, (parseFloat(elm.style.top) || 0) - (r.bottom - p.top + 6)) + 'px';
   else elm.style.left = Math.max(4, (parseFloat(elm.style.left) || 0) - (r.right - p.left + 6)) + 'px';
 }
+/* Everything floating over the chart, placed again clear of the panel
+   once the panel has arrived: it slides in, so where it is when a bar is
+   first placed is where it is coming from, not where it stops. */
+function clearFloatersOfPanel(){
+  if(!styleBar.hidden){ styleBarPlacedFor = null; positionStyleBar(); }
+  ['freeMenu', 'edgePopover'].forEach(id=>{
+    const m = document.getElementById(id);
+    if(m && m.classList.contains('open')) keepClearOfEntryPanel(m);
+  });
+}
+{
+  const d = document.getElementById('detail');
+  if(d) d.addEventListener('transitionend', ev=>{
+    if(ev.target === d && d.classList.contains('open')) clearFloatersOfPanel();
+  });
+}
 /* …and an open list in the bar unfolds upward where downward would put
    it over the panel or off the screen. */
 function unfoldStyleBarList(row){

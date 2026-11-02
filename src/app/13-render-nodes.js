@@ -452,6 +452,8 @@ const drawOne = (n)=>{
   const borderKey = borderStyleOf(n);
   const borderDash = (BORDER_STYLES[borderKey] || BORDER_STYLES.solid).dash;
   const isWavy = isWavyBorder(n);
+  /* The flowchart figure it is drawn as, if any — see nodeFigure. */
+  const fig = nodeFigure(n);
   /* And whether its corners are rounded or square. Every radius below goes
      through `rad`, so the outline, its rings, a card's clip and the
      scenery copied from the outline all agree on which it is. */
@@ -599,7 +601,10 @@ const drawOne = (n)=>{
      words stood seven pixels in from the sides and four and a half from
      the rules, where every other entry's stand one pixel off its border:
      a card's bands are boxes of words like any other, and each is closed
-     on its ink at the same inset, from the border and from the rules. */
+     on its ink at the same inset, from the border and from the rules.
+     Its width is still at least the card minimum, which is the width its
+     smaller words wrap at and its picture is drawn at; a short heading
+     stands in the middle of it. */
   const inkPad = closesOnInk || isCard ? textInsetFor(n) : NODE_PAD_X;
   /* The corner every radius on the entry is measured from: see
      inkCornerR. A card and a picture keep the old one. */
@@ -636,8 +641,15 @@ const drawOne = (n)=>{
      hundred pixels across, and the floor that cured that made an empty
      entry eight times the size of an empty remark. Every empty box is the
      same size now, and sits on the grid exactly. */
-  const emptyBox = closesOnInk && !manual && !(maxInkW > 0);
-  if(!manual && closesOnInk){
+  /* A figure closes on its words too, and is then as big again as its
+     outline needs to hold them: see figureFit. An empty one is the size a
+     short word would make, so the figure can be told from a dot. */
+  const figBox = fig ? figureFit(fig, Math.max(maxInkW + inkPad*2, 2*GRID), Math.max(maxTotalH + inkPad*2, GRID)) : null;
+  const emptyBox = closesOnInk && !manual && !(maxInkW > 0) && !fig;
+  if(!manual && figBox){
+    n.w = w = round2(figBox.w);
+    if(!n.pos && typeof n.slotX === 'number') n.x = n.slotX + (n.slotW - w)/2;
+  } else if(!manual && closesOnInk){
     /* With ink it is exactly the ink and the inset, not rounded up to a
        whole pixel and not held up by a floor: rounding put up to a pixel
        of slack on one side, and the floor turned a short word's pixel of
@@ -695,14 +707,6 @@ const drawOne = (n)=>{
   const cardMedOpts = {fontSize:cardMedFS, family:fontFamily};
   const cardMedInk = cardMedium
     ? measureTextBlock(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedOpts, cardMedFit) : null;
-  /* The bands wrap at the width worked out above, and the card then closes
-     on the widest ink any of them made, as an entry does: shrinking to it
-     cannot change a wrap, since every line already fits inside the widest
-     of them. The minimum is what the bands wrap at, not a margin. */
-  if(isCard && !manual && !cardBare && !cardPicOnly){
-    const widest = Math.max(maxInkW, cardBodyInk ? cardBodyInk.width : 0, cardMedInk ? cardMedInk.width : 0);
-    if(widest > 0) n.w = w = Math.min(w, round2(widest + inkPad*2));
-  }
   /* Each band is its ink and the inset above and below it, measured as
      the entry's own words are (measureTextBlock), not as lines of type:
      a line's box has more above the baseline than below it. */
@@ -740,6 +744,7 @@ const drawOne = (n)=>{
   const minUpright = (isRound || isImage) ? null
     : isCard ? {w: Math.max(GRID, Math.min(CARD_MAXW, Math.ceil(inkW))),
                 h: Math.max(GRID, cardHeadH + cardMedH + cardBodyH)}
+    : figBox ? {w: round2(figBox.w), h: round2(figBox.h)}
     : !(maxInkW > 0) ? {w: GRID, h: GRID}
     : {w: round2(Math.min(inkW, isTextbox ? TEXTBOX_MAXW : noWrap ? NODE_LINE_MAXW : inkW)),
        h: round2(maxTotalH + inkPad*2)};
@@ -764,6 +769,7 @@ const drawOne = (n)=>{
           : emptyBox ? GRID
           : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
           : manual ? manual.h
+          : figBox ? round2(figBox.h)
           : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
   if(manual && minUpright && h < minUpright.h) h = minUpright.h;
@@ -1565,6 +1571,20 @@ const drawOne = (n)=>{
                   class:'bio-placeholder',
                   style:`stroke-width:${(1.6*u).toFixed(2)};`}, g);
     }
+  } else if(fig){
+    /* A flowchart figure: its outline where the box would be, ring by ring
+       further out as a box's rings are, and the lines inside it (a
+       subroutine's bars, a cylinder's lip) in the first ring's ink. */
+    ringColors.forEach((c,i)=>{
+      const grow = i*RING_STEP;
+      borderRing('path',
+        (ins)=>({d: figurePolyD(figureLayout(fig, Math.max(1, n.w+grow*2-ins*2), Math.max(1, h+grow*2-ins*2)).outline,
+                                n.x-grow+ins, n.y-grow+ins, true)}),
+        c, i>0 ? 'fill:none;' : (bgFillStyle || 'fill:var(--panel);'));
+    });
+    figureLayout(fig, n.w, h).marks.forEach(m=>
+      el('path', {d: figurePolyD(m, n.x, n.y, false), stroke: ringColors[0], class:'figure-mark',
+                  ...(borderDash ? {'stroke-dasharray': borderDash} : {})}, g));
   } else if(isWavy){
     /* The rippled border — the old pocket-reality edge, now one of the six
        styles any entry may wear. Same box as the plain one, drawn with
@@ -1642,10 +1662,13 @@ const drawOne = (n)=>{
     g.setAttribute('transform', g.dataset.rotTransform);
   }
 
-  const centerX = n.x+n.w/2;
+  /* A figure's words stand where its outline has room for them — under a
+     document's wave, below a manual input's slope (figureLayout). */
+  const figAt = fig ? figureLayout(fig, n.w, h) : null;
+  const centerX = figAt ? n.x + figAt.cx : n.x+n.w/2;
   // On a card the label is a heading in its own band, not a label centred
   // in the whole box.
-  const textAreaCenterY = isCard ? (cardImgB + cardHeadB)/2 : n.y + h/2;
+  const textAreaCenterY = isCard ? (cardImgB + cardHeadB)/2 : figAt ? n.y + figAt.cy : n.y + h/2;
   // font-family must be an inline style, not a plain attribute — the
   // .node text{font-family:'IBM Plex Sans',...} stylesheet rule beats a
   // presentation attribute but loses to inline style.
