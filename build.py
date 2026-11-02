@@ -120,6 +120,7 @@ APP_PARTS = [
     '39-lod.js',
     '40-arrays.js',
     '41-text-view.js',
+    '42-media-types.js',
 ]
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'

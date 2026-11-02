@@ -588,7 +588,10 @@ const drawOne = (n)=>{
      frame it shows when pointed at stands the same pixel off them. */
   /* A card that is a heading and nothing else (see below) is drawn the
      way an entry is, so it closes on its words the way an entry does. */
-  const cardBare = isCard && !n.image && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
+  /* The middle band's words: the line its kind of medium writes, or
+     the medium typed by hand (42-media-types.js). */
+  const cardMediumText = isCard ? cardMediumOf(n) : '';
+  const cardBare = isCard && !n.image && !drawsOnChart(n.note || '') && !cardMediumText;
   const closesOnInk = !isRound && !isImage && (!isCard || cardBare);
   /* A card with a picture and a heading and nothing else keeps the width
      its heading had before the picture came (the owner's list of 31.10:
@@ -596,7 +599,7 @@ const drawOne = (n)=>{
      taken out to the card minimum and padded as a card's, so the picture
      arrived wider than the words it was put over). The minimum is for the
      bands of smaller words, which wrap. */
-  const cardPicOnly = isCard && !cardBare && !drawsOnChart(n.note || '') && !drawsOnChart(n.medium || '');
+  const cardPicOnly = isCard && !cardBare && !drawsOnChart(n.note || '') && !cardMediumText;
   /* …and so is every other card, since (the owner's list of 3.11) its
      words stood seven pixels in from the sides and four and a half from
      the rules, where every other entry's stand one pixel off its border:
@@ -701,7 +704,7 @@ const drawOne = (n)=>{
   const cardMedFS = fontSize * CARD_MEDIUM_SCALE;
   const cardMedScale = cardMedFS / NODE_FS;
   const cardMedLineH = LINE_H * cardMedScale;
-  const cardMedium = isCard && drawsOnChart(n.medium || '') ? String(n.medium).trim() : '';
+  const cardMedium = cardMediumText;
   const cardMedFit = { maxWidth: w - inkPad*2, fontSize: cardMedFS, family: fontFamily };
   const cardMedChars = Math.max(8, Math.round((w - inkPad*2) / (cardMedFS*0.55)));
   const cardMedOpts = {fontSize:cardMedFS, family:fontFamily};
@@ -709,9 +712,24 @@ const drawOne = (n)=>{
     ? measureTextBlock(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedOpts, cardMedFit) : null;
   /* Each band is its ink and the inset above and below it, measured as
      the entry's own words are (measureTextBlock), not as lines of type:
-     a line's box has more above the baseline than below it. */
+     a line's box has more above the baseline than below it.
+   *
+     And each inset is measured from the line that bounds the band on that
+     side, as an entry's is from its own border (the owner's list of
+     2.11: a band is a box inside the card). Where that line is the card's
+     border the inset is the entry's own; where it is a rule between two
+     bands it is the pixel off the rule, which is thinner than a border —
+     the words used to keep a border's distance from a rule, and so stood
+     further from the rules than from the border round them. */
+  const ruleIns = TEXT_GAP + CARD_RULE_W / 2;
+  const hasPic = isCard && !!n.image;
+  const hasMed = !!cardMediumText;
+  const hasBody = isCard && drawsOnChart(n.note || '');
+  const headIns = {top: hasPic ? ruleIns : inkPad, bottom: (hasMed || hasBody) ? ruleIns : inkPad};
+  const medIns = {top: ruleIns, bottom: hasBody ? ruleIns : inkPad};
+  const bodyIns = {top: ruleIns, bottom: inkPad};
   const cardHeadH = !isCard ? 0
-    : (maxInkW > 0 ? round2(maxTotalH + inkPad*2) : GRID);
+    : (maxInkW > 0 ? round2(maxTotalH + headIns.top + headIns.bottom) : GRID);
   /* The picture band, which a card without a picture does not have — and
      which is as deep as the picture needs rather than a fixed slab. A
      fixed band can only be honoured by cropping, and cropping a picture
@@ -730,8 +748,8 @@ const drawOne = (n)=>{
        : (()=>{ const r = imageAspect(n.image);
                 return r ? Math.max(1, round2(w * r)) : CARD_IMG_H; })())
     : 0;
-  const cardBodyH = cardBodyInk ? round2(cardBodyInk.height + inkPad*2) : 0;
-  const cardMedH = cardMedInk ? round2(cardMedInk.height + inkPad*2) : 0;
+  const cardBodyH = cardBodyInk ? round2(cardBodyInk.height + bodyIns.top + bodyIns.bottom) : 0;
+  const cardMedH = cardMedInk ? round2(cardMedInk.height + medIns.top + medIns.bottom) : 0;
   /* The smallest box this entry may be made by hand: the one it closes to
      by itself, its words a pixel inside the border — never past the widest
      box it would allow itself, where it clips instead. A corner dragged
@@ -1325,7 +1343,45 @@ const drawOne = (n)=>{
        picture stops at the ripple instead of squaring off inside it. One
        shape, asked for once: see cardShape below, which the ground, the
        clip and the border all take. */
-    const cardShape = (i)=> isWavy
+    /* How wide the picture is drawn. A picture pulled in from the sides
+       stands in the middle of its band; one at full width reaches the
+       border. A ripple changes nothing about the picture but the outline
+       it is cut to. */
+    const bandW = w;
+    const imgW = Math.max(0, Math.min(bandW, n.cardImgW == null ? bandW : n.cardImgW));
+    const imgX = n.x + (w - imgW)/2;
+    /* Down to the rule under it and not across it: the rule is drawn
+       see-through, and a picture under its lower half showed through the
+       line between the picture and the heading (the owner's list of
+       30.10). */
+    const ruleCut = cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0;
+    const bandY = n.y, bandH = Math.max(0, cardImgB - bandY - ruleCut);
+    /* As deep as it was made, in the middle of its band — which is the
+       whole band unless the card was sized by hand round it. */
+    const imgH = Math.min(bandH, n.cardImgH == null ? bandH : n.cardImgH);
+    const imgY = bandY + (bandH - imgH) / 2;
+    /* Cut to the picture (the owner's list of 2.11, with a sketch): a
+       picture smaller than its band is not set on a blurred copy of
+       itself; the frame goes round the picture and steps out to the
+       bands under it. One outline, as everywhere else on a card — the
+       ground, the clip, the border and its rings all take it, and the
+       ports meet it (n.cardCutRun, borderProfileOf). */
+    const cutPts = (n.cardCut && n.image && cardImgB > n.y + 0.5 &&
+                    (imgW < w - 0.5 || imgY > n.y + 0.5))
+      ? (imgW < w - 0.5
+          ? [{x:imgX, y:imgY}, {x:imgX + imgW, y:imgY}, {x:imgX + imgW, y:cardImgB}, {x:n.x + w, y:cardImgB},
+             {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}, {x:n.x, y:cardImgB}, {x:imgX, y:cardImgB}]
+          : [{x:n.x, y:imgY}, {x:n.x + w, y:imgY}, {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}])
+      : null;
+    n.cardCutRun = cutPts ? cutPts.map(p=> ({x: (p.x - n.x) / w, y: (p.y - n.y) / h})) : null;
+    const cutD = (i, r)=>{
+      const run = i ? offsetRun(cutPts, i) : cutPts;
+      if(isWavy){ const wv = waveRun(run); if(wv) return smoothPath(wv, true); }
+      return roundedRunD(run, Math.max(0, r));
+    };
+    const cardShape = (i)=> cutPts
+      ? {tag:'path', attrs:{d: cutD(i, rad(5 - i))}}
+      : isWavy
       ? {tag:'path', attrs:{d: wavyRectPath(n.x+i, n.y+i, w-i*2, h-i*2, -i)}}
       : {tag:'rect', attrs:{x:n.x+i, y:n.y+i, width:w-i*2, height:h-i*2, rx:rad(5-i)}};
     const clipId = defId('cardclip-', n.id);
@@ -1360,19 +1416,6 @@ const drawOne = (n)=>{
        stands in the middle of its band; one at full width reaches the
        border. A ripple changes nothing about the picture but the outline
        it is cut to. */
-    const bandW = w;
-    const imgW = Math.max(0, Math.min(bandW, n.cardImgW == null ? bandW : n.cardImgW));
-    const imgX = n.x + (w - imgW)/2;
-    /* Down to the rule under it and not across it: the rule is drawn
-       see-through, and a picture under its lower half showed through the
-       line between the picture and the heading (the owner's list of
-       30.10). */
-    const ruleCut = cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0;
-    const bandY = n.y, bandH = Math.max(0, cardImgB - bandY - ruleCut);
-    /* As deep as it was made, in the middle of its band — which is the
-       whole band unless the card was sized by hand round it. */
-    const imgH = Math.min(bandH, n.cardImgH == null ? bandH : n.cardImgH);
-    const imgY = bandY + (bandH - imgH) / 2;
     n.cardImgBand = {top: bandY - n.y, h: bandH};
     if(n.image){
       /* Whatever of the band the picture leaves empty — the sides of one
@@ -1383,8 +1426,8 @@ const drawOne = (n)=>{
          ground. Inside a viewport of the band's own size, so the blur's
          reach stops at the rule rather than running into the heading. */
       const r = imageAspect(n.image);
-      const fills = bleed === 0 && imgW >= bandW - 0.5 && imgH >= bandH - 0.5
-                  && (n.cardCrop || (r && Math.abs(imgW * r - imgH) < 1));
+      const fills = !!cutPts || (bleed === 0 && imgW >= bandW - 0.5 && imgH >= bandH - 0.5
+                  && (n.cardCrop || (r && Math.abs(imgW * r - imgH) < 1)));
       if(!fills && imgH > 0.5){
         const blurId = defId('cardblur-', n.id);
         const f = el('filter', {id: blurId, x:'-10%', y:'-10%', width:'120%', height:'120%'}, nodeDefs);
@@ -1416,7 +1459,7 @@ const drawOne = (n)=>{
       wearPicture(img, n.image, n.anim);
     }
 
-    borderRing(isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
+    borderRing(cutPts || isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
     /* And a ring per further colour, stepping outward exactly as an
        entry's do. A card used to keep its first colour and drop the rest,
        on the grounds that its rules already divide it — but the rings are
@@ -1424,7 +1467,9 @@ const drawOne = (n)=>{
        card was the one boxed entry that could not wear two borders. */
     ringColors.slice(1).forEach((rc, k)=>{
       const grow = (k + 1) * ringStepFor(n);
-      borderRing(isWavy ? 'path' : 'rect', (ins)=> isWavy
+      borderRing(cutPts || isWavy ? 'path' : 'rect', (ins)=> cutPts
+        ? {d: cutD(ins - grow, rad(5 + grow - ins))}
+        : isWavy
         ? {d: wavyRectPath(n.x-grow+ins, n.y-grow+ins, w+grow*2-ins*2, h+grow*2-ins*2, grow - ins)}
         : {x:n.x-grow+ins, y:n.y-grow+ins, width:w+grow*2-ins*2, height:h+grow*2-ins*2,
            rx:rad(5+grow-ins)}, rc, 'fill:none;');
@@ -1575,11 +1620,14 @@ const drawOne = (n)=>{
     /* A flowchart figure: its outline where the box would be, ring by ring
        further out as a box's rings are, and the lines inside it (a
        subroutine's bars, a cylinder's lip) in the first ring's ink. */
+    /* Each ring and each line of a double border is the outline moved
+       along its own normals, its corners rounded or its sides rippled as
+       the entry's are — see figureOutlineD. */
     ringColors.forEach((c,i)=>{
       const grow = i*RING_STEP;
       borderRing('path',
-        (ins)=>({d: figurePolyD(figureLayout(fig, Math.max(1, n.w+grow*2-ins*2), Math.max(1, h+grow*2-ins*2)).outline,
-                                n.x-grow+ins, n.y-grow+ins, true)}),
+        (ins)=>({d: figureOutlineD(fig, n.x, n.y, Math.max(1, n.w), Math.max(1, h),
+                                   {off: ins - grow, r: rad(cornerR + grow - ins), wavy: isWavyFigure(n)})}),
         c, i>0 ? 'fill:none;' : (bgFillStyle || 'fill:var(--panel);'));
     });
     figureLayout(fig, n.w, h).marks.forEach(m=>
@@ -1668,7 +1716,8 @@ const drawOne = (n)=>{
   const centerX = figAt ? n.x + figAt.cx : n.x+n.w/2;
   // On a card the label is a heading in its own band, not a label centred
   // in the whole box.
-  const textAreaCenterY = isCard ? (cardImgB + cardHeadB)/2 : figAt ? n.y + figAt.cy : n.y + h/2;
+  const textAreaCenterY = isCard ? (cardImgB + headIns.top + cardHeadB - headIns.bottom)/2
+                        : figAt ? n.y + figAt.cy : n.y + h/2;
   // font-family must be an inline style, not a plain attribute — the
   // .node text{font-family:'IBM Plex Sans',...} stylesheet rule beats a
   // presentation attribute but loses to inline style.
@@ -1709,7 +1758,7 @@ const drawOne = (n)=>{
   if(isCard && cardMedium){
     const medEl = el('text', {x:centerX, y:0, 'font-size':cardMedFS,
       class:'card-medium', style:`font-family:${fontFamily};`}, g);
-    renderNodeText(medEl, cardMedium, (cardHeadB + cardMedB)/2 - (cardMedInk.mid || 0),
+    renderNodeText(medEl, cardMedium, (cardHeadB + medIns.top + cardMedB - medIns.bottom)/2 - (cardMedInk.mid || 0),
                    centerX - (cardMedInk.midX || 0), cardMedChars, cardMedLineH, cardMedScale,
                    cardMedOpts, cardMedFit);
   }
@@ -1717,7 +1766,7 @@ const drawOne = (n)=>{
   if(isCard && cardBody){
     const bodyEl = el('text', {x:centerX, y:0, 'font-size':cardBodyFS,
       class:'card-body', style:`font-family:${fontFamily};`}, g);
-    renderNodeText(bodyEl, cardBody, (cardMedB + n.y + h)/2 - (cardBodyInk.mid || 0),
+    renderNodeText(bodyEl, cardBody, (cardMedB + bodyIns.top + n.y + h - bodyIns.bottom)/2 - (cardBodyInk.mid || 0),
                    centerX - (cardBodyInk.midX || 0), cardBodyChars, cardBodyLineH, cardBodyScale,
                    cardBodyOpts, cardBodyFit);
   }

@@ -481,7 +481,7 @@ function placeUnderButton(pop, btn){
   pop.style.left = Math.max(8, Math.min(b.left - h.left, room)) + 'px';
   pop.style.top = Math.max(6, b.bottom - h.top + 6) + 'px';
 }
-const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
+const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel', 'minimapPanel'];
 function sideTabsOpen(){
   return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
 }
@@ -499,6 +499,7 @@ function setSideTab(panel, open){
   if(handle) handle.setAttribute('aria-expanded', open ? 'true' : 'false');
   document.body.classList.toggle('side-tab-open', sideTabsOpen().length > 0);
   if(open && panel.id === 'keyPanel') buildKeyTab();
+  if(open && panel.id === 'mediaPanel') buildMediaTab();
   if(panel.id === 'minimapPanel') minimapOpened(open);
 }
 SIDE_TABS.forEach(id=>{

@@ -6,6 +6,32 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.0 — "Kinds of things" (2026-11-03)
+
+The owner's list of 2.11, on 0.24.2.
+
+- **Figures in every border**: `figureOutlineD` moves the outline along
+  its own normals (`offsetRun`, mitred, bevelled at a cusp), rounds its
+  corners (`roundedRunD`) or ripples it (`waveRun`, `isWavyFigure`), so
+  rounded, wavy, double and ringed figures are drawn as boxes are.
+- **The figures open from a gear** on Default's corner (`gearPathD`). A
+  template keeps its drawing's proportion as `ar` (`figureAspectOf`),
+  and the node editor's field on a figure is framed by its outline
+  (`figureFrameUrl`, `.on-figure`).
+- **A card's bands are inset from their own edges**: a rule counts as an
+  edge (`ruleIns`). `cardCut` cuts the card's frame round a picture
+  smaller than its band (`cardCutRun`, read by `borderProfileOf`) instead
+  of filling the band with a blurred copy.
+- **A note's field on a gradient line** takes the gradient's colour at the
+  note (`noteInkOf`).
+- **The owner can look as a reader** (`#readerToggle`, `setReaderPreview`):
+  `markReadOnly` and back, without signing out or re-reading the chart.
+- **Kinds of medium** (`42-media-types.js`): `SETTINGS.mediaTypes`, a
+  fifth side drawer to build them, a picker in the card's panel, and
+  `opts.mediaType`/`opts.mediaData` on a card; `cardMediumOf` writes the
+  kind's `format` with the card's facts as the middle band, in italics.
+  The drawer is hidden in read-only.
+
 ## 0.24.2 — "Shapes of its own" (2026-11-03)
 
 The owner's list of 3.11, on 0.24.1.

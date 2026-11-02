@@ -259,6 +259,13 @@ function borderProfileOf(n, ring){
     const grow = (ring || 0) * ringStepFor(n);
     return figureProfile(fig, {x: n.x - grow, y: n.y - grow, w: n.w + grow*2, h: n.h + grow*2});
   }
+  /* A card cut to its picture is met where its frame is, as a figure is:
+     the frame steps in round the picture (cardCutRun, drawn by
+     renderNodes). */
+  if(n.card && n.cardCutRun){
+    const grow = (ring || 0) * ringStepFor(n);
+    return figureProfile({runs: [n.cardCutRun]}, {x: n.x - grow, y: n.y - grow, w: n.w + grow*2, h: n.h + grow*2});
+  }
   if(isWavyBorder(n)){
     const o = pocketOutlineOfRing(n, ring || 0);
     if(!o) return null;

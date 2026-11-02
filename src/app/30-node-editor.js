@@ -185,6 +185,15 @@ function positionNodeEditor(){
    * what the entry itself does. */
   const w = box.w*vs, hBox = box.h*vs;
   const surf = rec.surface.style;
+  /* On a figure the field's frame is the figure (the owner's list of
+     2.11): a diamond opened as a rounded box was a different shape from
+     the one the words would land in. The frame is the stylesheet's
+     ::before; on a figure it wears the outline as its picture instead of
+     a border, drawn at the field's own scale. */
+  const figOn = tn && !box.turn ? nodeFigure(tn) : null;
+  nodeEditor.classList.toggle('on-figure', !!figOn);
+  if(figOn) surf.setProperty('--figure-frame', figureFrameUrl(figOn, box.w, box.h));
+  else surf.removeProperty('--figure-frame');
   const lineH = parseFloat(rec.surface.dataset.lineH) || 0;
   // Measured upright; turned to match a turned entry only at the end.
   surf.transform = '';
@@ -300,6 +309,22 @@ function positionNodeEditor(){
   nodeEditor.style.left = x + 'px';
   nodeEditor.style.top  = y + 'px';
   alignEditorOnInk();
+}
+/* The figure's outline as a picture for the field's frame: the panel's
+   ground, the accent's line, 1.6 screen pixels wide as the box's frame is,
+   with room round it for the half of the line that stands outside. The
+   colours are read off the page, since a picture cannot ask the
+   stylesheet for them. */
+function figureFrameUrl(fig, W, H){
+  const p = 1.6 / vs;
+  const css = getComputedStyle(document.body);
+  const ink = (css.getPropertyValue('--accent') || '').trim() || '#c23b22';
+  const ground = (css.getPropertyValue('--panel') || '').trim() || '#ffffff';
+  const d = figurePolyD(figureLayout(fig, W, H).outline, 0, 0, true);
+  const svgText = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${(-p).toFixed(3)} ${(-p).toFixed(3)} ` +
+    `${(W + 2*p).toFixed(3)} ${(H + 2*p).toFixed(3)}" preserveAspectRatio="none">` +
+    `<path d="${d}" fill="${ground}" stroke="${ink}" stroke-width="${p.toFixed(3)}" stroke-linejoin="round"/></svg>`;
+  return 'url("data:image/svg+xml,' + encodeURIComponent(svgText) + '")';
 }
 /* The last word on where the field stands: on the words it is covering.
  *
@@ -508,9 +533,35 @@ function noteInkOf(from, to){
   const fill = getComputedStyle(t).fill || '';
   const ref = /url\(["']?#([^"')]+)["']?\)/.exec(fill);
   if(!ref) return fill && fill !== 'none' ? fill : '';
-  const stop = document.getElementById(ref[1]);
-  const first = stop && stop.querySelector('stop');
-  return first ? (first.getAttribute('stop-color') || getComputedStyle(first).stopColor || '') : '';
+  /* A line in a gradient writes its note in that gradient, and the note
+   * stands somewhere along it: the colour the field takes is the one the
+   * gradient has THERE. It took the first stop, which is the colour at
+   * the line's start, and over a note in the middle of a green-to-dark
+   * line the field was a lighter green than the words it covers (the
+   * owner's list of 2.11). The gradient runs between two points in the
+   * chart's own space (makeEdgeGradient), so the note's middle is
+   * projected on to it and the two stops either side are mixed. */
+  const grad = document.getElementById(ref[1]);
+  const stops = grad ? [...grad.querySelectorAll('stop')] : [];
+  if(!stops.length) return '';
+  const colourOf = (st)=> st.getAttribute('stop-color') || getComputedStyle(st).stopColor || '';
+  const num = (k)=> parseFloat(grad.getAttribute(k));
+  const x1 = num('x1'), y1 = num('y1'), x2 = num('x2'), y2 = num('y2');
+  if(stops.length < 2 || grad.getAttribute('gradientUnits') !== 'userSpaceOnUse' ||
+     ![x1, y1, x2, y2].every(Number.isFinite)) return colourOf(stops[0]);
+  let bb;
+  try{ bb = t.getBBox(); }catch(e){ return colourOf(stops[0]); }
+  const mx = bb.x + bb.width / 2, my = bb.y + bb.height / 2;
+  const L2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+  const u = L2 > 0 ? Math.max(0, Math.min(1, ((mx - x1) * (x2 - x1) + (my - y1) * (y2 - y1)) / L2)) : 0;
+  const at = stops.map(st=> (parseFloat(st.getAttribute('offset')) || 0) / 100);
+  let k = 0;
+  while(k < stops.length - 2 && u > at[k + 1]) k++;
+  const span = at[k + 1] - at[k];
+  const f = span > 0 ? Math.max(0, Math.min(1, (u - at[k]) / span)) : 0;
+  const a = rgbaOf(colourOf(stops[k])), b = rgbaOf(colourOf(stops[k + 1]));
+  const mix = (q)=> Math.round(a[q] + (b[q] - a[q]) * f);
+  return `rgb(${mix('r')},${mix('g')},${mix('b')})`;
 }
 function finishNodeEditorLook(rec){
   /* A remark on a connector is written in the CONNECTOR'S ink — a note and

@@ -454,6 +454,15 @@ function parseFigurePath(d){
   if(!runs.length || runs[0].length < 3) return null;
   return runs.filter(r=> r.length >= 2);
 }
+/* A template's proportion, width over height, as the drawing it was read
+   from had it. The outline is kept in a hundred-unit SQUARE, so without
+   it a tall bottle drawn into a wide entry came out a squashed one (the
+   owner's list of 2.11). Templates brought in before it was kept have
+   none, and are drawn as they always were. */
+function figureAspectOf(v){
+  const a = +v;
+  return Number.isFinite(a) && a >= 0.05 && a <= 20 ? Math.round(a * 1000) / 1000 : 0;
+}
 /* What an entry's `figure` says it is: a figure's name, or a template
    ({name, d}) with its outline read once here. Only an ordinary box takes
    one — a portrait, a picture, a caption, a callout or an array has a shape
@@ -463,7 +472,7 @@ function figureOf(v, shape){
   if(isBuiltinFigure(v)) return v;
   if(v && typeof v === 'object' && !Array.isArray(v)){
     const runs = parseFigurePath(v.d);
-    if(runs) return {name: typeof v.name === 'string' ? v.name : 'Template', d: v.d, runs};
+    if(runs) return {name: typeof v.name === 'string' ? v.name : 'Template', d: v.d, runs, ar: figureAspectOf(v.ar)};
   }
   return null;
 }
@@ -635,8 +644,184 @@ function figureFit(fig, iw, ih){
     case 'offPage':     return {w: Math.max(iw, ih * 0.9), h: ih / 0.7};
     case 'extract': case 'merge': return {w: iw * 2, h: ih * 2};
     case 'process':     return {w: iw, h: ih};
-    default:            return {w: iw / 0.6, h: ih / 0.6};
+    default: {
+      let w = iw / 0.6, h = ih / 0.6;
+      const ar = fig && fig.ar;
+      if(ar){ if(w / h < ar) w = h * ar; else h = w / ar; }
+      return {w, h};
+    }
   }
+}
+/* A figure's outline as it is DRAWN, which is more than its points.
+ *
+ * The outline used to be stroked as the bare polygon, and every ring and
+ * both lines of a double border were the same polygon drawn into a
+ * smaller or larger box — so on anything but a rectangle the two lines of
+ * a double border ran together on the slanted sides and apart on the
+ * level ones, and a figure ignored the entry's rounded corners and its
+ * wavy border altogether (the owner's list of 2.11). Here the points are
+ * moved IN by `off` along each side's own normal (out where it is
+ * negative), which keeps every line of the border the same distance from
+ * the next all the way round; then the corners are rounded, or the sides
+ * rippled as a box's are.
+ *
+ * A corner is any point where the outline turns by more than cornerTurn();
+ * the points along a figure's curves turn by less, and are not corners. */
+function figureOutlineD(fig, x, y, W, H, o){
+  o = o || {};
+  let pts = cleanRun(figureLayout(fig, W, H).outline.map(p=> ({x: x + p.x, y: y + p.y})));
+  if(pts.length < 3) return figurePolyD(pts, 0, 0, true);
+  if(o.off) pts = offsetRun(pts, o.off);
+  if(o.wavy){
+    const w = waveRun(pts);
+    if(w) return smoothPath(w, true);
+  }
+  if(o.r > 0) return roundedRunD(pts, o.r);
+  return figurePolyD(pts, 0, 0, true);
+}
+function cleanRun(pts){
+  const out = [];
+  pts.forEach(p=>{
+    const q = out[out.length - 1];
+    if(!q || Math.hypot(p.x - q.x, p.y - q.y) > 0.01) out.push(p);
+  });
+  while(out.length > 2 && Math.hypot(out[0].x - out[out.length-1].x, out[0].y - out[out.length-1].y) <= 0.01) out.pop();
+  return out;
+}
+function runSignedArea(pts){
+  let a = 0;
+  pts.forEach((p, i)=>{ const q = pts[(i + 1) % pts.length]; a += p.x * q.y - q.x * p.y; });
+  return a / 2;
+}
+/* Each side's normal into the figure: the outline may be walked either
+   way round, and the sign of its area says which. */
+function runNormals(pts){
+  const s = runSignedArea(pts) >= 0 ? 1 : -1;
+  return pts.map((p, i)=>{
+    const q = pts[(i + 1) % pts.length];
+    const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+    return {x: s * -(q.y - p.y) / len, y: s * (q.x - p.x) / len, len};
+  });
+}
+/* Every side moved in by d, each corner where the two moved sides meet —
+   held to four times d at a needle-sharp point, as a stroke's miter is. */
+function offsetRun(pts, d){
+  const N = runNormals(pts);
+  const out = [];
+  pts.forEach((p, i)=>{
+    const a = N[(i - 1 + pts.length) % pts.length], b = N[i];
+    let mx = a.x + b.x, my = a.y + b.y;
+    const ml = Math.hypot(mx, my);
+    const cos = ml < 1e-6 ? 0 : (mx * a.x + my * a.y) / ml;
+    /* A point where the outline nearly doubles back — the cusp of a
+       drum's cut-in side — has no meeting point worth the name: the
+       mitre would run off as a spike. It is bevelled instead, one point
+       off each side. */
+    if(cos < 0.15){
+      out.push({x: p.x + a.x * d, y: p.y + a.y * d}, {x: p.x + b.x * d, y: p.y + b.y * d});
+      return;
+    }
+    const k = d / cos;
+    out.push({x: p.x + mx / ml * k, y: p.y + my / ml * k});
+  });
+  return cleanRun(out);
+}
+/* Inside a function: a card cut to its picture is drawn at start-up,
+   before this part has run. */
+function cornerTurn(){ return 20 * Math.PI / 180; }
+/* How far a corner turns, and the length cut off each side to round it
+   with radius r: the arc meets the sides r·tan(turn/2) back from the
+   corner, and never past the middle of either side. */
+function runCorners(pts, r){
+  const n = pts.length;
+  return pts.map((p, i)=>{
+    const a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n];
+    const ux = p.x - a.x, uy = p.y - a.y, vx = b.x - p.x, vy = b.y - p.y;
+    const lu = Math.hypot(ux, uy) || 1, lv = Math.hypot(vx, vy) || 1;
+    const turn = Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / (lu * lv))));
+    if(!(turn > cornerTurn()) || !(r > 0)) return {p, turn, cut: 0};
+    const cut = Math.min(r * Math.tan(Math.min(turn, 2.8) / 2), lu / 2, lv / 2);
+    return {p, turn, cut,
+            a: {x: p.x - ux / lu * cut, y: p.y - uy / lu * cut},
+            b: {x: p.x + vx / lv * cut, y: p.y + vy / lv * cut}};
+  });
+}
+function roundedRunD(pts, r){
+  const C = runCorners(pts, r);
+  const f = q=> q.x.toFixed(2) + ',' + q.y.toFixed(2);
+  const start = C[0].cut ? C[0].b : C[0].p;
+  let d = 'M' + f(start);
+  for(let k = 1; k <= C.length; k++){
+    const c = C[k % C.length];
+    if(c.cut) d += ' L' + f(c.a) + ' Q' + f(c.p) + ' ' + f(c.b);
+    else if(k < C.length) d += ' L' + f(c.p);
+  }
+  return d + ' Z';
+}
+/* The outline rippled as a box's border is: each run between two corners
+   carries an even number of half-waves fitted to its length and eases to
+   nothing over the last of them, so a corner is a clean turn and two runs
+   never have to agree on a phase; a figure with no corner at all (a
+   circle) is one closed run, waved all the way round. The corners are
+   rounded first, at the radius a rippled box's are. Too small an outline
+   to carry three waves is left plain. */
+function waveRun(pts){
+  const C = runCorners(pts, POCKET_CORNER_R);
+  const N = runNormals(pts);
+  const per = pts.reduce((s, p, i)=> s + N[i].len, 0);
+  if(per < POCKET_WAVELEN * 3) return null;
+  const step = POCKET_WAVELEN / WAVE_STEP_DIV;
+  const corners = C.map((c, i)=> c.cut ? i : -1).filter(i=> i >= 0);
+  const closedLoop = !corners.some(i=> C[i].turn > cornerTurn());
+  const n = pts.length;
+  const out = [];
+  /* A run from corner i to corner j: from the end of i's rounding to the
+     start of j's, through every point between, with each sample pushed
+     out along its side's normal. */
+  const waveAlong = (seq, closed)=>{
+    const segs = [];
+    for(let k = 0; k + 1 < seq.length; k++){
+      const a = seq[k].q, b = seq[k + 1].q;
+      segs.push({a, b, nrm: seq[k].nrm, len: Math.hypot(b.x - a.x, b.y - a.y)});
+    }
+    const L = segs.reduce((s, g)=> s + g.len, 0);
+    if(!(L > 0)) return;
+    const halves = Math.max(2, 2 * Math.round(L / POCKET_WAVELEN));
+    const hw = L / halves;
+    let u = 0;
+    segs.forEach(g=>{
+      const k = Math.max(1, Math.ceil(g.len / step));
+      for(let t = 0; t < k; t++){
+        const s = u + g.len * t / k;
+        const ease = closed ? 1 : (()=>{ const e = Math.max(0, Math.min(1, Math.min(s, L - s) / hw)); return e*e*(3 - 2*e); })();
+        const rise = POCKET_AMP * Math.sin(Math.PI * s / hw) * ease;
+        out.push({x: g.a.x + (g.b.x - g.a.x) * t / k - g.nrm.x * rise,
+                  y: g.a.y + (g.b.y - g.a.y) * t / k - g.nrm.y * rise});
+      }
+      u += g.len;
+    });
+  };
+  if(closedLoop){
+    const seq = pts.map((p, i)=> ({q: p, nrm: N[i]}));
+    seq.push({q: pts[0], nrm: N[0]});
+    waveAlong(seq, true);
+    return out;
+  }
+  const bend = (c)=>{
+    for(let t = 0; t <= 4; t++){
+      const v = t / 4, w = 1 - v;
+      out.push({x: w*w*c.a.x + 2*w*v*c.p.x + v*v*c.b.x, y: w*w*c.a.y + 2*w*v*c.p.y + v*v*c.b.y});
+    }
+  };
+  corners.forEach((i, k)=>{
+    const j = corners[(k + 1) % corners.length];
+    bend(C[i]);
+    const seq = [{q: C[i].b, nrm: N[i]}];
+    for(let m = (i + 1) % n; m !== j; m = (m + 1) % n) seq.push({q: pts[m], nrm: N[m]});
+    seq.push({q: C[j].a, nrm: N[(j - 1 + n) % n]});
+    waveAlong(seq, false);
+  });
+  return out;
 }
 function figurePolyD(pts, x, y, close){
   return pts.map((p, i)=> (i ? 'L' : 'M') + (x + p.x).toFixed(2) + ',' + (y + p.y).toFixed(2)).join(' ') + (close ? ' Z' : '');
@@ -675,7 +860,12 @@ function figureProfile(fig, box){
 function cleanFigureTemplates(v){
   if(!Array.isArray(v)) return [];
   return v.filter(t=> t && typeof t === 'object' && parseFigurePath(t.d))
-          .map(t=> ({name: typeof t.name === 'string' && t.name.trim() ? t.name.trim().slice(0, 60) : 'Template', d: t.d}));
+          .map(t=>{
+            const out = {name: typeof t.name === 'string' && t.name.trim() ? t.name.trim().slice(0, 60) : 'Template', d: t.d};
+            const ar = figureAspectOf(t.ar);
+            if(ar) out.ar = ar;
+            return out;
+          });
 }
 /* An SVG file read as a template: the shapes in it, walked with their
    transforms, sampled into points and scaled into the hundred-unit square.
@@ -768,7 +958,8 @@ function figureTemplateOfSvg(text, name){
     return 'M' + out.map(q=> q.x + ' ' + q.y).join(' L') + (k === 0 ? ' Z' : '');
   }).join(' ');
   if(!parseFigurePath(d)) return null;
-  return {name: String(name || 'Template').replace(/\.svg$/i, '').trim().slice(0, 60) || 'Template', d};
+  return {name: String(name || 'Template').replace(/\.svg$/i, '').trim().slice(0, 60) || 'Template', d,
+          ar: figureAspectOf((x1 - x0) / (y1 - y0))};
 }
 
 /* Ramer–Douglas–Peucker: the fewest of a run's points that keep it within
@@ -804,8 +995,11 @@ function figureIcon(fig){
   svg.setAttribute('class', 'node-style-icon');
   const W = (fig === 'connector') ? 18 : (fig === 'decision' || fig === 'extract' || fig === 'merge') ? 26 : 28;
   const H = (fig === 'connector') ? 18 : (fig === 'decision' || fig === 'extract' || fig === 'merge') ? 20 : 15;
-  const x = (40 - W) / 2, y = (30 - H) / 2;
-  const L = figureLayout(isBuiltinFigure(fig) ? fig : figureOf(fig), W, H);
+  const f = isBuiltinFigure(fig) ? fig : figureOf(fig);
+  let iw = W, ih = H;
+  if(f && f.ar){ if(f.ar > 28 / 22){ iw = 28; ih = 28 / f.ar; } else { ih = 22; iw = 22 * f.ar; } }
+  const x = (40 - iw) / 2, y = (30 - ih) / 2;
+  const L = figureLayout(f, iw, ih);
   const add = (d, cls)=>{
     const e = document.createElementNS(SVG, 'path');
     e.setAttribute('d', d); e.setAttribute('class', cls);
@@ -859,7 +1053,7 @@ function buildFigureMenu(){
   head('Templates');
   const g2 = grid();
   cleanFigureTemplates(SETTINGS.figures).forEach((t, i)=>{
-    const b = figureButton(t.name, figureIcon(t), ()=>{ closeAddFab(); addEntryOfFigure({name: t.name, d: t.d}); });
+    const b = figureButton(t.name, figureIcon(t), ()=>{ closeAddFab(); addEntryOfFigure(Object.assign({name: t.name, d: t.d}, t.ar ? {ar: t.ar} : {})); });
     b.classList.add('figure-template');
     b.dataset.template = String(i);
     const x = document.createElement('span');
@@ -921,12 +1115,28 @@ figureFileInput.addEventListener('change', ()=>{
   more.title = 'More shapes — the flowchart figures, and templates of your own';
   more.setAttribute('aria-haspopup', 'menu');
   more.setAttribute('aria-expanded', 'false');
-  more.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">' +
-                   '<path d="M12 3 L20 12 L12 21 L4 12 Z"/><circle cx="12" cy="12" r="2.2"/></svg>';
+  /* A gear (the owner's list of 2.11): what it opens is the settings of
+     what Default puts down. Its teeth are worked out rather than copied
+     from an icon set, eight of them round a hub. */
+  more.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">' +
+                   '<path d="' + gearPathD(12, 12, 9.2, 6.6, 8) + '"/><circle cx="12" cy="12" r="2.6"/></svg>';
   more.addEventListener('click', ev=>{ ev.stopPropagation(); openFigureMenu(); });
   row.appendChild(more);
   row.appendChild(def);
 })();
+/* A gear's outline: `teeth` flat-topped teeth between radii r0 and r1. */
+function gearPathD(cx, cy, r1, r0, teeth){
+  const pts = [];
+  const step = 2 * Math.PI / teeth;
+  for(let i = 0; i < teeth; i++){
+    const a = i * step - Math.PI / 2;
+    [[-0.28, r0], [-0.15, r1], [0.15, r1], [0.28, r0]].forEach(([k, r])=>{
+      const t = a + k * step;
+      pts.push((cx + r * Math.cos(t)).toFixed(2) + ',' + (cy + r * Math.sin(t)).toFixed(2));
+    });
+  }
+  return 'M' + pts.join(' L') + ' Z';
+}
 /* An entry drawn as a figure, put down as Default puts one. */
 function addEntryOfFigure(fig){
   if(readOnlyView) return null;

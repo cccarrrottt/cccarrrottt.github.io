@@ -233,6 +233,7 @@ function buildSideTabs(){
   buildRefsInto(refsList);
   refsList.scrollTop = scroll;
   if(document.getElementById('keyPanel').classList.contains('open')) buildKeyTab();
+  if(document.getElementById('mediaPanel').classList.contains('open')) buildMediaTab();
 }
 /* ---------------------------------------------------------------------
    The legend: what the marks on this chart mean.

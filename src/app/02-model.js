@@ -498,8 +498,15 @@ function isTextboxShape(n){ return !!n && (n.shape || '') === 'textbox'; }
    inward is still borderReachIn's, which is what anything laid INSIDE the
    ripple (an array's hatching) asks. */
 function textReachIn(n){
-  return isWavyBorder(n) && !isWavyPortrait(n) ? POCKET_AMP + NODE_BORDER_W / 2 - TEXT_GAP
+  return (isWavyBorder(n) && !isWavyPortrait(n)) || isWavyFigure(n) ? POCKET_AMP + NODE_BORDER_W / 2 - TEXT_GAP
        : borderReachIn(n);
+}
+/* A figure asked to ripple. Not isWavyBorder, which means a rippled BOX —
+   its ports, its run-outs, the strips round its sides all reason with the
+   box's own wave; a figure is met at its outline (figureProfile) and only
+   its drawing ripples (figureOutlineD). */
+function isWavyFigure(n){
+  return !!n && borderStyleOf(n) === 'wavy' && !!nodeFigure(n);
 }
 function textInsetFor(n){ return TEXT_GAP + textReachIn(n); }
 /* How round a box closed onto its words may be at the corners.
@@ -1085,6 +1092,7 @@ workingNodes.forEach(item=>{
        was once the only answer, which meant a wide picture arrived with
        both its ends cut off and no way to say otherwise. */
     cardCrop: !!(opts && opts.cardCrop),
+    cardCut: !!(opts && opts.cardCut),
     /* How its picture moves, if it moves: still, on hover, or (absent)
        always. See wearPicture. */
     anim: pictureAnimOf(opts && opts.anim),
@@ -1092,6 +1100,9 @@ workingNodes.forEach(item=>{
        the note. Only a card has one — every other archetype has one text
        and its note. */
     medium: (opts && typeof opts.medium === 'string') ? opts.medium : '',
+    /* Its kind of medium and the facts it was given (42-media-types.js). */
+    mediaType: (opts && typeof opts.mediaType === 'string') ? opts.mediaType : '',
+    mediaData: opts ? cleanMediaData(opts.mediaData) : null,
     /* A band depth set by hand, overriding the one the picture's own
        proportions ask for. Absent means the picture decides. */
     cardImgH: (opts && typeof opts.cardImgH === 'number' && Number.isFinite(opts.cardImgH))

@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.24.2** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.25.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -21,7 +21,7 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   chart.json   the chart's contents, as JSON (see below)
-  app/         the program, 42 files, one per subsystem — see "One scope, many
+  app/         the program, 43 files, one per subsystem — see "One scope, many
                files" below; the order is APP_PARTS in build.py
   site/        published beside the page on the site only: the manifest, the
                icons and the service worker that make it an app a phone keeps
@@ -66,7 +66,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 42 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 43 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -743,7 +743,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 141 named scenarios, and they are independent of one
+The browser suite is 142 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
