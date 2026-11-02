@@ -15,12 +15,12 @@ const APP_VERSION = '0.25.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
   {v:'0.25.0', date:'2026-11-03', title:'Kinds of things', notes:[
-'The flowchart figures are drawn in every border a box is: rounded corners when the entry is not square, a ripple when it is wavy, and two outlines when it is double, each line the outline moved along itself.',
+'The flowchart figures are drawn in every border a box is: rounded corners when the entry is not square — the blunt ones too, as the top of a diamond — a fine ripple outside the outline when it is wavy, and two outlines when it is double, a subroutine\'s bars running on to the outer one and a drum\'s two lines never crossing. Stored data keeps its corners, and Process is gone from the menu, Default being a rectangle already.',
 'The figures open from a gear on Default\'s corner. A template read from an SVG keeps the proportion of its drawing, so a wide outline is not squeezed into a square, and the field its words are typed into is the figure\'s own outline.',
 'A card\'s heading, middle line and note each stand off their own band\'s edges: a rule is an edge like the border. A card with a picture smaller than its band can have its frame cut round the picture instead of the band filled with a blurred copy (Cut the frame to the picture).',
 'A note on a gradient line is edited in the colour the line has where the note stands, not in the colour at its start.',
 'An eye in the top bar shows the owner the chart as a reader sees it, without signing out, and brings them back to the same unsaved chart.',
-'A fifth drawer, Media, holds kinds of medium: a name, the facts it has (studio, director, year…) and the line they are written in, %Studio%, %Director%, %Year%. A card picks its kind from a list in its panel, is given the facts one by one, and its middle line writes them in italics; an empty fact takes its comma with it. Readers are not shown the drawer.'
+'A fifth drawer, Media, holds kinds of medium: a name, the facts it has (studio, director, year…) and the line they are written in, %Studio%, %Director%, %Year%. A card picks its kind from a drop-down list in its panel, is given the facts one by one, and its middle line writes them in italics; an empty fact takes its comma with it. Readers are not shown the drawer.'
   ]},
   {v:'0.24.2', date:'2026-11-03', title:'Shapes of its own', notes:[
 'Beside Default in the + menu, a button opens the figures a flowchart is drawn with: process, decision, start and end, data, subroutine, document, database, manual input and step, preparation, delay, display, stored data, connector, off-page, extract and merge. Each is an ordinary entry drawn as that outline, its words inside it and its connectors meeting the outline itself.',

@@ -240,8 +240,7 @@ function buildMediaTab(){
 }
 
 /* ---- the card's panel ---------------------------------------------- */
-const editMediaTypeBtn = document.getElementById('editMediaTypeBtn');
-const editMediaTypeMenu = document.getElementById('editMediaTypeMenu');
+const editMediaTypeSelect = document.getElementById('editMediaTypeSelect');
 const editMediaFields = document.getElementById('editMediaFields');
 /* What the panel holds for the card being edited: its kind and its facts
    — the facts of every kind it has been, so switching kinds and back
@@ -251,11 +250,26 @@ function fillMediaTypeForm(n){
   editMediaState = {type: (n && n.mediaType) || '', data: Object.assign({}, (n && n.mediaData) || {})};
   paintMediaTypeForm();
 }
+/* The list is made afresh each time: the kinds are the chart's, and the
+   drawer may have changed them since the panel was last filled. A kind
+   the chart no longer has stays in the list, named so, while the card
+   still holds it. */
 function paintMediaTypeForm(){
-  if(!editMediaTypeBtn || !editMediaFields) return;
+  if(!editMediaTypeSelect || !editMediaFields) return;
+  const kinds = mediaTypesOf();
   const kind = mediaTypeById(editMediaState.type);
-  editMediaTypeBtn.textContent = kind ? kind.name : (editMediaState.type ? 'Kind taken out' : 'None');
-  editMediaTypeBtn.classList.toggle('none', !kind);
+  editMediaTypeSelect.innerHTML = '';
+  const option = (value, label)=>{
+    const o = document.createElement('option');
+    o.value = value;
+    o.textContent = label;
+    editMediaTypeSelect.appendChild(o);
+  };
+  option('', kinds.length ? 'None — typed by hand' : 'None — add kinds in the Media drawer');
+  kinds.forEach(k=> option(k.id, k.name));
+  if(editMediaState.type && !kind) option(editMediaState.type, 'Kind taken out');
+  editMediaTypeSelect.value = editMediaState.type || '';
+  editMediaTypeSelect.classList.toggle('none', !kind);
   editMediaFields.innerHTML = '';
   const typed = document.getElementById('editMediumInput');
   if(typed) typed.style.display = kind ? 'none' : '';
@@ -284,45 +298,11 @@ function paintMediaTypeForm(){
   prev.textContent = line || '—';
   editMediaFields.appendChild(prev);
 }
-function closeMediaTypeMenu(){ if(editMediaTypeMenu) editMediaTypeMenu.hidden = true; }
-if(editMediaTypeBtn && editMediaTypeMenu){
-  editMediaTypeBtn.addEventListener('click', ev=>{
-    ev.stopPropagation();
-    if(!editMediaTypeMenu.hidden){ closeMediaTypeMenu(); return; }
-    editMediaTypeMenu.innerHTML = '';
-    const pick = (id, label)=>{
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = label;
-      if(id === editMediaState.type) b.classList.add('on');
-      b.addEventListener('click', e=>{
-        e.stopPropagation();
-        editMediaState.type = id;
-        closeMediaTypeMenu();
-        paintMediaTypeForm();
-        queueNodeEditCommit(0);
-      });
-      editMediaTypeMenu.appendChild(b);
-    };
-    pick('', 'None — typed by hand');
-    const kinds = mediaTypesOf();
-    if(kinds.length){
-      const h = document.createElement('div');
-      h.className = 'tag-menu-head';
-      h.textContent = 'Kinds';
-      editMediaTypeMenu.appendChild(h);
-      kinds.forEach(k=> pick(k.id, k.name));
-    } else {
-      const e = document.createElement('button');
-      e.type = 'button';
-      e.className = 'tag-menu-empty';
-      e.textContent = 'No kinds yet — add them in the Media drawer';
-      editMediaTypeMenu.appendChild(e);
-    }
-    editMediaTypeMenu.hidden = false;
-  });
-  document.addEventListener('click', ev=>{
-    if(!editMediaTypeMenu.hidden && !editMediaTypeMenu.contains(ev.target)) closeMediaTypeMenu();
+if(editMediaTypeSelect){
+  editMediaTypeSelect.addEventListener('change', ()=>{
+    editMediaState.type = editMediaTypeSelect.value;
+    paintMediaTypeForm();
+    queueNodeEditCommit(0);
   });
 }
 /* Into the entry's options, by commitNodeEdit: the kind and the facts of

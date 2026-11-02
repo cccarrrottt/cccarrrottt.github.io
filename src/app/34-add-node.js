@@ -412,9 +412,11 @@ function viewCentreSpot(shapeVal){
    carries its own copy, so taking a template out of the menu, or copying
    the entry into another chart, leaves the entry looking as it did.
    ------------------------------------------------------------------ */
+/* No Process among them (the owner's list of 2.11): a process is a
+   rectangle, and Default already is one. An entry drawn as one before
+   keeps it — see isBuiltinFigure. */
 function figurePicks(){
   return [
-    {value:'process',     label:'Process'},
     {value:'decision',    label:'Decision'},
     {value:'terminator',  label:'Start / end'},
     {value:'data',        label:'Data'},
@@ -433,7 +435,7 @@ function figurePicks(){
     {value:'merge',       label:'Merge'}
   ];
 }
-function isBuiltinFigure(v){ return typeof v === 'string' && figurePicks().some(p=> p.value === v); }
+function isBuiltinFigure(v){ return typeof v === 'string' && (v === 'process' || figurePicks().some(p=> p.value === v)); }
 /* A template's outline as the file stores it: one or more closed runs of
    points, "M x y L x y … Z", every number between 0 and 100. The first run
    is the outline; any after it are lines drawn inside (a subroutine's
@@ -671,7 +673,14 @@ function figureOutlineD(fig, x, y, W, H, o){
   o = o || {};
   let pts = cleanRun(figureLayout(fig, W, H).outline.map(p=> ({x: x + p.x, y: y + p.y})));
   if(pts.length < 3) return figurePolyD(pts, 0, 0, true);
-  if(o.off) pts = offsetRun(pts, o.off);
+  /* A rippled figure is rippled OUTSIDE its outline, as a rippled box is
+     (POCKET_LIFT): the line is lifted by the ripple's depth and waves
+     back down to the outline, never inside it. Waved about the outline
+     itself, every trough cut into the words and into the shape — a
+     diamond or a pill came out a blob nobody could name (the owner's
+     list of 2.11). */
+  const off = (o.off || 0) - (o.wavy ? figureRipple().amp : 0);
+  if(off) pts = offsetRun(pts, off);
   if(o.wavy){
     const w = waveRun(pts);
     if(w) return smoothPath(w, true);
@@ -724,7 +733,43 @@ function offsetRun(pts, d){
     const k = d / cos;
     out.push({x: p.x + mx / ml * k, y: p.y + my / ml * k});
   });
-  return cleanRun(out);
+  return untangleRun(cleanRun(out));
+}
+/* An outline moved inward crosses itself wherever the figure is thinner
+   than the move — a drum's horns, where its cut-in side meets the top —
+   and the line drawn there ran back out across the outer one, so a double
+   border's two lines crossed at the tips (the owner's list of 2.11: "just
+   two borders"). Each loop such a crossing makes is cut off at the
+   crossing, the smaller side going, until the run crosses itself nowhere. */
+function untangleRun(pts){
+  const cross = (p, q, r, s)=>{
+    const dx1 = q.x - p.x, dy1 = q.y - p.y, dx2 = s.x - r.x, dy2 = s.y - r.y;
+    const den = dx1 * dy2 - dy1 * dx2;
+    if(Math.abs(den) < 1e-9) return null;
+    const t = ((r.x - p.x) * dy2 - (r.y - p.y) * dx2) / den;
+    const u = ((r.x - p.x) * dy1 - (r.y - p.y) * dx1) / den;
+    return (t > 1e-6 && t < 1 - 1e-6 && u > 1e-6 && u < 1 - 1e-6) ? {x: p.x + dx1 * t, y: p.y + dy1 * t} : null;
+  };
+  let run = pts;
+  for(let guard = 0; guard < 64 && run.length > 3; guard++){
+    const n = run.length;
+    let hit = null;
+    for(let i = 0; i < n && !hit; i++){
+      for(let j = i + 2; j < n && !hit; j++){
+        if((j + 1) % n === i) continue;
+        const x = cross(run[i], run[(i + 1) % n], run[j], run[(j + 1) % n]);
+        if(x) hit = {i, j, x};
+      }
+    }
+    if(!hit) break;
+    const {i, j, x} = hit;
+    /* Points i+1…j are one side of the crossing, the rest the other. */
+    const inner = j - i;
+    run = inner <= n - inner
+      ? run.slice(0, i + 1).concat([x], run.slice(j + 1))
+      : [x].concat(run.slice(i + 1, j + 1));
+  }
+  return run;
 }
 /* Inside a function: a card cut to its picture is drawn at start-up,
    before this part has run. */
@@ -740,7 +785,18 @@ function runCorners(pts, r){
     const lu = Math.hypot(ux, uy) || 1, lv = Math.hypot(vx, vy) || 1;
     const turn = Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / (lu * lv))));
     if(!(turn > cornerTurn()) || !(r > 0)) return {p, turn, cut: 0};
-    const cut = Math.min(r * Math.tan(Math.min(turn, 2.8) / 2), lu / 2, lv / 2);
+    /* An arc of radius r is all but invisible at a blunt corner — the
+       top of a wide diamond turns by a fifth of a right angle, and r·tan
+       of half that is under a pixel (the owner's list of 2.11). So a
+       corner is cut far enough that its curve stands as far off the
+       corner as a box's rounded corner does: a cut of r/√2 ÷ sin(turn/2),
+       exactly r at a right angle and longer the blunter the corner — but
+       not past 1.6r, or a wide diamond turned into a lens. A sharp corner
+       is cut as an arc of r would be, up to 2r, past which its point was
+       rounded off altogether. A third of a side at most, so two corners
+       never meet in the middle of one. */
+    const half = Math.min(turn, 2.8) / 2;
+    const cut = Math.min(Math.max(r * Math.tan(half), Math.min(r * Math.SQRT1_2 / Math.sin(half), r * 1.6)), r * 2, lu / 3, lv / 3);
     return {p, turn, cut,
             a: {x: p.x - ux / lu * cut, y: p.y - uy / lu * cut},
             b: {x: p.x + vx / lv * cut, y: p.y + vy / lv * cut}};
@@ -765,12 +821,19 @@ function roundedRunD(pts, r){
    circle) is one closed run, waved all the way round. The corners are
    rounded first, at the radius a rippled box's are. Too small an outline
    to carry three waves is left plain. */
+/* A figure's ripple is finer than a box's: a box is four long sides,
+   and a box's ripple on a figure a line of words tall — a diamond's
+   slopes, a pill's ends — swallowed the shape it was drawn round. Half
+   as deep and a little shorter, the outline still reads through it. In a
+   function, for the same reason as cornerTurn. */
+function figureRipple(){ return {amp: 1, len: 7}; }
 function waveRun(pts){
+  const {amp: AMP, len: LEN} = figureRipple();
   const C = runCorners(pts, POCKET_CORNER_R);
   const N = runNormals(pts);
   const per = pts.reduce((s, p, i)=> s + N[i].len, 0);
-  if(per < POCKET_WAVELEN * 3) return null;
-  const step = POCKET_WAVELEN / WAVE_STEP_DIV;
+  if(per < LEN * 3) return null;
+  const step = LEN / WAVE_STEP_DIV;
   const corners = C.map((c, i)=> c.cut ? i : -1).filter(i=> i >= 0);
   const closedLoop = !corners.some(i=> C[i].turn > cornerTurn());
   const n = pts.length;
@@ -786,7 +849,7 @@ function waveRun(pts){
     }
     const L = segs.reduce((s, g)=> s + g.len, 0);
     if(!(L > 0)) return;
-    const halves = Math.max(2, 2 * Math.round(L / POCKET_WAVELEN));
+    const halves = Math.max(2, 2 * Math.round(L / LEN));
     const hw = L / halves;
     let u = 0;
     segs.forEach(g=>{
@@ -794,7 +857,7 @@ function waveRun(pts){
       for(let t = 0; t < k; t++){
         const s = u + g.len * t / k;
         const ease = closed ? 1 : (()=>{ const e = Math.max(0, Math.min(1, Math.min(s, L - s) / hw)); return e*e*(3 - 2*e); })();
-        const rise = POCKET_AMP * Math.sin(Math.PI * s / hw) * ease;
+        const rise = AMP * Math.sin(Math.PI * s / hw) * ease;
         out.push({x: g.a.x + (g.b.x - g.a.x) * t / k - g.nrm.x * rise,
                   y: g.a.y + (g.b.y - g.a.y) * t / k - g.nrm.y * rise});
       }

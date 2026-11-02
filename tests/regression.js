@@ -22105,7 +22105,7 @@ async function main(){
         out.cardSides && out.cardSides[0] >= out.cardSides[2] - 0.6 && out.cardSides[1] >= out.cardSides[2] - 0.6,
         JSON.stringify({bands: out.card, sides: out.cardSides}));
   check('beside Default stands the button that opens the flowchart figures, all of them',
-        out.besideDefault && out.figureButtons === 'process,decision,terminator,data,predefined,document,database,manualInput,manualOp,preparation,delay,display,storedData,connector,offPage,extract,merge',
+        out.besideDefault && out.figureButtons === 'decision,terminator,data,predefined,document,database,manualInput,manualOp,preparation,delay,display,storedData,connector,offPage,extract,merge',
         JSON.stringify([out.besideDefault, out.figureButtons]));
   check('a decision is a diamond with its words inside it, met by a connector at its point, and saved as one',
         out.diamond === 4 && out.wordsInside && Array.isArray(out.metAtPoint) &&
@@ -22184,6 +22184,27 @@ async function main(){
       r.roundCurved = /Q/.test(outlineOf('o2b_round')[0] || '');
       r.wavyCurves = ((outlineOf('o2b_wavy')[0] || '').match(/[QC]/g) || []).length;
       r.doubleRings = outlineOf('o2b_dbl').length;
+      /* …and every corner of a rounded figure is visibly rounded, the
+         blunt ones too: the top and bottom of a wide diamond were cut by
+         under a pixel. Each corner is cut at least the radius back. */
+      {
+        const d = figureOutlineD(nodeFigure({figure:'decision'}), 0, 0, 150, 40, {r: 2.5});
+        const cuts = [...d.matchAll(/L([-\d.]+),([-\d.]+) Q([-\d.]+),([-\d.]+)/g)]
+          .map(m=> Math.hypot(+m[1] - +m[3], +m[2] - +m[4]));
+        r.diamondCuts = cuts.map(c=> +c.toFixed(2));
+        r.picks = figurePicks().map(p=> p.value);
+        applyEdit(()=> workingNodes.push(['o2b_sd','Stored',null,null,null,null,{pos:[X + 1100, Y], figure:'storedData', square:false}]));
+        rebuildChart();
+        r.storedSharp = !/Q/.test(outlineOf('o2b_sd')[0] || 'Q');
+        /* A subroutine's bars, in a double border, run on to its outer line. */
+        applyEdit(()=> workingNodes.push(['o2b_sub','Sub',null,null,null,null,{pos:[X + 900, Y], figure:'predefined', border:'double'}]));
+        rebuildChart();
+        const sub = nodes.get('o2b_sub');
+        const bar = document.querySelector('.node[data-id="o2b_sub"] path.figure-mark');
+        const ys = bar ? (bar.getAttribute('d').match(/[-\d.]+/g) || []).map(Number).filter((v, i)=> i % 2 === 1) : [];
+        r.barReach = ys.length ? [+(sub.y - Math.min(...ys)).toFixed(2), +(Math.max(...ys) - (sub.y + sub.h)).toFixed(2), +DOUBLE_LINE_OFF.toFixed(2)] : null;
+        r.processKept = isBuiltinFigure('process') && !!nodeFigure({figure:'process'});
+      }
       /* …and a template keeps the proportion of the drawing it was read from. */
       {
         const n = nodes.get('o2b_wide');
@@ -22258,7 +22279,7 @@ async function main(){
       await wait(120);
       document.getElementById('detailEditToggle').click();
       await wait(300);
-      r.panelKind = document.getElementById('editMediaTypeBtn').textContent;
+      { const sel = document.getElementById('editMediaTypeSelect'); r.panelKind = sel.tagName + ':' + sel.selectedOptions[0].textContent; }
       r.panelFacts = [...document.querySelectorAll('#editMediaFields input')].map(i=> i.value).join('|');
       r.typedHidden = document.getElementById('editMediumInput').style.display === 'none';
       document.getElementById('detailEditToggle').click();
@@ -22295,6 +22316,13 @@ async function main(){
   check('a figure is square or rounded as a box is, waved when wavy, and two outlines when double',
         out.plainSharp && out.roundCurved && out.wavyCurves >= 8 && out.doubleRings >= 2,
         JSON.stringify([out.plainSharp, out.roundCurved, out.wavyCurves, out.doubleRings]));
+  check('every corner of a rounded diamond is rounded, the blunt top and bottom too, and stored data is never rounded',
+        out.diamondCuts.length === 4 && out.diamondCuts.every(c=> c >= 2.49) && out.storedSharp, JSON.stringify(out.diamondCuts));
+  check('a subroutine\'s bars run on to the outer line of a double border',
+        !!out.barReach && Math.abs(out.barReach[0] - out.barReach[2]) < 0.05 && Math.abs(out.barReach[1] - out.barReach[2]) < 0.05,
+        JSON.stringify(out.barReach));
+  check('Process is not offered among the figures, Default being a rectangle already, and one drawn before still is',
+        !out.picks.includes('process') && out.processKept, JSON.stringify([out.picks, out.processKept]));
   check('a figure read from an SVG keeps its drawing\'s proportion, and an entry wearing it does too',
         out.readAspect === 3 && Math.abs(out.wideAspect - 3) < 0.05, JSON.stringify([out.readAspect, out.wideAspect]));
   check('the field a figure\'s words are typed into is the figure\'s outline', out.editorOnFigure, String(out.editorOnFigure));
@@ -22310,7 +22338,7 @@ async function main(){
   check('…in italics on the card, in place of what was typed, and kept in the file',
         out.drawn === 'Toei,1986' && out.drawnItalic && out.kindSaved, JSON.stringify([out.drawn, out.drawnItalic, out.kindSaved]));
   check('…picked in the card\'s panel, with a field for each fact, and built in the Media drawer',
-        out.panelKind === 'Film' && out.panelFacts === 'Toei||1986' && out.typedHidden && out.drawer === 'Film:Studio,Director,Year',
+        out.panelKind === 'SELECT:Film' && out.panelFacts === 'Toei||1986' && out.typedHidden && out.drawer === 'Film:Studio,Director,Year',
         JSON.stringify([out.panelKind, out.panelFacts, out.typedHidden, out.drawer]));
   check('the owner looks at the chart as a reader without the Media drawer, and comes back to the same chart',
         out.toggleShown && out.asReader && out.back, JSON.stringify([out.toggleShown, out.asReader, out.back]));

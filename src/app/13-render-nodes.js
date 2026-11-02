@@ -1623,15 +1623,40 @@ const drawOne = (n)=>{
     /* Each ring and each line of a double border is the outline moved
        along its own normals, its corners rounded or its sides rippled as
        the entry's are — see figureOutlineD. */
+    /* Rounder than a box's corner: a box's is a pixel or two off its
+       words and reads as rounded because its corners are right angles,
+       but a figure's are mostly blunt or sharp, and at that radius they
+       looked square (the owner's list of 2.11, "чётче"). */
+    const figR = Math.max(cornerR, 4.5);
+    /* Stored data is drawn with its corners as they are whatever the
+       entry asks: its sides are arcs, and rounding where they meet the
+       straight top and bottom only blunted the hooks that make it read as
+       stored data (the owner's list of 2.11). */
+    const figRad = fig === 'storedData' ? ()=> 0 : rad;
     ringColors.forEach((c,i)=>{
       const grow = i*RING_STEP;
       borderRing('path',
         (ins)=>({d: figureOutlineD(fig, n.x, n.y, Math.max(1, n.w), Math.max(1, h),
-                                   {off: ins - grow, r: rad(cornerR + grow - ins), wavy: isWavyFigure(n)})}),
+                                   {off: ins - grow, r: figRad(figR + grow - ins), wavy: isWavyFigure(n)})}),
         c, i>0 ? 'fill:none;' : (bgFillStyle || 'fill:var(--panel);'));
     });
+    /* A double border's lines stand either side of the outline, and a line
+       inside it (a subroutine's bars) runs on through the gap to the outer
+       one, as the owner's list of 2.11 asks: each end is carried on along
+       its own direction by the half-gap. Only a straight line: a
+       database's lip meets its sides running upright, and carried on it
+       would only run down them. */
+    const reach = borderKey === 'double' ? DOUBLE_LINE_OFF : 0;
+    const carried = (m)=>{
+      if(!reach || m.length !== 2) return m;
+      const on = (p, q)=>{
+        const l = Math.hypot(p.x - q.x, p.y - q.y) || 1;
+        return {x: p.x + (p.x - q.x) / l * reach, y: p.y + (p.y - q.y) / l * reach};
+      };
+      return [on(m[0], m[1])].concat(m.slice(1, -1), [on(m[m.length - 1], m[m.length - 2])]);
+    };
     figureLayout(fig, n.w, h).marks.forEach(m=>
-      el('path', {d: figurePolyD(m, n.x, n.y, false), stroke: ringColors[0], class:'figure-mark',
+      el('path', {d: figurePolyD(carried(m), n.x, n.y, false), stroke: ringColors[0], class:'figure-mark',
                   ...(borderDash ? {'stroke-dasharray': borderDash} : {})}, g));
   } else if(isWavy){
     /* The rippled border — the old pocket-reality edge, now one of the six

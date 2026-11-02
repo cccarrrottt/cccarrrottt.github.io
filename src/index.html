@@ -191,14 +191,11 @@
                card has one, so the row is only there for one. -->
           <div class="editor-field" id="editMediumField" style="display:none;">
             <label for="editMediumInput">Medium</label>
-            <!-- A kind from the Media drawer, picked as a tag is; with one,
-                 the card is given its facts field by field and the line is
-                 written from them, so the typed line steps aside. -->
-            <div class="media-kind-row">
-              <span class="media-kind-cap">Kind</span>
-              <button type="button" class="media-kind-btn none" id="editMediaTypeBtn">None</button>
-              <div class="tag-menu" id="editMediaTypeMenu" hidden></div>
-            </div>
+            <!-- A kind from the Media drawer, picked from a list as the
+                 entry's style is; with one, the card is given its facts
+                 field by field and the line is written from them, so the
+                 typed line steps aside. -->
+            <select id="editMediaTypeSelect" class="media-kind-select" aria-label="Kind of medium"></select>
             <div class="media-facts" id="editMediaFields"></div>
             <input id="editMediumInput" type="text" placeholder="Collectible card [back]">
           </div>

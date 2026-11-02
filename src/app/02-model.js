@@ -497,8 +497,10 @@ function isTextboxShape(n){ return !!n && (n.shape || '') === 'textbox'; }
    about very nearly the line a plain border is drawn on. What it reaches
    inward is still borderReachIn's, which is what anything laid INSIDE the
    ripple (an array's hatching) asks. */
+/* A rippled figure is not among them: its ripple stands outside its
+   outline (figureOutlineD), so its words are as far in as a plain one's. */
 function textReachIn(n){
-  return (isWavyBorder(n) && !isWavyPortrait(n)) || isWavyFigure(n) ? POCKET_AMP + NODE_BORDER_W / 2 - TEXT_GAP
+  return (isWavyBorder(n) && !isWavyPortrait(n)) ? POCKET_AMP + NODE_BORDER_W / 2 - TEXT_GAP
        : borderReachIn(n);
 }
 /* A figure asked to ripple. Not isWavyBorder, which means a rippled BOX —
