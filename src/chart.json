@@ -18,7 +18,7 @@
     {"id":"asdasd-1-copy-2","label":"a","colors":["#20242b"],"pos":[-17.09,187],"tags":["local multiverse"],"square":true},
     {"id":"node","label":"asdsa","shape":"ellipse","pos":[-211.02,-11.79],"colors":["#20242b"],"image":"media/bad8aa8b4beebd4fcc4f408a73a108030482920fd3ce9b6305f2b1fd66acdc61.png","tags":["unreleased"]},
     {"id":"node-2","label":"фыв","shape":"textbox","pos":[-26.11,244.11],"rot":340},
-    {"id":"node-3","label":"Прчоао","pos":[-449.05,-124.88]},
+    {"id":"node-3","label":"Прчоао","pos":[-449.05,-124.88],"tags":["local multiverse"]},
     {"id":"node-4","label":"Човьлы","parent":"node-3","pos":[-349.18,102.72]},
     {"id":"node-5","label":"{{#cc22cc|П}}рол{{#20242b|л}}","pos":[-360.15,216.34]},
     {"id":"node-6","label":"Гаягкягкч","parent":"node-5","pos":[-240.23,219.08],"size":[54.13,12.05]},
