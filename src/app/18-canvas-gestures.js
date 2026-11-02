@@ -92,27 +92,27 @@ function syncTagLiveliness(){
     if(e.classList.contains('fanfic-glint') || e.classList.contains('unreleased-glint'))
       resumeAnimation(e, LIVELY_CYCLE.glint, since);
     else {
-      /* The rings and the sheets each carry their own stagger in the
-         stylesheet, and an inline delay replaces it — so the stagger is
-         re-applied here rather than lost. Their order in the group is the
-         order the stylesheet counts them in. */
-      const rings = [...e.querySelectorAll('.hub-echo')];
-      rings.forEach((r,i)=> resumeAnimation(r, LIVELY_CYCLE.echo, since, -i * LIVELY_CYCLE.echo / HUB_ECHOES));
-      /* Which sheet a piece belongs to is written on it: a double border
-         puts TWO elements at the same distance, and counting them off in
-         DOM order would give the second rail its own place in the
-         procession and set the two halves of one sheet travelling apart. */
-      const sheets = [...e.querySelectorAll('.local-sheet')];
-      sheets.forEach(r=>{
-        const k = +(r.dataset.sheet || 0);
-        resumeAnimation(r, LIVELY_CYCLE.sheet, since, -k * LIVELY_CYCLE.sheet / LOCAL_SHEETS);
-      });
+      /* The rings and the sheets each carry their own place in the turn
+         in the stylesheet (--echo-phase, --sheet-phase, set as they are
+         drawn), and an inline delay replaces it — so it is re-applied
+         here rather than lost. Each piece's own, read off it: counting
+         them here, by a number of rings of its own and a turn of its own,
+         gave a stream that never once stood as the picture does, with the
+         ring that only shows while moving set off on the stylesheet's
+         count and running over the others (the owner's list of 2.11). A
+         double border's two rails carry the same phase, so they travel as
+         one sheet. */
+      const phaseOf = (r, name)=> parseFloat(r.style.getPropertyValue(name)) || 0;
+      e.querySelectorAll('.hub-echo, .hub-echo-more').forEach(r=>
+        resumeAnimation(r, LIVELY_CYCLE.echo, since, -phaseOf(r, '--echo-phase') * LIVELY_CYCLE.echo));
+      e.querySelectorAll('.local-sheet, .local-sheet-more').forEach(r=>
+        resumeAnimation(r, LIVELY_CYCLE.sheet, since, -phaseOf(r, '--sheet-phase') * LIVELY_CYCLE.sheet));
     }
   });
 }
 /* How long one turn of each performance takes, in milliseconds. Kept in
    step with the @keyframes durations in the stylesheet. */
-const LIVELY_CYCLE = {echo: 2700, sheet: 1700, glint: 3400};
+const LIVELY_CYCLE = {echo: 2400, sheet: 1800, glint: 3400};
 const livelyStart = new Map();     // entry id -> when its decorations woke
 const livelyLeft = new Map();      // entry id -> when it stopped being looked at
 const LIVELY_GRACE = 400;          // ms a performance waits to be resumed

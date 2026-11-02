@@ -10345,8 +10345,11 @@ async function main(){
     /* ---- the sheets of a stack are half a turn apart ---- */
     {
       const a = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      resumeAnimation(a, LIVELY_CYCLE.sheet, 0, -LIVELY_CYCLE.sheet / LOCAL_SHEETS);
+      /* Three in the stream since the owner's list of 2.11, a third of a
+         turn apart: the delay is in seconds, the stagger in milliseconds. */
+      resumeAnimation(a, LIVELY_CYCLE.sheet, 0, -LIVELY_CYCLE.sheet / (LOCAL_SHEETS + 1));
       out.sheetStagger = a.style.animationDelay;
+      out.sheetStaggerWant = -LIVELY_CYCLE.sheet / (LOCAL_SHEETS + 1) / 1000;
     }
 
     applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
@@ -10378,8 +10381,8 @@ async function main(){
         rMv.otherDropStays, rMv.dropAt);
   check('a carried lineage gives way to a still one, and only nearby',
         rMv.carriedGivesWay && rMv.farUntouched && rMv.neighbourHeld);
-  check('a local multiverse\'s two sheets are half a turn apart',
-        Math.abs(parseFloat(rMv.sheetStagger) + 0.85) < 1e-6, rMv.sheetStagger);
+  check('a local multiverse\'s sheets are a third of a turn apart',
+        Math.abs(parseFloat(rMv.sheetStagger) - rMv.sheetStaggerWant) < 1e-3, rMv.sheetStagger);
   });
 
   /* ---- 32. the page on the published site ----
@@ -21663,19 +21666,30 @@ async function main(){
         .map(r=> [r.b.x, r.b.y, r.b.width, r.b.height, r.o].map(v=> +v.toFixed(1)).join(','))
         .sort();
       const still = {h: look('o111_h'), m: look('o111_m2')};
-      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.add('tag-lively'));
-      const anims = (name)=> document.getAnimations().filter(a=> a.animationName === name &&
-        (aura('o111_h').contains(a.effect.target) || aura('o111_m2').contains(a.effect.target)));
-      const at = (name, ms)=>{ anims(name).forEach(a=>{ a.pause(); a.currentTime = ms; }); };
+      /* Set going the way the page sets it going — by picking the entry,
+         which writes each piece's delay (applyVisibility) — and then
+         stopped at moments of the turn. Adding the class by hand skipped
+         that, and passed while the page ran something else. */
+      const anims = (name, id)=> document.getAnimations().filter(a=> a.animationName === name && aura(id).contains(a.effect.target));
+      const at = (name, id, ms)=>{ anims(name, id).forEach(a=>{ a.pause(); a.currentTime = ms; }); };
+      const settle = ()=> new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok)));
       const moving = [];
-      for(const [h, m] of [[0, 0], [600, 600], [1800, 1200]]){
-        at('hub-echo-out', h); at('local-sheet-away', m);
-        await new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok)));
-        moving.push({h: look('o111_h'), m: look('o111_m2')});
-      }
-      const between = (()=>{ at('hub-echo-out', 300); return look('o111_h'); })();
-      ['o111_h', 'o111_m2'].forEach(id=> aura(id).classList.remove('tag-lively'));
-      return {still, moving, between, counts: [anims('hub-echo-out').length, anims('local-sheet-away').length]};
+      const run = async (id, name, times)=>{
+        deselect(); await settle();
+        selectNode(id, {quiet: true}); await settle();
+        const got = [];
+        for(const ms of times){ at(name, id, ms); await settle(); got.push(look(id)); }
+        return got;
+      };
+      const hs = await run('o111_h', 'hub-echo-out', [0, 600, 1800, 2400 * 7 + 1200]);
+      const counts = [anims('hub-echo-out', 'o111_h').length];
+      at('hub-echo-out', 'o111_h', 300); await settle();
+      const between = look('o111_h');
+      const ms = await run('o111_m2', 'local-sheet-away', [0, 600, 1200, 1800 * 5 + 600]);
+      counts.push(anims('local-sheet-away', 'o111_m2').length);
+      hs.forEach((h, i)=> moving.push({h, m: ms[i]}));
+      deselect();
+      return {still, moving, between, counts};
     }, [X, Y]);
     /* 2. Beside every entry, a link node too, a faint button copies a
           link to it, standing clear of the box and of its right port. */
@@ -21730,7 +21744,8 @@ async function main(){
       r.split(',').every((v, k)=> Math.abs(+v - +b[i].split(',')[k]) <= (k === 4 ? 0.02 : 0.6)));
     check('a hub\'s echo and a local multiverse\'s stack, moving, stand again and again as they stand still',
           sc.still && sc.still.h.length === 3 && sc.still.m.length === 2 &&
-          sc.moving.every(f=> near(f.h, sc.still.h) && near(f.m, sc.still.m)) && !near(sc.between, sc.still.h),
+          sc.moving.every(f=> near(f.h, sc.still.h) && near(f.m, sc.still.m)) && !near(sc.between, sc.still.h)
+          && sc.counts[0] === 4 && sc.counts[1] === 3,
           JSON.stringify(sc));
   }
   check('a faint button beside an entry copies a link to it, outside its box',
