@@ -21535,6 +21535,22 @@ async function main(){
     out.side0 = await page.evaluate(()=> mergedArrowPorts.get('o111_m').p2.side);
     out.across = await carry(-480);
     out.undone = await page.evaluate(()=>{ undoLastEdit(); return [mergedArrowPorts.get('o111_m').p2.side, edgeStyleFor('', 'o111_m').toSide]; });
+    /* …and (the owner's list of 2.11) a face chosen by hand is the one a
+       carry keeps, as on every connector: unset, the face is autoSides'. */
+    await page.evaluate(()=>{
+      applyEdit(()=> setEdgeStyleOverride('', 'o111_m', Object.assign({}, edgeStyleFor('', 'o111_m'), {toSide: 'top'})));
+      rebuildChart();
+    });
+    out.handAcross = await carry(-480);
+    await page.evaluate(()=>{ undoLastEdit(); undoLastEdit(); rebuildChart(); });
+    out.beside = await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o111_m'); e[6].pos = [X + 700, Y + 40]; });
+      rebuildChart();
+      const side = mergedArrowPorts.get('o111_m').p2.side;
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o111_m'); e[6].pos = [X + 100, Y + 300]; });
+      rebuildChart();
+      return side;
+    }, [X, Y]);
     /* 3. A card's picture: the same size rippled or not, the band it
           leaves filled with itself blurred, unlit when the card is picked,
           and kept at its size when the card is resized. */
@@ -21694,8 +21710,9 @@ async function main(){
       rebuildChart();
     });
   }
-  check('a merged arrow keeps its face when its entry is carried past the bar',
-        out.side0 === 'top' && out.across[0] === 'top' && out.across[1] === 'top', JSON.stringify(out));
+  check('a merged arrow, carried past the bar, takes the face any connector would, and keeps one set by hand',
+        out.side0 === 'top' && out.across[0] === 'bottom' && !out.across[1] && out.undone[0] === 'top' &&
+        out.handAcross[0] === 'top' && out.beside === 'left', JSON.stringify(out));
   check('a curve out of a short stub into a long run swings out of its entry, with no hook under its head',
         out.curve && out.curve.back < 0.05 && out.curve.tilt < 20, JSON.stringify(out.curve));
   {
