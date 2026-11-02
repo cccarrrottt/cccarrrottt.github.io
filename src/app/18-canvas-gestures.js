@@ -140,6 +140,16 @@ function resumeAnimation(elm, period, since, stagger){
    scenery, the ground and the far-away patches alone — all of which were
    being swept, and the patches redrawn, on every frame of every carry
    for an answer that could not have changed. */
+/* What a hidden tag does to the drawing: the entries carrying it, their
+   ground and scenery, and every piece of a connector that touches them
+   are left barely there and out of the pointer's way (.tag-hidden), not
+   taken off the chart (the owner's list of 2.11, evening): gone, they
+   left holes nobody could account for, and the lines round them went
+   nowhere. */
+function fadeForTags(el, hide){
+  el.classList.toggle('tag-hidden', hide);
+  if(el.style.display === 'none') el.style.display = '';
+}
 function applyVisibility(opts){
   const edgesOnly = !!(opts && opts.edgesOnly);
   if(!edgesOnly){
@@ -150,13 +160,13 @@ function applyVisibility(opts){
     syncMinimap();
     qNodes('.node').forEach(g=>{
       const n = nodes.get(g.dataset.id);
-      g.style.display = (n && nodeHidden(n)) ? 'none' : '';
+      fadeForTags(g, !!(n && nodeHidden(n)));
     });
     // The ground and the scenery both belong to their entry and go when it does.
     [...fanLayer.querySelectorAll(GROUND_PARTS),
      ...auraLayer.querySelectorAll('.node-aura')].forEach(r=>{
       const n = nodes.get(r.dataset.id);
-      r.style.display = (n && nodeHidden(n)) ? 'none' : '';
+      fadeForTags(r, !!(n && nodeHidden(n)));
     });
   }
   // Every piece of a connector, not only its line: the arrowheads, the ring
@@ -165,7 +175,7 @@ function applyVisibility(opts){
   qEdges('.edge, .edge-hit, .edge-arrow, .edge-note').forEach(p=>{
     const a = nodes.get(p.dataset.from), b = nodes.get(p.dataset.to);
     const hide = (a && nodeHidden(a)) || (b && nodeHidden(b));
-    p.style.display = hide ? 'none' : '';
+    fadeForTags(p, !!hide);
   });
   /* A callout's leader answers to THREE entries: the two its connector
      joins, and the callout itself — hide any of them and a line pointing
@@ -174,7 +184,7 @@ function applyVisibility(opts){
     const a = nodes.get(g.dataset.from), b = nodes.get(g.dataset.to);
     const c = nodes.get(g.dataset.id);
     const hide = (a && nodeHidden(a)) || (b && nodeHidden(b)) || (c && nodeHidden(c));
-    g.style.display = hide ? 'none' : '';
+    fadeForTags(g, !!hide);
   });
 }
 

@@ -1154,3 +1154,24 @@ document.addEventListener('pointermove', (ev)=>{
     picturePlayerTimer = setTimeout(closePicturePlayer, STYLE_BAR_LINGER);
   }
 }, {passive: true});
+/* …and the moments no pointermove comes to say the pointer has gone,
+   which is where the player used to stay up for good (the owner's list of
+   2.11, evening): the pointer leaving the window — straight off the
+   player, often, since it sits at the picture's foot — the window losing
+   the focus, a press anywhere but on the player itself, and the wheel,
+   which moves the picture out from under a player that stays where it
+   was put; the next movement over the picture brings it back. */
+document.documentElement.addEventListener('pointerleave', ()=>{
+  if(picturePlayerFor) closePicturePlayer();
+});
+window.addEventListener('blur', ()=>{ if(picturePlayerFor) closePicturePlayer(); });
+document.addEventListener('pointerdown', (ev)=>{
+  if(!picturePlayerFor || picturePlayer.hidden) return;
+  if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')) return;
+  closePicturePlayer();
+}, true);
+document.addEventListener('wheel', (ev)=>{
+  if(!picturePlayerFor || picturePlayer.hidden) return;
+  if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')) return;
+  closePicturePlayer();
+}, {passive: true, capture: true});

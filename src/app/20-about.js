@@ -11,9 +11,17 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.0';
+const APP_VERSION = '0.25.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.1', date:'2026-11-03', title:'Room to read', notes:[
+'The figures behind the gear stay open while the pointer goes to them: there was a gap between the + column and the figures, and crossing it shut the menu.',
+'Kinds of medium in the Media drawer fold to one line each and open with the arrow beside the name; a kind just added comes open. A card\'s medium line is written two thirds the size of its heading.',
+'The player over a moving picture goes when the pointer leaves the window, when the window loses the focus, on a press anywhere else and on the wheel, where it used to stay up.',
+'A link\'s preview stands to the right, the left, below or above it, wherever it covers least of the chart and stays on screen.',
+'A card\'s heading stands the same pixel off the picture above it and the medium line below, whatever the medium line needs: the bands under it were held to a fixed least depth, and the difference came out of the heading, whose words then ran across the rules. Cut the frame to the picture cuts to the picture itself, not to the band it is fitted into, and it and Crop turn each other off. The entry\'s panel lost its help texts under the picture and the colours, and the preview of the medium line; the facts of a kind stand stepped in and smaller.',
+'A reader\'s edge is shared by the three drawers they have. An entry hidden by its tags is faded, not gone, and cannot be pressed; so are its lines.'
+  ]},
   {v:'0.25.0', date:'2026-11-03', title:'Kinds of things', notes:[
 'The flowchart figures are drawn in every border a box is: rounded corners when the entry is not square — the blunt ones too, as the top of a diamond — a fine ripple outside the outline when it is wavy, and two outlines when it is double, a subroutine\'s bars running on to the outer one and a drum\'s two lines never crossing. Stored data keeps its corners, and Process is gone from the menu, Default being a rectangle already.',
 'The figures open from a gear on Default\'s corner. A template read from an SVG keeps the proportion of its drawing, so a wide outline is not squeezed into a square, and the field its words are typed into is the figure\'s own outline.',

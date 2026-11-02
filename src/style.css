@@ -1253,6 +1253,12 @@
   #keyPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 2 + var(--side-tab-gap) * 2);}
   #mediaPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 3 + var(--side-tab-gap) * 3);}
   #minimapPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 4 + var(--side-tab-gap) * 4);}
+  /* A reader has neither the legend's nor the media's drawer, so the edge
+     is shared by the three they do have, not left with two gaps in it
+     (the owner's list of 2.11, evening). */
+  body.read-only .side-tab{height:calc((100% - var(--side-tab-gap) * 2) / 3);}
+  body.read-only #refsPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap));}
+  body.read-only #minimapPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2);}
   .side-tab-body{
     position:absolute;left:25px;top:0;bottom:0;
     width:252px;
@@ -1621,12 +1627,25 @@
   .tag-menu .tag-menu-empty{color:var(--ink-faint);cursor:default;}
   .tag-menu .tag-menu-empty:hover{background:none;color:var(--ink-faint);}
 
+  /* An entry a hidden tag carries, and the lines that touch it: barely
+     there, and nothing a press can find (fadeForTags). */
+  .tag-hidden{opacity:0.1;pointer-events:none !important;}
+  .tag-hidden *{pointer-events:none !important;}
+
   /* ---------- Kinds of media (42-media-types.js) ---------- */
   .media-kind{
     margin:6px 0 10px;padding:6px 6px 7px;
     border:1px solid var(--line);border-radius:5px;background:var(--panel-2);
   }
   .media-kind-top, .media-field{display:flex;align-items:center;gap:4px;}
+  .media-fold{
+    flex:0 0 auto;width:16px;height:18px;padding:0;background:none;border:none;cursor:pointer;
+    color:var(--ink-faint);font-size:10px;line-height:1;transform:rotate(90deg);transition:transform 0.12s;
+  }
+  .media-fold:hover{color:var(--accent);}
+  .media-kind.shut .media-fold{transform:none;}
+  .media-kind.shut > :not(.media-kind-top){display:none;}
+  .media-kind.shut{padding-bottom:6px;margin:4px 0;}
   .media-field{margin-top:4px;padding-left:10px;}
   .media-kind input, .media-format{
     flex:1 1 auto;min-width:0;box-sizing:border-box;
@@ -1652,7 +1671,16 @@
   .editor-field select.media-kind-select{margin-bottom:6px;}
   .media-facts:empty{display:none;}
   .media-facts{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}
-  .media-preview{font-style:italic;font-size:10.5px;color:var(--ink-dim);padding:2px 0 0;}
+  /* A fact stands under the kind it belongs to, stepped in and set
+     smaller, its name beside its box rather than over it (the owner's
+     sketch of 2.11, evening): three facts used to be three full-width
+     fields, taller than the rest of the panel's questions together. */
+  .editor-field label.media-fact{
+    display:flex;align-items:center;gap:6px;margin:0 0 0 14px;
+    font-size:9px;letter-spacing:0.4px;
+  }
+  .media-fact > span{flex:0 0 74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .editor-field .media-fact input[type="text"]{font-size:11px;padding:3px 7px;border-radius:4px;}
 
   /* ---------- Detail drawer ---------- */
   .detail{
@@ -2001,9 +2029,12 @@
   .add-fab-customize:hover, .add-fab.figures .add-fab-customize{border-color:var(--accent);color:var(--accent);}
   /* The figures stand to the left of the column, inside the same widget,
      so the pointer crossing to them has not left it; the padding on the
-     right is that crossing. */
+     right is that crossing, and it runs right up to the column (62px is
+     the column's width): since the gear moved on to Default's corner, a
+     gap of thirty pixels was left between them, the pointer left the
+     widget in it and the menu shut (the owner's list of 2.11, evening). */
   .add-fab-figures{
-    position:absolute;right:93px;bottom:52px;padding-right:8px;display:none;
+    position:absolute;right:62px;bottom:52px;padding-right:16px;display:none;
   }
   .add-fab.open.figures .add-fab-figures{display:block;}
   .add-fab-figures-card{

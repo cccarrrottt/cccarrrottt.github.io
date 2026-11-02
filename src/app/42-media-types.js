@@ -129,6 +129,12 @@ function mediaUses(id){
   nodes.forEach(n=>{ if(n.mediaType === id) k++; });
   return k;
 }
+/* Which kinds are unfolded in the drawer. Folded, a kind is one line —
+   its name, its count and its ✕ — since the drawer is a fifth of the
+   edge and three unfolded kinds filled it (the owner's list of 2.11,
+   evening). Kept on the function rather than in a const, which the
+   drawer could be built before. */
+function mediaKindsOpen(){ return mediaKindsOpen.set || (mediaKindsOpen.set = new Set()); }
 function buildMediaTab(){
   /* Looked up here, not once at the top: a drawer opened while the chart
      is first drawn asks for this before this part has run. */
@@ -148,7 +154,9 @@ function buildMediaTab(){
     const add = makePlusButton('Add a kind of medium');
     add.addEventListener('click', ev=>{
       ev.stopPropagation();
-      editMediaTypes(list=> list.push({id: newMediaTypeId('kind'), name: 'New kind', fields: [{id: 'f1', label: 'Year'}]}));
+      const id = newMediaTypeId('kind');
+      mediaKindsOpen().add(id);
+      editMediaTypes(list=> list.push({id, name: 'New kind', fields: [{id: 'f1', label: 'Year'}]}));
       const inputs = mediaList.querySelectorAll('.media-kind-name');
       const last = inputs[inputs.length - 1];
       if(last){ last.focus(); last.select(); }
@@ -186,8 +194,23 @@ function buildMediaTab(){
     const box = document.createElement('div');
     box.className = 'media-kind';
     box.dataset.kind = kind.id;
+    const open = mediaKindsOpen().has(kind.id);
+    box.classList.toggle('shut', !open);
     const top = document.createElement('div');
     top.className = 'media-kind-top';
+    const fold = document.createElement('button');
+    fold.type = 'button';
+    fold.className = 'media-fold';
+    fold.textContent = '▸';
+    fold.title = open ? 'Fold this kind away' : 'Unfold this kind: its fields and its line';
+    fold.setAttribute('aria-expanded', open ? 'true' : 'false');
+    fold.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      const set = mediaKindsOpen();
+      if(set.has(kind.id)) set.delete(kind.id); else set.add(kind.id);
+      buildMediaTab();
+    });
+    top.appendChild(fold);
     top.appendChild(input('media-kind-name', kind.name, 'Name of the kind', v=>
       editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.name = v.trim() || t.name; })));
     const uses = mediaUses(kind.id);
@@ -292,11 +315,6 @@ function paintMediaTypeForm(){
     row.appendChild(i);
     editMediaFields.appendChild(row);
   });
-  const line = mediaLineFor(kind, editMediaState.data);
-  const prev = document.createElement('div');
-  prev.className = 'media-preview';
-  prev.textContent = line || '—';
-  editMediaFields.appendChild(prev);
 }
 if(editMediaTypeSelect){
   editMediaTypeSelect.addEventListener('change', ()=>{
@@ -320,9 +338,5 @@ function mediaTypeOptsFromForm(opts, isCardNow){
   } else {
     delete opts.mediaType;
     delete opts.mediaData;
-  }
-  if(editMediaFields){
-    const prev = editMediaFields.querySelector('.media-preview');
-    if(prev && kind) prev.textContent = mediaLineFor(kind, editMediaState.data) || '—';
   }
 }

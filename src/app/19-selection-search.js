@@ -680,11 +680,45 @@ function showLinkPreview(id){
   copy.querySelectorAll('[data-id]').forEach(e=> e.removeAttribute('data-id'));
   copy.querySelectorAll('.node-handle, .node-resize, title').forEach(e=> e.remove());
   const k = LINK_PREVIEW_SCALE;
-  const x = n.x + n.w + LINK_PREVIEW_GAP, y = n.y + n.h / 2 - t.h * k / 2;
+  const {x, y} = linkPreviewSpot(n, t.w * k, t.h * k);
   const g = el('g', {class:'link-preview',
                      transform:`translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${k}) translate(${(-t.x).toFixed(2)} ${(-t.y).toFixed(2)})`},
                linkPreviewLayer);
   g.appendChild(copy);
+}
+/* Where the copy stands: to the right of the link if that is clear, or
+   else to its left, below or above it — whichever covers the least of
+   the other entries and stays on screen. It only ever stood to the right,
+   over whatever stood there, and could not be read (the owner's list of
+   2.11, evening). */
+function linkPreviewSpot(n, W, H){
+  const gap = LINK_PREVIEW_GAP;
+  const cx = n.x + n.w / 2 - W / 2, cy = n.y + n.h / 2 - H / 2;
+  const spots = [
+    {x: n.x + n.w + gap, y: cy},
+    {x: n.x - gap - W, y: cy},
+    {x: cx, y: n.y + n.h + gap},
+    {x: cx, y: n.y - gap - H}
+  ];
+  const r = svg.getBoundingClientRect();
+  const view = {x0: -vx / vs, y0: -vy / vs, x1: (r.width - vx) / vs, y1: (r.height - vy) / vs};
+  const overlap = (a, b)=> Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) *
+                           Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+  let best = spots[0], bestCost = Infinity;
+  spots.forEach((p, i)=>{
+    const box = {x0: p.x, y0: p.y, x1: p.x + W, y1: p.y + H};
+    let cost = 0;
+    nodes.forEach(m=>{
+      if(m.id === n.id || nodeHidden(m)) return;
+      cost += overlap(box, {x0: m.x, y0: m.y, x1: m.x + m.w, y1: m.y + (m.h || 0)});
+    });
+    // Off the screen is as bad as covered: either way it is not read.
+    cost += W * H - overlap(box, view);
+    // Ties go in the order above, the right first, as it always stood.
+    cost += i * 1e-6;
+    if(cost < bestCost){ bestCost = cost; best = p; }
+  });
+  return best;
 }
 /* Whether a link points into this chart at all, whatever entry it names —
    one whose entry has since been deleted is still not a link to elsewhere. */
