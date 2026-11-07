@@ -218,7 +218,13 @@ function commitNodeEdit(){
      nothing at all, twice over (see the form-open order below, which had
      the field hidden as well). */
   const cardNow = editCardCheck.checked && CARD_CAPABLE.has(editShapeInput.value || 'rect');
-  const newImage = (newShape==='ellipse' || newShape==='image' || cardNow)
+  /* What a card holds — its picture, its middle line, its kind of medium
+     and the facts of it — stays with an entry that could wear the card
+     again, so turning card layout off and back on is not a way to lose
+     them (the owner's list of 7.11). Nothing draws them while the card is
+     off; only an archetype that cannot hold a card lets them go. */
+  const cardKept = cardNow || CARD_CAPABLE.has(editShapeInput.value || 'rect');
+  const newImage = (newShape==='ellipse' || newShape==='image' || cardKept)
     ? editImageInput.value.trim() : '';
   /* …less whatever this archetype cannot wear. Changing an entry INTO a
      portrait is the other way the two scenery tags can arrive on one. */
@@ -254,10 +260,8 @@ function commitNodeEdit(){
     const found = workingEntry(id);
     if(!found) return;
     const entry = found.entry;
-    /* …and if the words changed, the box goes back to the size they ask
-       for — see commitNodeEditorText, which says why. Asked BEFORE the
-       new label is written, or the answer is always no. */
-    const labelChanged = (entry[1] !== newLabel);
+    /* A size set by hand stays when the words change — see
+       commitNodeEditorText, which says why. */
     entry[1] = newLabel;
     entry[5] = newShape;   // the note has its own editor in the drawer
     const opts = entryOpts(entry);
@@ -271,14 +275,17 @@ function commitNodeEdit(){
     if(newFontSize) opts.fontSize = newFontSize; else delete opts.fontSize;
     const hadImage = opts.image;
     if(newImage) opts.image = newImage; else delete opts.image;
+    /* A size set by hand is a size for the layout it was set on: a card
+       dragged out round its picture kept that box as a plain entry, and
+       the connectors with it (the owner's list of 7.11). Either way
+       across, the box goes back to what its words ask for. */
+    if(!!opts.card !== newCard) delete opts.size;
     if(newCard) opts.card = true; else delete opts.card;
-    if(labelChanged) delete opts.size;
     /* Both belong to a card that HAS a picture: they are answers about
-       one, and an entry that is no longer a card should not carry the
-       answer back if it becomes one again with something else in it. */
+       one, and kept with it while the card is off. */
     const cardImg = cardImageOptsFromForm();
-    if(newCard && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
-    if(newCard && newImage && cardImg.cut && !cardImg.crop) opts.cardCut = true; else delete opts.cardCut;
+    if(cardKept && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
+    if(cardKept && newImage && cardImg.cut && !cardImg.crop) opts.cardCut = true; else delete opts.cardCut;
     /* The picture's own size is set on the picture, by dragging its
        corners, so this form carries whatever it already had rather than
        asking a control about it — and lets it go with the card or the
@@ -286,13 +293,13 @@ function commitNodeEdit(){
     /* …and a NEW picture starts as a picture does, at the card's width:
        a size dragged out for the one before was kept, and the new one
        came in at the old one's size (the owner's list of 31.10). */
-    if(!newCard || !newImage || newImage !== hadImage){ delete opts.cardImgH; delete opts.cardImgW; }
+    if(!cardKept || !newImage || newImage !== hadImage){ delete opts.cardImgH; delete opts.cardImgW; }
     /* The card's middle line. */
     {
       const med = (typeof editMediumInput !== 'undefined' && editMediumInput)
         ? editMediumInput.value.trim() : '';
-      if(newCard && med) opts.medium = med; else delete opts.medium;
-      mediaTypeOptsFromForm(opts, newCard);
+      if(cardKept && med) opts.medium = med; else delete opts.medium;
+      mediaTypeOptsFromForm(opts, cardKept);
     }
     /* Only a portrait keeps a card, so the choice goes with the archetype
        rather than lingering on an entry that has no card at all. */

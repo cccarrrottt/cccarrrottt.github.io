@@ -520,8 +520,11 @@ window.addEventListener('mouseup', ()=>{
   suppressCanvasClick = true;
   setTimeout(()=>{ suppressCanvasClick = false; }, 0);
   const hits = [];
+  /* An entry a hidden tag carries is taken too. It is faded, not gone,
+     and still stands where it stands among the rest: left out, a lasso's
+     worth of entries was carried off and the faded ones stayed behind
+     (the owner's list of 7.11). */
   nodes.forEach(n=>{
-    if(nodeHidden(n)) return;
     // Anything the box touches counts, not only what it fully contains —
     // matching how a lasso reads to the hand.
     if(n.x < box.x + box.width && n.x + n.w > box.x &&

@@ -481,8 +481,14 @@ function figureOf(v, shape){
 /* The figure this entry is drawn as, if any. A card has bands to divide
    and a merge wears its lineages round a box, so both stay boxes. */
 function nodeFigure(n){
-  if(!n || !n.figure || n.card) return null;
+  if(!n || !n.figure) return null;
   if(mergePainted(n)) return null;
+  /* A card keeps its figure (the owner's list of 7.11: a figure put on
+     card layout came out a rectangle). Its bands are laid out in the box
+     the figure holds words in, and the outline goes round them — see
+     renderNodes. Not on a card turned a quarter: its bands would turn
+     with it, and a figure's room for words is not the same box turned. */
+  if(n.card){ const t = quarterTurnOf(n); if(t === 90 || t === 270) return null; }
   return n.figure;
 }
 function figureArc(cx, cy, rx, ry, a0, a1, steps){
@@ -610,6 +616,22 @@ function figureLayout(fig, W, H){
 }
 /* The box a figure needs round words whose ink, with the entry's inset
    round it, is iw by ih. */
+/* The inverse: the words' box a figure W by H holds, for a size set by
+   hand on the outline. figureFit has no closed inverse for every figure
+   (a pill's ends depend on its height, a template on its proportion), so
+   it is found by asking figureFit and scaling each side by how far off
+   it came; every fit grows with both sides, so a few rounds settle it. */
+function figureInnerOf(fig, W, H){
+  let iw = Math.max(1, W), ih = Math.max(1, H);
+  for(let k = 0; k < 24; k++){
+    const f = figureFit(fig, iw, ih);
+    if(!(f.w > 0 && f.h > 0)) break;
+    const sw = W / f.w, sh = H / f.h;
+    iw = Math.max(1, iw * sw); ih = Math.max(1, ih * sh);
+    if(Math.abs(sw - 1) < 1e-4 && Math.abs(sh - 1) < 1e-4) break;
+  }
+  return {w: iw, h: ih};
+}
 function figureFit(fig, iw, ih){
   switch(fig){
     case 'decision':    return {w: iw * 2, h: ih * 2};

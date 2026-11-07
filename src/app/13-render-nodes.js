@@ -455,7 +455,11 @@ const drawOne = (n)=>{
   const borderDash = (BORDER_STYLES[borderKey] || BORDER_STYLES.solid).dash;
   const isWavy = isWavyBorder(n);
   /* The flowchart figure it is drawn as, if any — see nodeFigure. */
-  const fig = nodeFigure(n);
+  const fig = isCard ? null : nodeFigure(n);
+  /* …or the figure a card is laid out in: its bands stand in the box the
+     figure holds words in, and the outline goes round them (the owner's
+     list of 7.11 — a figure on card layout came out a rectangle). */
+  const cardFig = isCard ? nodeFigure(n) : null;
   /* And whether its corners are rounded or square. Every radius below goes
      through `rad`, so the outline, its rings, a card's clip and the
      scenery copied from the outline all agree on which it is. */
@@ -523,7 +527,10 @@ const drawOne = (n)=>{
      the layout; see turnDrawing below for the rest. */
   const turn = quarterTurnOf(n);
   const turned = turn === 90 || turn === 270;
-  const manual = (turned && n.size) ? {w: n.size.h, h: n.size.w} : n.size;
+  const rawManual = (turned && n.size) ? {w: n.size.h, h: n.size.w} : n.size;
+  /* A size set by hand on a figure card is the outline's; the bands are
+     laid out in the box it holds, worked out back from it. */
+  const manual = (cardFig && rawManual) ? figureInnerOf(cardFig, rawManual.w, rawManual.h) : rawManual;
   /* An entry's text is NEVER folded by the measurer.
    *
      Where the author typed a break, the text breaks; nowhere else. The box
@@ -793,6 +800,22 @@ const drawOne = (n)=>{
           : closesOnInk ? round2(maxTotalH + inkPad*2)
           : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2);
   if(manual && minUpright && h < minUpright.h) h = minUpright.h;
+  /* A figure card: everything above was the bands, laid out as a plain
+     card's; the entry is the figure that holds them, and the bands stand
+     where the figure centres its words (figureLayout). */
+  let cardIn = null;
+  if(cardFig){
+    const O = figureFit(cardFig, w, h);
+    const W = round2(O.w), H = round2(O.h);
+    const L = figureLayout(cardFig, W, H);
+    cardIn = {dx: L.cx - w/2, dy: L.cy - h/2, w, h};
+    n.w = w = W; h = H;
+    if(minUpright){
+      const m = figureFit(cardFig, minUpright.w, minUpright.h);
+      n.minSize = {w: round2(m.w), h: round2(m.h)};
+    }
+    if(!manual && !n.pos && typeof n.slotX === 'number') n.x = n.slotX + (n.slotW - w)/2;
+  }
   /* A rippled border swings a ripple's depth either side of its box, and
      a card's box is the card's size, not its words': turned wavy, a card
      came out that much bigger all round (the owner's list of 30.10). Its
@@ -887,6 +910,10 @@ const drawOne = (n)=>{
     n.w = w; n.h = h;
     n.x = midX - w/2; n.y = midY - h/2;
   }
+  /* The box the bands stand in: the card itself, or on a figure card the
+     room inside the outline. */
+  const cX = cardIn ? n.x + cardIn.dx : n.x, cY = cardIn ? n.y + cardIn.dy : n.y;
+  const cW = cardIn ? cardIn.w : w, cH = cardIn ? cardIn.h : h;
   /* Where the rules across the card fall, once its height is settled.
      The picture's rule is only there when there is a picture. */
   /* Where the picture band ends. A card sized by hand gives the room it
@@ -909,9 +936,11 @@ const drawOne = (n)=>{
        its own size inside it (cardImgW, cardImgH), and what it does not
        cover is filled (see the drawing). It used to take a picture's depth
        set by hand as the band's, and the rest went to the heading. */
-    : (manual && n.image) ? Math.max(0, h - cardTextH)
-    : Math.max(0, Math.min(cardImgH, h - cardTextH));
-  const cardImgB = isCard ? n.y + cardImgDepth : 0;
+    : (manual && n.image) ? Math.max(0, cH - cardTextH)
+    : Math.max(0, Math.min(cardImgH, cH - cardTextH));
+  /* On a figure card the picture fills the figure from its top down to
+     the rule, not only the inner box's share of it. */
+  const cardImgB = isCard ? cY + cardImgDepth : 0;
   /* Each band below the picture takes the height its own words need, in
      order, and the heading takes whatever is left over — so a card given
      more room by hand grows where the room was given rather than
@@ -925,11 +954,11 @@ const drawOne = (n)=>{
      (the owner's list of 2.11, evening, with a screenshot). */
   const cardHeadB = isCard
     ? ((cardMedium || cardBody)
-        ? Math.min(n.y + h - cardMedH - cardBodyH,
-                   cardImgB + Math.max(cardHeadH, h - (cardImgB - n.y) - cardMedH - cardBodyH))
-        : n.y + h)
+        ? Math.min(cY + cH - cardMedH - cardBodyH,
+                   cardImgB + Math.max(cardHeadH, cH - (cardImgB - cY) - cardMedH - cardBodyH))
+        : cY + cH)
     : 0;
-  const cardMedB = isCard ? (cardBody ? cardHeadB + cardMedH : n.y + h) : 0;
+  const cardMedB = isCard ? (cardBody ? cardHeadB + cardMedH : cY + cH) : 0;
   /* How deep the picture band is. Nothing about ROUTING reads it any
      more: a card is one box, and where a connector may meet it is decided
      by that box and nothing inside it — see portOnSide. Kept because the
@@ -1384,7 +1413,8 @@ const drawOne = (n)=>{
        proportions, and set on the rule under it — a picture cut free of
        its band and floating in the middle of it would have the frame
        step out round nothing below it. */
-    const cutting = !!(n.cardCut && !n.cardCrop && n.image && cardImgB > n.y + 0.5);
+    /* Not on a figure card: the figure is its outline already. */
+    const cutting = !!(n.cardCut && !n.cardCrop && n.image && cardImgB > n.y + 0.5 && !cardFig);
     let picX = imgX, picY = imgY, picW = imgW, picH = imgH;
     if(cutting){
       const r = imageAspect(n.image);
@@ -1406,7 +1436,13 @@ const drawOne = (n)=>{
       if(isWavy){ const wv = waveRun(run); if(wv) return smoothPath(wv, true); }
       return roundedRunD(run, Math.max(0, r));
     };
-    const cardShape = (i)=> cutPts
+    const cfR = Math.max(cornerR, 4.5);
+    const cfRad = cardFig === 'storedData' ? ()=> 0 : rad;
+    const figD = (i, grow)=> figureOutlineD(cardFig, n.x, n.y, Math.max(1, w), Math.max(1, h),
+                                            {off: i - grow, r: cfRad(cfR + grow - i), wavy: isWavyFigure(n)});
+    const cardShape = (i)=> cardFig
+      ? {tag:'path', attrs:{d: figD(i, 0)}}
+      : cutPts
       ? {tag:'path', attrs:{d: cutD(i, rad(5 - i))}}
       : isWavy
       ? {tag:'path', attrs:{d: wavyRectPath(n.x+i, n.y+i, w-i*2, h-i*2, -i)}}
@@ -1486,7 +1522,7 @@ const drawOne = (n)=>{
       wearPicture(img, n.image, n.anim);
     }
 
-    borderRing(cutPts || isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
+    borderRing(cardFig || cutPts || isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
     /* And a ring per further colour, stepping outward exactly as an
        entry's do. A card used to keep its first colour and drop the rest,
        on the grounds that its rules already divide it — but the rings are
@@ -1494,7 +1530,9 @@ const drawOne = (n)=>{
        card was the one boxed entry that could not wear two borders. */
     ringColors.slice(1).forEach((rc, k)=>{
       const grow = (k + 1) * ringStepFor(n);
-      borderRing(cutPts || isWavy ? 'path' : 'rect', (ins)=> cutPts
+      borderRing(cardFig || cutPts || isWavy ? 'path' : 'rect', (ins)=> cardFig
+        ? {d: figD(ins, grow)}
+        : cutPts
         ? {d: cutD(ins - grow, rad(5 + grow - ins))}
         : isWavy
         ? {d: wavyRectPath(n.x-grow+ins, n.y-grow+ins, w+grow*2-ins*2, h+grow*2-ins*2, grow - ins)}
@@ -1525,8 +1563,12 @@ const drawOne = (n)=>{
       el('rect', {x:imgX, y:gy0, width:imgW, height:gy1 - gy0,
                   class:'card-img-frame'}, g);
     }
-    if(cardImgB > n.y + 0.5) rule(cardImgB);
+    if(cardImgB > n.y + 0.5 && n.image) rule(cardImgB);
     if(cardMedium || cardBody) rule(cardHeadB);
+    /* A figure's own lines (a subroutine's bars, a cylinder's lip). */
+    if(cardFig) figureLayout(cardFig, w, h).marks.forEach(m=>
+      el('path', {d: figurePolyD(m, n.x, n.y, false), stroke: c, class:'figure-mark',
+                  ...(borderDash ? {'stroke-dasharray': borderDash} : {})}, g));
     // …and a rule between the middle band and the note only when there
     // are two bands down there to divide.
     if(cardMedium && cardBody) rule(cardMedB);
@@ -1600,6 +1642,9 @@ const drawOne = (n)=>{
         c, (i>0 || (n.image && isBio)) ? 'fill:none;' : bgFillStyle);
     });
     if(isLinkNode){
+      /* Darkened under the pointer as a link's tab is, in its own ink
+         (the owner's list of 7.11): both are the same "go there". */
+      g.style.setProperty('--link-ink', ringColors[0]);
       /* The arrow of a link's tab, drawn to the circle: the mark that
          already means "go there" on every entry carrying a link. Greyed
          while it goes nowhere. */
@@ -1765,7 +1810,7 @@ const drawOne = (n)=>{
   /* A figure's words stand where its outline has room for them — under a
      document's wave, below a manual input's slope (figureLayout). */
   const figAt = fig ? figureLayout(fig, n.w, h) : null;
-  const centerX = figAt ? n.x + figAt.cx : n.x+n.w/2;
+  const centerX = figAt ? n.x + figAt.cx : cardIn ? cX + cW/2 : n.x+n.w/2;
   // On a card the label is a heading in its own band, not a label centred
   // in the whole box.
   const textAreaCenterY = isCard ? (cardImgB + headIns.top + cardHeadB - headIns.bottom)/2
@@ -1818,7 +1863,7 @@ const drawOne = (n)=>{
   if(isCard && cardBody){
     const bodyEl = el('text', {x:centerX, y:0, 'font-size':cardBodyFS,
       class:'card-body', style:`font-family:${fontFamily};`}, g);
-    renderNodeText(bodyEl, cardBody, (cardMedB + bodyIns.top + n.y + h - bodyIns.bottom)/2 - (cardBodyInk.mid || 0),
+    renderNodeText(bodyEl, cardBody, (cardMedB + bodyIns.top + cY + cH - bodyIns.bottom)/2 - (cardBodyInk.mid || 0),
                    centerX - (cardBodyInk.midX || 0), cardBodyChars, cardBodyLineH, cardBodyScale,
                    cardBodyOpts, cardBodyFit);
   }

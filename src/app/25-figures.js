@@ -314,7 +314,57 @@ function applyRichCommand(surface, kind, arg, restyle){
     };
     strip(frag);
     if(had){
-      range.insertNode(frag);
+      /* The rule may be on a run AROUND the selection rather than inside
+         it — a space ruled by itself, a word picked out of a ruled line —
+         and then the fragment holds only text, and went back inside the
+         run that rules it: pressing the button again did nothing (the
+         owner's list of 7.11, on a space). The run is split round the
+         selection instead, keeping its rule either side and not over it,
+         as a colour's run is (takeColourOver). */
+      const mark = document.createElement('span');
+      mark.appendChild(frag);
+      range.insertNode(mark);
+      for(let a = mark.parentNode; a && a !== surface && surface.contains(a); ){
+        const up = a.parentNode;
+        if(a.nodeType === 1 && a.getAttribute(attr)){
+          const side = (start)=>{
+            const r = document.createRange();
+            if(start){ r.setStart(a, 0); r.setEndBefore(mark); }
+            else { r.setStartAfter(mark); r.setEnd(a, a.childNodes.length); }
+            const part = r.extractContents();
+            if(!part.textContent) return null;
+            const twin = a.cloneNode(false);
+            twin.appendChild(part);
+            return twin;
+          };
+          const before = side(true), after = side(false);
+          if(before) up.insertBefore(before, a);
+          if(after) up.insertBefore(after, a.nextSibling);
+          a.removeAttribute(attr);
+          const keeps = a.getAttribute(other);
+          a.style.textDecorationLine = keeps ? otherLine : '';
+          if(keeps) a.style.textDecorationStyle = (LINE_STYLES[keeps] || LINE_STYLES.solid).css;
+          else a.style.removeProperty('text-decoration-style');
+          const bare = a.tagName === 'SPAN' && !keeps &&
+            (!a.getAttribute('style') || !a.getAttribute('style').trim()) &&
+            !a.getAttribute('data-font') && !a.getAttribute('data-size') &&
+            !a.getAttribute('data-ref') && !a.getAttribute('data-sticker');
+          if(bare){
+            while(a.firstChild) up.insertBefore(a.firstChild, a);
+            up.removeChild(a);
+          }
+        }
+        a = up;
+      }
+      const first = mark.firstChild, last = mark.lastChild;
+      while(mark.firstChild) mark.parentNode.insertBefore(mark.firstChild, mark);
+      const host = mark.parentNode;
+      host.removeChild(mark);
+      if(first && last){
+        const back = document.createRange();
+        back.setStartBefore(first); back.setEndAfter(last);
+        sel.removeAllRanges(); sel.addRange(back);
+      }
     } else {
       /* One wrapper around the whole selection.
        *

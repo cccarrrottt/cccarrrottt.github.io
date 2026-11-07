@@ -190,7 +190,7 @@ function positionNodeEditor(){
      the one the words would land in. The frame is the stylesheet's
      ::before; on a figure it wears the outline as its picture instead of
      a border, drawn at the field's own scale. */
-  const figOn = tn && !box.turn ? nodeFigure(tn) : null;
+  const figOn = tn && !box.turn && !tn.card ? nodeFigure(tn) : null;
   nodeEditor.classList.toggle('on-figure', !!figOn);
   if(figOn) surf.setProperty('--figure-frame', figureFrameUrl(figOn, box.w, box.h));
   else surf.removeProperty('--figure-frame');
@@ -633,20 +633,18 @@ function commitNodeEditorText(){
       putEntry(found.index, found.entry, opts);
       return;
     }
-    found.entry[1] = text;
-    /* Writing in an entry gives it back its own size.
+    /* The words, and nothing else: a size set by hand stays.
      *
-       A box dragged by its corner keeps exactly the size it was given —
-       which is right while the words stay put, and wrong the moment they
-       change: an entry shrunk by hand stayed shrunk however much was
-       typed into it, so the text simply disappeared past the border with
-       nothing on the chart to say why. Editing the words returns the box
-       to the size those words ask for, up to the width a box may reach;
-       past that the text is clipped, as it is anywhere else. The hand-set
-       size is a statement about a text, and this is a different text. */
-    const opts = entryOpts(found.entry);
-    delete opts.size;
-    putEntry(found.index, found.entry, opts);
+       Writing in an entry used to give it back its own size, because a box
+       shrunk by hand stayed shrunk however much was typed into it and the
+       words ran out past its border. A box sized by hand now grows to hold
+       its words by itself (minSize, renderNodes), so that reason is gone —
+       and the cure had become the fault: the commit made a pause in the
+       typing and an Enter both threw the hand-set size away, and the box
+       jumped to the size and the place an unsized box takes (the owner's
+       list of 7.11). */
+    found.entry[1] = text;
+    putEntry(found.index, found.entry, entryOpts(found.entry));
   });
   if(labelPreview && labelPreview.id === id) labelPreview.original = text;
 }

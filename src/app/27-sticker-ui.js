@@ -743,20 +743,29 @@ function lineStateOf(surface){
     if(!r0.collapsed && surface.contains(r0.commonAncestorContainer)) range = r0;
   }
   const out = {under:null, strike:null};
-  const walk = (node, u, k)=>{
+  /* Spaces are passed over while there are words to ask — a space beside
+     a ruled word says nothing about the word — but a selection that IS
+     spaces is asked about its spaces: skipped always, a ruled space read
+     as unruled, and pressing the button again ruled it a second time
+     instead of taking the rule off (the owner's list of 7.11). */
+  let words = false;
+  const walk = (node, u, k, spaces)=>{
     Array.from(node.childNodes).forEach(child=>{
       if(child.nodeType === 3){
-        if(!/\S/.test(child.textContent || '')) return;
+        const t = child.textContent || '';
+        if(!t || (!spaces && !/\S/.test(t))) return;
         if(range && !range.intersectsNode(child)) return;
+        words = true;
         if(u) out.under = u;
         if(k) out.strike = k;
         return;
       }
       if(child.nodeType !== 1) return;
-      walk(child, underOfEl(child) || u, strikeOfEl(child) || k);
+      walk(child, underOfEl(child) || u, strikeOfEl(child) || k, spaces);
     });
   };
-  walk(surface, null, null);
+  walk(surface, null, null, false);
+  if(!words) walk(surface, null, null, true);
   return out;
 }
 function syncToolbarLines(bar){

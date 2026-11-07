@@ -12777,7 +12777,8 @@ async function main(){
                                            +((n.x + n.w) - (b.x + b.width)).toFixed(2)]) : '';
     }
 
-    /* ---- writing in a box gives it back its own size ---- */
+    /* ---- writing in a box sized by hand keeps its size (the owner's
+            list of 7.11: an Enter in the field threw it away) ---- */
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
       workingNodes.push(['szA', 'Short', null, null, null, null,
@@ -12793,8 +12794,18 @@ async function main(){
       closeNodeEditor(true);
       await wait(600);
       const n = nodes.get('szA');
-      out.refitAfterEdit = n.w < 300 - 20 && n.h < 120 - 20;
+      out.refitAfterEdit = Math.abs(n.w - 300) < 1 && Math.abs(n.h - 120) < 1 &&
+        !!(workingEntry('szA').entry[6] || {}).size;
       out.refitSize = [n.w | 0, n.h | 0];
+      /* …and more words than it holds grow it, rather than run out. */
+      openNodeEditor('szA');
+      await wait(200);
+      nodeEditorText.value = Array.from({length: 12}, (_, i)=> 'Line number ' + i).join('\n');
+      commitNodeEditorText();
+      closeNodeEditor(true);
+      await wait(600);
+      const m = nodes.get('szA');
+      out.grewForWords = m.h > 120 + 20 && Math.abs(m.w - 300) < 1;
     }
 
     /* ---- a card: its middle band, its picture's corners, its bands ---- */
@@ -12894,8 +12905,10 @@ async function main(){
         rC.linesKept, String(rC.lineCount));
   check('and the words of a rippled entry keep clear of its border',
         rC.clearOfRipple, rC.rippleGaps);
-  check('writing in a box gives it back the size its words ask for',
+  check('writing in a box sized by hand keeps the size it was given',
         rC.refitAfterEdit, JSON.stringify({hand:rC.handSize, after:rC.refitSize}));
+  check('and words that need more room than it gives grow it',
+        rC.grewForWords);
   check('a card has a middle band between its heading and its note',
         rC.mediumDrawn && rC.cardRules === 3,
         JSON.stringify({medium:rC.mediumDrawn, rules:rC.cardRules}));
@@ -22592,6 +22605,224 @@ async function main(){
         out.reader[3] < 20 && out.reader[3] >= 0 && Math.abs(out.reader[3] - out.reader[4]) < 1, JSON.stringify(out.reader));
   });
 
+  await scenario("the owner's list of 7.11: a figure on card layout, a card's things kept, faded lines, a ruled space, one tick, a lit reader's eye, a link that darkens, a line round a box", async () => {
+  const X = 161000, Y = 161000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const c = document.createElement('canvas'); c.width = 200; c.height = 100;
+      const cx = c.getContext('2d'); cx.fillStyle = '#37a'; cx.fillRect(0, 0, 200, 100);
+      const pic = c.toDataURL();
+      applyEdit(()=>{
+        SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}]}];
+        workingNodes.push(['o711_d','Ready?',null,null,'A body',null,
+                           {pos:[X, Y], figure:'decision', card:true, image:pic, medium:'middle'}]);
+        workingNodes.push(['o711_dh','Sized',null,null,null,null,
+                           {pos:[X + 400, Y], figure:'terminator', card:true, size:[300, 160]}]);
+        workingNodes.push(['o711_c','Card',null,null,'Body',null,
+                           {pos:[X, Y + 400], card:true, image:pic, medium:'mid', mediaType:'film',
+                            mediaData:{f1:'Toei'}, size:[260, 300]}]);
+        workingNodes.push(['o711_n','Next','o711_c',null,null,null,{pos:[X + 400, Y + 420]}]);
+        EDGE_STYLES.push({from:'o711_c', to:'o711_n', routing:'orthogonal', dash:'solid', arrow:true});
+        /* The owner's screenshot: two ports facing down, and a third box
+           under the shallower one's run-out. */
+        workingNodes.push(['o711_r3','Beast Wars: Uprising\nasdsasad',null,null,null,null,{pos:[X + 1000 - 242, Y + 1000 + 297.28], square:true}]);
+        workingNodes.push(['o711_r1','Beast Wars: Uprising',null,null,null,null,{pos:[X + 1000 - 67.24, Y + 1000 + 277.14], square:true}]);
+        workingNodes.push(['o711_r2','Гаягкягкч','o711_r1',null,null,null,{pos:[X + 1000 - 179.81, Y + 1000 + 198.94], size:[54.13, 12.05]}]);
+        EDGE_STYLES.push({from:'o711_r1', to:'o711_r2', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'bottom'});
+        workingNodes.push(['o711_h','Hidden',null,null,null,null,{pos:[X + 400, Y + 700], tags:['o711-tag']}]);
+        workingNodes.push(['o711_hk','Kept','o711_h',null,null,null,{pos:[X + 700, Y + 700]}]);
+        EDGE_STYLES.push({from:'o711_h', to:'o711_hk', routing:'orthogonal', dash:'solid', arrow:true});
+        workingNodes.push(['o711_sp','ab cd',null,null,null,null,{pos:[X, Y + 1400]}]);
+      });
+      rebuildChart();
+      await wait(250);
+
+      /* 1. A figure on card layout keeps its figure: the outline is the
+            diamond, its words in the middle of it, and a size set by
+            hand is the outline's. */
+      {
+        const n = nodes.get('o711_d');
+        const g = document.querySelector('.node[data-id="o711_d"]');
+        const clip = document.querySelector(`clipPath[id^="cardclip-o711_d"] > *`);
+        const t = g.querySelector('text.node-label-text').getBBox();
+        r.figCard = {fig: nodeFigure(n), clip: clip && clip.tagName, pts: clip && (clip.getAttribute('d') || '').split(/[LC]/).length,
+                     mid: +(t.x + t.width / 2 - (n.x + n.w / 2)).toFixed(1),
+                     inside: t.y > n.y && t.y + t.height < n.y + n.h};
+        const m = nodes.get('o711_dh');
+        r.figHand = [Math.round(m.w), Math.round(m.h)];
+        const pt = portOnSide(n, 'top', 0, 1);
+        r.figPort = pt ? +(pt.y - n.y).toFixed(1) : null;
+      }
+
+      /* 1b. "None", not "None — typed by hand". */
+      openEntrySettings('o711_c');
+      await wait(120);
+      r.noneLabel = document.querySelector('#editMediaTypeSelect option[value=""]').textContent;
+
+      /* 1c, 1d. Card layout off and on again: its picture, its middle line
+            and its facts come back; the size it was dragged to does not
+            stay on the plain entry, and its connector goes with the box. */
+      {
+        const path = ()=> { const p = document.querySelector('path.edge[data-from="o711_c"][data-to="o711_n"]'); return p && p.getAttribute('d'); };
+        const before = path();
+        editCardCheck.click();
+        await wait(400);
+        const n = nodes.get('o711_c');
+        r.offBox = [Math.round(n.w), Math.round(n.h)];
+        r.offRouted = path() !== before;
+        deselect();
+        await wait(120);
+        openEntrySettings('o711_c');
+        await wait(120);
+        editCardCheck.click();
+        await wait(400);
+        const o = workingEntry('o711_c').entry[6] || {};
+        r.cameBack = {image: o.image === pic, medium: o.medium, kind: o.mediaType, facts: o.mediaData && o.mediaData.f1, size: o.size || null};
+        deselect();
+        await wait(80);
+      }
+
+      /* 2. A hidden tag fades the whole connector, line and all. */
+      hiddenTags.add('o711-tag');
+      applyVisibility();
+      await wait(200);
+      {
+        const line = document.querySelector('path.edge[data-from="o711_h"][data-to="o711_hk"]');
+        r.lineFade = line ? +getComputedStyle(line).opacity : null;
+        /* …and a lasso takes the faded entry with the rest. */
+        const a = nodes.get('o711_h'), b = nodes.get('o711_hk');
+        marqueeState = {box: {x: a.x - 10, y: a.y - 10, width: b.x + b.w - a.x + 20, height: a.h + 20}, additive: false};
+        window.dispatchEvent(new MouseEvent('mouseup'));
+        r.lassoed = multiSelection.has('o711_h') && multiSelection.has('o711_hk');
+        deselect();
+      }
+      hiddenTags.delete('o711-tag');
+      applyVisibility();
+
+      /* 3. A rule on a space comes off again; so does one on a word picked
+            out of a ruled run. */
+      openNodeEditor('o711_sp');
+      await wait(150);
+      {
+        const surf = richFields.get('nodeEditorText').surface;
+        const pick = (node, a, b)=>{ const rg = document.createRange(); rg.setStart(node, a); rg.setEnd(node, b);
+                                     const s = getSelection(); s.removeAllRanges(); s.addRange(rg); };
+        const texts = ()=>{ const w = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT); const o = []; let t; while((t = w.nextNode())) o.push(t); return o; };
+        r.space = [];
+        for(const kind of ['under', 'strike']){
+          surf.innerHTML = 'ab cd';
+          pick(texts()[0], 2, 3); applyRichCommand(surf, kind, 'solid');
+          const on = richHtmlToMarkup(surf);
+          const sp = texts().find(t=> t.textContent === ' ');
+          pick(sp, 0, 1); applyRichCommand(surf, kind, 'solid');
+          r.space.push([on, richHtmlToMarkup(surf)]);
+        }
+        surf.innerHTML = 'abcd';
+        pick(texts()[0], 0, 4); applyRichCommand(surf, 'under', 'solid');
+        pick(texts().find(t=> t.textContent === 'abcd'), 1, 2); applyRichCommand(surf, 'under', 'solid');
+        r.subWord = richHtmlToMarkup(surf);
+      }
+      closeNodeEditor(false);
+      await wait(80);
+
+      /* 5. One tick on a phone: the field's Done is the suggestion's Done. */
+      {
+        document.body.classList.add('touch-input');
+        const a = getComputedStyle(document.getElementById('nodeEditorDone'));
+        const probe = document.createElement('button'); probe.className = 'suggest-done';
+        document.body.appendChild(probe);
+        const b = getComputedStyle(probe);
+        r.tick = [a.backgroundColor, b.backgroundColor, a.borderTopLeftRadius, b.borderTopLeftRadius];
+        probe.remove();
+        document.body.classList.remove('touch-input');
+      }
+
+      /* 7. The reader's eye is lit while it is on, as every toggle is. */
+      setReaderPreview(true);
+      await wait(150);
+      {
+        const t = document.getElementById('readerToggle');
+        const lit = document.createElement('button'); lit.className = 'icon-btn active';
+        document.querySelector('.topbar').appendChild(lit);
+        r.readerLit = [t.classList.contains('active'), getComputedStyle(t).backgroundColor, getComputedStyle(lit).backgroundColor];
+        lit.remove();
+      }
+      setReaderPreview(false);
+      await wait(150);
+      r.readerOff = document.getElementById('readerToggle').classList.contains('active');
+
+      /* 6. The line goes round the box under the shallower port. */
+      {
+        const p = document.querySelector('path.edge[data-from="o711_r1"][data-to="o711_r2"]');
+        const d = p ? p.getAttribute('d') : '';
+        const pts = (d.match(/-?\d+(\.\d+)?,-?\d+(\.\d+)?/g) || []).map(s=> s.split(',').map(Number));
+        const c3 = nodes.get('o711_r3');
+        const box = {x0: c3.x, y0: c3.y, x1: c3.x + c3.w, y1: c3.y + c3.h};
+        r.route = {d, through: pts.some((q, i)=> i > 0 && segIntersectsRect(pts[i-1][0], pts[i-1][1], q[0], q[1], box))};
+      }
+    } finally {
+      deselect();
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  /* 8. A link node darkens under the pointer as a link's tab does. */
+  const linkHover = await (async ()=>{
+    const at = await page.evaluate(([X, Y])=>{
+      applyEdit(()=>{
+        workingNodes.push(['o711_far','There',null,null,null,null,{pos:[X + 600, Y]}]);
+        workingNodes.push(['o711_ln','',null,null,null,'link',{pos:[X, Y], link:'o711_far'}]);
+      });
+      rebuildChart();
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const g = document.querySelector('.node[data-id="o711_ln"]');
+      const b = g.getBoundingClientRect();
+      return {x: b.left + b.width / 2, y: b.top + b.height / 2,
+              fill: getComputedStyle(g.querySelector('.bio-ring')).fill};
+    }, [X, Y]);
+    await page.mouse.move(at.x, at.y, {steps: 3});
+    await wait(120);
+    const over = await page.evaluate(()=> getComputedStyle(document.querySelector('.node[data-id="o711_ln"] .bio-ring')).fill);
+    await page.mouse.move(5, 500);
+    await page.evaluate(()=>{
+      applyEdit(()=>{ workingNodes = workingNodes.filter(e=> e[0] !== 'o711_ln' && e[0] !== 'o711_far'); });
+      rebuildChart();
+    });
+    return [at.fill, over];
+  })();
+  check('a figure on card layout keeps its figure, with its words in the middle of it',
+        out.figCard.fig === 'decision' && out.figCard.clip === 'path' && Math.abs(out.figCard.mid) < 1 && out.figCard.inside,
+        JSON.stringify(out.figCard));
+  check('…a connector meets it at the figure\'s point', out.figPort !== null && Math.abs(out.figPort) < 1.5, String(out.figPort));
+  check('…and a size set by hand on it is the figure\'s', Math.abs(out.figHand[0] - 300) <= 1 && Math.abs(out.figHand[1] - 160) <= 1,
+        JSON.stringify(out.figHand));
+  check('the media list offers "None", not "None — typed by hand"', out.noneLabel === 'None', String(out.noneLabel));
+  check('card layout off lets go of the size the card was dragged to, and the connector follows the box',
+        out.offBox[0] < 200 && out.offBox[1] < 100 && out.offRouted, JSON.stringify([out.offBox, out.offRouted]));
+  check('…and on again brings back its picture, its middle line and its facts',
+        out.cameBack.image && out.cameBack.medium === 'mid' && out.cameBack.kind === 'film' && out.cameBack.facts === 'Toei' && !out.cameBack.size,
+        JSON.stringify(Object.assign({}, out.cameBack, {image: out.cameBack.image})));
+  check('a hidden tag fades the whole line of a connector, not only its arrowhead', out.lineFade !== null && out.lineFade < 0.2, String(out.lineFade));
+  check('a lasso takes a faded entry with the rest, so a carry moves it too', out.lassoed, String(out.lassoed));
+  check('a rule put on a space comes off on the second press',
+        out.space.every(([on, off])=> /\{\{[ut]:solid\| \}\}/.test(on) && off === 'ab cd'), JSON.stringify(out.space));
+  check('…and a letter picked out of a ruled word is unruled alone',
+        out.subWord === '{{u:solid|a}}b{{u:solid|cd}}', String(out.subWord));
+  check('a phone\'s Done in the field is the same green round tick as a suggestion\'s',
+        out.tick[0] === out.tick[1] && out.tick[2] === out.tick[3], JSON.stringify(out.tick));
+  check('the reader\'s eye is lit while it is on, as the other toggles are, and not after',
+        out.readerLit[0] && out.readerLit[1] === out.readerLit[2] && !out.readerOff, JSON.stringify([out.readerLit, out.readerOff]));
+  check('a link node darkens under the pointer', linkHover[0] !== linkHover[1], JSON.stringify(linkHover));
+  check('a line between two ports facing down goes round the box under the shallower one',
+        out.route.d && !out.route.through, out.route.d);
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
