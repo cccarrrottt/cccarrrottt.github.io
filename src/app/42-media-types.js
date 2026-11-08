@@ -339,8 +339,12 @@ function paintMediaTypeForm(){
   editMediaTypeSelect.value = editMediaState.type || '';
   editMediaTypeSelect.classList.toggle('none', !kind);
   editMediaFields.innerHTML = '';
+  /* No line typed by hand under "None" (the owner's list of 7.11, the
+     morning after): a card's middle line is its kind's. Only a card that
+     already carries a typed line keeps the field, so the line can still
+     be read and emptied rather than stay on the card out of reach. */
   const typed = document.getElementById('editMediumInput');
-  if(typed) typed.style.display = kind ? 'none' : '';
+  if(typed) typed.style.display = (!kind && typed.value.trim()) ? '' : 'none';
   if(!kind) return;
   kind.fields.forEach(f=>{
     const row = document.createElement('label');

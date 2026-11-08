@@ -22663,6 +22663,25 @@ async function main(){
       openEntrySettings('o711_c');
       await wait(120);
       r.noneLabel = document.querySelector('#editMediaTypeSelect option[value=""]').textContent;
+      deselect();
+      await wait(80);
+      /* …and under "None" no line to type, unless the card carries one. */
+      applyEdit(()=>{
+        workingNodes.push(['o711_none','Plain card',null,null,null,null,{pos:[X + 800, Y + 400], card:true}]);
+        workingNodes.push(['o711_typed','Typed card',null,null,null,null,{pos:[X + 1100, Y + 400], card:true, medium:'old line'}]);
+      });
+      openEntrySettings('o711_none');
+      await wait(120);
+      r.typedGone = getComputedStyle(document.getElementById('editMediumInput')).display === 'none';
+      deselect();
+      await wait(80);
+      openEntrySettings('o711_typed');
+      await wait(120);
+      r.typedKept = getComputedStyle(document.getElementById('editMediumInput')).display !== 'none';
+      deselect();
+      await wait(80);
+      openEntrySettings('o711_c');
+      await wait(120);
 
       /* 1c, 1d. Card layout off and on again: its picture, its middle line
             and its facts come back; the size it was dragged to does not
@@ -22733,12 +22752,14 @@ async function main(){
       /* 5. One tick on a phone: the field's Done is the suggestion's Done. */
       {
         document.body.classList.add('touch-input');
-        const a = getComputedStyle(document.getElementById('nodeEditorDone'));
-        const probe = document.createElement('button'); probe.className = 'suggest-done';
-        document.body.appendChild(probe);
-        const b = getComputedStyle(probe);
-        r.tick = [a.backgroundColor, b.backgroundColor, a.borderTopLeftRadius, b.borderTopLeftRadius];
-        probe.remove();
+        const done = document.getElementById('nodeEditorDone');
+        const a = getComputedStyle(done);
+        const lit = document.createElement('button'); lit.className = 'icon-btn active';
+        document.body.appendChild(lit);
+        const mark = done.querySelector('svg path');
+        r.tick = [a.backgroundColor, getComputedStyle(lit).backgroundColor, mark ? mark.getAttribute('d') : null,
+                  done.textContent.trim()];
+        lit.remove();
         document.body.classList.remove('touch-input');
       }
 
@@ -22804,6 +22825,8 @@ async function main(){
   check('…and a size set by hand on it is the figure\'s', Math.abs(out.figHand[0] - 300) <= 1 && Math.abs(out.figHand[1] - 160) <= 1,
         JSON.stringify(out.figHand));
   check('the media list offers "None", not "None — typed by hand"', out.noneLabel === 'None', String(out.noneLabel));
+  check('…and under "None" there is no line to type, but for a card that already has one',
+        out.typedGone && out.typedKept, JSON.stringify([out.typedGone, out.typedKept]));
   check('card layout off lets go of the size the card was dragged to, and the connector follows the box',
         out.offBox[0] < 200 && out.offBox[1] < 100 && out.offRouted, JSON.stringify([out.offBox, out.offRouted]));
   check('…and on again brings back its picture, its middle line and its facts',
@@ -22815,8 +22838,8 @@ async function main(){
         out.space.every(([on, off])=> /\{\{[ut]:solid\| \}\}/.test(on) && off === 'ab cd'), JSON.stringify(out.space));
   check('…and a letter picked out of a ruled word is unruled alone',
         out.subWord === '{{u:solid|a}}b{{u:solid|cd}}', String(out.subWord));
-  check('a phone\'s Done in the field is the same green round tick as a suggestion\'s',
-        out.tick[0] === out.tick[1] && out.tick[2] === out.tick[3], JSON.stringify(out.tick));
+  check('a phone\'s Done in the field is in the accent, and its tick is drawn as a suggestion\'s Done is',
+        out.tick[0] === out.tick[1] && out.tick[2] === 'M3.4 8.4l3 3 6.2-6.6' && out.tick[3] === '', JSON.stringify(out.tick));
   check('the reader\'s eye is lit while it is on, as the other toggles are, and not after',
         out.readerLit[0] && out.readerLit[1] === out.readerLit[2] && !out.readerOff, JSON.stringify([out.readerLit, out.readerOff]));
   check('a link node darkens under the pointer', linkHover[0] !== linkHover[1], JSON.stringify(linkHover));

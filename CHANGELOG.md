@@ -20,7 +20,8 @@ The owner's list of 7.11.
   kind and facts stay on an entry that could be a card again
   (`commitNodeEdit`). The size set by hand goes either way across, so the
   box and its connectors follow.
-- **"None"** in a card's list of kinds, without "typed by hand".
+- **"None"** in a card's list of kinds, without "typed by hand", and no
+  typed line under it but on a card that already has one.
 - **A hidden tag fades the line too**: `.edge.struct` set its own opacity
   over `.tag-hidden`'s. A lasso takes faded entries.
 - **A ruled space unrules** (`lineStateOf` asks about spaces when the
@@ -29,7 +30,8 @@ The owner's list of 7.11.
 - **A size set by hand survives writing** (`commitNodeEditorText`): the box
   grows to its words by itself now (`minSize`), which was the reason the
   size was dropped.
-- **One tick** for Done on a phone; **the reader's eye lit** while on
+- **One tick** for Done on a phone (drawn as a suggestion's, on the
+  field's own accent button); **the reader's eye lit** while on
   (`.icon-btn.active`); **a link node darkens** under the pointer.
 - **The router** keeps two ports facing the same way at their own depths
   when stretching the shallower one would run it through a third entry
