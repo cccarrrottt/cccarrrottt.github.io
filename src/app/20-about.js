@@ -16,8 +16,8 @@ const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
   {v:'0.25.3', date:'2026-11-07', title:'Kept as it was', notes:[
 'A flowchart figure put on card layout keeps its figure: the bands are laid out inside it and the outline goes round them, where it used to come out a rectangle. A size set by hand on it is the figure\'s, and connectors meet its points.',
-'Card layout turned off and on again keeps the card\'s picture, its middle line, its kind of medium and the facts of it. The size the card was dragged to is let go either way across, so a plain entry no longer stays the size of the card it was, and its connectors move with it.',
-'The list of kinds in a card\'s panel says "None" for no kind, not "None — typed by hand", and offers no line to type under it; a card that already carries a typed line keeps the field, so the line can still be emptied.',
+'Card layout turned off and on again keeps the card\'s picture, its kind of medium and the facts of it. The size the card was dragged to is let go either way across, so a plain entry no longer stays the size of the card it was, and its connectors move with it.',
+'A card\'s middle line is its kind of medium\'s, and nothing else: the list says "None" for no kind, not "None — typed by hand", and there is no line to type under it. A line typed by hand before is no longer drawn, and goes the next time its card is edited.',
 'A hidden tag fades the whole of a connector touching its entries: the line stayed at full strength and only the arrowhead faded. A lasso takes a faded entry with the rest, so a group carried together no longer leaves it behind.',
 'A rule put under or through a space comes off when the button is pressed again, and so does one on a letter picked out of a ruled word.',
 'Writing in an entry sized by hand keeps its size: a pause in the typing and an Enter both threw it away, and the box jumped to the size and the place of an unsized one. Words that need more room still grow it.',

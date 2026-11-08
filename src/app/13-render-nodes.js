@@ -597,8 +597,8 @@ const drawOne = (n)=>{
      frame it shows when pointed at stands the same pixel off them. */
   /* A card that is a heading and nothing else (see below) is drawn the
      way an entry is, so it closes on its words the way an entry does. */
-  /* The middle band's words: the line its kind of medium writes, or
-     the medium typed by hand (42-media-types.js). */
+  /* The middle band's words: the line its kind of medium writes
+     (42-media-types.js). */
   const cardMediumText = isCard ? cardMediumOf(n) : '';
   const cardBare = isCard && !n.image && !drawsOnChart(n.note || '') && !cardMediumText;
   const closesOnInk = !isRound && !isImage && (!isCard || cardBare);

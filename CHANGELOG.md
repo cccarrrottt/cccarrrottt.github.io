@@ -16,12 +16,14 @@ The owner's list of 7.11.
   (`figureFit`), its bands where the figure centres its words; a size set
   by hand is the outline's, turned back into the bands' box by
   `figureInnerOf`.
-- **A card's things outlive card layout off**: its picture, medium line,
-  kind and facts stay on an entry that could be a card again
+- **A card's things outlive card layout off**: its picture, its kind of
+  medium and facts stay on an entry that could be a card again
   (`commitNodeEdit`). The size set by hand goes either way across, so the
   box and its connectors follow.
-- **"None"** in a card's list of kinds, without "typed by hand", and no
-  typed line under it but on a card that already has one.
+- **A card's middle line is its kind's**: "None" in the list of kinds,
+  without "typed by hand", and no typed line under it. An old typed
+  line (`medium`) is read, not drawn (`cardMediumOf`), and dropped at
+  the card's next edit.
 - **A hidden tag fades the line too**: `.edge.struct` set its own opacity
   over `.tag-hidden`'s. A lasso takes faded entries.
 - **A ruled space unrules** (`lineStateOf` asks about spaces when the

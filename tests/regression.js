@@ -12589,8 +12589,9 @@ async function main(){
       /* A picture given a depth by hand, on a card then made smaller, gives
          way to the words: every band's text stays inside the card. */
       applyEdit(()=>{
+        if(!mediaTypeById('line')) (SETTINGS.mediaTypes = SETTINGS.mediaTypes || []).push({id:'line', name:'Line', fields:[{id:'f1', label:'Line'}]});
         workingNodes.push(['ciH','Heading',null,null,'A note',null,
-                           {pos:[X, Y + 300], card:true, image:wide, medium:'Medium',
+                           {pos:[X, Y + 300], card:true, image:wide, mediaType:'line', mediaData:{f1:'Medium'},
                             size:[150, 90], cardImgH:80}]);
         workingNodes.push(['ciR','Two rings',null,null,null,null,
                            {pos:[X + 260, Y + 300], card:true, image:wide,
@@ -12811,8 +12812,9 @@ async function main(){
     /* ---- a card: its middle band, its picture's corners, its bands ---- */
     applyEdit(()=>{
       workingNodes.length = 0; refill(EDGE_STYLES, []);
+      if(!mediaTypeById('line')) (SETTINGS.mediaTypes = SETTINGS.mediaTypes || []).push({id:'line', name:'Line', fields:[{id:'f1', label:'Line'}]});
       workingNodes.push(['cdM', 'A heading', null, null, 'The note under it', null,
-                         {pos:[X, Y], card:true, image:pic, medium:'Collectible card [back]'}]);
+                         {pos:[X, Y], card:true, image:pic, mediaType:'line', mediaData:{f1:'Collectible card [back]'}}]);
       workingNodes.push(['cdH', 'Hand-sized', null, null, 'Note', null,
                          {pos:[X + 300, Y], card:true, image:pic, size:[180, 260]}]);
     });
@@ -21284,8 +21286,9 @@ async function main(){
       const url = c.toDataURL('image/png');
       await new Promise(ok=>{ const im = new Image(); im.onload = ok; im.src = url; });
       applyEdit(()=>{
-        workingNodes.push(['to_c1','Card',null,null,'n',null,{pos:[X, Y + 1000], card:true, image:url, medium:'M'}]);
-        workingNodes.push(['to_c2','Card',null,null,'n',null,{pos:[X + 300, Y + 1000], card:true, image:url, medium:'M', border:'wavy'}]);
+        if(!mediaTypeById('line')) (SETTINGS.mediaTypes = SETTINGS.mediaTypes || []).push({id:'line', name:'Line', fields:[{id:'f1', label:'Line'}]});
+        workingNodes.push(['to_c1','Card',null,null,'n',null,{pos:[X, Y + 1000], card:true, image:url, mediaType:'line', mediaData:{f1:'M'}}]);
+        workingNodes.push(['to_c2','Card',null,null,'n',null,{pos:[X + 300, Y + 1000], card:true, image:url, mediaType:'line', mediaData:{f1:'M'}, border:'wavy'}]);
         workingNodes.push(['to_c3','Hi',null,null,null,null,{pos:[X + 600, Y + 1000], card:true, multiLang:true,
                            langTabs:[{tag:'JP',text:'a'},{tag:'RU',text:'b'},{tag:'DE',text:'c'}]}]);
       });
@@ -21305,7 +21308,7 @@ async function main(){
          once, and no wider, nor its picture smaller. */
       r.wavy = [+(c2.w - c1.w).toFixed(2), +(c2.h - c1.h).toFixed(2), +(textInsetFor(c2) - textInsetFor(c1)).toFixed(2)];
       r.chips = [c3.w, c3.chipRight - c3.x];
-      r.labels = ['editMediumInput', 'editImageInput', 'freeMenuImageUrl']
+      r.labels = ['editMediaTypeSelect', 'editImageInput', 'freeMenuImageUrl']
         .map(id=> document.querySelector(`label[for="${id}"]`).textContent).join('|');
       return r;
     }, [X, Y]);
@@ -22016,8 +22019,9 @@ async function main(){
         workingNodes.push(['o311_b','B','o311_a',null,null,null,{pos:[X + 260, Y]}]);
         EDGE_STYLES.push({from:'o311_a', to:'o311_b', routing:'orthogonal', dash:'solid', arrow:true,
                           note:'Red words', noteAlong:true});
+        if(!mediaTypeById('line')) (SETTINGS.mediaTypes = SETTINGS.mediaTypes || []).push({id:'line', name:'Line', fields:[{id:'f1', label:'Line'}]});
         workingNodes.push(['o311_c','Card heading',null,null,'A body under it',null,
-                           {pos:[X, Y + 200], card:true, image:cv.toDataURL(), medium:'middle'}]);
+                           {pos:[X, Y + 200], card:true, image:cv.toDataURL(), mediaType:'line', mediaData:{f1:'middle'}}]);
         workingNodes.push(['o311_d','Ready?',null,null,null,null,{pos:[X + 400, Y + 200], figure:'decision'}]);
         workingNodes.push(['o311_e','Next','o311_d',null,null,null,{pos:[X + 400, Y + 420]}]);
         EDGE_STYLES.push({from:'o311_d', to:'o311_e', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom'});
@@ -22180,10 +22184,11 @@ async function main(){
         workingNodes.push(['o2b_dbl','Double',null,null,null,null,{pos:[X + 600, Y], figure:'decision', border:'double'}]);
         workingNodes.push(['o2b_wide','Wide',null,null,null,null,
                            {pos:[X, Y + 160], figure:{name:'Wide', d:'M0 0 L100 0 L100 100 L0 100 L0 0 Z', ar:3}}]);
+        if(!mediaTypeById('line')) (SETTINGS.mediaTypes = SETTINGS.mediaTypes || []).push({id:'line', name:'Line', fields:[{id:'f1', label:'Line'}]});
         workingNodes.push(['o2b_cut','A card cut to its picture',null,null,'Its note',null,
-                           {pos:[X + 300, Y + 160], card:true, image:pic, medium:'Its medium', cardImgW:40, cardImgH:80, cardCut:true}]);
+                           {pos:[X + 300, Y + 160], card:true, image:pic, mediaType:'line', mediaData:{f1:'Its medium'}, cardImgW:40, cardImgH:80, cardCut:true}]);
         workingNodes.push(['o2b_blur','A card set on a blur',null,null,'Its note',null,
-                           {pos:[X + 600, Y + 160], card:true, image:pic, medium:'Its medium', cardImgW:40, cardImgH:80}]);
+                           {pos:[X + 600, Y + 160], card:true, image:pic, mediaType:'line', mediaData:{f1:'Its medium'}, cardImgW:40, cardImgH:80}]);
         workingNodes.push(['o2b_g1','From',null,null,null,null,{pos:[X, Y + 500]}]);
         workingNodes.push(['o2b_g2','To','o2b_g1',null,null,null,{pos:[X + 600, Y + 500]}]);
         EDGE_STYLES.push({from:'o2b_g1', to:'o2b_g2', routing:'straight', dash:'solid', arrow:true,
@@ -22277,7 +22282,7 @@ async function main(){
         SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Director'}, {id:'f3', label:'Year'}],
                                 format:'%Studio%, %Director%, %Year%'}];
         workingNodes.push(['o2b_film','A film',null,null,null,null,
-                           {pos:[X + 900, Y + 160], card:true, medium:'typed by hand', mediaType:'film', mediaData:{f1:'Toei', f3:'1986'}}]);
+                           {pos:[X + 900, Y + 160], card:true, mediaType:'film', mediaData:{f1:'Toei', f3:'1986'}}]);
       });
       rebuildChart();
       await wait(120);
@@ -22299,7 +22304,7 @@ async function main(){
       await wait(300);
       { const sel = document.getElementById('editMediaTypeSelect'); r.panelKind = sel.tagName + ':' + sel.selectedOptions[0].textContent; }
       r.panelFacts = [...document.querySelectorAll('#editMediaFields input')].map(i=> i.value).join('|');
-      r.typedHidden = document.getElementById('editMediumInput').style.display === 'none';
+      r.typedHidden = !document.getElementById('editMediumInput');
       document.getElementById('detailEditToggle').click();
       await wait(200);
       deselect();
@@ -22402,9 +22407,9 @@ async function main(){
         SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Year'}]},
                                {id:'book', name:'Book', fields:[{id:'f1', label:'Author'}]}];
         workingNodes.push(['oe_card','The Transformers: The Movie',null,null,null,null,
-                           {pos:[X, Y], card:true, image:pic, medium:'Aoa', border:'double'}]);
+                           {pos:[X, Y], card:true, image:pic, mediaType:'film', mediaData:{f1:'Aoa'}, border:'double'}]);
         workingNodes.push(['oe_cut','Cut to it',null,null,null,null,
-                           {pos:[X + 300, Y], card:true, image:pic, medium:'Aoa', size:[260, 330], cardCut:true}]);
+                           {pos:[X + 300, Y], card:true, image:pic, mediaType:'film', mediaData:{f1:'Aoa'}, size:[260, 330], cardCut:true}]);
         workingNodes.push(['oe_both','Both asked',null,null,null,null,
                            {pos:[X + 700, Y], card:true, image:pic, cardCut:true, cardCrop:true}]);
         workingNodes.push(['oe_far','Where it goes',null,null,null,null,{pos:[X + 2000, Y + 2000]}]);
@@ -22620,11 +22625,11 @@ async function main(){
       applyEdit(()=>{
         SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}]}];
         workingNodes.push(['o711_d','Ready?',null,null,'A body',null,
-                           {pos:[X, Y], figure:'decision', card:true, image:pic, medium:'middle'}]);
+                           {pos:[X, Y], figure:'decision', card:true, image:pic, mediaType:'film', mediaData:{f1:'middle'}}]);
         workingNodes.push(['o711_dh','Sized',null,null,null,null,
                            {pos:[X + 400, Y], figure:'terminator', card:true, size:[300, 160]}]);
         workingNodes.push(['o711_c','Card',null,null,'Body',null,
-                           {pos:[X, Y + 400], card:true, image:pic, medium:'mid', mediaType:'film',
+                           {pos:[X, Y + 400], card:true, image:pic, mediaType:'film',
                             mediaData:{f1:'Toei'}, size:[260, 300]}]);
         workingNodes.push(['o711_n','Next','o711_c',null,null,null,{pos:[X + 400, Y + 420]}]);
         EDGE_STYLES.push({from:'o711_c', to:'o711_n', routing:'orthogonal', dash:'solid', arrow:true});
@@ -22672,12 +22677,16 @@ async function main(){
       });
       openEntrySettings('o711_none');
       await wait(120);
-      r.typedGone = getComputedStyle(document.getElementById('editMediumInput')).display === 'none';
+      r.typedGone = !document.getElementById('editMediumInput');
       deselect();
       await wait(80);
       openEntrySettings('o711_typed');
       await wait(120);
-      r.typedKept = getComputedStyle(document.getElementById('editMediumInput')).display !== 'none';
+      /* …and a line typed by hand before is not drawn, and goes with the card's next edit. */
+      r.typedKept = !document.querySelector('.node[data-id="o711_typed"] text.card-medium');
+      document.getElementById('editCardCropCheck').dispatchEvent(new Event('change'));
+      await wait(300);
+      r.typedKept = r.typedKept && !(workingEntry('o711_typed').entry[6] || {}).medium;
       deselect();
       await wait(80);
       openEntrySettings('o711_c');
@@ -22701,7 +22710,7 @@ async function main(){
         editCardCheck.click();
         await wait(400);
         const o = workingEntry('o711_c').entry[6] || {};
-        r.cameBack = {image: o.image === pic, medium: o.medium, kind: o.mediaType, facts: o.mediaData && o.mediaData.f1, size: o.size || null};
+        r.cameBack = {image: o.image === pic, kind: o.mediaType, facts: o.mediaData && o.mediaData.f1, size: o.size || null};
         deselect();
         await wait(80);
       }
@@ -22825,12 +22834,12 @@ async function main(){
   check('…and a size set by hand on it is the figure\'s', Math.abs(out.figHand[0] - 300) <= 1 && Math.abs(out.figHand[1] - 160) <= 1,
         JSON.stringify(out.figHand));
   check('the media list offers "None", not "None — typed by hand"', out.noneLabel === 'None', String(out.noneLabel));
-  check('…and under "None" there is no line to type, but for a card that already has one',
+  check('…and under "None" there is no line to type, and a line typed before is not drawn and goes with the next edit',
         out.typedGone && out.typedKept, JSON.stringify([out.typedGone, out.typedKept]));
   check('card layout off lets go of the size the card was dragged to, and the connector follows the box',
         out.offBox[0] < 200 && out.offBox[1] < 100 && out.offRouted, JSON.stringify([out.offBox, out.offRouted]));
-  check('…and on again brings back its picture, its middle line and its facts',
-        out.cameBack.image && out.cameBack.medium === 'mid' && out.cameBack.kind === 'film' && out.cameBack.facts === 'Toei' && !out.cameBack.size,
+  check('…and on again brings back its picture, its kind of medium and its facts',
+        out.cameBack.image && out.cameBack.kind === 'film' && out.cameBack.facts === 'Toei' && !out.cameBack.size,
         JSON.stringify(Object.assign({}, out.cameBack, {image: out.cameBack.image})));
   check('a hidden tag fades the whole line of a connector, not only its arrowhead', out.lineFade !== null && out.lineFade < 0.2, String(out.lineFade));
   check('a lasso takes a faded entry with the rest, so a carry moves it too', out.lassoed, String(out.lassoed));

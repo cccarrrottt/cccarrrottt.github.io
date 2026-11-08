@@ -251,12 +251,10 @@ const editCardCropCheck = document.getElementById('editCardCropCheck');
    cut away with the frame going round the picture (the owner's list of
    2.11, with a sketch: a tall picture standing on a wider card). */
 const editCardCutCheck = document.getElementById('editCardCutCheck');
-const editMediumInput = document.getElementById('editMediumInput');
 const editMediumField = document.getElementById('editMediumField');
 function fillCardImageOpts(n){
   if(editCardCropCheck) editCardCropCheck.checked = !!(n && n.cardCrop);
   if(editCardCutCheck) editCardCutCheck.checked = !!(n && n.cardCut);
-  if(editMediumInput) editMediumInput.value = (n && n.medium) || '';
 }
 function cardImageOptsFromForm(){
   return { crop: !!(editCardCropCheck && editCardCropCheck.checked),
@@ -281,10 +279,6 @@ function exclusiveCardToggle(on, off){
 }
 if(editCardCropCheck) exclusiveCardToggle(editCardCropCheck, editCardCutCheck);
 if(editCardCutCheck) exclusiveCardToggle(editCardCutCheck, editCardCropCheck);
-if(editMediumInput){
-  editMediumInput.addEventListener('input', ()=> queueNodeEditCommit());
-  editMediumInput.addEventListener('blur', ()=> flushNodeEditCommit());
-}
 /* Card layout only means something for an entry that IS a box. A character
    bio is a portrait circle and the free-standing elements are a bare
    picture and a bare line of text — none of them has anything to divide

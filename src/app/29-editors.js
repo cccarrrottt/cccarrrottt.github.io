@@ -294,13 +294,12 @@ function commitNodeEdit(){
        a size dragged out for the one before was kept, and the new one
        came in at the old one's size (the owner's list of 31.10). */
     if(!cardKept || !newImage || newImage !== hadImage){ delete opts.cardImgH; delete opts.cardImgW; }
-    /* The card's middle line. */
-    {
-      const med = (typeof editMediumInput !== 'undefined' && editMediumInput)
-        ? editMediumInput.value.trim() : '';
-      if(cardKept && med) opts.medium = med; else delete opts.medium;
-      mediaTypeOptsFromForm(opts, cardKept);
-    }
+    /* The card's middle line: its kind of medium and the facts of it.
+       A line typed by hand is let go of the first time the card is
+       edited — it is not drawn and has nowhere to be edited (the owner's
+       list of 7.11, the morning after: "убирай"). */
+    delete opts.medium;
+    mediaTypeOptsFromForm(opts, cardKept);
     /* Only a portrait keeps a card, so the choice goes with the archetype
        rather than lingering on an entry that has no card at all. */
     if(newShape === 'ellipse' && editBioCardCheck && editBioCardCheck.checked)
