@@ -266,7 +266,6 @@
   /* The reader's view, asked for by the owner: only an editor has the
      button, and while it is on it stays, lit, as the way back. */
   body.read-only:not(.reader-preview) #readerToggle{display:none;}
-  body.reader-preview #readerToggle{color:var(--accent);border-color:var(--accent);}
   /* The owner's way in, on the published site only (see 36-site-owner.js).
      Quiet on purpose: every reader sees it, and nearly none of them are
      the owner. */
@@ -1071,6 +1070,12 @@
   /* Lit by a wash of its own ink, not filled with it: the tab's outline
      is the border's colour whether it is lit or not. */
   .node-link:hover .node-link-bg{fill:color-mix(in srgb, var(--tab-ink,var(--accent)) 22%, var(--paper));}
+  /* A link node darkens as the tab does: the circle's ground, in the
+     circle's own ink. Over the ground the entry was given, which is an
+     inline fill (borderRing), hence the weight. */
+  .node-link-node:hover > .bio-ring:not(.border-inner):not([style*="fill:none"]){
+    fill:color-mix(in srgb, var(--link-ink,var(--accent)) 22%, var(--paper)) !important;
+  }
   .lang-chip{cursor:pointer;}
   .lang-chip-bg{fill:var(--paper);stroke:var(--tab-ink,var(--line));stroke-width:1.6;stroke-linejoin:round;}
   .lang-chip-label.emoji{font-family:var(--emoji);}
@@ -1629,7 +1634,12 @@
 
   /* An entry a hidden tag carries, and the lines that touch it: barely
      there, and nothing a press can find (fadeForTags). */
-  .tag-hidden{opacity:0.1;pointer-events:none !important;}
+  /* Over every opacity a connector's own rules give it: `.edge.struct`
+     says 1, and outranked the plain class, so a hidden entry's line stood
+     at full strength with only its arrowhead faded (the owner's list of
+     7.11). A line drawn only while lit stays undrawn. */
+  .tag-hidden{opacity:0.1 !important;pointer-events:none !important;}
+  .edge.struct.amalgam-through.tag-hidden:not(.lit){opacity:0 !important;}
   .tag-hidden *{pointer-events:none !important;}
 
   /* ---------- Kinds of media (42-media-types.js) ---------- */
@@ -1873,8 +1883,12 @@
      the row, whatever the toolbar's wiring adds after it, and only once
      the page has been touched. */
   .mini-toolbar .tb-done{display:none;order:99;margin-left:auto;}
-  body.touch-input .mini-toolbar .tb-done{display:inline-block;color:#fff;background:var(--accent);
-    border-color:var(--accent);font-size:13px;padding:3px 12px;}
+  /* Small and in the accent, as the toolbar's other buttons are; the
+     tick inside it is a suggestion's Done's (.suggest-done), drawn rather
+     than typed, so the two read as one mark (the owner's list of 7.11,
+     and the morning after: "not green — the same tick"). */
+  body.touch-input .mini-toolbar .tb-done{display:inline-flex;align-items:center;justify-content:center;
+    color:#fff;background:var(--accent);border-color:var(--accent);padding:3px 12px;line-height:0;}
   /* These two carry an extra .editor-field so they outrank the generic
      .editor-field select / input[type=number] rules further down, which
      are written for full-width labelled fields and would otherwise stretch

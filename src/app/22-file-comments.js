@@ -739,6 +739,10 @@ function setReaderPreview(on){
   const b = document.getElementById('readerToggle');
   if(b){
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    /* Lit as every other toolbar button is while it is on (.icon-btn.active):
+       it was the one drawn with only its outline and glyph in the accent
+       (the owner's list of 7.11). */
+    b.classList.toggle('active', !!on);
     b.title = on ? 'Back to editing' : 'See the chart as a reader sees it';
   }
 }

@@ -6,6 +6,40 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.3 — "Kept as it was" (2026-11-07)
+
+The owner's list of 7.11.
+
+- **A figure on card layout keeps its figure.** `nodeFigure` answers for a
+  card (not one turned a quarter); `renderNodes` lays the bands out as a
+  plain card's and then makes the entry the figure that holds them
+  (`figureFit`), its bands where the figure centres its words; a size set
+  by hand is the outline's, turned back into the bands' box by
+  `figureInnerOf`.
+- **A card's things outlive card layout off**: its picture, its kind of
+  medium and facts stay on an entry that could be a card again
+  (`commitNodeEdit`). The size set by hand goes either way across, so the
+  box and its connectors follow.
+- **A card's middle line is its kind's**: "None" in the list of kinds,
+  without "typed by hand", and no typed line under it. An old typed
+  line (`medium`) is read, not drawn (`cardMediumOf`), and dropped at
+  the card's next edit.
+- **A hidden tag fades the line too**: `.edge.struct` set its own opacity
+  over `.tag-hidden`'s. A lasso takes faded entries.
+- **A ruled space unrules** (`lineStateOf` asks about spaces when the
+  selection is only spaces), and a rule on a run around the selection is
+  split round it rather than left on.
+- **A size set by hand survives writing** (`commitNodeEditorText`): the box
+  grows to its words by itself now (`minSize`), which was the reason the
+  size was dropped.
+- **One tick** for Done on a phone (drawn as a suggestion's, on the
+  field's own accent button); **the reader's eye lit** while on
+  (`.icon-btn.active`); **a link node darkens** under the pointer.
+- **The router** keeps two ports facing the same way at their own depths
+  when stretching the shallower one would run it through a third entry
+  (`orthPointsAvoiding`): the lattice was started inside that entry, gave
+  up, and the crossing shape was drawn.
+
 ## 0.25.2 — "Code 1" (2026-11-03)
 
 A review of 0.24–0.25.

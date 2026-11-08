@@ -116,12 +116,16 @@ function mediaLineOf(n){
   if(!n || !n.mediaType) return '';
   return mediaLineFor(mediaTypeById(n.mediaType), n.mediaData);
 }
-/* What a card's middle band says: its kind's line, in italics, or the
-   medium typed by hand. */
+/* What a card's middle band says: its kind's line, in italics.
+ *
+   It could also be a line typed by hand, under "None" in the kind list.
+   The owner had that taken out (the owner's list of 7.11, the morning
+   after): a card's middle line is what its kind makes of its facts, and
+   a chart's old typed line (`medium`) is read, kept until the card is
+   next edited, and not drawn. */
 function cardMediumOf(n){
   const line = mediaLineOf(n);
-  if(line) return '*' + line.replace(/\*/g, '') + '*';
-  return n && drawsOnChart(n.medium || '') ? String(n.medium).trim() : '';
+  return line ? '*' + line.replace(/\*/g, '') + '*' : '';
 }
 
 /* ---- the drawer ---------------------------------------------------- */
@@ -330,14 +334,15 @@ function paintMediaTypeForm(){
     o.textContent = label;
     editMediaTypeSelect.appendChild(o);
   };
-  option('', kinds.length ? 'None — typed by hand' : 'None — add kinds in the Media drawer');
+  /* "None", not "None — typed by hand": the line under the list is
+     there to be typed in, and an option naming it read as a mode of its
+     own (the owner's list of 7.11). */
+  option('', kinds.length ? 'None' : 'None — add kinds in the Media drawer');
   kinds.forEach(k=> option(k.id, k.name));
   if(editMediaState.type && !kind) option(editMediaState.type, 'Kind taken out');
   editMediaTypeSelect.value = editMediaState.type || '';
   editMediaTypeSelect.classList.toggle('none', !kind);
   editMediaFields.innerHTML = '';
-  const typed = document.getElementById('editMediumInput');
-  if(typed) typed.style.display = kind ? 'none' : '';
   if(!kind) return;
   kind.fields.forEach(f=>{
     const row = document.createElement('label');

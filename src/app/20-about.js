@@ -11,9 +11,20 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.2';
+const APP_VERSION = '0.25.3';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.3', date:'2026-11-07', title:'Kept as it was', notes:[
+'A flowchart figure put on card layout keeps its figure: the bands are laid out inside it and the outline goes round them, where it used to come out a rectangle. A size set by hand on it is the figure\'s, and connectors meet its points.',
+'Card layout turned off and on again keeps the card\'s picture, its kind of medium and the facts of it. The size the card was dragged to is let go either way across, so a plain entry no longer stays the size of the card it was, and its connectors move with it.',
+'A card\'s middle line is its kind of medium\'s, and nothing else: the list says "None" for no kind, not "None — typed by hand", and there is no line to type under it. A line typed by hand before is no longer drawn, and goes the next time its card is edited.',
+'A hidden tag fades the whole of a connector touching its entries: the line stayed at full strength and only the arrowhead faded. A lasso takes a faded entry with the rest, so a group carried together no longer leaves it behind.',
+'A rule put under or through a space comes off when the button is pressed again, and so does one on a letter picked out of a ruled word.',
+'Writing in an entry sized by hand keeps its size: a pause in the typing and an Enter both threw it away, and the box jumped to the size and the place of an unsized one. Words that need more room still grow it.',
+'On a phone the field\'s Done keeps its small accent button, with the same drawn tick as a suggestion\'s Done.',
+'The reader\'s eye in the toolbar is lit while it is on, as the other toggles are; a link node darkens under the pointer, as a link\'s tab does.',
+'A connector between two ports facing the same way no longer runs through a third entry standing under the shallower of the two.'
+  ]},
   {v:'0.25.2', date:'2026-11-03', title:'Code 1', notes:[
 'A card switched from one kind of medium to another no longer hands the first kind\'s facts to the second: a film\'s studio became a book\'s author. Each kind keeps its own while the panel is open.',
 'A field renamed in the Media drawer is renamed in its kind\'s line too, where it used to drop out of every card\'s line.',

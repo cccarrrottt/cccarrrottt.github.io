@@ -393,7 +393,21 @@ function orthPointsAvoiding(p1, p2, excludeIds, lane){
     /* …unless the shared level is past the other entry: one stacked over
        the other, the lower's run-out went up through the upper to reach
        it. Then each keeps its own and the route goes round. */
-    if(!crossesFarEntry(p1, l1, p2.owner) && !crossesFarEntry(p2, l2, p1.owner)){ s1 = l1; s2 = l2; }
+    /* …or past a third entry: the shallower port's run-out, stretched to
+       the deeper one's level, went down through whatever box stood under
+       it, and the search, started inside that box, found nothing — so the
+       stock shape that crosses it was drawn (the owner's list of 7.11,
+       with a screenshot: a connector into the bottom of an entry run up
+       through the entry below it). */
+    const throughThird = (p, l)=>{
+      let hit = false;
+      obstaclesNear(endObstacles, p.x, p.y, l.x, l.y, rect=>{
+        if(segIntersectsRect(p.x, p.y, l.x, l.y, rect)){ hit = true; return false; }
+      });
+      return hit;
+    };
+    if(!crossesFarEntry(p1, l1, p2.owner) && !crossesFarEntry(p2, l2, p1.owner) &&
+       !throughThird(p1, l1) && !throughThird(p2, l2)){ s1 = l1; s2 = l2; }
   }
   const lanes = [];
   if(lane) lanes.push(lane, -lane);
