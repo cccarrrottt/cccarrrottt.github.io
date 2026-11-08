@@ -11,9 +11,15 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.3';
+const APP_VERSION = '0.25.4';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.4', date:'2026-11-08', title:'Each its own size', notes:[
+'A figure of one\'s own put on card layout is no smaller than the figure was: the card closed on its words without the figure\'s least size, and shrank.',
+'Card layout and the plain entry each keep the size they were given: turning card layout off and on again brings back the card\'s size, and turning it off brings back the plain entry\'s. A card that was never sized starts at the size the entry had.',
+'A callout pinned to a connector that a hidden tag fades fades with it, leader and all; it stayed at full strength.',
+'A connector that goes round an entry under the shallower of two ports turns just above that entry, not far over it.'
+  ]},
   {v:'0.25.3', date:'2026-11-07', title:'Kept as it was', notes:[
 'A flowchart figure put on card layout keeps its figure: the bands are laid out inside it and the outline goes round them, where it used to come out a rectangle. A size set by hand on it is the figure\'s, and connectors meet its points.',
 'Card layout turned off and on again keeps the card\'s picture, its kind of medium and the facts of it. The size the card was dragged to is let go either way across, so a plain entry no longer stays the size of the card it was, and its connectors move with it.',

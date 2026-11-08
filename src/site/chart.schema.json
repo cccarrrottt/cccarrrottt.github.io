@@ -59,6 +59,7 @@
         },
         "pos": {"$ref": "#/definitions/point", "description": "Where it was put by hand, [x, y] in chart units."},
         "size": {"$ref": "#/definitions/point", "description": "[w, h], when it was sized by hand."},
+        "otherSize": {"$ref": "#/definitions/point", "description": "[w, h] set by hand for the layout it is not in now: as a plain entry while it is a card, as a card while it is not."},
         "rot": {"type": "number", "description": "Degrees, for a free shape."},
         "z": {"type": "number"},
         "tags": {"type": "array", "items": {"type": "string"}},

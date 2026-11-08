@@ -146,6 +146,19 @@ function resumeAnimation(elm, period, since, stagger){
    taken off the chart (the owner's list of 2.11, evening): gone, they
    left holes nobody could account for, and the lines round them went
    nowhere. */
+/* Whether an entry is faded by a hidden tag: its own, or — for a callout
+   pinned to a connector — one of the two entries the connector joins. A
+   remark about a line that has faded is about nothing on the chart, and
+   it stood there at full strength (the owner's list of 8.11). */
+function fadedOnChart(n){
+  if(!n) return false;
+  if(nodeHidden(n)) return true;
+  if(isCalloutNode(n) && n.leader){
+    const a = nodes.get(n.leader.from), b = nodes.get(n.leader.to);
+    return !!((a && nodeHidden(a)) || (b && nodeHidden(b)));
+  }
+  return false;
+}
 function fadeForTags(el, hide){
   el.classList.toggle('tag-hidden', hide);
   if(el.style.display === 'none') el.style.display = '';
@@ -160,13 +173,13 @@ function applyVisibility(opts){
     syncMinimap();
     qNodes('.node').forEach(g=>{
       const n = nodes.get(g.dataset.id);
-      fadeForTags(g, !!(n && nodeHidden(n)));
+      fadeForTags(g, fadedOnChart(n));
     });
     // The ground and the scenery both belong to their entry and go when it does.
     [...fanLayer.querySelectorAll(GROUND_PARTS),
      ...auraLayer.querySelectorAll('.node-aura')].forEach(r=>{
       const n = nodes.get(r.dataset.id);
-      fadeForTags(r, !!(n && nodeHidden(n)));
+      fadeForTags(r, fadedOnChart(n));
     });
   }
   // Every piece of a connector, not only its line: the arrowheads, the ring
