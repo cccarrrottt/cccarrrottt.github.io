@@ -805,6 +805,11 @@ const drawOne = (n)=>{
      where the figure centres its words (figureLayout). */
   let cardIn = null;
   if(cardFig){
+    /* Held to the floor a figure's words are held to (figBox above), so a
+       figure that is only a heading comes out the size it was before it
+       became a card rather than shrunk onto its words (the owner's list
+       of 8.11). */
+    if(!manual){ w = Math.max(w, 2*GRID); h = Math.max(h, GRID); }
     const O = figureFit(cardFig, w, h);
     const W = round2(O.w), H = round2(O.h);
     const L = figureLayout(cardFig, W, H);

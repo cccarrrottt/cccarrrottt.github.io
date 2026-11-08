@@ -6,6 +6,26 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.4 — "Each its own size" (2026-11-08)
+
+The owner's list of 8.11.
+
+- **A figure's card is no smaller than the figure.** A card closes on its
+  ink, and a bare figure of one's own came out under the figure's least
+  size (2×GRID by GRID); `renderNodes` holds a figure card to it unless a
+  size was set by hand.
+- **Each layout keeps its own size.** `commitNodeEdit` swaps `opts.size`
+  with a new `opts.otherSize` when card layout is turned on or off, so the
+  size of the layout being left is kept for the next time. A card never
+  sized starts at the plain entry's size; a plain entry never sized goes
+  back to its own. In the schema too.
+- **A callout fades with its line.** `fadedOnChart` (`18-canvas-gestures.js`)
+  counts a callout as faded when either end of its leader's connector is.
+- **A detour hugs the box it goes round.** The shared run-out of two ports
+  facing the same way stops short of a third box in its way
+  (`orthPointsAvoiding`, `08-router-astar.js`) where it used to be dropped,
+  which sent the line round at the deeper port's level.
+
 ## 0.25.3 — "Kept as it was" (2026-11-07)
 
 The owner's list of 7.11.

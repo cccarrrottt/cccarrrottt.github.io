@@ -22838,8 +22838,9 @@ async function main(){
         out.typedGone && out.typedKept, JSON.stringify([out.typedGone, out.typedKept]));
   check('card layout off lets go of the size the card was dragged to, and the connector follows the box',
         out.offBox[0] < 200 && out.offBox[1] < 100 && out.offRouted, JSON.stringify([out.offBox, out.offRouted]));
-  check('…and on again brings back its picture, its kind of medium and its facts',
-        out.cameBack.image && out.cameBack.kind === 'film' && out.cameBack.facts === 'Toei' && !out.cameBack.size,
+  check('…and on again brings back its picture, its kind of medium, its facts and the size it was dragged to',
+        out.cameBack.image && out.cameBack.kind === 'film' && out.cameBack.facts === 'Toei'
+        && JSON.stringify(out.cameBack.size) === '[260,300]',
         JSON.stringify(Object.assign({}, out.cameBack, {image: out.cameBack.image})));
   check('a hidden tag fades the whole line of a connector, not only its arrowhead', out.lineFade !== null && out.lineFade < 0.2, String(out.lineFade));
   check('a lasso takes a faded entry with the rest, so a carry moves it too', out.lassoed, String(out.lassoed));
@@ -22854,6 +22855,104 @@ async function main(){
   check('a link node darkens under the pointer', linkHover[0] !== linkHover[1], JSON.stringify(linkHover));
   check('a line between two ports facing down goes round the box under the shallower one',
         out.route.d && !out.route.through, out.route.d);
+  });
+  await scenario("the owner's list of 8.11: a figure's card no smaller than the figure, each layout keeps its own size, a callout fades with its line, a detour that hugs the box", async () => {
+  const X = 171000, Y = 171000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const size = id=> { const n = nodes.get(id); return [Math.round(n.w), Math.round(n.h)]; };
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      /* A figure of the owner's own, a word in it, never sized by hand. */
+      const fig = {name:'o811', d:'M50 0 L100 30 L85 100 L15 100 L0 30 Z'};
+      applyEdit(()=>{
+        workingNodes.push(['o811_f','Hk',null,null,null,null,{pos:[X, Y], figure: fig}]);
+        workingNodes.push(['o811_t','Toggled',null,null,null,null,{pos:[X + 400, Y], size:[120, 60]}]);
+        workingNodes.push(['o811_a','From',null,null,null,null,{pos:[X, Y + 400], tags:['o811-tag']}]);
+        workingNodes.push(['o811_b','To','o811_a',null,null,null,{pos:[X + 400, Y + 400]}]);
+        EDGE_STYLES.push({from:'o811_a', to:'o811_b', routing:'orthogonal', dash:'solid', arrow:true});
+        workingNodes.push(['o811_k','Said',null,null,null,'callout',{pos:[X + 200, Y + 250], leader:{from:'o811_a', to:'o811_b', at:0.5}}]);
+        /* The owner's screenshot of 7.11 again: the line from the lower
+           box to the box above goes round the one standing between. */
+        workingNodes.push(['o811_r3','Beast Wars: Uprising\nasdsasad',null,null,null,null,{pos:[X + 1000 - 242, Y + 1000 + 297.28], square:true}]);
+        workingNodes.push(['o811_r1','Beast Wars: Uprising',null,null,null,null,{pos:[X + 1000 - 67.24, Y + 1000 + 277.14], square:true}]);
+        workingNodes.push(['o811_r2','Гаягкягкч','o811_r1',null,null,null,{pos:[X + 1000 - 179.81, Y + 1000 + 198.94], size:[54.13, 12.05]}]);
+        EDGE_STYLES.push({from:'o811_r1', to:'o811_r2', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'bottom'});
+      });
+      rebuildChart();
+      await wait(250);
+
+      /* 1. The figure on card layout is no smaller than the figure. */
+      r.plainFig = size('o811_f');
+      applyEdit(()=>{ workingEntry('o811_f').entry[6].card = true; });
+      rebuildChart();
+      await wait(150);
+      r.cardFig = size('o811_f');
+
+      /* 1b. Each layout keeps the size it was given. */
+      openEntrySettings('o811_t'); await wait(120);
+      editCardCheck.click(); await wait(400);
+      r.firstCard = size('o811_t');
+      deselect(); await wait(80);
+      applyEdit(()=>{ workingEntry('o811_t').entry[6].size = [260, 200]; });
+      rebuildChart(); await wait(120);
+      openEntrySettings('o811_t'); await wait(120);
+      editCardCheck.click(); await wait(400);
+      r.backPlain = size('o811_t');
+      deselect(); await wait(80);
+      openEntrySettings('o811_t'); await wait(120);
+      editCardCheck.click(); await wait(400);
+      r.backCard = size('o811_t');
+      deselect(); await wait(80);
+
+      /* 2. A callout on a line that a hidden tag fades fades with it. */
+      hiddenTags.add('o811-tag');
+      applyVisibility();
+      await wait(150);
+      {
+        const g = document.querySelector('.node[data-id="o811_k"]');
+        const l = document.querySelector('.callout-leader[data-id="o811_k"]');
+        r.calloutFade = [g ? +getComputedStyle(g).opacity : null, l ? +getComputedStyle(l).opacity : null];
+      }
+      hiddenTags.delete('o811-tag');
+      applyVisibility();
+      await wait(80);
+      r.calloutBack = +getComputedStyle(document.querySelector('.node[data-id="o811_k"]')).opacity;
+
+      /* 3. The detour turns just above the box it goes round. */
+      {
+        const p = document.querySelector('path.edge[data-from="o811_r1"][data-to="o811_r2"]');
+        const d = p ? p.getAttribute('d') : '';
+        const pts = (d.match(/-?\d+(\.\d+)?,-?\d+(\.\d+)?/g) || []).map(s=> s.split(',').map(Number));
+        const c3 = nodes.get('o811_r3');
+        const box = {x0: c3.x, y0: c3.y, x1: c3.x + c3.w, y1: c3.y + c3.h};
+        /* The level legs that pass over the box, x-wise. */
+        const over = pts.slice(1).map((q, i)=> [pts[i], q])
+          .filter(([a, b])=> Math.abs(a[1] - b[1]) < 0.01 && Math.max(a[0], b[0]) > box.x0 && Math.min(a[0], b[0]) < box.x1);
+        r.route = {d, through: pts.some((q, i)=> i > 0 && segIntersectsRect(pts[i-1][0], pts[i-1][1], q[0], q[1], box)),
+                   gap: over.length ? Math.min(...over.map(([a])=> box.y0 - a[1])) : null};
+      }
+    } finally {
+      deselect();
+      hiddenTags.delete('o811-tag');
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      rebuildChart();
+    }
+    return r;
+  }, [X, Y]);
+  check('a figure of one\'s own on card layout is no smaller than the figure',
+        out.cardFig[0] >= out.plainFig[0] && out.cardFig[1] >= out.plainFig[1], JSON.stringify([out.plainFig, out.cardFig]));
+  check('card layout on starts at the size the entry was given', JSON.stringify(out.firstCard) === '[120,60]', JSON.stringify(out.firstCard));
+  check('…off again goes back to the plain entry\'s size, and on again to the card\'s',
+        JSON.stringify(out.backPlain) === '[120,60]' && JSON.stringify(out.backCard) === '[260,200]',
+        JSON.stringify([out.backPlain, out.backCard]));
+  check('a callout on a connector a hidden tag fades fades with it, leader and all, and comes back',
+        out.calloutFade.every(v=> v !== null && v < 0.2) && out.calloutBack === 1, JSON.stringify([out.calloutFade, out.calloutBack]));
+  check('a detour round a box turns just above it, not far over it',
+        out.route.d && !out.route.through && out.route.gap !== null && out.route.gap > 0 && out.route.gap < 16,
+        JSON.stringify(out.route));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

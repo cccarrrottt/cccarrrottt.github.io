@@ -398,16 +398,29 @@ function orthPointsAvoiding(p1, p2, excludeIds, lane){
        it, and the search, started inside that box, found nothing — so the
        stock shape that crosses it was drawn (the owner's list of 7.11,
        with a screenshot: a connector into the bottom of an entry run up
-       through the entry below it). */
-    const throughThird = (p, l)=>{
-      let hit = false;
+       through the entry below it). Then the stretched run-out stops short
+       of that box, a run-out's width before it, rather than going back to
+       its own short one: kept short, the route stepped round the box at
+       the far entry's level, high above the box it was stepping round
+       (the owner's list of 8.11). Only where even that is shorter than
+       its own run-out does it keep its own. */
+    const clipped = (p, l)=>{
+      const full = Math.abs(proj(l) - proj(p));
+      let room = full;
       obstaclesNear(endObstacles, p.x, p.y, l.x, l.y, rect=>{
-        if(segIntersectsRect(p.x, p.y, l.x, l.y, rect)){ hit = true; return false; }
+        if(!segIntersectsRect(p.x, p.y, l.x, l.y, rect)) return;
+        const face = n1.y > 0 ? rect.y0 - p.y : n1.y < 0 ? p.y - rect.y1
+                   : n1.x > 0 ? rect.x0 - p.x : p.x - rect.x1;
+        room = Math.min(room, face - 4);
       });
-      return hit;
+      if(room >= full) return l;
+      if(room < runOut(p)) return null;
+      return {x: p.x + n1.x*room, y: p.y + n1.y*room, keep: true};
     };
-    if(!crossesFarEntry(p1, l1, p2.owner) && !crossesFarEntry(p2, l2, p1.owner) &&
-       !throughThird(p1, l1) && !throughThird(p2, l2)){ s1 = l1; s2 = l2; }
+    if(!crossesFarEntry(p1, l1, p2.owner) && !crossesFarEntry(p2, l2, p1.owner)){
+      const c1 = clipped(p1, l1), c2 = clipped(p2, l2);
+      if(c1 && c2){ s1 = c1; s2 = c2; }
+    }
   }
   const lanes = [];
   if(lane) lanes.push(lane, -lane);

@@ -277,9 +277,22 @@ function commitNodeEdit(){
     if(newImage) opts.image = newImage; else delete opts.image;
     /* A size set by hand is a size for the layout it was set on: a card
        dragged out round its picture kept that box as a plain entry, and
-       the connectors with it (the owner's list of 7.11). Either way
-       across, the box goes back to what its words ask for. */
-    if(!!opts.card !== newCard) delete opts.size;
+       the connectors with it (the owner's list of 7.11). So each layout
+       keeps its own: the size of the one being left is put by
+       (otherSize), and the one being taken up gets back whatever it was
+       given last time — where dropping the size altogether made a card
+       turned off and on again come back a different card (the owner's
+       list of 8.11). A card that has never been sized starts at the size
+       the entry was given, so a figure sized by hand does not shrink onto
+       its words as it becomes a card (the same list); the words still
+       grow it where they need more (minSize). An entry that has never
+       been sized starts at the size its words ask for. */
+    if(!!opts.card !== newCard){
+      const leaving = opts.size;
+      const coming = opts.otherSize || (newCard ? leaving : null);
+      if(coming) opts.size = coming; else delete opts.size;
+      if(leaving) opts.otherSize = leaving; else delete opts.otherSize;
+    }
     if(newCard) opts.card = true; else delete opts.card;
     /* Both belong to a card that HAS a picture: they are answers about
        one, and kept with it while the card is off. */
