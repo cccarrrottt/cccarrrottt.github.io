@@ -14,6 +14,10 @@ const tagCounts = new Map(); // tag -> count
 // view preference, not part of the data, so adding a node shouldn't quietly
 // un-hide everything.
 const hiddenTags = new Set();
+/* Kinds of medium hidden from the drawer's eyes (the owner's list of
+   9.11): a reading choice like a hidden tag, kept for the session and
+   faded the same way — see nodeHidden. */
+const hiddenMediaKinds = new Set();
 let allTags = [];
 const legendList = document.getElementById('tagsList');
 const refsList = document.getElementById('refsList');
@@ -667,7 +671,13 @@ function buildLegend(){
   }
   legendList.appendChild(tagHead);
   legendList.appendChild(buildTagFilterRow());
-  legendList.appendChild(buildLooseBlock(uncategorised.filter(tagMatchesFilter)));
+  /* A reader files nothing, so the field where tags wait to be filed is
+     not theirs (the owner's list of 9.11): a tag no category claims is
+     listed for them as any other, and an empty field is not drawn. */
+  {
+    const loose = uncategorised.filter(tagMatchesFilter);
+    if(!readOnlyView || loose.length) legendList.appendChild(buildLooseBlock(loose));
+  }
   /* A category being named stands at the top, under the field of tags
      with none, and is made there (createCategory puts it first): reaching
      for the button at the head of the panel and finding the new heading at
@@ -701,7 +711,7 @@ function buildLegend(){
 function buildLooseBlock(tags){
   const wrap = document.createElement('div');
   wrap.id = 'legendLoose';
-  wrap.className = 'legend-group legend-loose' + (readOnlyView ? '' : ' drop-zone');
+  wrap.className = 'legend-group' + (readOnlyView ? '' : ' legend-loose drop-zone');
   wrap.dataset.cat = UNGROUPED;
   tags.forEach(tag=> wrap.appendChild(buildTagRow(tag, UNGROUPED)));
   if(pendingNewTag) wrap.appendChild(buildNewTagRow());
@@ -801,7 +811,7 @@ function buildNewCategoryBlock(){
   head.className = 'legend-group-head';
   head.innerHTML =
     `<span class="legend-group-name renaming" contenteditable="plaintext-only" spellcheck="false"></span>` +
-    `<span class="legend-group-fold">\u2304</span><span class="legend-group-count">0</span>`;
+    `<span class="legend-group-fold">\u25b8</span><span class="legend-group-count">0</span>`;
   head.insertBefore(makeEyeButton(false, 'A new category'), head.firstChild);
   const box = head.querySelector('.legend-group-name');
   let done = false;
@@ -950,7 +960,7 @@ function buildCategoryBlock(group){
   wrap.classList.toggle('collapsed', shut);
   head.innerHTML =
     `<span class="legend-group-name">${escapeHtml(isLoose ? 'Special' : group.name)}</span>` +
-    `<span class="legend-group-fold">${shut ? '\u2039' : '\u2304'}</span>` +
+    `<span class="legend-group-fold">\u25b8</span>` +
     `<span class="legend-group-count">${group.tags.length}</span>`;
   head.classList.add('foldable');
   head.title = (shut ? 'Show this category' : 'Fold this category away') +

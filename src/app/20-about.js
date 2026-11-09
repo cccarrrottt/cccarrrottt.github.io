@@ -11,9 +11,20 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.4';
+const APP_VERSION = '0.25.5';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.5', date:'2026-11-09', title:'About this project', notes:[
+'A fast pan no longer brings up an entry\'s bar, a portrait\'s card or a picture\'s player over things the pointer was never on: the browser finds the pointer a frame ahead of the drawing, so for a moment after the chart is carried by a pan or the wheel, nothing opens on hover.',
+'A selected card and a selected link node glow outward only. The card\'s outline over its bands, a figure\'s own lines and a link node\'s arrow put the glow inside the shape too.',
+'The field a figure\'s card heading is written in is the band of the figure, not a box standing across its slopes.',
+'For a reader, a click on a link node lights nothing (two follow it), the dashed field of tags waiting to be filed is gone, and an entry\'s copy-link button stays a moment after the entry is left, so it can be reached across the gap.',
+'A tag category folds with the same ▸ as every other fold on the page. A kind of medium in its drawer stands on no grey box, has an eye that fades every entry of the kind, card or not, and counts them all.',
+'A suggestion\'s Decline draws its cross at the tick\'s size and nearly its weight; at twelve pixels on a half pixel it came out blotched.',
+'A citation in the field written on an entry is set as the chart draws it: the run\'s own face, a little over half its size, raised and faint, not a grey box of typewriter type.',
+'A copied entry is also a link to it on the system clipboard, so pasting it into an entry\'s link field or a link node\'s gives its address. A cut or a group copies no link.',
+'About this chart is About this project, with the owner\'s Gmail, X, Discord and Boosty under the version line; Discord\'s mark copies the name.'
+  ]},
   {v:'0.25.4', date:'2026-11-08', title:'Each its own size', notes:[
 'A figure of one\'s own put on card layout is no smaller than the figure was: the card closed on its words without the figure\'s least size, and shrank.',
 'Card layout and the plain entry each keep the size they were given: turning card layout off and on again brings back the card\'s size, and turning it off brings back the plain entry\'s. A card that was never sized starts at the size the entry had.',
@@ -467,6 +478,20 @@ function versionEntriesHtml(list){
     `<span class="version-date">${escapeHtml(r.date)}</span></div>` +
     `<ul>${r.notes.map(t=> `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>`
   ).join('') + '<p class="version-foot">Releases before 0.9.0 were not numbered.</p>';
+}
+/* Discord's mark copies the name, since no link opens a profile by it;
+   the mark says so for a moment, as a copied link's button does. */
+{
+  const b = document.querySelector('#aboutContacts [data-copy]');
+  if(b) b.addEventListener('click', async ()=>{
+    const idle = b.title;
+    let ok = false;
+    try{ await navigator.clipboard.writeText(b.dataset.copy); ok = true; }catch(e){}
+    b.classList.add('done');
+    b.title = ok ? 'Copied: ' + b.dataset.copy : 'Discord: @' + b.dataset.copy;
+    clearTimeout(b.timer);
+    b.timer = setTimeout(()=>{ b.classList.remove('done'); b.title = idle; }, 1600);
+  });
 }
 function renderVersionInfo(){
   const line = document.getElementById('aboutVersion');

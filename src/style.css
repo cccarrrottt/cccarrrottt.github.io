@@ -551,6 +551,11 @@
      like a picture entry's, its glow ran across the rule into the heading
      under it (the owner's list of 1.11). The card is lit by its border. */
   .node.node-card.selected > image{filter:none;}
+  /* Only outward: the card's outline over its bands, a figure's own lines
+     and a link node's arrow are all inside the shape, and lit they put
+     the glow in there too (the owner's list of 9.11). */
+  .node.selected > .card-outline, .node.selected > path.figure-mark,
+  .node.selected > path.link-node-arrow{filter:none;}
   .node text.card-body{fill:var(--ink-dim);}
   /* The middle band sits between the heading and the note in size, so it
      sits between them in weight too: the entry's own ink, a shade quieter
@@ -930,8 +935,14 @@
   body.read-only .node-resize{display:none;}
   /* The link-copying button beside an entry: faint, and only while the
      entry is under the pointer, like the grips; full when it is reached. */
-  .node-copy-link{opacity:0;transition:opacity 110ms ease;cursor:pointer;pointer-events:none;}
-  .node:hover .node-copy-link{opacity:0.45;pointer-events:auto;}
+  /* It stands a few pixels off the entry, so the hand reaching for it
+     leaves the entry first — across a portrait's card, or just the gap —
+     and the button went the moment it did (the owner's list of 9.11).
+     It stays a moment after the entry is left, pressable all the while,
+     and back on it the entry is hovered again. */
+  .node-copy-link{opacity:0;visibility:hidden;cursor:pointer;pointer-events:auto;
+    transition:opacity 110ms ease 450ms, visibility 0s linear 560ms;}
+  .node:hover .node-copy-link{opacity:0.45;visibility:visible;transition-delay:0s, 0s;}
   .node .node-copy-link:hover, .node .node-copy-link.done{opacity:1;}
   .node-copy-link-hit{fill:transparent;stroke:none;}
   .node-copy-link-bg{fill:var(--panel);stroke:var(--ink-faint);stroke-width:0.6;}
@@ -1401,11 +1412,16 @@
   .legend-group{margin-bottom:7px;}
   .legend-group-head.foldable{cursor:pointer;user-select:none;}
   /* At the right of the heading, where the thing it folds away is. */
+  /* The same ▸ every other fold on the page wears — a kind of medium's,
+     the history's in About — turned down while the category is open
+     (the owner's list of 9.11: a ⌄ and a ‹ were a style of their own). */
   .legend-group-fold{
-    flex:0 0 auto;width:11px;text-align:center;color:var(--ink-faint);
-    font-size:11px;line-height:1;margin-left:2px;
+    flex:0 0 auto;width:16px;text-align:center;color:var(--ink-faint);
+    font-size:10px;line-height:1;margin-left:2px;
+    transform:rotate(90deg);transition:transform 0.12s;
   }
-  .legend-group-head.foldable:hover .legend-group-fold{color:var(--ink);}
+  .legend-group.collapsed .legend-group-fold{transform:none;}
+  .legend-group-head.foldable:hover .legend-group-fold{color:var(--accent);}
   .legend-group.collapsed{margin-bottom:3px;}
   .legend-group.collapsed .legend-group-head{border-bottom-style:dotted;}
   /* Finding a tag by name, rather than by scrolling for it. */
@@ -1643,10 +1659,10 @@
   .tag-hidden *{pointer-events:none !important;}
 
   /* ---------- Kinds of media (42-media-types.js) ---------- */
-  .media-kind{
-    margin:6px 0 10px;padding:6px 6px 7px;
-    border:1px solid var(--line);border-radius:5px;background:var(--panel-2);
-  }
+  /* Stood on the drawer's own ground, as a category of tags is, with no
+     grey box round each (the owner's list of 9.11). */
+  .media-kind{margin:2px 0 6px;padding:2px 0 3px;}
+  .media-kind.off .media-kind-name{opacity:0.35;text-decoration:line-through;}
   .media-kind-top, .media-field{display:flex;align-items:center;gap:4px;}
   .media-fold{
     flex:0 0 auto;width:16px;height:18px;padding:0;background:none;border:none;cursor:pointer;
@@ -1655,7 +1671,7 @@
   .media-fold:hover{color:var(--accent);}
   .media-kind.shut .media-fold{transform:none;}
   .media-kind.shut > :not(.media-kind-top){display:none;}
-  .media-kind.shut{padding-bottom:6px;margin:4px 0;}
+  .media-kind.shut{padding-bottom:2px;margin:2px 0;}
   .media-field{margin-top:4px;padding-left:10px;}
   .media-kind input, .media-format{
     flex:1 1 auto;min-width:0;box-sizing:border-box;
@@ -1665,7 +1681,7 @@
   .media-kind input:focus{outline:none;border-color:var(--accent);}
   .media-kind-name{font-weight:600;}
   .media-format{width:100%;font-style:italic;}
-  .media-kind-count{font-size:9px;color:var(--ink-faint);min-width:14px;text-align:right;}
+  .media-kind-count{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--ink-faint);min-width:14px;text-align:right;}
   .media-x{
     flex:0 0 auto;width:18px;height:18px;padding:0;line-height:1;
     background:none;border:1px solid transparent;border-radius:3px;
@@ -2181,6 +2197,19 @@
      stops moving in past a few levels — a long line of sequels would
      otherwise walk off the right of a phone. */
   .about-actions{margin:0 0 12px;}
+  /* The owner's addresses: four marks in the faint ink of the version line
+     above them, each taking its own colour under the pointer. */
+  .about-contacts{display:flex;gap:6px;margin:-8px 0 14px;}
+  .about-contact{
+    display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;
+    border:1px solid var(--line);border-radius:50%;background:none;cursor:pointer;
+    color:var(--ink-faint);text-decoration:none;transition:color .12s, border-color .12s;
+  }
+  .about-contact svg{display:block;fill:currentColor;}
+  .about-contact.c-gmail:hover{color:#ea4335;border-color:currentColor;}
+  .about-contact.c-x:hover{color:var(--ink);border-color:currentColor;}
+  .about-contact.c-discord:hover, .about-contact.c-discord.done{color:#5865f2;border-color:currentColor;}
+  .about-contact.c-boosty:hover{color:#f15f2c;border-color:currentColor;}
   .about-actions .editor-btn{display:inline-flex;align-items:center;gap:7px;margin:0;}
   .text-view-card{width:min(640px, 92vw);}
   .text-view-body .tv-count{color:var(--ink-faint);}
@@ -3174,6 +3203,16 @@
     border:1px solid var(--line);border-radius:3px;
     padding:0 2px;margin:0 1px;cursor:default;user-select:all;
   }
+  /* …except in the field written on the entry itself, where the words
+     are seen as they will be drawn, and a citation is drawn as the mark
+     renderNodes sets (the owner's list of 9.11): the run's own face, a
+     little over half its size (REF_FS_SCALE), raised by REF_RISE of the
+     run, and faint — not a grey box of typewriter type. Raised by a length
+     in its OWN size, so 0.38 of the run is 0.38 / 0.56 of the mark. */
+  .node-editor .ref-chip{
+    font-family:inherit;font-size:0.56em;vertical-align:0.68em;line-height:0;
+    background:none;border:none;padding:0;margin:0;opacity:0.55;
+  }
   .tb-ref-btn svg, .tb-sticker-btn svg{display:block;width:12px;height:12px;}
   .ref-picker{width:232px;padding:5px;}
   .ref-picker-grid{display:flex;flex-direction:column;gap:2px;}
@@ -3575,7 +3614,7 @@
   body.touch-input .node.hover .node-rotate,
   body.touch-input .node.selected .node-rotate{opacity:1;}
   body.touch-input .node.hover .node-copy-link,
-  body.touch-input .node.selected .node-copy-link{opacity:0.45;pointer-events:auto;}
+  body.touch-input .node.selected .node-copy-link{opacity:0.45;visibility:visible;pointer-events:auto;}
   body.touch-input .rich-surface:not(.locked) .rich-figure > .fig-grip{display:block;}
   /* A row is picked up by holding it; the browser's own answer to a hold —
      selecting the row's words and offering to copy them — would come first. */

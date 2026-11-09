@@ -190,9 +190,14 @@ function positionNodeEditor(){
      the one the words would land in. The frame is the stylesheet's
      ::before; on a figure it wears the outline as its picture instead of
      a border, drawn at the field's own scale. */
-  const figOn = tn && !box.turn && !tn.card ? nodeFigure(tn) : null;
-  nodeEditor.classList.toggle('on-figure', !!figOn);
-  if(figOn) surf.setProperty('--figure-frame', figureFrameUrl(figOn, box.w, box.h));
+  const figOn = tn && !box.turn ? nodeFigure(tn) : null;
+  /* …and on a figure's card it is the piece of the figure the heading's
+     band cuts out of it (the owner's list of 9.11): a triangle's heading
+     opened as a box standing across the triangle's slopes. */
+  const band = figOn && tn.card ? (tn.cardHead && tn.cardHead.h > 0 ? tn.cardHead : null) : undefined;
+  nodeEditor.classList.toggle('on-figure', !!figOn && band !== null);
+  if(figOn && band) surf.setProperty('--figure-frame', figureFrameUrl(figOn, tn.w, tn.h || 0, band));
+  else if(figOn && band === undefined) surf.setProperty('--figure-frame', figureFrameUrl(figOn, box.w, box.h));
   else surf.removeProperty('--figure-frame');
   const lineH = parseFloat(rec.surface.dataset.lineH) || 0;
   // Measured upright; turned to match a turned entry only at the end.
@@ -315,15 +320,25 @@ function positionNodeEditor(){
    with room round it for the half of the line that stands outside. The
    colours are read off the page, since a picture cannot ask the
    stylesheet for them. */
-function figureFrameUrl(fig, W, H){
+/* With `band` ({top, h} from the card's top) the picture is only that
+   band of the figure: the figure's outline where it runs through the band,
+   and the band's own edges inside the figure. */
+function figureFrameUrl(fig, W, H, band){
   const p = 1.6 / vs;
   const css = getComputedStyle(document.body);
   const ink = (css.getPropertyValue('--accent') || '').trim() || '#c23b22';
   const ground = (css.getPropertyValue('--panel') || '').trim() || '#ffffff';
   const d = figurePolyD(figureLayout(fig, W, H).outline, 0, 0, true);
-  const svgText = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${(-p).toFixed(3)} ${(-p).toFixed(3)} ` +
-    `${(W + 2*p).toFixed(3)} ${(H + 2*p).toFixed(3)}" preserveAspectRatio="none">` +
-    `<path d="${d}" fill="${ground}" stroke="${ink}" stroke-width="${p.toFixed(3)}" stroke-linejoin="round"/></svg>`;
+  const y0 = band ? band.top : 0, bh = band ? band.h : H;
+  const sw = p.toFixed(3);
+  const body = band
+    ? `<clipPath id="f"><path d="${d}"/></clipPath>` +
+      `<rect x="${(-p).toFixed(3)}" y="${y0.toFixed(3)}" width="${(W + 2*p).toFixed(3)}" height="${bh.toFixed(3)}" ` +
+      `fill="${ground}" stroke="${ink}" stroke-width="${(2*p).toFixed(3)}" clip-path="url(#f)"/>` +
+      `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`
+    : `<path d="${d}" fill="${ground}" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  const svgText = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${(-p).toFixed(3)} ${(y0 - p).toFixed(3)} ` +
+    `${(W + 2*p).toFixed(3)} ${(bh + 2*p).toFixed(3)}" preserveAspectRatio="none">` + body + `</svg>`;
   return 'url("data:image/svg+xml,' + encodeURIComponent(svgText) + '")';
 }
 /* The last word on where the field stands: on the words it is covering.

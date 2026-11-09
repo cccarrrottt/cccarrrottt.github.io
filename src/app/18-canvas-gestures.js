@@ -549,6 +549,7 @@ window.addEventListener('mouseup', ()=>{
 });
 window.addEventListener('mousemove', e=>{
   if(!dragging) return;
+  chartCarriedAt = performance.now();
   vx = dragStart.vx + (e.clientX-dragStart.x);
   vy = dragStart.vy + (e.clientY-dragStart.y);
   applyTransform();
@@ -596,7 +597,15 @@ svg.addEventListener('pointerdown', ev=>{
   if(a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) a.blur();
 }, true);
 
-svg.addEventListener('wheel', e=> chartWheel(e), {passive:false});
+/* When the hand last carried the chart: by a pan, or by the wheel. Hover
+   that comes in the moment after is the chart sliding under a still or
+   racing pointer, not the pointer arriving on anything (the owner's video
+   of 9.11) — see chartUnderHand. */
+let chartCarriedAt = -1e9;
+function chartUnderHand(){
+  return dragging || !!marqueeState || performance.now() - chartCarriedAt < 180;
+}
+svg.addEventListener('wheel', e=>{ chartCarriedAt = performance.now(); chartWheel(e); }, {passive:false});
 /* The wheel zooms the chart over its menus too (the owner's list of
    29.10). A menu stands over the chart and is part of working on it; the
    wheel turned over one did nothing at all, so a zoom stopped dead

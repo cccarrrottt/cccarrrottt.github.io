@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.25.4** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.25.5** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -538,7 +538,7 @@ calls `pruneArrayMembers`, which drops an array left with no members.
 ## The chart as text
 
 The drawing has no reading order, so the chart is also written out as a
-document (`41-text-view.js`): a button in About this chart opens every
+document (`41-text-view.js`): a button in About this project opens every
 entry once, under the entry it comes from, with its tags, its note, what
 each line into it says and its link. An entry with several parents is
 listed under the first and names the others. Arrays, pictures, captions and
@@ -743,7 +743,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 145 named scenarios, and they are independent of one
+The browser suite is 146 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

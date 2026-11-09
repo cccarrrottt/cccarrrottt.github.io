@@ -1527,7 +1527,17 @@ const drawOne = (n)=>{
       wearPicture(img, n.image, n.anim);
     }
 
-    borderRing(cardFig || cutPts || isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
+    /* The outline is drawn again over the bands, unfilled, so it stands
+       above the picture — and an unfilled outline's glow spreads both
+       ways, into the card as well as out of it (the owner's list of
+       9.11). The ground under it is filled and glows outward only, so the
+       selection is the ground's to show. */
+    {
+      const top = borderRing(cardFig || cutPts || isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
+      top.classList.add('card-outline');
+      if(top.nextSibling && top.nextSibling.classList && top.nextSibling.classList.contains('border-inner'))
+        top.nextSibling.classList.add('card-outline');
+    }
     /* And a ring per further colour, stepping outward exactly as an
        entry's do. A card used to keep its first colour and drop the rest,
        on the grounds that its rules already divide it — but the rings are
@@ -2300,6 +2310,10 @@ const drawOne = (n)=>{
        without the view leaving it. */
     if(isLinkNode){
       clearTimeout(nodeClickTimer);
+      /* A reader has nothing to do with a link node but follow it, which
+         two presses do: lit by one, it looked like something they could
+         go on to change (the owner's list of 9.11). */
+      if(readOnlyView) return;
       selectNode(n.id, {quiet: true});
       paintMultiSelection();
       return;
@@ -2421,6 +2435,7 @@ const drawOne = (n)=>{
     // needed when you want it to stay while you work elsewhere.
     g.addEventListener('mouseenter', ()=>{
       if(bioCardPinned) return;
+      if(chartUnderHand()) return;
       if(!bioHoverWanted(n.id)) return;
       openBioCard(n.id);
     });

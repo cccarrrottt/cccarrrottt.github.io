@@ -6,6 +6,33 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.5 — "About this project" (2026-11-09)
+
+The owner's list of 9.11.
+
+- **No hover under a racing pan.** `chartUnderHand` (`18-canvas-gestures.js`)
+  is true while a pan or lasso is held and for 180 ms after a pan move or a
+  wheel; the style bar, a portrait's card and a picture's player do not
+  open then. A fast pan is hit-tested a frame ahead of the drawing.
+- **Glow outward only.** A card's outline over its bands (`.card-outline`),
+  a figure's marks and a link node's arrow carry no selection filter.
+- **A figure card's field** wears the band of the figure (`figureFrameUrl`
+  with a band, `30-node-editor.js`).
+- **A reader**: a click on a link node selects nothing; no loose-tags field
+  (one with tags is listed as a plain group); the copy-link button lingers
+  450 ms, pressable, after the entry is left.
+- **Folds and kinds.** A tag category's fold is the page's rotating ▸. A
+  kind of medium has no grey box, an eye (`hiddenMediaKinds`, read by
+  `nodeHidden`) and a count of every entry holding the kind.
+- **Decline's cross** at 13 px, stroke 2.4.
+- **Citations in the in-entry field** are set as `renderNodes` sets them
+  (`.node-editor .ref-chip`: 0.56 em, raised, faint, the run's face).
+- **A copied entry is a link.** `copySelectedNode` writes `entryLink` to the
+  system clipboard and keeps it in the chart's clipboard; a paste with
+  nothing in it into `#editLinkInput` or a link node's field uses that.
+- **About this project**, with Gmail, X, Discord (copies the name) and
+  Boosty marks under the version line (simple-icons paths).
+
 ## 0.25.4 — "Each its own size" (2026-11-08)
 
 The owner's list of 8.11.

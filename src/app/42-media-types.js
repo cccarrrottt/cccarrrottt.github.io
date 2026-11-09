@@ -242,13 +242,28 @@ function buildMediaTab(){
       buildMediaTab();
     });
     top.appendChild(fold);
+    /* Its eye, as a tag's: every entry of this kind faded off the chart
+       and back, whether or not it is drawn as a card just now. */
+    {
+      const off = hiddenMediaKinds.has(kind.id);
+      const eye = makeEyeButton(off, (off ? 'Show' : 'Hide') + ' the entries of this kind');
+      eye.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        if(hiddenMediaKinds.has(kind.id)) hiddenMediaKinds.delete(kind.id); else hiddenMediaKinds.add(kind.id);
+        applyVisibility(); buildMediaTab();
+      });
+      top.appendChild(eye);
+      box.classList.toggle('off', off);
+    }
     top.appendChild(input('media-kind-name', kind.name, 'Name of the kind', v=>
       editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.name = v.trim() || t.name; })));
     const uses = mediaUses(kind.id);
     const count = document.createElement('span');
     count.className = 'media-kind-count';
     count.textContent = String(uses);
-    count.title = uses === 1 ? 'One card is of this kind' : uses + ' cards are of this kind';
+    /* Every entry that holds this kind's facts, drawn as a card or not:
+       card layout turned off keeps them for when it is turned on. */
+    count.title = uses === 1 ? 'One entry is of this kind' : uses + ' entries are of this kind';
     top.appendChild(count);
     top.appendChild(cross('Take this kind out of the chart (its cards keep their facts)', ()=>
       editMediaTypes(list=>{ const i = list.findIndex(x=> x.id === kind.id); if(i >= 0) list.splice(i, 1); })));

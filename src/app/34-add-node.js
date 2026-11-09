@@ -180,7 +180,14 @@ function clipOfNode(n){
  * "these" and the clipboard heard "that one". A group is stored as a list
  * plus the connections BETWEEN its members, so what comes back is the
  * arrangement, not a heap of unrelated boxes. */
-function copySelectedNode(){
+/* A copied entry is also a link to it, handed to the system clipboard
+   (the owner's list of 9.11): pasted into an entry's link field or a link
+   node's, it is where the copy came from, which is what anybody pasting a
+   copied entry into a field that wants an address means. Pasted onto the
+   chart it is still the entry — that goes through the chart's own
+   clipboard. Not for a cut, whose entry is gone until it is pasted, nor
+   for a group, which has no one address. */
+function copySelectedNode(forCut){
   /* An array is copied with what it holds; without them it would come
      back as a frame round nothing. */
   const ids = withArrayMembers((multiSelection.size > 1)
@@ -197,9 +204,27 @@ function copySelectedNode(){
     });
   });
   const head = items[0];
-  writeClipboard(Object.assign({}, head, {items, links}));
+  const url = !forCut && ids.length === 1 ? entryLink(ids[0]) : '';
+  writeClipboard(Object.assign({}, head, {items, links}, url ? {entryLink: url} : {}));
+  if(url){
+    try{ navigator.clipboard.writeText(url).catch(()=>{}); }catch(e){}
+  }
   return true;
 }
+/* …and where the system clipboard refused it (an insecure origin, an old
+   browser) and holds nothing, a paste into one of those fields still
+   brings the link the chart's clipboard kept. */
+document.addEventListener('paste', ev=>{
+  const f = ev.target;
+  if(!f || !f.matches || !f.matches('#editLinkInput, .link-goes-input')) return;
+  const text = ev.clipboardData ? ev.clipboardData.getData('text/plain') : '';
+  if(text) return;
+  const clip = readClipboard();
+  if(!clip || !clip.entryLink) return;
+  ev.preventDefault();
+  f.setRangeText(clip.entryLink, f.selectionStart, f.selectionEnd, 'end');
+  f.dispatchEvent(new Event('input', {bubbles: true}));
+}, true);
 
 function cutSelectedNode(){
   /* Copy takes the whole selection, so cut has to remove the whole
@@ -210,7 +235,7 @@ function cutSelectedNode(){
     ? Array.from(multiSelection).filter(id=> nodes.has(id))
     : (selectedId && nodes.has(selectedId) ? [selectedId] : []));
   if(!ids.length) return;
-  if(!copySelectedNode()) return;
+  if(!copySelectedNode(true)) return;
   if(ids.length > 1) deleteNodes(ids);
   else deleteNode(ids[0]);
 }
