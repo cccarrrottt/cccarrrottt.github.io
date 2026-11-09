@@ -956,6 +956,11 @@ function notesOwnLine(line){
 {
   const over = (ev)=>{
     if(readOnlyView) return;
+    /* Not while the chart is being carried: a fast pan reaches the browser
+       a frame ahead of the drawing, so the pointer is found over whatever
+       the drawing still has under it, and a bar came up over an entry the
+       pointer was never on (the owner's video of 9.11). */
+    if(chartUnderHand()) return;
     const band = ev.target.closest && ev.target.closest('.node-aura-hit');
     if(band){
       openStyleBar({kind:'decor', id: band.dataset.id});
@@ -1141,7 +1146,7 @@ document.addEventListener('pointermove', (ev)=>{
   const g = ev.target && ev.target.closest ? ev.target.closest('g.node') : null;
   const id = g && g.dataset.id;
   const img = id && pictureWantsPlayer(nodes.get(id)) ? pictureElementOf(id) : null;
-  if(img){
+  if(img && !chartUnderHand()){
     const r = img.getBoundingClientRect();
     if(ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom){
       if(picturePlayerFor !== id || picturePlayer.hidden) openPicturePlayer(id);

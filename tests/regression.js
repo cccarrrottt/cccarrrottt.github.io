@@ -22954,6 +22954,201 @@ async function main(){
         out.route.d && !out.route.through && out.route.gap !== null && out.route.gap > 0 && out.route.gap < 16,
         JSON.stringify(out.route));
   });
+  await scenario("the owner's list of 9.11: no bar under a racing pan, a glow only outward, a figure card's field, a reader's link node and tags, folds and kinds, a crisp cross, citations as drawn, a copied entry as a link, About this project", async () => {
+  const X = 181000, Y = 181000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    const realWrite = navigator.clipboard && navigator.clipboard.writeText;
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      applyEdit(()=>{
+        SETTINGS.mediaTypes = [{id:'o911k', name:'Film', fields:[{id:'f1', label:'Studio'}]}];
+        workingNodes.push(['o911_a','Plain',null,null,null,null,{pos:[X, Y]}]);
+        workingNodes.push(['o911_c','Card',null,null,'Body',null,{pos:[X + 300, Y], card:true, mediaType:'o911k', mediaData:{f1:'Toei'}}]);
+        workingNodes.push(['o911_off','Was a card',null,null,null,null,{pos:[X + 600, Y], mediaType:'o911k', mediaData:{f1:'Sunbow'}}]);
+        workingNodes.push(['o911_f','Fbbf',null,null,null,null,{pos:[X, Y + 300], figure:'extract', card:true}]);
+        workingNodes.push(['o911_l','',null,null,null,'link',{pos:[X + 300, Y + 300], link:'#entry=o911_a'}]);
+        workingNodes.push(['o911_r','Prime{{r:o911ref}} too',null,null,null,null,{pos:[X + 600, Y + 300]}]);
+        REFS.push({key:'o911ref', title:'', detail:'A source'});
+      });
+      rebuildChart();
+      await wait(200);
+
+      /* 1. A hover that comes while the chart is carried opens no bar. */
+      {
+        const g = document.querySelector('.node[data-id="o911_a"] rect');
+        closeStyleBar();
+        dragging = true;
+        g.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+        r.barInPan = !styleBar.hidden;
+        dragging = false;
+        svg.dispatchEvent(new WheelEvent('wheel', {deltaY: 1, clientX: 400, clientY: 300, bubbles: true, cancelable: true}));
+        g.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+        r.barAfterWheel = !styleBar.hidden;
+        await wait(260);
+        g.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+        r.barLater = !styleBar.hidden;
+        closeStyleBar();
+        vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      }
+
+      /* 2. Selected, a card and a link node glow outward only. */
+      {
+        const f = el=> el ? getComputedStyle(el).filter : null;
+        selectNode('o911_c'); paintMultiSelection(); await wait(60);
+        const g = document.querySelector('.node[data-id="o911_c"]');
+        r.cardGlow = [f(g.querySelector('.card-outline')), f(g.querySelector(':scope > rect:not(.node-hover-pad):not(.card-outline)'))];
+        selectNode('o911_l'); paintMultiSelection(); await wait(60);
+        const l = document.querySelector('.node[data-id="o911_l"]');
+        r.linkGlow = [f(l.querySelector('.link-node-arrow')), f(l.querySelector('.bio-ring'))];
+        deselect(); await wait(40);
+      }
+
+      /* 2b. A figure card's field is the band of the figure. */
+      selectNode('o911_f');
+      openNodeEditor('o911_f');
+      await wait(200);
+      {
+        const surf = richFields.get('nodeEditorText').surface;
+        const frame = decodeURIComponent(surf.style.getPropertyValue('--figure-frame') || '');
+        r.figField = [nodeEditor.classList.contains('on-figure'), /clipPath/.test(frame)];
+      }
+      closeNodeEditor(false);
+      deselect();
+      await wait(60);
+
+      /* 6. A citation in the field is drawn as the chart draws it. */
+      selectNode('o911_r');
+      openNodeEditor('o911_r');
+      await wait(200);
+      {
+        const surf = richFields.get('nodeEditorText').surface;
+        const chip = surf.querySelector('.ref-chip');
+        const cs = chip && getComputedStyle(chip);
+        r.chip = chip ? [+(parseFloat(cs.fontSize) / parseFloat(getComputedStyle(surf).fontSize)).toFixed(2),
+                         cs.backgroundColor, cs.fontFamily === getComputedStyle(surf).fontFamily, cs.opacity] : null;
+      }
+      closeNodeEditor(false);
+      deselect();
+      await wait(60);
+
+      /* 4. The tags' fold wears the page's ▸; a kind of medium counts
+            its entries, card or not, has an eye, and no grey box. */
+      buildSideTabs();
+      setSideTab(document.getElementById('mediaPanel'), true);
+      await wait(120);
+      {
+        const fold = document.querySelector('#tagsPanel .legend-group-fold');
+        r.fold = fold ? fold.textContent : null;
+        const box = document.querySelector('.media-kind[data-kind="o911k"]');
+        r.kindCount = box && box.querySelector('.media-kind-count').textContent;
+        r.kindGround = box && getComputedStyle(box).backgroundColor;
+        const eye = box && box.querySelector('.eye-mini');
+        if(eye) eye.click();
+        await wait(120);
+        const a = document.querySelector('.node[data-id="o911_c"]'), b = document.querySelector('.node[data-id="o911_off"]');
+        r.kindHidden = [nodeHidden(nodes.get('o911_c')), nodeHidden(nodes.get('o911_off')), +getComputedStyle(a).opacity, +getComputedStyle(b).opacity];
+        const eye2 = document.querySelector('.media-kind[data-kind="o911k"] .eye-mini');
+        if(eye2) eye2.click();
+        await wait(80);
+        r.kindBack = nodeHidden(nodes.get('o911_c'));
+      }
+      setSideTab(document.getElementById('mediaPanel'), false);
+
+      /* 7. A copied entry is a link to it, on the system clipboard and in
+            a link field. */
+      {
+        let wrote = null;
+        navigator.clipboard.writeText = (t)=>{ wrote = t; return Promise.resolve(); };
+        selectNode('o911_a');
+        copySelectedNode();
+        r.copied = [wrote, (readClipboard() || {}).entryLink];
+        wrote = null;
+        copySelectedNode(true);
+        r.cutCopied = [wrote, (readClipboard() || {}).entryLink || null];
+        copySelectedNode();
+        const input = document.getElementById('editLinkInput');
+        input.value = ''; input.focus();
+        input.dispatchEvent(new ClipboardEvent('paste', {clipboardData: new DataTransfer(), bubbles: true, cancelable: true}));
+        r.pasted = input.value;
+        input.value = ''; input.blur();
+        deselect();
+      }
+
+      /* 5. The Decline's cross is the tick's size. */
+      r.cross = /width="13" height="13"[^>]*><path d="M4\.6 4\.6l6\.8 6\.8M11\.4 4\.6l-6\.8 6\.8"[^>]*stroke-width="2\.4"/.test(String(renderSuggestions));
+
+      /* 8. About this project, and where its owner is. */
+      {
+        r.aboutHead = document.querySelector('#aboutOverlay h2').textContent;
+        r.contacts = [...document.querySelectorAll('#aboutContacts .about-contact')].map(a=> a.getAttribute('href') || a.dataset.copy);
+        const v = document.getElementById('aboutVersion');
+        r.contactsUnder = v.nextElementSibling && v.nextElementSibling.id === 'aboutContacts';
+      }
+
+      /* 3. A reader: no focus on a link node, no field of unfiled tags,
+            and the copy button waits for the hand. */
+      setReaderPreview(true);
+      await wait(150);
+      {
+        const g = document.querySelector('.node[data-id="o911_l"]');
+        g.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        await wait(40);
+        r.readerLink = selectedId;
+        buildSideTabs();
+        r.readerLoose = !!document.querySelector('#tagsPanel .legend-loose');
+        const p = document.querySelector('.node[data-id="o911_a"]');
+        p.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+        p.dispatchEvent(new PointerEvent('pointerover', {bubbles: true}));
+        await wait(60);
+        const btn = document.querySelector('.node[data-id="o911_a"] .node-copy-link');
+        r.copyWaits = btn ? [getComputedStyle(btn).transitionDelay, getComputedStyle(btn).pointerEvents] : null;
+      }
+      setReaderPreview(false);
+      await wait(120);
+    } finally {
+      if(realWrite) navigator.clipboard.writeText = realWrite;
+      deselect();
+      hiddenMediaKinds.clear();
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      const i = REFS.findIndex(x=> x.key === 'o911ref'); if(i >= 0) REFS.splice(i, 1);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart(); buildSideTabs();
+    }
+    return r;
+  }, [X, Y]);
+  check('a hover that comes while the chart is carried, or just after the wheel, opens no bar, and one after it does',
+        !out.barInPan && !out.barAfterWheel && out.barLater, JSON.stringify([out.barInPan, out.barAfterWheel, out.barLater]));
+  check('a selected card glows outward only: its outline over the bands carries no glow, its ground does',
+        out.cardGlow[0] === 'none' && out.cardGlow[1] && out.cardGlow[1] !== 'none', JSON.stringify(out.cardGlow));
+  check('…and a link node\'s arrow carries none inside its ring', out.linkGlow[0] === 'none' && out.linkGlow[1] !== 'none', JSON.stringify(out.linkGlow));
+  check('the field on a figure\'s card is the band of the figure', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
+  check('a citation in the field is set as the chart sets it: the run\'s face, a little over half its size, no box',
+        out.chip && Math.abs(out.chip[0] - 0.56) < 0.03 && /rgba\(0, 0, 0, 0\)|transparent/.test(out.chip[1]) && out.chip[2] && Math.abs(+out.chip[3] - 0.55) < 0.01,
+        JSON.stringify(out.chip));
+  check('a category of tags folds with the page\'s ▸', out.fold === '▸', String(out.fold));
+  check('a kind of medium counts its entries, card or not, and stands on no grey box',
+        out.kindCount === '2' && /rgba\(0, 0, 0, 0\)|transparent/.test(out.kindGround), JSON.stringify([out.kindCount, out.kindGround]));
+  check('…and its eye fades every entry of the kind, card or not, and brings them back',
+        out.kindHidden[0] && out.kindHidden[1] && out.kindHidden[2] < 0.2 && out.kindHidden[3] < 0.2 && !out.kindBack,
+        JSON.stringify([out.kindHidden, out.kindBack]));
+  check('a copied entry puts its link on the system clipboard and keeps it, a cut does not',
+        /#entry=o911_a$/.test(out.copied[0] || '') && out.copied[1] === out.copied[0] && out.cutCopied[0] === null && out.cutCopied[1] === null,
+        JSON.stringify([out.copied, out.cutCopied]));
+  check('…and pasted into a link field with nothing else to paste, it is the link', /#entry=o911_a$/.test(out.pasted), String(out.pasted));
+  check('a suggestion\'s Decline draws its cross at the tick\'s size and nearly its weight', out.cross, String(out.cross));
+  check('About is About this project, with the owner\'s four addresses under the version line',
+        out.aboutHead === 'About this project' && out.contactsUnder &&
+        JSON.stringify(out.contacts) === JSON.stringify(['mailto:wowwodptr2@gmail.com', 'https://x.com/Mk2stomperX', 'comablackwhite_79884', 'https://boosty.to/lil_cccarrrottt']),
+        JSON.stringify([out.aboutHead, out.contacts]));
+  check('a reader cannot light a link node with a click', out.readerLink !== 'o911_l', String(out.readerLink));
+  check('a reader has no field of tags waiting to be filed', !out.readerLoose, String(out.readerLoose));
+  check('a reader\'s copy-link button stays a moment after the entry is left, pressable',
+        out.copyWaits && /0\.45s/.test(out.copyWaits[0]) && out.copyWaits[1] === 'auto', JSON.stringify(out.copyWaits));
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

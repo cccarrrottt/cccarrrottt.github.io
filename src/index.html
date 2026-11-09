@@ -50,7 +50,7 @@
     <button class="icon-btn" id="commentsToggle" title="Suggestions" style="display:none;">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
     </button>
-    <button class="icon-btn" id="aboutToggle" title="About this chart">
+    <button class="icon-btn" id="aboutToggle" title="About this project">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
     </button>
     <!-- The owner looking at the chart as a reader sees it, without signing
@@ -90,7 +90,7 @@
   </div>
 
   <div class="main">
-    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="The chart — its entries are listed as text under About this chart">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="The chart — its entries are listed as text under About this project">
       <defs id="svgDefs"></defs>
       <g id="viewport"></g>
     </svg>
@@ -378,11 +378,20 @@
     <div class="about-overlay" id="aboutOverlay">
       <div class="about-card">
         <div class="detail-head" style="border-bottom:1px solid var(--line);">
-          <h2 class="head-type">About this chart</h2>
+          <h2 class="head-type">About this project</h2>
           <button class="detail-close" aria-label="Close" id="aboutClose">✕</button>
         </div>
         <div class="about-body">
           <p class="about-version" id="aboutVersion"></p>
+          <!-- Where the owner can be reached (the owner's list of 9.11): the
+               marks of the four, under the version line. Discord has no
+               address a link can open by name, so its mark copies the name. -->
+          <p class="about-contacts" id="aboutContacts">
+            <a class="about-contact c-gmail" href="mailto:wowwodptr2@gmail.com" target="_blank" rel="noopener" title="Gmail: wowwodptr2@gmail.com" aria-label="Gmail: wowwodptr2@gmail.com"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg></a>
+            <a class="about-contact c-x" href="https://x.com/Mk2stomperX" target="_blank" rel="noopener" title="X: @Mk2stomperX" aria-label="X: @Mk2stomperX"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg></a>
+            <button type="button" class="about-contact c-discord" title="Discord: @comablackwhite_79884 (press to copy)" aria-label="Discord: @comablackwhite_79884 (press to copy)" data-copy="comablackwhite_79884"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg></button>
+            <a class="about-contact c-boosty" href="https://boosty.to/lil_cccarrrottt" target="_blank" rel="noopener" title="Boosty: lil_cccarrrottt" aria-label="Boosty: lil_cccarrrottt"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M2.661 14.337 6.801 0h6.362L11.88 4.444l-.038.077-3.378 11.733h3.15c-1.321 3.289-2.35 5.867-3.086 7.733-5.816-.063-7.442-4.228-6.02-9.155M8.554 24l7.67-11.035h-3.25l2.83-7.073c4.852.508 7.137 4.33 5.791 8.952C20.16 19.81 14.344 24 8.68 24h-.127z"/></svg></a>
+          </p>
           <!-- The chart as text lives here rather than in the top bar (the
                owner's ask, 22.10): it is a way of reading the chart, which
                is what this panel is about, and the bar is for working on it. -->

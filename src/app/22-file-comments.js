@@ -998,7 +998,11 @@ function renderSuggestions(empty){
       done.onclick = ()=> resolveSuggestion(c, 'completed', done);
       const no = document.createElement('button');
       no.type = 'button'; no.className = 'suggest-decline';
-      no.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+      /* The tick's size and nearly its weight: at twelve pixels and a
+         line thinner than a pixel and a half, standing on the half pixel
+         a list of comments often puts it on, the cross came out blotched,
+         one arm fainter than the other (the owner's list of 9.11). */
+      no.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
       no.title = 'Decline: close it as not planned'; no.setAttribute('aria-label', 'Decline');
       no.onclick = ()=> resolveSuggestion(c, 'not_planned', no);
       actions.append(done, no);

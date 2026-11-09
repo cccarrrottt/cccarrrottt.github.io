@@ -538,5 +538,6 @@ function nodeHidden(n){
      every one of its tags was hidden meant switching off "fan-fiction"
      left every fan-fiction entry that also carried another tag sitting
      there, which reads as the switch not working. */
+  if(n.mediaType && hiddenMediaKinds.has(n.mediaType)) return true;
   return effectiveTags(n).some(t=> hiddenTags.has(t));
 }
