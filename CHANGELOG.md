@@ -6,6 +6,57 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.7 — "Out of the way" (2026-11-11)
+
+The owner's second list of 11.11.
+
+- **Menus moved by hand.** `makeMovable` (`37-style-bar.js`) gives the
+  style bar, the in-entry editor's bar, the entry/connector panel and the
+  free menu a grip; the hand's shift is the element's `translate`, apart
+  from the left/top their placing writes, and goes when the menu closes or
+  its key (what it stands for) changes.
+- **The picture's player.** A touch `pointerleave` no longer shuts it, a
+  tap opens it (`pointerup` where the press began), a press on its own
+  picture leaves it, it closes at once under `chartUnderHand`, and
+  `dropOrphanFloaters` re-places it after every redraw. Hover playback
+  counts the player as its picture's host; z-index over the menus; the
+  wheel over it zooms (`WHEEL_OVER_MENUS`).
+- **Card rules** take the border's width and dash (`CARD_RULE_W` is
+  gone); a double border draws two.
+- **Ruby.** `wordInReadingOnly` (`24-rich-fields.js`) keeps a double
+  click or long press inside an `rt` to the word there; `RUBY_EXTRA` is
+  what the reading's type needs over the line's; `scaleFieldSizes`
+  (`30-node-editor.js`) draws `data-size` runs at `size × vs`, smaller in
+  a reading.
+- **The editor's frame**: `--bw`, `--fr` and `--bo` from the drawn box,
+  so it covers the border at every zoom.
+- **A note's offset** is at least `EDGE_NOTE_CLEAR` plus its reach across
+  the line (`11-edge-notes.js`).
+- **The cropper** has a free rectangle (`cropFree`, `cropSel.t`) starting
+  on the whole picture; ✕/✓ in place of the words; no Whole image.
+- Phone top bar order; `+ field` is a plus; align before turn; no turn on
+  a link node; "Text".
+
+## 0.25.6 — "Set to one side" (2026-11-11)
+
+The owner's list of 11.11.
+
+- **Words to a side.** `opts.align` (`left`, `right`; absent is centred)
+  sets every line of an entry against the room its box leaves (the box
+  less `textInsetFor`, a figure's inside by `figureInnerOf`, a card on a
+  figure by its frame). `layoutLine` places the line; `measureTextBlock`
+  still measures centred, so no box changes size. A card's three bands go
+  together. On the style bar as a menu (`textAlignable`), in the in-entry
+  field (`nodeEditorAlign`), in the schema; the router ignores it.
+- **A tag renamed by its name.** Pressing a tag's words in the panel types
+  over them (`renameInPlace`, `16-tags.js`); `renameTag` renames it on the
+  entries, in its category and in `tagColors`. Refused for a special tag,
+  a reserved name or one taken. A press that ends a drag is the drag's.
+- **The media drawer** has no fields: names are text (a kind's in the
+  category heading's type, a field's in a tag row's), renamed on a double
+  click; the heading folds, ▸ before the count. A kind's own `format` is
+  no longer read or kept: `mediaLineFor` writes the facts in field order.
+
 ## 0.25.5 — "About this project" (2026-11-09)
 
 The owner's list of 9.11.

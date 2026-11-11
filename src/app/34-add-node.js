@@ -17,7 +17,7 @@ const NODE_STYLE_PICKS = [
   {value:'rect',    label:'Default',       hint:'An ordinary entry: a box with its name in it.'},
   {value:'ellipse', label:'Character',     hint:'A portrait circle, with its words on a card beside it.'},
   {value:'link',    label:'Link',          hint:'A small circle that goes to another entry on a double press — to join two entries far apart.'},
-  {value:'textbox', label:'Text field',    hint:'A loose line of text on the chart — no connections.'},
+  {value:'textbox', label:'Text',          hint:'A loose line of text on the chart — no connections.'},
   {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}
   /* Array stood here too, greyed until two entries were picked. It is not
      a new entry but a frame round picked ones, so it lives where the

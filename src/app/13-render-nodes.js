@@ -730,7 +730,12 @@ const drawOne = (n)=>{
      bands it is the pixel off the rule, which is thinner than a border —
      the words used to keep a border's distance from a rule, and so stood
      further from the rules than from the border round them. */
-  const ruleIns = TEXT_GAP + CARD_RULE_W / 2;
+  /* A rule between two bands is drawn as the card's own border is — its
+     weight, its dashes, a double one as two rails (the owner's list of
+     11.11, afternoon: the partitions were a faint hairline of their own).
+     A wavy card's rules stay straight lines of a plain border's weight. */
+  const ruleW = borderKey === 'double' ? DOUBLE_BAND_W : NODE_BORDER_W;
+  const ruleIns = TEXT_GAP + ruleW / 2;
   const hasPic = isCard && !!n.image;
   const hasMed = !!cardMediumText;
   const hasBody = isCard && drawsOnChart(n.note || '');
@@ -1398,7 +1403,7 @@ const drawOne = (n)=>{
        see-through, and a picture under its lower half showed through the
        line between the picture and the heading (the owner's list of
        30.10). */
-    const ruleCut = cardImgB < n.y + h - 0.5 ? CARD_RULE_W / 2 : 0;
+    const ruleCut = cardImgB < n.y + h - 0.5 ? ruleW / 2 : 0;
     const bandY = n.y, bandH = Math.max(0, cardImgB - bandY - ruleCut);
     /* As deep as it was made, in the middle of its band — which is the
        whole band unless the card was sized by hand round it. */
@@ -1554,9 +1559,19 @@ const drawOne = (n)=>{
         : {x:n.x-grow+ins, y:n.y-grow+ins, width:w+grow*2-ins*2, height:h+grow*2-ins*2,
            rx:rad(5+grow-ins)}, rc, 'fill:none;');
     });
-    const rule = (yy)=> el('line', {x1:n.x - bleed, y1:yy, x2:n.x + w + bleed, y2:yy,
-                                    stroke:c, class:'card-rule',
-                                    'clip-path': `url(#${clipId})`}, g);
+    const rule = (yy)=>{
+      const line = (y, cls, width)=>{
+        const a = {x1:n.x - bleed, y1:y, x2:n.x + w + bleed, y2:y, stroke:c, class:cls,
+                   style:`stroke-width:${width.toFixed(3)};`, 'clip-path': `url(#${clipId})`};
+        if(borderDash && !isWavy) a['stroke-dasharray'] = borderDash;
+        return el('line', a, g);
+      };
+      if(borderKey === 'double'){
+        line(yy - DOUBLE_LINE_OFF, 'card-rule', DOUBLE_LINE_W);
+        return line(yy + DOUBLE_LINE_OFF, 'card-rule border-inner', DOUBLE_LINE_W);
+      }
+      return line(yy, 'card-rule', NODE_BORDER_W);
+    };
     /* The picture's own corners, while it is the thing being edited: four
        grips on the box the picture is drawn in. Free by default — the
        picture takes the shape you pull it into — and proportional with
@@ -1848,6 +1863,15 @@ const drawOne = (n)=>{
     txt.setAttribute('clip-path', `url(#${clipId})`);
   }
   const fontOpts = {fontSize, family:fontFamily};
+  /* To one side, the words are set against the room they have: the box
+     less its inset, or what a figure's outline leaves inside it, or a
+     card's own frame on a figure (see layoutLine). Every band of a card
+     goes the same way, so the card reads as one block of type. */
+  if(n.align && !isRound && !isImage){
+    const inner = fig ? figureInnerOf(fig, w, h).w : cardIn ? cW : w;
+    const alignW = Math.max(0, inner - inkPad*2);
+    [fontOpts, cardMedOpts, cardBodyOpts].forEach(o=>{ o.align = n.align; o.alignW = alignW; });
+  }
   // A bio circle shows a portrait, not words: its text belongs to the card
   // that opens beside it when clicked, so nothing is drawn inside.
   if(isRound || isImage){ txt.remove(); }

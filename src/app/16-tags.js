@@ -742,6 +742,43 @@ function focusNaming(box){
     sel.removeAllRanges(); sel.addRange(r);
   }catch(e){}
 }
+/* A name typed over where it stands — a tag's, a kind of medium's, one
+   of its fields' — as a category's heading already was (see
+   startCategoryRename): the text itself takes the caret, the whole of it
+   selected, with no field drawn round it until then. Enter or leaving
+   keeps what was typed, Escape what was there. `onDone` is handed the
+   new name, or null when nothing changed, and draws the panel again
+   either way. */
+function renameInPlace(el, value, onDone, max){
+  if(!el || el.isContentEditable) return;
+  el.contentEditable = 'plaintext-only';
+  el.spellcheck = false;
+  el.classList.add('renaming');
+  el.textContent = value || '';
+  focusNaming(el);
+  let done = false;
+  const finish = keep=>{
+    if(done) return;
+    done = true;
+    const typed = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, max || 60);
+    el.contentEditable = 'false';
+    el.classList.remove('renaming');
+    el.removeEventListener('keydown', onKey);
+    el.removeEventListener('blur', onBlur);
+    onDone(keep && typed !== (value || '') ? typed : null);
+  };
+  function onKey(ev){
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  }
+  function onBlur(){ finish(true); }
+  el.addEventListener('keydown', onKey);
+  el.addEventListener('blur', onBlur);
+  /* Pressing inside the name being typed moves the caret; it does not
+     pick the row up, fold it, or open it. */
+  ['mousedown', 'click', 'dblclick'].forEach(t=> el.addEventListener(t, ev=>{ if(el.isContentEditable) ev.stopPropagation(); }));
+}
 /* Making a tag where it will live.
  *
  * A tag used to be made in a dialog — a window, a field, an OK button —
@@ -1170,7 +1207,47 @@ function buildTagRow(tag, catName){
     row.title = `${displayName} — drag onto a category to file this tag there`;
     row.addEventListener('mousedown', ev=> beginListDrag(ev, 'tag', tag, displayName));
   }
+  /* A tag anybody wrote is renamed by pressing its name (the owner's list
+     of 11.11): the words take the caret where they stand, and every entry
+     carrying the tag, its category and its colour follow. Not a tag that
+     acts — its name is what makes it act — nor the Untagged bucket. A
+     press that ended a drag is the drag's. */
+  const words = row.querySelector('.tag-text');
+  if(colorable && !readOnlyView && words){
+    words.classList.add('tag-renamable');
+    words.title = `${displayName} — press to rename`;
+    words.addEventListener('click', ev=>{
+      if(words.isContentEditable || Date.now() - listDragEndedAt < 300) return;
+      ev.stopPropagation();
+      renameInPlace(words, tag, v=>{ if(v) renameTag(tag, v); else buildSideTabs(); }, 60);
+    });
+  }
   return row;
+}
+/* A tag renamed: on every entry that carries it, in its category, with its
+   colour. Refused, with the reason in the status, when the new name is
+   taken, reserved, or the name of a tag that acts — renaming into one
+   would make every entry carrying it start doing something. */
+function renameTag(oldTag, raw){
+  const tag = (raw || '').trim();
+  if(!tag || tag === oldTag || readOnlyView){ buildSideTabs(); return; }
+  if(tag === UNTAGGED || tag === UNGROUPED || tagIsSpecial(tag)){
+    setLegendStatus('err', 'That name is reserved.'); buildSideTabs(); return;
+  }
+  if(tagExists(tag)){ setLegendStatus('err', `“${tag}” already exists.`); buildSideTabs(); return; }
+  if(hiddenTags.has(oldTag)){ hiddenTags.delete(oldTag); hiddenTags.add(tag); }
+  applyEdit(()=>{
+    TAG_CATS.forEach(c=>{ const i = c.tags.indexOf(oldTag); if(i >= 0) c.tags[i] = tag; });
+    const colour = tagColorOf(oldTag);
+    if(colour){ setTagColorIn(oldTag, null); setTagColorIn(tag, colour); }
+    workingNodes.forEach(t=>{
+      const opts = t[6];
+      if(!opts || !Array.isArray(opts.tags)) return;
+      const i = opts.tags.indexOf(oldTag);
+      if(i >= 0) opts.tags[i] = tag;
+    });
+  });
+  buildSideTabs();
 }
 
 /* ---- dragging a row out of one list and into another ----------------
@@ -1191,6 +1268,9 @@ function buildTagRow(tag, catName){
  * page is worth more than the API's free drag image.
  */
 let listDrag = null;
+/* When the last drag that moved ended: the click that follows its mouseup
+   belongs to the drag, not to whatever the pointer was let go over. */
+let listDragEndedAt = 0;
 const LIST_DRAG_THRESHOLD = 4;
 
 function beginListDrag(ev, kind, key, label){
@@ -1256,6 +1336,7 @@ window.addEventListener('mouseup', ()=>{
   if(st.ghost) st.ghost.remove();
   document.body.classList.remove('list-dragging');
   clearListDragMarks();
+  if(st.moved) listDragEndedAt = Date.now();
   if(!st.moved || !st.target) return;
   if(st.kind === 'tag'){
     const cat = st.target.dataset.cat;

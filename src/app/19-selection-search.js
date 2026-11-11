@@ -1012,6 +1012,10 @@ function dropOrphanFloaters(){
   if(styleBarTarget) syncStyleBar();
   if(currentEdgeStyleTarget && edgeGone(currentEdgeStyleTarget)) closeEdgePopover();
   if(freeMenuId && !nodes.has(freeMenuId)) closeFreeMenu();
+  /* The picture's player stands over a picture the redraw may just have
+     moved, replaced or taken away: a dragged entry left it behind where
+     the picture had been until the pointer next moved. */
+  if(picturePlayerFor) placePicturePlayer();
   const t = nodeEditorTarget;
   if(t && (t.kind === 'note' ? edgeGone(t) : !nodes.has(t.id))) closeNodeEditor(false);
 }

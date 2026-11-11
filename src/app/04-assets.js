@@ -517,7 +517,12 @@ function playHostPictures(host, on){
 }
 document.addEventListener('pointerover', (ev)=>{
   const t = ev.target;
-  const host = (t && t.closest) ? t.closest('g.node, g.edge-note, g.bio-card-g') : null;
+  let host = (t && t.closest) ? t.closest('g.node, g.edge-note, g.bio-card-g') : null;
+  /* The picture's player (37-style-bar.js) stands over the picture but is
+     not inside it, and a picture that played on hover froze the moment
+     the pointer reached for the buttons that choose how it plays. */
+  if(!host && t && t.closest && t.closest('#picturePlayer') && picturePlayerFor)
+    host = qNode(`.node[data-id="${CSS.escape(picturePlayerFor)}"]`);
   if(host === animHoverHost) return;
   playHostPictures(animHoverHost, false);
   animHoverHost = host;

@@ -11,9 +11,25 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.5';
+const APP_VERSION = '0.25.7';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.7', date:'2026-11-11', title:'Out of the way', notes:[
+'A menu that covers what is needed can be moved by hand: the style bar and the in-entry editor\'s bar by the dots at their start, an entry\'s or a connector\'s panel by its head, with a mouse or a finger. It keeps the place for as long as it stands for the same thing.',
+'The player on a moving picture keeps working: on a phone a tap brings it and its buttons take taps (a finger lifting shut it, and the picture\'s own menu lay over it); it goes while the chart or the entry is carried and follows the picture when it is redrawn; a picture that plays on hover keeps playing while the pointer is on the buttons; the wheel over it zooms.',
+'The rules between a card\'s bands are drawn as its border: as wide, as dashed, doubled when the border is.',
+'A double click on a word of a reading picks that word alone, not everything from the word it reads to the end. The reading stands over its line as far as its own type needs, not a fixed nine pixels more. A size chosen in the in-entry editor shows there as it will be drawn, at any zoom and inside a reading.',
+'The in-entry editor\'s frame lies on the entry\'s border at any zoom, as thick as it, with the entry\'s corners, square when the entry is.',
+'A note beside a connector stands clear of the line by its own width, so one on a short upright leg no longer touches it.',
+'The cropper for a card\'s picture starts on the whole picture and frees both sides; "Whole image" is gone, and Cancel and Use this part are a cross and a tick.',
+'On a phone the second row of the top bar starts at the left and Save keeps the bottom right corner, before the account.',
+'A kind of medium adds a field by a plus; the side the words go to stands just before the turn on the style bar; a link node has no turn; Text field is called Text.'
+  ]},
+  {v:'0.25.6', date:'2026-11-11', title:'Set to one side', notes:[
+'An entry\'s words can be set to the left, centred or to the right, from a menu on its bar: an entry, a card with all its bands, a caption, a callout and a figure. The box keeps its size; centred is the default, and the field the words are typed in sets them the same way.',
+'A tag anybody wrote is renamed by pressing its name in the tags panel, and its entries, its category and its colour follow it. A tag that acts, and a name already taken, are not.',
+'In the media drawer a kind\'s name and its fields\' names are text in the type of the panels beside them, renamed by a double click where they stand; the heading folds the kind, with its ▸ before the count as a category\'s. "Written as" is gone: a card\'s line is its kind\'s facts in the order the fields stand, top to bottom.'
+  ]},
   {v:'0.25.5', date:'2026-11-09', title:'About this project', notes:[
 'A fast pan no longer brings up an entry\'s bar, a portrait\'s card or a picture\'s player over things the pointer was never on: the browser finds the pointer a frame ahead of the drawing, so for a moment after the chart is carried by a pan or the wheel, nothing opens on hover.',
 'A selected card and a selected link node glow outward only. The card\'s outline over its bands, a figure\'s own lines and a link node\'s arrow put the glow inside the shape too.',

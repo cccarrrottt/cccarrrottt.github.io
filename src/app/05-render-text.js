@@ -21,10 +21,14 @@ function el(tag, attrs, parent){
    the box was mostly the gap between its own lines. 12.8 is a little over
    1.1, which is as close as lines of this size go before the descenders of
    one row start meeting the ascenders of the next.
-   RUBY_EXTRA is what a line carrying a reading adds on top, and it is
-   untouched: the annotation needs its own storey whatever the leading is,
-   and closing the lines up must not take it away. */
-const NODE_FS = 11.5, RUBY_FS = 7.5, LINE_H = 12.8, RUBY_GAP = 8, RUBY_EXTRA = 9;
+   RUBY_EXTRA is what a line carrying a reading adds on top: no more than
+   the annotation stands above the tallest a letter of the line does, so
+   the reading keeps the same leading from the line above that any letter
+   keeps (the owner's list of 11.11). It was 9, a storey of its own —
+   nearly twice what the annotation needs at RUBY_GAP over the baseline.
+   0.72 is the face's cap height against its size, for both. */
+const NODE_FS = 11.5, RUBY_FS = 7.5, LINE_H = 12.8, RUBY_GAP = 8;
+const RUBY_EXTRA = Math.max(0, RUBY_GAP + RUBY_FS * 0.72 - NODE_FS * 0.72);
 /* The annotation over a ruby unit is set against the size of the run the
    unit sits in, not against the entry's own size — a phrase set bigger
    takes its readings up with it. */
@@ -302,6 +306,12 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
   const gaps = words.map((w,i)=> (i===0 || w.glue) ? 0 : SPACE_W);
   const lineWidth = widths.reduce((a,b)=>a+b,0) + gaps.reduce((a,b)=>a+b,0);
   let cursorX = centerX - lineWidth/2;
+  /* Set to one side, a line starts at the left of the room the words
+     have, or ends at its right; the room is the box's, less its inset,
+     so the words stand as far in from that side of the border as they
+     do from the top. */
+  const align = fontOpts && fontOpts.align, room = fontOpts && fontOpts.alignW;
+  if(align && room > 0) cursorX = align === 'left' ? centerX - room/2 : centerX + room/2 - lineWidth;
   words.forEach((w,i)=>{
     /* A space set with a rule under it or through it: a blank of its own
        width, carrying the rule, so the line runs on across the gap. */
@@ -585,7 +595,12 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
   measureBlockText.setAttribute('font-weight', '500');
   measureBlockText.style.fontFamily = fam;
   measureBlockText.style.textAnchor = 'start';
-  renderNodeText(measureBlockText, text, 0, 0, maxChars, lineH, fontScale, fontOpts, fit);
+  /* Measured centred whatever side it is set to: the ink this hands back
+     is how much room the words take, and where their middle is on the
+     centred lines — the box is sized from the one, and the side is
+     found from the room (layoutLine), not from where the ink was. */
+  const plainOpts = fontOpts && fontOpts.align ? {fontSize: fontOpts.fontSize, family: fontOpts.family} : fontOpts;
+  renderNodeText(measureBlockText, text, 0, 0, maxChars, lineH, fontScale, plainOpts, fit);
   let bb = inkBoxOf(measureBlockText,
                     Array.from(measureBlockG.childNodes).filter(c=> c !== measureBlockText));
   if(!bb){

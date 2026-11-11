@@ -61,6 +61,8 @@ function fractionNearest(pts, px, py){
   return best;
 }
 const EDGE_NOTE_OFFSET = 11;
+/* How far a plate's nearest edge stands off its line, at the least. */
+const EDGE_NOTE_CLEAR = 4;
 // Kept in step with .edge-note-text in the stylesheet.
 /* Set in the same face the entries are set in. A connector's note is a
    piece of the same chart, and giving it a monospace of its own made it
@@ -933,7 +935,22 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
      two settings were meant to mirror each other and visibly did not.
      Measuring the drawn box and shifting the whole note by the difference
      makes them mirror images, and puts "on" squarely on the line. */
-  const dx = x - (px2 + pw/2), dy = y - (py2 + ph/2);
+  /* …and far enough off the line that the plate's near edge clears it.
+     The middle stood EDGE_NOTE_OFFSET off whatever the plate's size, which
+     is right for a word over a level line and wrong beside an upright
+     one: there the plate's half WIDTH faces the line, and a word wider
+     than twice the offset lay against its own connector or across it (the
+     owner's list of 11.11, on a short leg). The plate's reach towards the
+     line is its half extent along the perpendicular. */
+  let cxT = x, cyT = y;
+  if(pos !== 'on'){
+    const plen = Math.hypot(px, py) || 1, ux = px / plen, uy = py / plen;
+    const reach = Math.abs(ux) * pw / 2 + Math.abs(uy) * ph / 2;
+    const want = Math.max(EDGE_NOTE_OFFSET, EDGE_NOTE_CLEAR + reach);
+    const sgn = pos === 'below' ? -1 : 1;
+    cxT = m.x + ux * want * sgn; cyT = m.y + uy * want * sgn;
+  }
+  const dx = cxT - (px2 + pw/2), dy = cyT - (py2 + ph/2);
   if(Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01){
     g.setAttribute('transform', `translate(${dx.toFixed(2)},${dy.toFixed(2)})`);
   }

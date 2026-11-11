@@ -295,7 +295,7 @@
               <option value="split">Split (a dot connectors go on from)</option>
                   <optgroup label="Free-standing elements — no connections">
                 <option value="image">Image</option>
-                <option value="textbox">Text field</option>
+                <option value="textbox">Text</option>
               </optgroup>
             </select>
           </div>
@@ -478,10 +478,9 @@
       </div>
     </div>
 
-    <!-- Choosing which part of a picture to use. Both places that take an
-         image want a square — a portrait is a circle, a sticker is drawn
-         into a square cell — so the crop box is square and there is no
-         aspect-ratio control to get wrong. -->
+    <!-- Choosing which part of a picture to use. A portrait and a sticker
+         want a square (a circle, a square cell); a card's picture and a
+         picture element take any rectangle, and start on the whole image. -->
     <div class="crop-overlay" id="cropOverlay">
       <div class="crop-box">
         <div class="crop-head">
@@ -499,10 +498,12 @@
         </div>
         <p class="crop-hint" id="cropHint">Drag inside the square to move it, or a corner to resize.</p>
         <div class="crop-actions">
-          <button class="editor-btn" id="cropWhole">Whole image</button>
+          <!-- A cross and a tick, as everywhere else on the page that keeps
+               or drops a choice (the owner's list of 11.11). "Whole image"
+               went: a picture's cropper starts on the whole of it. -->
           <span class="crop-spacer"></span>
-          <button class="editor-btn" id="cropCancel">Cancel</button>
-          <button class="editor-btn primary" id="cropUse">Use this part</button>
+          <button type="button" class="suggest-decline" id="cropCancel" title="Cancel" aria-label="Cancel"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M4.6 4.6l6.8 6.8M11.4 4.6l-6.8 6.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+          <button type="button" class="suggest-done" id="cropUse" title="Use this part" aria-label="Use this part"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3.4 8.4l3 3 6.2-6.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
       </div>
     </div>
