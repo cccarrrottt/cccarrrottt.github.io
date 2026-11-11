@@ -11,9 +11,14 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.5';
+const APP_VERSION = '0.25.6';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.6', date:'2026-11-11', title:'Set to one side', notes:[
+'An entry\'s words can be set to the left, centred or to the right, from a menu on its bar: an entry, a card with all its bands, a caption, a callout and a figure. The box keeps its size; centred is the default, and the field the words are typed in sets them the same way.',
+'A tag anybody wrote is renamed by pressing its name in the tags panel, and its entries, its category and its colour follow it. A tag that acts, and a name already taken, are not.',
+'In the media drawer a kind\'s name and its fields\' names are text in the type of the panels beside them, renamed by a double click where they stand; the heading folds the kind, with its ▸ before the count as a category\'s. "Written as" is gone: a card\'s line is its kind\'s facts in the order the fields stand, top to bottom.'
+  ]},
   {v:'0.25.5', date:'2026-11-09', title:'About this project', notes:[
 'A fast pan no longer brings up an entry\'s bar, a portrait\'s card or a picture\'s player over things the pointer was never on: the browser finds the pointer a frame ahead of the drawing, so for a moment after the chart is carried by a pan or the wheel, nothing opens on hover.',
 'A selected card and a selected link node glow outward only. The card\'s outline over its bands, a figure\'s own lines and a link node\'s arrow put the glow inside the shape too.',

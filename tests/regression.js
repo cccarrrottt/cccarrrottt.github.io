@@ -22279,8 +22279,7 @@ async function main(){
       /* 6. Kinds of medium: a kind's line, an empty fact taking its comma
             with it, written in italics on the card and kept in the file. */
       applyEdit(()=>{
-        SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Director'}, {id:'f3', label:'Year'}],
-                                format:'%Studio%, %Director%, %Year%'}];
+        SETTINGS.mediaTypes = [{id:'film', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Director'}, {id:'f3', label:'Year'}]}];
         workingNodes.push(['o2b_film','A film',null,null,null,null,
                            {pos:[X + 900, Y + 160], card:true, mediaType:'film', mediaData:{f1:'Toei', f3:'1986'}}]);
       });
@@ -22310,8 +22309,8 @@ async function main(){
       deselect();
       setSideTab(document.getElementById('mediaPanel'), true);
       await wait(60);
-      r.drawer = [...document.querySelectorAll('#mediaList .media-kind-name')].map(i=> i.value).join() + ':' +
-                 [...document.querySelectorAll('#mediaList .media-field-label')].map(i=> i.value).join();
+      r.drawer = [...document.querySelectorAll('#mediaList .media-kind-name')].map(i=> i.textContent).join() + ':' +
+                 [...document.querySelectorAll('#mediaList .media-field-label')].map(i=> i.textContent).join();
 
       /* 5. The owner looks as a reader does, and comes back to the same
             unsaved chart; the media drawer is the author's, as the legend is. */
@@ -22432,20 +22431,25 @@ async function main(){
       document.querySelector('#mediaPanel button[title="Add a kind of medium"]').click();
       await wait(30);
       { const ks = kinds(); r.newOpen = ks.length === 3 && !ks[2].classList.contains('shut'); }
-      /* Code 1: a field renamed renames itself in the kind's line. */
+      /* A field renamed by a double click on its name, where it stands
+         (the owner's list of 11.11: a name, not a field). A kind's own
+         line is gone: the fields are the line, in their order. */
       applyEdit(()=>{ SETTINGS.mediaTypes[0].format = '%Studio% (%Year%)'; });
       buildMediaTab();
       {
         const label = document.querySelector('#mediaList .media-kind[data-kind="film"] .media-field-label');
-        label.value = 'Company'; label.dispatchEvent(new Event('change'));
+        label.dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+        const lab = document.querySelector('#mediaList .media-kind[data-kind="film"] .media-field-label');
+        lab.textContent = 'Company';
+        lab.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
         await wait(30);
-        r.renamed = mediaTypeById('film').format;
+        const k = mediaTypeById('film');
+        r.renamed = k.fields[0].label + '|' + ('format' in k) + '|' + !('format' in SETTINGS.mediaTypes[0]);
       }
       setSideTab(document.getElementById('mediaPanel'), false);
       {
         const k = {fields:[{id:'f1', label:'Year'}, {id:'f2', label:'Country'}, {id:'f3', label:'Studio'}], format:'%Studio%, %Year% (%Country%)'};
-        r.brackets = [mediaLineFor(k, {f1:'1986', f3:'Toei'}), mediaLineFor(k, {f2:'JP'}),
-                      mediaLineFor(Object.assign({}, k, {format:'(%Country%) %Year%'}), {f2:'JP'})];
+        r.brackets = [mediaLineFor(k, {f1:'1986', f3:'Toei'}), mediaLineFor(k, {f2:'JP'}), mediaLineFor(k, {f1:'1986', f2:'JP', f3:'Toei'})];
       }
       {
         const g = document.querySelector('.node[data-id="oe_card"]');
@@ -22588,9 +22592,9 @@ async function main(){
         out.keptUl && out.keptCo, JSON.stringify([out.keptUl, out.keptCo]));
   check('…and a kept callout still takes its connector\'s new colour',
         out.coInk.length > 0 && out.coInk.includes('#2266cc') && !out.coInk.includes('#22b836'), JSON.stringify(out.coInk));
-  check('a field renamed in the drawer is renamed in its kind\'s line', out.renamed === '%Company% (%Year%)', String(out.renamed));
-  check('a missing fact takes no bracket of its neighbour\'s with it',
-        JSON.stringify(out.brackets) === '["Toei, 1986","(JP)","(JP)"]', JSON.stringify(out.brackets));
+  check('a field renamed in the drawer by a double click on its name, and a kind\'s own line dropped', out.renamed === 'Company|false|true', String(out.renamed));
+  check('a kind\'s line is its facts in the order its fields stand, a missing one with its comma',
+        JSON.stringify(out.brackets) === '["1986, Toei","JP","1986, JP, Toei"]', JSON.stringify(out.brackets));
   check('a card\'s medium line is written two thirds the size of its heading', Math.abs(out.medScale - 0.667) < 0.01, String(out.medScale));
   check('the picture player goes on a press elsewhere, when the window loses the focus, and on the wheel',
         out.pressGone && out.blurGone && out.wheelGone, JSON.stringify([out.pressGone, out.blurGone, out.wheelGone]));
@@ -23148,6 +23152,191 @@ async function main(){
   check('a reader has no field of tags waiting to be filed', !out.readerLoose, String(out.readerLoose));
   check('a reader\'s copy-link button stays a moment after the entry is left, pressable',
         out.copyWaits && /0\.45s/.test(out.copyWaits[0]) && out.copyWaits[1] === 'auto', JSON.stringify(out.copyWaits));
+  });
+  await scenario("the owner's list of 11.11: a kind of medium's names as text, its fold before its count, no line of its own; a tag renamed by its name; words set left, centred or right", async () => {
+  const X = 183000, Y = 183000;
+  const out = await page.evaluate(async ([X, Y])=>{
+    const keep = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+                  settings: JSON.parse(JSON.stringify(SETTINGS)), cats: JSON.parse(JSON.stringify(TAG_CATS))};
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    try{
+      vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+      const long = 'Short\nA much longer second line\nMid line';
+      applyEdit(()=>{
+        SETTINGS.mediaTypes = [{id:'o1111k', name:'Film', fields:[{id:'f1', label:'Studio'}, {id:'f2', label:'Year'}], format:'%Year% %Studio%'}];
+        TAG_CATS.push({name:'O1111 cat', tags:['o1111-tag']});
+        SETTINGS.tagColors = Object.assign({}, SETTINGS.tagColors || {}, {'o1111-tag': '#aa3300'});
+        workingNodes.push(['o1111_a', long, null, null, null, null, {pos:[X, Y], tags:['o1111-tag', 'o1111-other']}]);
+        workingNodes.push(['o1111_c', long, null, null, 'A body of words that wraps over two lines at least', null,
+                           {pos:[X + 400, Y], card:true, mediaType:'o1111k', mediaData:{f1:'Toei', f2:'1986'}}]);
+      });
+      rebuildChart();
+      await wait(200);
+
+      /* 1. The media drawer. */
+      setSideTab(document.getElementById('mediaPanel'), true);
+      await wait(60);
+      mediaKindsOpen().add('o1111k');
+      buildMediaTab();
+      {
+        const box = document.querySelector('#mediaList .media-kind[data-kind="o1111k"]');
+        const top = box.querySelector('.media-kind-top');
+        r.order = [...top.children].map(c=> c.classList.contains('eye-mini') ? 'eye'
+          : c.classList.contains('media-kind-name') ? 'name' : c.classList.contains('media-fold') ? 'fold'
+          : c.classList.contains('media-kind-count') ? 'count' : c.classList.contains('media-x') ? 'x' : (c.className || c.tagName));
+        r.inputs = document.querySelectorAll('#mediaList input').length;
+        r.writtenAs = /Written as/i.test(document.getElementById('mediaList').textContent) || !!document.querySelector('.media-format');
+        const name = box.querySelector('.media-kind-name'), label = box.querySelector('.media-field-label');
+        r.nameTag = name.tagName + ':' + label.tagName;
+        const head = document.querySelector('#tagsList .legend-group[data-cat] .legend-group-head .legend-group-name'), row = document.querySelector('#tagsList .legend-item');
+        const cs = e=> getComputedStyle(e);
+        r.nameFont = [cs(name).fontFamily === cs(head).fontFamily, cs(name).fontSize === cs(head).fontSize,
+                      cs(name).borderTopStyle === 'none' || cs(name).borderTopWidth === '0px'];
+        r.labelFont = [cs(label).fontFamily === cs(row).fontFamily, cs(label).fontSize === cs(row).fontSize];
+        name.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        name.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        name.dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+        const live = document.querySelector('#mediaList .media-kind[data-kind="o1111k"] .media-kind-name');
+        r.renaming = live.isContentEditable;
+        live.textContent = 'Picture';
+        live.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        await wait(DOUBLE_CLICK_GRACE + 60);
+        const b2 = document.querySelector('#mediaList .media-kind[data-kind="o1111k"]');
+        r.renamedKind = mediaTypeById('o1111k').name + '|' + !b2.classList.contains('shut');
+        b2.querySelector('.media-kind-name').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        await wait(DOUBLE_CLICK_GRACE + 60);
+        r.headFolds = document.querySelector('#mediaList .media-kind[data-kind="o1111k"]').classList.contains('shut');
+        r.line = document.querySelector('.node[data-id="o1111_c"] text.card-medium').textContent.replace(/\s+/g, ' ').trim();
+        r.formatGone = !('format' in SETTINGS.mediaTypes[0]);
+      }
+      setSideTab(document.getElementById('mediaPanel'), false);
+
+      /* 2. A tag renamed by pressing its name. */
+      setSideTab(document.getElementById('tagsPanel'), true);
+      collapsedCats.delete('O1111 cat');
+      buildSideTabs();
+      await wait(60);
+      {
+        const row = document.querySelector('#tagsList .legend-item[data-tag="o1111-tag"]');
+        const words = row.querySelector('.tag-text');
+        words.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        r.tagRenaming = words.isContentEditable;
+        words.textContent = 'o1111-renamed';
+        words.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        await wait(60);
+        const e = workingNodes.find(x=> x[0] === 'o1111_a');
+        r.tagRenamed = [e[6].tags.join(), (TAG_CATS.find(c=> c.name === 'O1111 cat') || {tags: []}).tags.join(),
+                        (SETTINGS.tagColors || {})['o1111-renamed'] || null, 'o1111-tag' in (SETTINGS.tagColors || {}),
+                        !!document.querySelector('#tagsList .legend-item[data-tag="o1111-renamed"]')];
+        /* Taken already: refused, and nothing changes. */
+        const w2 = document.querySelector('#tagsList .legend-item[data-tag="o1111-renamed"] .tag-text');
+        w2.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+        w2.textContent = 'o1111-other';
+        w2.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        await wait(60);
+        r.tagTaken = workingNodes.find(x=> x[0] === 'o1111_a')[6].tags.join();
+        const special = Object.keys(SPECIAL_TAGS)[0];
+        const srow = document.querySelector(`#tagsList .legend-item[data-tag="${CSS.escape(special)}"] .tag-text`);
+        r.specialFixed = !srow || !srow.classList.contains('tag-renamable');
+      }
+      setSideTab(document.getElementById('tagsPanel'), false);
+
+      /* 3. Words to a side. */
+      const lines = (id, cls)=>{
+        const t = document.querySelector(`.node[data-id="${id}"] text.${cls || 'node-label-text'}`);
+        const by = new Map();
+        [...t.querySelectorAll('tspan')].forEach(sp=>{
+          if(!sp.textContent.trim()) return;
+          const y = sp.getAttribute('y'), x = +sp.getAttribute('x'), x2 = x + sp.getComputedTextLength();
+          const o = by.get(y) || {l: Infinity, r: -Infinity};
+          o.l = Math.min(o.l, x); o.r = Math.max(o.r, x2); by.set(y, o);
+        });
+        return [...by.values()];
+      };
+      const box = id=> { const n = nodes.get(id); return {x: n.x, w: n.w, h: n.h}; };
+      const spread = (a, k)=> Math.max(...a.map(o=> o[k])) - Math.min(...a.map(o=> o[k]));
+      const before = box('o1111_a');
+      const mid = lines('o1111_a');
+      openStyleBar({kind: 'node', id: 'o1111_a'});
+      await wait(30);
+      r.barRow = !!styleBar.querySelector('.style-bar-group[data-group="align"]') &&
+                 !styleBar.querySelector('.style-bar-group[data-group="align"]').hidden &&
+                 styleBar.querySelectorAll('.style-bar-group[data-group="align"] button[data-value]').length;
+      styleBar.querySelector('.style-bar-group[data-group="align"] button[data-value="left"]').click();
+      await wait(60);
+      const left = lines('o1111_a'), atLeft = box('o1111_a');
+      r.leftSaved = workingNodes.find(x=> x[0] === 'o1111_a')[6].align;
+      styleBar.querySelector('.style-bar-group[data-group="align"] button[data-value="right"]').click();
+      await wait(60);
+      const right = lines('o1111_a'), atRight = box('o1111_a');
+      r.lit = (styleBar.querySelector('.style-bar-group[data-group="align"] button.on') || {}).dataset;
+      r.lit = r.lit ? r.lit.value : null;
+      styleBar.querySelector('.style-bar-group[data-group="align"] button[data-value="center"]').click();
+      await wait(60);
+      r.centreGone = !('align' in workingNodes.find(x=> x[0] === 'o1111_a')[6]);
+      const again = lines('o1111_a');
+      const ins = textInsetFor(nodes.get('o1111_a'));
+      r.align = {
+        lines: mid.length,
+        leftFlush: spread(left, 'l') < 0.6 && spread(left, 'r') > 5,
+        leftEdge: +(left[0].l - (atLeft.x + ins)).toFixed(2),
+        rightFlush: spread(right, 'r') < 0.6 && spread(right, 'l') > 5,
+        rightEdge: +((atRight.x + atRight.w - ins) - right[0].r).toFixed(2),
+        sameBox: [atLeft, atRight].every(b=> b.w === before.w && b.h === before.h),
+        centreBack: JSON.stringify(again) === JSON.stringify(mid)
+      };
+      closeStyleBar();
+      /* A card's bands go the same way as its heading. */
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o1111_c'); e[6].align = 'left'; });
+      await wait(60);
+      {
+        const n = nodes.get('o1111_c'), inn = textInsetFor(n);
+        const lefts = ['node-label-text', 'card-medium', 'card-body'].map(c=> Math.min(...lines('o1111_c', c).map(o=> o.l)));
+        r.cardLeft = lefts.map(l=> +(l - (n.x + inn)).toFixed(1));
+      }
+      /* The field typed in sets its words the same way. */
+      applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'o1111_a'); e[6].align = 'right'; });
+      await wait(60);
+      openNodeEditor('o1111_a');
+      await wait(120);
+      const surf = document.querySelector('#nodeEditor .rich-surface');
+      r.fieldAlign = surf ? surf.style.textAlign : null;
+      closeNodeEditor(false);
+      await wait(60);
+      r.inFile = /"align":"right"/.test(chartFileText());
+    } finally {
+      setSideTab(document.getElementById('mediaPanel'), false);
+      setSideTab(document.getElementById('tagsPanel'), false);
+      workingNodes = keep.nodes; refill(EDGE_STYLES, keep.styles);
+      TAG_CATS.splice(0, TAG_CATS.length, ...keep.cats);
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart(); buildSideTabs();
+    }
+    return r;
+  }, [X, Y]);
+  check('a kind of medium\'s heading reads eye, name, ▸, count, ✕ — the fold before the count, as a category\'s',
+        JSON.stringify(out.order) === '["eye","name","fold","count","x"]', JSON.stringify(out.order));
+  check('the media drawer holds no fields: its names are text, in the type of a category\'s heading and a tag row, and no "Written as"',
+        out.inputs === 0 && !out.writtenAs && out.nameTag === 'SPAN:SPAN' && out.nameFont.every(Boolean) && out.labelFont.every(Boolean),
+        JSON.stringify([out.inputs, out.writtenAs, out.nameTag, out.nameFont, out.labelFont]));
+  check('…a double click types over a kind\'s name where it stands and does not fold it; a single click on the heading folds',
+        out.renaming && out.renamedKind === 'Picture|true' && out.headFolds, JSON.stringify([out.renaming, out.renamedKind, out.headFolds]));
+  check('a kind\'s line is its fields top to bottom, whatever line it once had of its own, and that line is dropped on the next edit',
+        /^Toei,\s*1986$/.test(out.line) && out.formatGone, JSON.stringify([out.line, out.formatGone]));
+  check('a tag is renamed by pressing its name: on its entries, in its category, with its colour',
+        out.tagRenaming && JSON.stringify(out.tagRenamed) === JSON.stringify(['o1111-renamed,o1111-other', 'o1111-renamed', '#aa3300', false, true]),
+        JSON.stringify([out.tagRenaming, out.tagRenamed]));
+  check('…not into a name already taken, and not a tag that acts', out.tagTaken === 'o1111-renamed,o1111-other' && out.specialFixed,
+        JSON.stringify([out.tagTaken, out.specialFixed]));
+  check('the style bar sets an entry\'s words left, centred or right, and lights the one chosen', out.barRow === 3 && out.lit === 'right' && out.leftSaved === 'left' && out.centreGone,
+        JSON.stringify([out.barRow, out.lit, out.leftSaved, out.centreGone]));
+  check('…to the left every line starts at the inset, to the right every line ends there, and the box keeps its size',
+        out.align.lines >= 2 && out.align.leftFlush && out.align.rightFlush && Math.abs(out.align.leftEdge) < 1.5 &&
+        Math.abs(out.align.rightEdge) < 1.5 && out.align.sameBox && out.align.centreBack, JSON.stringify(out.align));
+  check('…a card\'s heading, medium line and body go to the side together', out.cardLeft.every(d=> Math.abs(d) < 1.5), JSON.stringify(out.cardLeft));
+  check('…the field the words are typed in sets them the same way, and the file keeps the side', out.fieldAlign === 'right' && out.inFile,
+        JSON.stringify([out.fieldAlign, out.inFile]));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

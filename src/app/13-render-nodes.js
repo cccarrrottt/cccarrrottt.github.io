@@ -1848,6 +1848,15 @@ const drawOne = (n)=>{
     txt.setAttribute('clip-path', `url(#${clipId})`);
   }
   const fontOpts = {fontSize, family:fontFamily};
+  /* To one side, the words are set against the room they have: the box
+     less its inset, or what a figure's outline leaves inside it, or a
+     card's own frame on a figure (see layoutLine). Every band of a card
+     goes the same way, so the card reads as one block of type. */
+  if(n.align && !isRound && !isImage){
+    const inner = fig ? figureInnerOf(fig, w, h).w : cardIn ? cW : w;
+    const alignW = Math.max(0, inner - inkPad*2);
+    [fontOpts, cardMedOpts, cardBodyOpts].forEach(o=>{ o.align = n.align; o.alignW = alignW; });
+  }
   // A bio circle shows a portrait, not words: its text belongs to the card
   // that opens beside it when clicked, so nothing is drawn inside.
   if(isRound || isImage){ txt.remove(); }

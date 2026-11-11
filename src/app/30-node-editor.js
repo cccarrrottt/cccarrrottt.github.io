@@ -596,9 +596,13 @@ function finishNodeEditorLook(rec){
   rec.surface.style.borderRadius = (5*vs).toFixed(2) + 'px';
 }
 /* How the words are set in the field: the way the thing being edited sets
-   them. Everything the field opens on — an entry's label, a caption, a
-   connector's note, a callout — is centred on the drawing. */
-function nodeEditorAlign(){ return 'center'; }
+   them. A connector's note is centred on the drawing; an entry's label,
+   a caption or a callout stands the way it was set (opts.align). */
+function nodeEditorAlign(){
+  const t = nodeEditorTarget;
+  const n = t && t.kind === 'entry' ? nodes.get(t.id) : null;
+  return (n && n.align) || 'center';
+}
 function commitNodeEditorText(){
   const t = nodeEditorTarget;
   if(!t || readOnlyView) return;

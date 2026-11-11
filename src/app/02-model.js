@@ -1063,6 +1063,10 @@ workingNodes.forEach(item=>{
     tags,
     font: (opts && opts.font) || null,
     fontSize: (opts && typeof opts.fontSize==='number') ? opts.fontSize : null,
+    /* How its lines stand against one another and its box: to the left or
+       the right; centred, the default, is the absence of the field (the
+       owner's list of 11.11). */
+    align: (opts && (opts.align === 'left' || opts.align === 'right')) ? opts.align : null,
     multiLang: !!(opts && opts.multiLang),
     langTabs: (opts && Array.isArray(opts.langTabs) && opts.langTabs.length) ? opts.langTabs : null,
     // A hand-placed position, set by dragging the node. When present it

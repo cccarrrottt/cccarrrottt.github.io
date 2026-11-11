@@ -113,9 +113,27 @@ const STYLE_BAR_END_BAR = {none: 'Nothing where it joins the bar',
    bar was a row of every look at once, wider than most entries it stood
    over). A toggle stays a button, since it has nothing to unfold. */
 const STYLE_BAR_MENUS = {
-  border: 'Border', hatch: 'Hatching', decor: 'Scenery', edgeLine: 'Line',
+  align: 'Text alignment', border: 'Border', hatch: 'Hatching', decor: 'Scenery', edgeLine: 'Line',
   leader: 'Leader line', endIn: 'The start', endOut: 'The end'
 };
+/* How an entry's lines stand (the owner's list of 11.11): drawn, as the
+   lines of a paragraph are drawn on every alignment button — the long and
+   short strokes flush to the side the words go to. */
+const styleBarAlignGlyph = (xs)=> '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.4" stroke-linecap="round">' +
+  xs.map(([a, b], i)=> `<path d="M${a} ${3.5 + i*3}H${b}"/>`).join('') + '</svg>';
+const STYLE_BAR_ALIGN = [
+  ['left', styleBarAlignGlyph([[2.5, 13.5], [2.5, 9.5], [2.5, 12], [2.5, 8]]), 'Words to the left'],
+  ['center', styleBarAlignGlyph([[2.5, 13.5], [4.5, 11.5], [3.5, 12.5], [5, 11]]), 'Words centred'],
+  ['right', styleBarAlignGlyph([[2.5, 13.5], [6.5, 13.5], [4, 13.5], [8, 13.5]]), 'Words to the right']];
+/* Whether a thing on the chart has lines of words to set to a side: every
+   box that holds words — an entry, a card, a caption, a callout, a
+   figure. Not a portrait, a link, a split or an array, which show none,
+   nor a picture. */
+function textAlignable(n){
+  if(!n || isArrayNode(n)) return false;
+  return !['ellipse', 'link', 'split', 'image'].includes(n.shape || '');
+}
 /* Which side of its line a note rides. */
 /* An array's ground may be hatched as well as coloured — see
    arrayHatchPaint. The glyphs are the hatched squares the font already
@@ -187,6 +205,7 @@ const styleBar = (()=>{
     bar.appendChild(row);
     return row;
   };
+  group('align', STYLE_BAR_ALIGN);
   group('border', STYLE_BAR_BORDERS);
   group('hatch', STYLE_BAR_HATCH);
   group('decor', STYLE_BAR_DECOR);
@@ -570,6 +589,8 @@ function syncStyleBarRows(){
      picture have no border of their own to outline, no corners, and
      nothing a connector could meet. */
   rows.stack.hidden = !styleBarFree(n);
+  rows.align.hidden = !(t.kind === 'node' && textAlignable(n));
+  if(!rows.align.hidden) light(rows.align, n.align || 'center');
   if(!rows.stack.hidden){
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     rows.leader.hidden = rows.leaderForm.hidden = true;
@@ -581,6 +602,7 @@ function syncStyleBarRows(){
     return;
   }
   if(decorOn){
+    rows.align.hidden = true;
     rows.border.hidden = rows.frame.hidden = rows.corners.hidden = true;
     rows.leader.hidden = rows.leaderForm.hidden = true;
     rows.edgeLine.hidden = rows.endIn.hidden = rows.endOut.hidden = true;
@@ -858,7 +880,10 @@ function applyStyleBar(group, value){
       const found = workingEntry(t.id);
       if(!found) return;
       const opts = entryOpts(found.entry);
-      if(group === 'border'){
+      if(group === 'align'){
+        // Centred is the default, so it is the absence of the field.
+        if(value === 'left' || value === 'right') opts.align = value; else delete opts.align;
+      } else if(group === 'border'){
         if(value === 'solid') delete opts.border; else opts.border = value;
       } else if(group === 'corners'){
         // A toggle. Square is the default, so it is the absence of the flag.

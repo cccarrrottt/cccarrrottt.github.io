@@ -420,7 +420,7 @@ function bentRoute(p1, p2, handBendsList){
  * only words or paint (routeWorldKey). Dragging keeps its own memo
  * (heldRoute), so a pass made while something is carried does not take
  * part. */
-const ROUTE_BLIND = new Set(['label', 'note', 'tags', 'link', 'langTabs', 'multiLang', 'medium', 'image',
+const ROUTE_BLIND = new Set(['label', 'note', 'tags', 'align', 'link', 'langTabs', 'multiLang', 'medium', 'image',
                              'font', 'fontSize', 'color', 'colors', 'ownColors', 'bg', 'labelInk']);
 let routePass = null, routeLast = null;
 function routeWorldKey(){

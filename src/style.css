@@ -1672,16 +1672,34 @@
   .media-kind.shut .media-fold{transform:none;}
   .media-kind.shut > :not(.media-kind-top){display:none;}
   .media-kind.shut{padding-bottom:2px;margin:2px 0;}
-  .media-field{margin-top:4px;padding-left:10px;}
-  .media-kind input, .media-format{
-    flex:1 1 auto;min-width:0;box-sizing:border-box;
-    background:var(--panel);border:1px solid var(--line);border-radius:3px;
-    color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:3px 5px;
+  .media-field{margin-top:2px;padding:0 6px 0 28px;}
+  /* Names, not fields (the owner's list of 11.11): a kind's in the type
+     of a category's heading, a field's in the type of a tag row, so the
+     drawer reads as the panels beside it do. */
+  .media-kind-top{padding:4px 6px 3px;border-bottom:1px solid var(--line);gap:6px;cursor:pointer;user-select:none;}
+  .media-kind.shut .media-kind-top{border-bottom-style:dotted;}
+  .media-kind-top:hover .media-fold{color:var(--accent);}
+  .media-kind-name{
+    flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:var(--head-font);font-weight:700;text-transform:uppercase;
+    letter-spacing:0.3px;font-size:10px;color:var(--ink);
   }
-  .media-kind input:focus{outline:none;border-color:var(--accent);}
-  .media-kind-name{font-weight:600;}
-  .media-format{width:100%;font-style:italic;}
-  .media-kind-count{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--ink-faint);min-width:14px;text-align:right;}
+  .media-field-label{
+    flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:12px;color:var(--ink-dim);padding:2px 0;
+  }
+  .legend-item .tag-text.tag-renamable{cursor:var(--ibeam);}
+  .media-kind-name:empty::before, .media-field-label:empty::before{content:attr(data-placeholder);color:var(--ink-faint);font-style:italic;}
+  /* Being typed over: the text takes a field's ground for as long as it
+     is, and stops eliding — a name you cannot see the end of is not one
+     you can correct. */
+  .media-kind-name.renaming, .media-field-label.renaming, .legend-item .tag-text.renaming{
+    overflow:visible;text-overflow:clip;white-space:pre;user-select:text;
+    background:var(--panel-2);border:1px solid var(--accent);border-radius:3px;
+    outline:none;padding:0 3px;margin:-1px 0;cursor:var(--ibeam);
+  }
+  .media-kind-name.renaming:empty::before, .media-field-label.renaming:empty::before{content:none;}
+  .media-kind-count{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9px;color:var(--ink-faint);min-width:14px;text-align:right;}
   .media-x{
     flex:0 0 auto;width:18px;height:18px;padding:0;line-height:1;
     background:none;border:1px solid transparent;border-radius:3px;
@@ -1689,11 +1707,10 @@
   }
   .media-x:hover{color:var(--ink);border-color:var(--line);}
   .media-add-field{
-    margin:5px 0 0 10px;padding:2px 6px;background:none;cursor:pointer;
+    margin:5px 0 0 28px;padding:2px 6px;background:none;cursor:pointer;
     border:1px dashed var(--line);border-radius:3px;color:var(--ink-dim);font-size:9.5px;
   }
   .media-add-field:hover{color:var(--ink);border-color:var(--accent);}
-  .media-format-label{margin:7px 0 3px;font-size:8.5px;text-transform:uppercase;letter-spacing:0.3px;color:var(--ink-faint);}
   .editor-field select.media-kind-select{margin-bottom:6px;}
   .media-facts:empty{display:none;}
   .media-facts{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}

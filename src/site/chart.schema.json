@@ -72,6 +72,7 @@
         "image": {"type": "string", "description": "A picture: a data: URI, an http(s) address, or media/<sha256>.<ext> beside the page."},
         "font": {"type": "string"},
         "fontSize": {"type": "number"},
+        "align": {"enum": ["left", "right"], "description": "How its lines of words are set; absent is centred."},
         "multiLang": {"type": "boolean"},
         "langTabs": {
           "type": "array",
@@ -194,7 +195,7 @@
                      "name": {"type": "string"},
                      "fields": {"type": "array", "items": {"type": "object", "required": ["id"],
                        "properties": {"id": {"type": "string", "pattern": "^f\\d{1,6}$"}, "label": {"type": "string"}}}},
-                     "format": {"type": "string", "description": "The line the facts are written in: each %Label% is that field's fact."}}
+                     "format": {"type": "string", "description": "No longer read (0.25.6): the line is the fields' facts in their order. Dropped when the kinds are next edited."}}
     },
     "figureTemplate": {
       "type": "object", "required": ["d"],

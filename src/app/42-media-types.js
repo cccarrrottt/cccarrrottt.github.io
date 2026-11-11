@@ -38,7 +38,11 @@ function cleanMediaTypes(v){
       fields.push({id: f.id, label: typeof f.label === 'string' ? f.label.trim().slice(0, 40) : ''});
     });
     const kind = {id, name: typeof t.name === 'string' && t.name.trim() ? t.name.trim().slice(0, 60) : id, fields: fields.slice(0, 30)};
-    if(typeof t.format === 'string' && t.format.trim()) kind.format = t.format.slice(0, 200);
+    /* A kind's own line, `format` ("%Studio%, %Year%"), is not kept: the
+       owner had it taken out (the owner's list of 11.11) — the fields are
+       written in the order they stand, top to bottom, and that order is
+       the line. A chart that still has one loses it the next time its
+       kinds are edited, and is drawn without it until then. */
     out.push(kind);
   });
   return out.slice(0, 100);
@@ -54,63 +58,17 @@ function cleanMediaData(v){
   });
   return Object.keys(out).length ? out : null;
 }
-/* The line a kind writes for these facts. Each %Label% (any case) is the
-   fact of the field with that label; with no line of its own the kind
-   writes its fields in their order, a comma between. A fact not given
-   takes the words that join it to its neighbour with it, so a film with
-   no director reads "Mainframe, 1996", not "Mainframe, , 1996". */
+/* The line a kind writes for these facts: its fields' facts in the order
+   the fields stand, a comma between. A fact not given is left out with
+   its comma, so a film with no director reads "Mainframe, 1996", not
+   "Mainframe, , 1996". A field with no name is not written either — it
+   is one nobody has said what goes in yet. */
 function mediaLineFor(kind, data){
   if(!kind) return '';
   const facts = data || {};
-  const byLabel = new Map(kind.fields.map(f=> [f.label.toLowerCase(), f.id]));
-  const format = kind.format || kind.fields.filter(f=> f.label).map(f=> '%' + f.label + '%').join(', ');
-  const parts = [];
-  const re = /%([^%]+)%/g;
-  let m, last = 0;
-  while((m = re.exec(format))){
-    parts.push({lit: format.slice(last, m.index)});
-    const key = m[1].trim();
-    const fid = byLabel.get(key.toLowerCase()) || (kind.fields.some(f=> f.id === key) ? key : null);
-    parts.push({val: fid ? String(facts[fid] || '').trim() : ''});
-    last = re.lastIndex;
-  }
-  parts.push({lit: format.slice(last)});
-  /* An empty fact goes with the words before it, or — first in the line —
-     with the words after it. Not with a bracket in them, though: the
-     words between two facts are often a bracket closing one and opening
-     the next, ") (" or ", (", and taking them whole left "1986)" or "(JP"
-     behind (code 1, 2.11). A bracket closing the fact before is kept, as
-     is one opening the fact after, and whatever is still unpaired at the
-     end goes. */
-  for(let i = 0; i < parts.length; i++){
-    if(!('val' in parts[i]) || parts[i].val) continue;
-    const before = parts.slice(0, i).some(p=> p.val);
-    if(before && i > 0){
-      const m = /^\s*([)\]»]*)/.exec(parts[i - 1].lit);
-      parts[i - 1].lit = m[1];
-    } else if(i + 1 < parts.length){
-      const m = /([(\[«]*)\s*$/.exec(parts[i + 1].lit);
-      parts[i + 1].lit = m[1];
-    }
-  }
-  return unpairedBracketsOut(parts.map(p=> 'val' in p ? p.val : p.lit).join('')).replace(/\s{2,}/g, ' ').trim();
-}
-/* A line with every bracket that closes nothing, or is never closed,
-   taken out. */
-function unpairedBracketsOut(text){
-  const pairs = {')': '(', ']': '[', '»': '«'};
-  const chars = Array.from(text);
-  const open = [];
-  const drop = new Set();
-  chars.forEach((c, i)=>{
-    if(c === '(' || c === '[' || c === '«') open.push(i);
-    else if(pairs[c]){
-      if(open.length && chars[open[open.length - 1]] === pairs[c]) open.pop();
-      else drop.add(i);
-    }
-  });
-  open.forEach(i=> drop.add(i));
-  return chars.filter((c, i)=> !drop.has(i)).join('');
+  return kind.fields.filter(f=> f.label)
+    .map(f=> String(facts[f.id] || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean).join(', ');
 }
 function mediaLineOf(n){
   if(!n || !n.mediaType) return '';
@@ -166,18 +124,16 @@ function mediaUses(id){
    evening). Kept on the function rather than in a const, which the
    drawer could be built before. */
 function mediaKindsOpen(){ return mediaKindsOpen.set || (mediaKindsOpen.set = new Set()); }
+/* A kind's heading folds it, as a category's does, a moment after the
+   click — the second click of a double is "rename", and folding the kind
+   away under the pointer first is the wrong answer to it. */
+let mediaHeadTimer = 0;
 function buildMediaTab(){
   /* Looked up here, not once at the top: a drawer opened while the chart
      is first drawn asks for this before this part has run. */
   const mediaList = document.getElementById('mediaList');
   if(!mediaList) return;
   const scroll = mediaList.scrollTop;
-  /* A change is committed when its field is left — by Tab as often as by
-     a click — and the drawer is then built afresh; the field Tab went to
-     is found again by its place, so typing carries on there. */
-  const was = document.activeElement;
-  const fields = ()=> Array.from(mediaList.querySelectorAll('input'));
-  const at = was && mediaList.contains(was) ? fields().indexOf(was) : -1;
   mediaList.innerHTML = '';
   const kinds = mediaTypesOf();
   const head = sectionHead('Media', kinds.length);
@@ -188,9 +144,7 @@ function buildMediaTab(){
       const id = newMediaTypeId('kind');
       mediaKindsOpen().add(id);
       editMediaTypes(list=> list.push({id, name: 'New kind', fields: [{id: 'f1', label: 'Year'}]}));
-      const inputs = mediaList.querySelectorAll('.media-kind-name');
-      const last = inputs[inputs.length - 1];
-      if(last){ last.focus(); last.select(); }
+      startMediaRename(mediaList.querySelector(`.media-kind[data-kind="${cssEscape(id)}"] .media-kind-name`));
     });
     head.appendChild(add);
   }
@@ -198,19 +152,28 @@ function buildMediaTab(){
   if(!kinds.length){
     const empty = document.createElement('div');
     empty.className = 'key-empty';
-    empty.textContent = 'No kinds yet. A kind is a template for a card’s middle line: a film with its studio, director and year, written in the order you set.';
+    empty.textContent = 'No kinds yet. A kind is a template for a card’s middle line: a film with its studio, director and year, written in the order its fields stand.';
     mediaList.appendChild(empty);
   }
-  const input = (cls, value, placeholder, onDone)=>{
-    const i = document.createElement('input');
-    i.type = 'text';
-    i.className = cls;
-    i.value = value || '';
-    i.placeholder = placeholder || '';
-    i.spellcheck = false;
-    i.addEventListener('change', ()=> onDone(i.value));
-    i.addEventListener('keydown', ev=>{ if(ev.key === 'Enter'){ ev.preventDefault(); i.blur(); } ev.stopPropagation(); });
-    return i;
+  /* A name is text, not a field (the owner's list of 11.11): it reads as
+     the other panels' names do, and a double click types over it where
+     it stands. */
+  const nameText = (cls, value, placeholder, title, onDone)=>{
+    const t = document.createElement('span');
+    t.className = cls;
+    t.textContent = value || '';
+    t.dataset.placeholder = placeholder;
+    t._rename = ()=> renameInPlace(t, value, v=>{ if(v === null) buildMediaTab(); else onDone(v); }, cls === 'media-kind-name' ? 60 : 40);
+    if(!readOnlyView){
+      t.title = title + ' — double-click to rename';
+      t.addEventListener('dblclick', ev=>{
+        if(t.isContentEditable) return;
+        ev.preventDefault(); ev.stopPropagation();
+        if(mediaHeadTimer){ clearTimeout(mediaHeadTimer); mediaHeadTimer = 0; }
+        t._rename();
+      });
+    }
+    return t;
   };
   const cross = (title, onClick)=>{
     const b = document.createElement('button');
@@ -229,19 +192,19 @@ function buildMediaTab(){
     box.classList.toggle('shut', !open);
     const top = document.createElement('div');
     top.className = 'media-kind-top';
-    const fold = document.createElement('button');
-    fold.type = 'button';
-    fold.className = 'media-fold';
-    fold.textContent = '▸';
-    fold.title = open ? 'Fold this kind away' : 'Unfold this kind: its fields and its line';
-    fold.setAttribute('aria-expanded', open ? 'true' : 'false');
-    fold.addEventListener('click', ev=>{
-      ev.stopPropagation();
+    top.title = open ? 'Fold this kind away' : 'Unfold this kind: its fields';
+    const toggle = ()=>{
       const set = mediaKindsOpen();
       if(set.has(kind.id)) set.delete(kind.id); else set.add(kind.id);
       buildMediaTab();
+    };
+    /* The heading folds, as a category's does; the ▸ stands between the
+       name and the count, where the tags panel has it. */
+    top.addEventListener('click', ev=>{
+      if(ev.target.closest('button') || ev.target.isContentEditable) return;
+      if(mediaHeadTimer){ clearTimeout(mediaHeadTimer); mediaHeadTimer = 0; return; }
+      mediaHeadTimer = setTimeout(()=>{ mediaHeadTimer = 0; toggle(); }, readOnlyView ? 0 : DOUBLE_CLICK_GRACE);
     });
-    top.appendChild(fold);
     /* Its eye, as a tag's: every entry of this kind faded off the chart
        and back, whether or not it is drawn as a card just now. */
     {
@@ -255,8 +218,16 @@ function buildMediaTab(){
       top.appendChild(eye);
       box.classList.toggle('off', off);
     }
-    top.appendChild(input('media-kind-name', kind.name, 'Name of the kind', v=>
-      editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.name = v.trim() || t.name; })));
+    top.appendChild(nameText('media-kind-name', kind.name, 'Name of the kind', kind.name, v=>
+      editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.name = v || t.name; })));
+    const fold = document.createElement('button');
+    fold.type = 'button';
+    fold.className = 'media-fold';
+    fold.textContent = '▸';
+    fold.title = top.title;
+    fold.setAttribute('aria-expanded', open ? 'true' : 'false');
+    fold.addEventListener('click', ev=>{ ev.stopPropagation(); toggle(); });
+    top.appendChild(fold);
     const uses = mediaUses(kind.id);
     const count = document.createElement('span');
     count.className = 'media-kind-count';
@@ -265,58 +236,44 @@ function buildMediaTab(){
        card layout turned off keeps them for when it is turned on. */
     count.title = uses === 1 ? 'One entry is of this kind' : uses + ' entries are of this kind';
     top.appendChild(count);
-    top.appendChild(cross('Take this kind out of the chart (its cards keep their facts)', ()=>
+    if(!readOnlyView) top.appendChild(cross('Take this kind out of the chart (its cards keep their facts)', ()=>
       editMediaTypes(list=>{ const i = list.findIndex(x=> x.id === kind.id); if(i >= 0) list.splice(i, 1); })));
     box.appendChild(top);
     kind.fields.forEach(f=>{
       const row = document.createElement('div');
       row.className = 'media-field';
-      row.appendChild(input('media-field-label', f.label, 'Field', v=>
+      row.dataset.field = f.id;
+      row.appendChild(nameText('media-field-label', f.label, 'Field', 'A field of this kind; the line writes them in this order', v=>
         editMediaTypes(list=>{
           const t = list.find(x=> x.id === kind.id);
           const ff = t && t.fields.find(x=> x.id === f.id);
-          if(!ff) return;
-          /* The line names a field by its label, so a field renamed
-             under a line of its own took its fact out of every card's
-             line without a word (code 1, 2.11): the line is renamed
-             with it. */
-          const was = ff.label, now = v.trim();
-          if(t.format && was && now && was.toLowerCase() !== now.toLowerCase()){
-            const esc = was.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            t.format = t.format.replace(new RegExp('%\\s*' + esc + '\\s*%', 'gi'), '%' + now + '%');
-          }
-          ff.label = now;
+          if(ff) ff.label = v;
         })));
-      row.appendChild(cross('Take this field out of the kind', ()=>
+      if(!readOnlyView) row.appendChild(cross('Take this field out of the kind', ()=>
         editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.fields = t.fields.filter(x=> x.id !== f.id); })));
       box.appendChild(row);
     });
-    const addField = document.createElement('button');
-    addField.type = 'button';
-    addField.className = 'media-add-field';
-    addField.textContent = '+ field';
-    addField.addEventListener('click', ev=>{
-      ev.stopPropagation();
-      editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.fields.push({id: nextFieldId(t), label: ''}); });
-      const rows = mediaList.querySelectorAll(`.media-kind[data-kind="${cssEscape(kind.id)}"] .media-field-label`);
-      const last = rows[rows.length - 1];
-      if(last) last.focus();
-    });
-    box.appendChild(addField);
-    const fmtLabel = document.createElement('div');
-    fmtLabel.className = 'media-format-label';
-    fmtLabel.textContent = 'Written as';
-    box.appendChild(fmtLabel);
-    const auto = kind.fields.filter(f=> f.label).map(f=> '%' + f.label + '%').join(', ');
-    const fmt = input('media-format', kind.format || '', auto || '%Field%, %Field%', v=>
-      editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t){ if(v.trim()) t.format = v; else delete t.format; } }));
-    fmt.title = 'Each %Field% is that field’s fact; empty, it takes its comma with it. Left blank, the fields are written in order with commas.';
-    box.appendChild(fmt);
+    if(!readOnlyView){
+      const addField = document.createElement('button');
+      addField.type = 'button';
+      addField.className = 'media-add-field';
+      addField.textContent = '+ field';
+      addField.addEventListener('click', ev=>{
+        ev.stopPropagation();
+        let fid = null;
+        editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t){ fid = nextFieldId(t); t.fields.push({id: fid, label: ''}); } });
+        if(fid) startMediaRename(mediaList.querySelector(
+          `.media-kind[data-kind="${cssEscape(kind.id)}"] .media-field[data-field="${fid}"] .media-field-label`));
+      });
+      box.appendChild(addField);
+    }
     mediaList.appendChild(box);
   });
   mediaList.scrollTop = scroll;
-  if(at >= 0){ const f = fields()[at]; if(f) f.focus(); }
 }
+/* A name in the drawer, typed over at once: what a kind just made or a
+   field just added wants first. */
+function startMediaRename(t){ if(t && t._rename) t._rename(); }
 
 /* ---- the card's panel ---------------------------------------------- */
 const editMediaTypeSelect = document.getElementById('editMediaTypeSelect');
