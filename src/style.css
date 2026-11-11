@@ -545,8 +545,7 @@
   /* Card layout. The rules dividing the three bands are drawn in the
      entry's own colour but lighter than its border, so they read as
      divisions inside one shape rather than as three stacked boxes. */
-  .node > line.card-rule{stroke-width:1;opacity:0.45;}
-  .node.selected > line.card-rule{stroke-width:1;filter:none;}
+  .node.selected > line.card-rule{filter:none;}
   /* A card's picture is one of its fields, not a thing of its own: lit
      like a picture entry's, its glow ran across the rule into the heading
      under it (the owner's list of 1.11). The card is lit by its border. */
@@ -1706,11 +1705,7 @@
     color:var(--ink-faint);cursor:pointer;font-size:10px;
   }
   .media-x:hover{color:var(--ink);border-color:var(--line);}
-  .media-add-field{
-    margin:5px 0 0 28px;padding:2px 6px;background:none;cursor:pointer;
-    border:1px dashed var(--line);border-radius:3px;color:var(--ink-dim);font-size:9.5px;
-  }
-  .media-add-field:hover{color:var(--ink);border-color:var(--accent);}
+  .media-add-field{margin:4px 0 0 28px;}
   .editor-field select.media-kind-select{margin-bottom:6px;}
   .media-facts:empty{display:none;}
   .media-facts{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}
@@ -2447,12 +2442,12 @@
     /* --ax and --ay: how far the field was moved to put its words on the
        drawn ones (see alignEditorOnInk) — taken back off the frame, which
        stays on the box. */
-    left:calc(-1.6px - var(--ax, 0px)); right:calc(-1.6px + var(--ax, 0px));
-    top:calc(var(--hang, 0px) - 1.6px - var(--ay, 0px));
-    bottom:calc(var(--hang, 0px) - 1.6px + var(--ay, 0px));
+    left:calc(0px - var(--bw, 1.6px) - var(--bo, 0px) - var(--ax, 0px)); right:calc(0px - var(--bw, 1.6px) - var(--bo, 0px) + var(--ax, 0px));
+    top:calc(var(--hang, 0px) - var(--bw, 1.6px) - var(--bo, 0px) - var(--ay, 0px));
+    bottom:calc(var(--hang, 0px) - var(--bw, 1.6px) - var(--bo, 0px) + var(--ay, 0px));
     background:var(--panel);
-    border:1.6px solid var(--accent);
-    border-radius:5px;
+    border:var(--bw, 1.6px) solid var(--accent);
+    border-radius:var(--fr, 5px);
     box-shadow:0 2px 10px rgba(20,28,43,0.16);
     pointer-events:none;
   }
@@ -2474,6 +2469,20 @@
   }
   .edge-popover-head span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .edge-popover .editor-status{margin:0;}
+  /* The dots a menu is carried by (37-style-bar.js, "Menus moved by
+     hand"). A panel is carried by its whole head; the bars, which have
+     none, by the dots alone. */
+  .menu-grip{
+    flex:0 0 auto !important;display:inline-flex;align-items:center;justify-content:center;
+    width:12px;min-height:18px;align-self:stretch;color:var(--ink-faint);opacity:0.7;
+    cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;
+  }
+  .menu-grip:hover{opacity:1;color:var(--ink-dim);}
+  .menu-grip-host{touch-action:none;}
+  .edge-popover-head.menu-grip-host{cursor:grab;}
+  .edge-popover-head.menu-grip-host .menu-grip{margin-left:-4px;}
+  .menu-moving, .menu-moving .menu-grip, .menu-moving .menu-grip-host{cursor:grabbing !important;}
+  .mini-toolbar > .menu-grip{width:10px;margin-right:1px;}
   /* The note is a rich field now, so the visible box is the .rich-surface
      that makeRichField() puts in front of the textarea — both are styled
      the same way so converting it changed nothing about how it looks. */
@@ -3446,9 +3455,11 @@
   .style-bar-group:not([hidden]) ~ .style-bar-group:not([hidden]){padding-left:6px;border-left:1px solid var(--line);}
   /* A moving picture's player, over its foot while the pointer is on it
      — see 37-style-bar.js. Dark glass whatever the theme, as a player's
-     buttons are, since what is under them is a picture, not the page. */
+     buttons are, since what is under them is a picture, not the page.
+     Over the menus too: on a phone the tap that offers it also opens the
+     picture's own menu, which lay over the buttons and took their taps. */
   .picture-player{
-    position:absolute;z-index:31;transform-origin:0 0;display:flex;gap:3px;padding:3px;
+    position:absolute;z-index:97;transform-origin:0 0;display:flex;gap:3px;padding:3px;
     background:rgba(20,22,26,0.62);border-radius:14px;
     backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
   }
@@ -3552,8 +3563,14 @@
     .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
     .search-wrap svg{top:9px;}
     .topbar > .icon-btn{order:3;width:34px;height:34px;}
-    .save-btn, .view-badge{order:4;margin-left:auto;}
-    .owner-avatar, .owner-btn{order:6;margin-left:auto;}
+    /* The second row starts at the left like the first — undo, redo, the
+       guides — and Save keeps to its right end, just before the account
+       (the owner's list of 11.11): it stood in the middle of the row with
+       the tools after it. A reader has no Save, so the account takes the
+       end on its own. */
+    .save-btn, .view-badge{order:5;margin-left:auto;}
+    .owner-avatar, .owner-btn{order:6;margin-left:0;}
+    body.read-only .owner-avatar, body.read-only .owner-avatar[hidden] + .owner-btn{margin-left:auto;}
     /* On the site a reader has both the badge and the owner's way in, and
        beside the buttons there is room for one. The badge goes: no Save
        button already says the same thing. */
@@ -3567,7 +3584,7 @@
        at the start of the row the account sits at the end of — that row
        was the empty space a row of their own left under it (the owner's
        list of 24.10). */
-    .topbar-end{order:5;flex:0 0 auto;margin-left:0;}
+    .topbar-end{order:4;flex:0 0 auto;margin-left:0;}
     .topbar-tools button{height:28px;}
     .touch-tools button, .guide-toggle{width:32px;}
     .topbar-tools svg{width:16px;height:16px;}

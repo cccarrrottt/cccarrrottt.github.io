@@ -21303,6 +21303,7 @@ async function main(){
       r.band = [c1.cardTop, +(c1.w * 2).toFixed(2)];
       const img = document.querySelector('.node[data-id="to_c1"] > image');
       r.imgBottom = img ? +(+img.getAttribute('y') + +img.getAttribute('height') - c1.y).toFixed(2) : null;
+      r.ruleHalf = NODE_BORDER_W / 2;
       /* Since the owner's list of 2.11 a band's words stand off a rule as
          they would off the border of an entry of their own, and only the
          words that meet the border itself stand off it by the entry's
@@ -21375,7 +21376,7 @@ async function main(){
   check('a long press on a merge\'s bar is its lineage\'s menu', out.barMenu === 'bar', String(out.barMenu));
   check('a split\'s dot is carried along its line', out.split.dx > 20 && Math.abs(out.split.dy) < 0.01, JSON.stringify(out.split));
   check('a card\'s picture is as wide as its heading and stops at its rule',
-        Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - 0.5)) < 0.05,
+        Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - out.card.ruleHalf)) < 0.05,
         JSON.stringify(out.card));
   check('a wavy card is no wider than a plain one and taller only by its ripple\'s inset, and an entry is as wide as its chips',
         Math.abs(out.card.wavy[0]) < 0.01 && Math.abs(out.card.wavy[1] - out.card.wavy[2]) < 0.05 && out.card.chips[0] >= out.card.chips[1],
@@ -21808,7 +21809,10 @@ async function main(){
     check('…resizing the card keeps its picture\'s size, and fills the band round it',
           z.size && z.size[0] > c.plain[0][0] + 20 && z.pic && z.pic.length === 1
           && Math.abs(z.pic[0][0] - c.plain[0][0]) < 1.5 && Math.abs(z.pic[0][1] - c.plain[0][1]) < 1.5 && z.back === 1
-          && Math.abs(z.kept[0] - c.plain[0][0]) < 1, JSON.stringify(z));
+          /* Kept at the picture's own proportion, which is what is seen
+             of it inside its slot: a little narrower than the slot when
+             the band is shallower than the picture is wide. */
+          && Math.abs(z.kept[0] - c.plain[0][0]) < 1.5, JSON.stringify(z));
   }
   check('…a carry back to where it started writes no face, and undo takes it out',
         out.back[1] === null && out.undone[0] === 'top' && out.undone[1] === null, JSON.stringify(out));
@@ -22487,9 +22491,12 @@ async function main(){
             below, a medium line under it or not, a picture over it or not. */
       {
         const g = document.querySelector('.node[data-id="oe_card"]');
-        const rules = [...g.querySelectorAll('.card-rule')].map(l=> +l.getAttribute('y1')).sort((a, b)=> a - b);
+        /* The card's border is double, so each rule is two lines, as the
+           border is: a rule stands where the pair's middle is, and is as
+           wide as the double band. */
+        const rules = [...g.querySelectorAll('.card-rule:not(.border-inner)')].map(l=> +l.getAttribute('y1') + DOUBLE_LINE_OFF).sort((a, b)=> a - b);
         const hb = inkBoxOf(g.querySelector('text.node-label-text'), []);
-        const inset = TEXT_GAP + CARD_RULE_W / 2;
+        const inset = TEXT_GAP + DOUBLE_BAND_W / 2;
         r.headInsets = [+(hb.y - rules[0]).toFixed(2), +(rules[1] - hb.y - hb.height).toFixed(2), +inset.toFixed(2)];
       }
       /* …a frame cut to its picture goes round the picture, not round the
@@ -23340,6 +23347,319 @@ async function main(){
   check('…a card\'s heading, medium line and body go to the side together', out.cardLeft.every(d=> Math.abs(d) < 1.5), JSON.stringify(out.cardLeft));
   check('…the field the words are typed in sets them the same way, and the file keeps the side', out.fieldAlign === 'right' && out.inFile,
         JSON.stringify([out.fieldAlign, out.inFile]));
+  });
+  await scenario("the owner's list of 11.11, afternoon: a plus for a field, the side before the turn, rules as the border, ruby picked and sized as drawn, the phone's Save at its corner, a note off a short leg, the whole picture to crop, a player that keeps working, menus moved by hand, an editor on its box", async () => {
+  const X = 187000, Y = 187000;
+  const GIF = 'data:image/gif;base64,R0lGODlhBAAEAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAFAAAACwAAAAABAAEAAAICQABCBxIsCCAgAAh+QQBFAABACwAAAAABAAEAIEAAP8AAAAAAAAAAAAICQABCBxIsCCAgAA7';
+  await page.evaluate(()=>{ window.__k1111 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+    settings: JSON.parse(JSON.stringify(SETTINGS))}; return true; });
+  try{
+  const out = await page.evaluate(async ([X, Y, GIF])=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{
+      SETTINGS.mediaTypes = [{id:'p1111k', name:'Film', fields:[{id:'f1', label:'Studio'}]}];
+      workingNodes.push(['p1111_a', 'Alpha', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['p1111_l', '', null, null, null, 'link', {pos:[X + 200, Y]}]);
+      workingNodes.push(['p1111_c', 'A card', null, null, 'Its words', null, {pos:[X + 400, Y], card:true, mediaType:'p1111k', mediaData:{f1:'Toei'}, border:'dashed'}]);
+      workingNodes.push(['p1111_d', 'Double', null, null, 'Its words', null, {pos:[X + 600, Y], card:true, border:'double'}]);
+      workingNodes.push(['p1111_t', 'Top', null, null, null, null, {pos:[X, Y + 200]}]);
+      workingNodes.push(['p1111_b', 'Bottom', 'p1111_t', null, null, null, {pos:[X, Y + 420]}]);
+      workingNodes.push(['p1111_i', '', null, null, null, 'image', {pos:[X + 400, Y + 300], image: GIF, size:[160, 160]}]);
+      EDGE_STYLES.push({from:'p1111_t', to:'p1111_b', routing:'straight', note:'Аита'});
+    });
+    rebuildChart();
+    await wait(200);
+
+    /* 1. A kind's "+ field" is a plus, as everywhere else. */
+    setSideTab(document.getElementById('mediaPanel'), true);
+    await wait(60);
+    mediaKindsOpen().add('p1111k');
+    buildMediaTab();
+    const add = document.querySelector('#mediaList .media-kind[data-kind="p1111k"] .media-add-field');
+    r.plus = !!add && !/field/i.test(add.textContent) && !!add.querySelector('svg, *') === !!add.children.length && add.title === 'Add a field to this kind';
+    setSideTab(document.getElementById('mediaPanel'), false);
+
+    /* 2. The side the words go to, just before the turn; no turn on a link. */
+    const groups = ()=> [...styleBar.querySelectorAll('.style-bar-group')].filter(g=> !g.hidden).map(g=> g.dataset.group);
+    openStyleBar({kind:'node', id:'p1111_a'}); await wait(40);
+    const ga = groups();
+    r.beforeTurn = ga.indexOf('align') >= 0 && ga.indexOf('align') === ga.indexOf('turn') - 1;
+    r.groupsA = ga.join();
+    openStyleBar({kind:'node', id:'p1111_l'}); await wait(40);
+    r.linkGroups = groups().join();
+    closeStyleBar();
+    r.textLabel = [NODE_STYLE_PICKS.find(p=> p.value === 'textbox').label,
+                   document.querySelector('option[value="textbox"]').textContent].join();
+
+    /* 3. A card's rules are its border: as wide, as dashed, as doubled. */
+    {
+      const g = qNode('.node[data-id="p1111_c"]');
+      const border = [...g.querySelectorAll(':scope > rect:not(.node-hover-pad)')].find(e=> getComputedStyle(e).strokeDasharray !== 'none');
+      const rules = [...g.querySelectorAll(':scope > line.card-rule')];
+      const cs = e=> getComputedStyle(e);
+      r.ruleW = rules.map(l=> parseFloat(cs(l).strokeWidth));
+      r.ruleDash = rules.map(l=> cs(l).strokeDasharray);
+      r.borderDash = border ? cs(border).strokeDasharray : 'none';
+      r.ruleOpacity = rules.map(l=> cs(l).opacity);
+      const d = qNode('.node[data-id="p1111_d"]');
+      r.doubleRules = d.querySelectorAll(':scope > line.card-rule').length;
+      r.doubleInner = d.querySelectorAll(':scope > line.card-rule.border-inner').length;
+    }
+
+    /* 4. Ruby: the reading sits as far over its line as the rules of
+       ordinary text say, and a size chosen in the field shows at the size
+       it will be drawn, at any zoom and inside the reading. */
+    r.rubyExtra = RUBY_EXTRA; r.nodeBorderW = NODE_BORDER_W;
+    vs = 2; vx = -X * 2 + 300; vy = -Y * 2 + 200; applyTransform();
+    applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Some[[Optimus|Оптимус]]Prime'; });
+    await wait(60);
+    openNodeEditor('p1111_a'); await wait(150);
+    {
+      const surf = document.querySelector('#nodeEditor .rich-surface');
+      const sp = document.createElement('span'); sp.dataset.size = '20'; sp.style.fontSize = '20px'; sp.textContent = 'big';
+      surf.appendChild(sp);
+      const rt = surf.querySelector('rt');
+      const sp2 = document.createElement('span'); sp2.dataset.size = '20'; sp2.style.fontSize = '20px'; sp2.textContent = 'x';
+      if(rt) rt.appendChild(sp2);
+      await wait(40);
+      r.sizeShown = [parseFloat(getComputedStyle(sp).fontSize), rt ? parseFloat(getComputedStyle(sp2).fontSize) : null];
+      sp.remove(); sp2.remove();
+      await wait(40);
+    }
+    closeNodeEditor(false);
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    await wait(60);
+
+    /* 5. A note beside a line that runs up and down stands clear of it,
+       whatever its width. */
+    {
+      const line = drawnLineOf('p1111_t', 'p1111_b');
+      const g = document.querySelector('.edge-note[data-from="p1111_t"][data-to="p1111_b"]');
+      const b = g.getBBox(), t = g.transform.baseVal.consolidate();
+      const dx = t ? t.matrix.e : 0, dy = t ? t.matrix.f : 0;
+      // The line's x where the note's middle is: it leans by a few pixels.
+      const cy = b.y + dy + b.height / 2, a = line[0], z = line[line.length - 1];
+      const lx = a.x + (z.x - a.x) * (cy - a.y) / ((z.y - a.y) || 1);
+      r.noteGap = Math.min(Math.abs(b.x + dx - lx), Math.abs(b.x + b.width + dx - lx));
+      r.noteStraddles = b.x + dx < lx && b.x + b.width + dx > lx;
+    }
+
+    /* 6. The cropper starts on the whole picture, frees both sides, and
+       answers with a cross and a tick. */
+    {
+      const c = document.createElement('canvas'); c.width = 80; c.height = 40;
+      c.getContext('2d').fillRect(0, 0, 80, 40);
+      const blob = await new Promise(ok=> c.toBlob(ok, 'image/png'));
+      const p = openCropper(new File([blob], 'w.png', {type:'image/png'}), 'T', 'rect');
+      await wait(250);
+      r.cropSel = [cropSel.x, cropSel.y, cropSel.s, cropSel.t].join();
+      r.cropButtons = [!document.getElementById('cropWhole'),
+                       document.getElementById('cropCancel').classList.contains('suggest-decline') && !!document.querySelector('#cropCancel svg'),
+                       document.getElementById('cropUse').classList.contains('suggest-done') && !!document.querySelector('#cropUse svg'),
+                       !/[a-z]/i.test(document.getElementById('cropCancel').textContent + document.getElementById('cropUse').textContent)];
+      document.getElementById('cropCancel').click();
+      r.cropAnswer = await p;
+    }
+    return r;
+  }, [X, Y, GIF]);
+  check('a kind of medium adds a field by a plus button, not by the words "+ field"', out.plus, JSON.stringify(out.plus));
+  check('the style bar\'s side for the words stands just before the turn', out.beforeTurn, out.groupsA);
+  check('…and a link node has no turn', !/turn/.test(out.linkGroups), out.linkGroups);
+  check('the text entry is called Text, in the add menu and the shape list', out.textLabel === 'Text,Text', out.textLabel);
+  check('a card\'s rules are as wide and as dashed as its border, at full strength',
+        out.ruleW.length >= 1 && out.ruleW.every(w=> Math.abs(w - out.nodeBorderW) < 0.01) &&
+        out.ruleDash.every(d=> d === out.borderDash) && out.borderDash !== 'none' && out.ruleOpacity.every(o=> o === '1'),
+        JSON.stringify([out.ruleW, out.ruleDash, out.borderDash, out.ruleOpacity]));
+  check('…and a double border\'s rules are doubled', out.doubleRules >= 2 && out.doubleInner * 2 === out.doubleRules,
+        JSON.stringify([out.doubleRules, out.doubleInner]));
+  check('a reading over a line adds only the room its own type needs over the line\'s, not a fixed 9',
+        out.rubyExtra < 9 && Math.abs(out.rubyExtra - (8 + 7.5 * 0.72 - 11.5 * 0.72)) < 0.01, String(out.rubyExtra));
+  check('a size chosen in the field shows as it is drawn: scaled with the chart, and smaller again in a reading',
+        out.sizeShown[0] === 40 && out.sizeShown[1] !== null && Math.abs(out.sizeShown[1] - 40 * 7.5 / 11.5) < 0.1,
+        JSON.stringify(out.sizeShown));
+  check('a note beside an upright line stands clear of it rather than across it', !out.noteStraddles && out.noteGap >= 3.5,
+        JSON.stringify([out.noteGap, out.noteStraddles]));
+  check('the cropper for a card\'s picture starts on the whole picture, has no "whole image" button, and answers with ✕ and ✓',
+        out.cropSel === '0,0,80,40' && out.cropButtons.every(Boolean) && out.cropAnswer === 'cancel',
+        JSON.stringify([out.cropSel, out.cropButtons, out.cropAnswer]));
+
+  /* Selecting a word of a reading by a double click picks that word, not
+     everything from the word it reads to the end. */
+  await page.evaluate(async ([X, Y])=>{ vs = 2; vx = -X * 2 + 300; vy = -Y * 2 + 200; applyTransform(); openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150)); }, [X, Y]);
+  const rtAt = await page.evaluate(()=>{
+    const rt = document.querySelector('#nodeEditor .rich-surface rt');
+    if(!rt) return null;
+    const range = document.createRange(); range.selectNodeContents(rt);
+    const b = range.getBoundingClientRect();
+    return [b.left + b.width / 2, b.top + b.height / 2];
+  });
+  if(rtAt) await page.mouse.dblclick(rtAt[0], rtAt[1]);
+  await page.waitForTimeout(80);
+  const picked = await page.evaluate(()=>{ const s = String(window.getSelection()); closeNodeEditor(false); vs = 1; applyTransform(); return s; });
+  check('a double click on a reading picks that reading\'s word alone', picked === 'Оптимус', JSON.stringify([rtAt, picked]));
+
+  /* The editor's frame is the entry's box: its line as thick as the
+     border at this zoom, its corners as round as the entry's, square when
+     the entry is. */
+  const frame = await page.evaluate(async ([X, Y])=>{
+    const res = [];
+    for(const z of [0.7, 2.2]){
+      vs = z; vx = -X * z + 300; vy = -Y * z + 200; applyTransform();
+      applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; });
+      openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150));
+      const surf = document.querySelector('#nodeEditor .rich-surface');
+      const cs = getComputedStyle(surf);
+      const px = v=> parseFloat(cs.getPropertyValue(v)) || 0;
+      const sr = surf.getBoundingClientRect();
+      /* The frame is placed against the field's padding box, which is
+         inside the field's own border: its outer edge is the field's edge
+         less the half border it moves out by. */
+      const bw = px('--bw'), bo = px('--bo'), ax = px('--ax'), ay = px('--ay'), hang = px('--hang');
+      const outer = {l: sr.left - bo - ax, r: sr.right + bo - ax, t: sr.top + hang - bo - ay, b: sr.bottom - hang + bo - ay};
+      const shape = qNode('.node[data-id="p1111_a"] > rect:not(.node-hover-pad)');
+      const nb = shape.getBoundingClientRect();
+      const half = NODE_BORDER_W / 2 * z;
+      const rx = parseFloat(shape.getAttribute('rx')) || 0;
+      res.push({z, bw: Math.abs(bw - Math.max(0.6, 1.6 * z)) < 0.02,
+                edges: [outer.l - (nb.left - half), outer.r - (nb.right + half), outer.t - (nb.top - half), outer.b - (nb.bottom + half)].map(v=> Math.round(v * 100) / 100),
+                fr: px('--fr'), wantFr: rx > 0 ? (rx + NODE_BORDER_W / 2) * z : 0});
+      closeNodeEditor(false);
+    }
+    vs = 1; applyTransform();
+    return res;
+  }, [X, Y]);
+  check('the in-node editor\'s frame lies on the entry\'s box at any zoom, as thick as its border, its corners the entry\'s',
+        frame.every(f=> f.bw && f.edges.every(e=> Math.abs(e) < 0.6) && Math.abs(f.fr - f.wantFr) < 0.05), JSON.stringify(frame));
+
+  /* The picture's player keeps working: carried, it goes rather than
+     standing over where the picture was; redrawn, it follows; a finger
+     lifting does not shut it, a tap brings it, a picture that plays on
+     hover keeps playing while the hand is on the buttons, and it stands
+     over the picture's own menu. */
+  const player = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    flyToNode('p1111_i'); await wait(200);
+    const img = ()=> pictureElementOf('p1111_i');
+    const centre = ()=>{ const b = img().getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+    const at = (type, [x, y], extra)=>{
+      const t = document.elementFromPoint(x, y) || img();
+      t.dispatchEvent(new PointerEvent(type, Object.assign({bubbles:true, clientX:x, clientY:y, pointerType:'mouse'}, extra || {})));
+    };
+    at('pointermove', centre()); await wait(30);
+    r.opened = !picturePlayer.hidden && picturePlayerFor === 'p1111_i';
+    // Redrawn somewhere else, it follows.
+    applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === 'p1111_i'); e[6].pos = [e[6].pos[0] + 60, e[6].pos[1]]; });
+    await wait(60);
+    const pr = picturePlayer.getBoundingClientRect(), ir = img().getBoundingClientRect();
+    r.follows = !picturePlayer.hidden && Math.abs((pr.left + pr.right) / 2 - (ir.left + ir.right) / 2) < 1.5;
+    // Carried, it goes at once.
+    chartCarriedAt = performance.now();
+    at('pointermove', centre());
+    r.goneWhileCarried = picturePlayer.hidden;
+    chartCarriedAt = 0;
+    // A finger lifting is not leaving the page.
+    at('pointermove', centre()); await wait(30);
+    document.documentElement.dispatchEvent(new PointerEvent('pointerleave', {pointerType:'touch'}));
+    r.touchLeaveKeeps = !picturePlayer.hidden;
+    document.documentElement.dispatchEvent(new PointerEvent('pointerleave', {pointerType:'mouse'}));
+    r.mouseLeaveShuts = picturePlayer.hidden;
+    // A tap brings it.
+    at('pointerdown', centre(), {pointerType:'touch'});
+    at('pointerup', centre(), {pointerType:'touch'});
+    await wait(30);
+    r.tapOpens = !picturePlayer.hidden && picturePlayerFor === 'p1111_i';
+    // A press on its own picture leaves it be.
+    at('pointerdown', centre()); at('pointerup', centre()); await wait(30);
+    r.pressKeeps = !picturePlayer.hidden;
+    // Playing on hover goes on while the pointer is on the buttons.
+    setPictureAnim('p1111_i', 'hover'); await wait(150);
+    at('pointermove', centre()); at('pointerover', centre()); await wait(30);
+    const b = picturePlayer.querySelector('button').getBoundingClientRect();
+    picturePlayer.querySelector('button').dispatchEvent(new PointerEvent('pointerover', {bubbles:true, clientX:b.left + 2, clientY:b.top + 2}));
+    r.keepsPlaying = img().dataset.playing === '1';
+    document.body.dispatchEvent(new PointerEvent('pointerover', {bubbles:true}));
+    setPictureAnim('p1111_i', 'play');
+    r.overMenus = +getComputedStyle(picturePlayer).zIndex > +getComputedStyle(freeMenu).zIndex;
+    closePicturePlayer();
+    return r;
+  });
+  check('the picture\'s player follows its picture when the chart is redrawn', player.opened && player.follows, JSON.stringify(player));
+  check('…goes at once while the chart is carried, instead of standing where the picture was', player.goneWhileCarried, JSON.stringify(player));
+  check('…stays when a finger lifts (only a mouse leaving the window shuts it), and a tap on the picture brings it',
+        player.touchLeaveKeeps && player.mouseLeaveShuts && player.tapOpens && player.pressKeeps, JSON.stringify(player));
+  check('…a picture that plays on hover keeps playing while the hand is on the buttons, and the player stands over the picture\'s menu',
+        player.keepsPlaying && player.overMenus, JSON.stringify(player));
+
+  /* Menus moved by hand: the style bar by its dots, a panel by its head;
+     the shift goes when the menu closes or turns to something else. */
+  await page.evaluate(async ()=>{ flyToNode('p1111_a'); await new Promise(ok=> setTimeout(ok, 150)); openStyleBar({kind:'node', id:'p1111_a'}); await new Promise(ok=> setTimeout(ok, 50)); });
+  const grip = await page.evaluate(()=>{ const g = styleBar.querySelector('.menu-grip'); if(!g) return null; const b = g.getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
+  let moved = {grip: !!grip};
+  if(grip){
+    await page.mouse.move(grip[0], grip[1]);
+    await page.mouse.down();
+    await page.mouse.move(grip[0] + 90, grip[1] - 50, {steps: 6});
+    await page.mouse.up();
+    moved = Object.assign(moved, await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const m = {shift: styleBar.style.translate, open: !styleBar.hidden};
+      positionStyleBar(); await wait(20);
+      m.keptOnPlace = styleBar.style.translate === m.shift;
+      openStyleBar({kind:'node', id:'p1111_c'}); await wait(30);
+      m.otherClears = !styleBar.style.translate;
+      closeStyleBar(); await wait(20);
+      // A panel by its head, with a finger.
+      openFreeMenu('p1111_i'); await wait(60);
+      const head = freeMenu.querySelector('.edge-popover-head');
+      const hb = head.getBoundingClientRect(), x = hb.left + 30, y = hb.top + hb.height / 2;
+      head.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, clientX:x, clientY:y, pointerType:'touch', pointerId: 7, button: 0}));
+      head.dispatchEvent(new PointerEvent('pointermove', {bubbles:true, clientX:x - 40, clientY:y + 70, pointerType:'touch', pointerId: 7}));
+      head.dispatchEvent(new PointerEvent('pointerup', {bubbles:true, clientX:x - 40, clientY:y + 70, pointerType:'touch', pointerId: 7}));
+      m.panelShift = freeMenu.style.translate;
+      closeFreeMenu(); await wait(30);
+      m.closeClears = !freeMenu.style.translate;
+      m.editorGrip = !!document.querySelector('#nodeEditorBar > .menu-grip') && !!edgePopover.querySelector('.edge-popover-head .menu-grip');
+      return m;
+    }));
+  }
+  check('the style bar is carried by its dots and keeps the shift while it stands for the same thing',
+        moved.grip && moved.shift === '90px -50px' && moved.open && moved.keptOnPlace, JSON.stringify(moved));
+  check('…and the shift goes when it turns to another thing or a menu closes; a panel is carried by its head, a finger too',
+        moved.otherClears && moved.panelShift === '-40px 70px' && moved.closeClears && moved.editorGrip, JSON.stringify(moved));
+
+  /* On a phone the second row of the bar starts at the left like the
+     first, and Save keeps the bottom right corner. */
+  await page.setViewportSize({width: 390, height: 844});
+  await page.waitForTimeout(200);
+  const bar = await page.evaluate(()=>{
+    const top = document.querySelector('.topbar');
+    const kids = [...top.querySelectorAll(':scope > *:not(.brand):not(.search-wrap)')].filter(e=> e.offsetParent !== null && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0);
+    const rows = new Map();
+    kids.forEach(e=>{ const b = e.getBoundingClientRect(); const k = Math.round(b.top / 8); if(!rows.has(k)) rows.set(k, []); rows.get(k).push(b); });
+    const lefts = [...rows.values()].map(rs=> Math.min(...rs.map(b=> b.left)));
+    const save = document.getElementById('saveBtn').getBoundingClientRect();
+    const others = kids.filter(e=> !e.matches('#saveBtn, .owner-avatar, .owner-btn, .save-state')).map(e=> e.getBoundingClientRect());
+    return {lefts: lefts.map(v=> Math.round(v)), rows: rows.size,
+            saveRight: save.right >= Math.max(...others.filter(b=> Math.abs(b.top - save.top) < 12).map(b=> b.right), 0),
+            saveLow: others.every(b=> b.top <= save.top + 1),
+            saveNearEnd: top.getBoundingClientRect().right - save.right < 70};
+  });
+  await page.setViewportSize({width: 1500, height: 950});
+  await page.waitForTimeout(200);
+  check('on a phone every row of the top bar starts at the left, and Save keeps the bottom right corner',
+        bar.lefts.every(l=> Math.abs(l - bar.lefts[0]) < 3) && bar.saveRight && bar.saveLow && bar.saveNearEnd, JSON.stringify(bar));
+  } finally {
+    await page.evaluate(()=>{
+      const k = window.__k1111;
+      closeStyleBar(); closeNodeEditor(false); closePicturePlayer();
+      workingNodes = k.nodes; refill(EDGE_STYLES, k.styles);
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
+    });
+  }
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

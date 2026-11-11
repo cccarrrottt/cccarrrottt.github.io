@@ -396,6 +396,73 @@ function setRichValue(textarea, markup){
 }
 // Turns one textarea into a rich field. The textarea stays in the DOM
 // (hidden) so nothing that reads or writes `.value` has to change.
+/* A word picked inside a reading is that word, and nothing either side.
+ *
+ * The browser finds a word by walking the text, and a reading's two halves
+ * are text like any other to it: a double click (or a long press) on
+ * "Оптимус" in Some[[Optimus|Оптимус]]Prime picked "SomeOptimusОптимусPrime",
+ * the base, the annotation and every letter touching them (the owner's
+ * list of 11.11). So the word under the pointer is found again within the
+ * one piece of text it is in — the annotation's, or the base's — and the
+ * selection is put on that alone. */
+function readingWordAt(surface, x, y){
+  let r = null;
+  try{
+    if(document.caretRangeFromPoint) r = document.caretRangeFromPoint(x, y);
+    else if(document.caretPositionFromPoint){
+      const p = document.caretPositionFromPoint(x, y);
+      if(p){ r = document.createRange(); r.setStart(p.offsetNode, p.offset); }
+    }
+  }catch(e){ r = null; }
+  const node = r && r.startContainer;
+  if(!node || node.nodeType !== 3 || !surface.contains(node)) return null;
+  const host = node.parentElement && node.parentElement.closest('ruby');
+  if(!host || !surface.contains(host)) return null;
+  const text = node.data, at = Math.min(r.startOffset, text.length);
+  let a = 0, b = text.length;
+  if(typeof Intl !== 'undefined' && Intl.Segmenter){
+    for(const seg of new Intl.Segmenter(undefined, {granularity: 'word'}).segment(text)){
+      const end = seg.index + seg.segment.length;
+      if(at >= seg.index && (at < end || end === text.length)){
+        if(seg.isWordLike !== false){ a = seg.index; b = end; }
+        break;
+      }
+    }
+  }
+  const out = document.createRange();
+  out.setStart(node, a); out.setEnd(node, b);
+  return out;
+}
+function wordInReadingOnly(surface){
+  const pick = (x, y)=>{
+    const r = readingWordAt(surface, x, y);
+    if(!r) return;
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(r);
+  };
+  surface.addEventListener('dblclick', ev=> pick(ev.clientX, ev.clientY));
+  /* A long press picks a word as a double click does, and settles it a
+     moment after: the pick is put right once the browser has made it. */
+  let press = null;
+  surface.addEventListener('pointerdown', ev=>{
+    press = ev.pointerType === 'mouse' ? null : {x: ev.clientX, y: ev.clientY, t: Date.now(), moved: false};
+  });
+  surface.addEventListener('pointermove', ev=>{
+    if(press && Math.hypot(ev.clientX - press.x, ev.clientY - press.y) > 8) press.moved = true;
+  });
+  document.addEventListener('selectionchange', ()=>{
+    if(!press || press.moved || Date.now() - press.t < 350 || Date.now() - press.t > 2500) return;
+    const sel = window.getSelection();
+    if(!sel.rangeCount || sel.isCollapsed || !surface.contains(sel.anchorNode)) return;
+    const r = readingWordAt(surface, press.x, press.y);
+    press = null;
+    if(!r) return;
+    const cur = sel.getRangeAt(0);
+    if(cur.startContainer === r.startContainer && cur.startOffset === r.startOffset &&
+       cur.endContainer === r.endContainer && cur.endOffset === r.endOffset) return;
+    sel.removeAllRanges(); sel.addRange(r);
+  });
+}
 function makeRichField(textarea){
   if(!textarea || richFields.has(textarea.id)) return;
   /* If a surface is already sitting beside this textarea, that is one this
@@ -416,6 +483,7 @@ function makeRichField(textarea){
   textarea.parentNode.insertBefore(surface, textarea);
   textarea.style.display = 'none';
   surface.addEventListener('input', ()=>{ textarea.value = richHtmlToMarkup(surface); });
+  wordInReadingOnly(surface);
   // See insertIntoReading: a character typed inside a reading is placed by
   // hand, because the browser puts it in the wrong half at either edge.
   surface.addEventListener('beforeinput', ev=>{

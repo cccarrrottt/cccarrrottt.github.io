@@ -394,7 +394,10 @@ const cropImage = document.getElementById('cropImage');
 const cropFrame = document.getElementById('cropFrame');
 let cropResolve = null;      // settles the open openCropper() promise
 let cropNat = {w:0, h:0};    // the image's natural size
-let cropSel = {x:0, y:0, s:0};  // selection, in natural pixels
+let cropSel = {x:0, y:0, s:0, t:0};  // selection, in natural pixels: s across, t down
+/* Whether the selection is a square (a portrait, a sticker) or any
+   rectangle (a card's picture, a picture element). */
+let cropFree = false;
 const CROP_MIN = 24;         // in natural pixels
 
 // The preview's on-screen box, and the scale from natural px to preview px.
@@ -410,19 +413,29 @@ function paintCropFrame(){
   cropFrame.style.left   = (v.left + cropSel.x * v.k) + 'px';
   cropFrame.style.top    = (v.top  + cropSel.y * v.k) + 'px';
   cropFrame.style.width  = (cropSel.s * v.k) + 'px';
-  cropFrame.style.height = (cropSel.s * v.k) + 'px';
+  cropFrame.style.height = (cropSel.t * v.k) + 'px';
 }
 function clampCropSel(){
-  const maxS = Math.min(cropNat.w, cropNat.h);
-  cropSel.s = Math.max(Math.min(CROP_MIN, maxS), Math.min(cropSel.s, maxS));
+  if(cropFree){
+    cropSel.s = Math.max(Math.min(CROP_MIN, cropNat.w), Math.min(cropSel.s, cropNat.w));
+    cropSel.t = Math.max(Math.min(CROP_MIN, cropNat.h), Math.min(cropSel.t, cropNat.h));
+  } else {
+    const maxS = Math.min(cropNat.w, cropNat.h);
+    cropSel.s = cropSel.t = Math.max(Math.min(CROP_MIN, maxS), Math.min(cropSel.s, maxS));
+  }
   cropSel.x = Math.max(0, Math.min(cropSel.x, cropNat.w - cropSel.s));
-  cropSel.y = Math.max(0, Math.min(cropSel.y, cropNat.h - cropSel.s));
+  cropSel.y = Math.max(0, Math.min(cropSel.y, cropNat.h - cropSel.t));
 }
-// Starts with the largest centred square — the old behaviour, so leaving
-// the dialog untouched gives exactly the previous result.
+/* A square starts as the largest centred one; a rectangle as the whole
+   picture (the owner's list of 11.11: a card's picture came in cut to a
+   square it had not asked for), so pressing the tick at once keeps all
+   of it. */
 function resetCropSel(){
-  const s = Math.min(cropNat.w, cropNat.h);
-  cropSel = {x:(cropNat.w - s)/2, y:(cropNat.h - s)/2, s};
+  if(cropFree) cropSel = {x:0, y:0, s:cropNat.w, t:cropNat.h};
+  else {
+    const s = Math.min(cropNat.w, cropNat.h);
+    cropSel = {x:(cropNat.w - s)/2, y:(cropNat.h - s)/2, s, t:s};
+  }
   paintCropFrame();
 }
 function closeCropper(result){
@@ -431,7 +444,9 @@ function closeCropper(result){
   if(cropImage.src && cropImage.src.startsWith('blob:')) URL.revokeObjectURL(cropImage.src);
   if(done) done(result);
 }
-/* `shape` is 'circle' for a character bio and 'square' for a sticker.
+/* `shape` is 'circle' for a character bio, 'square' for a sticker and
+   'rect' for a card's picture or a picture element, which may be any
+   rectangle.
    It changes only what the chooser DRAWS. The selection stays a square
    either way, because a bio's picture is stored square and clipped to a
    circle when the entry is rendered — so a circular selection would be
@@ -448,9 +463,11 @@ function openCropper(file, title, shape){
       cropNat = {w: probe.naturalWidth, h: probe.naturalHeight};
       cropImage.src = url;
       document.getElementById('cropTitle').textContent = title || 'Choose the part to use';
+      cropFree = shape === 'rect';
       cropFrame.classList.toggle('circle', shape === 'circle');
       document.getElementById('cropHint').textContent = shape === 'circle'
         ? 'Drag inside the circle to move it, or a corner to resize. Only what is inside the circle is kept.'
+        : cropFree ? 'Drag inside the frame to move it, or a corner to resize.'
         : 'Drag inside the square to move it, or a corner to resize.';
       cropOverlay.classList.add('open');
       cropResolve = resolve;
@@ -495,13 +512,25 @@ function openCropper(file, title, shape){
       const west = grip === 'nw' || grip === 'sw';
       const north = grip === 'nw' || grip === 'ne';
       const anchorX = west ? startSel.x + startSel.s : startSel.x;
-      const anchorY = north ? startSel.y + startSel.s : startSel.y;
+      const anchorY = north ? startSel.y + startSel.t : startSel.y;
+      if(cropFree){
+        // A rectangle follows the corner on both axes at once.
+        let sw = Math.max(CROP_MIN, startSel.s + (west ? -dx : dx));
+        let sh = Math.max(CROP_MIN, startSel.t + (north ? -dy : dy));
+        sw = Math.min(sw, west ? anchorX : cropNat.w - anchorX);
+        sh = Math.min(sh, north ? anchorY : cropNat.h - anchorY);
+        cropSel.s = sw; cropSel.t = sh;
+        cropSel.x = west ? anchorX - sw : anchorX;
+        cropSel.y = north ? anchorY - sh : anchorY;
+        clampCropSel(); paintCropFrame();
+        return;
+      }
       let s = Math.max(startSel.s + (west ? -dx : dx), startSel.s + (north ? -dy : dy));
       s = Math.max(CROP_MIN, s);
       // Never let a corner push the square off the picture.
       s = Math.min(s, west ? anchorX : cropNat.w - anchorX,
                       north ? anchorY : cropNat.h - anchorY);
-      cropSel.s = s;
+      cropSel.s = cropSel.t = s;
       cropSel.x = west ? anchorX - s : anchorX;
       cropSel.y = north ? anchorY - s : anchorY;
     }
@@ -518,7 +547,6 @@ function openCropper(file, title, shape){
   window.addEventListener('resize', ()=>{ if(cropOverlay.classList.contains('open')) paintCropFrame(); });
 }
 document.getElementById('cropUse').onclick = ()=> closeCropper(Object.assign({}, cropSel));
-document.getElementById('cropWhole').onclick = ()=> closeCropper(null);
 document.getElementById('cropCancel').onclick = ()=> closeCropper('cancel');
 document.getElementById('cropClose').onclick = ()=> closeCropper('cancel');
 cropOverlay.addEventListener('click', ev=>{ if(ev.target === cropOverlay) closeCropper('cancel'); });
@@ -558,7 +586,7 @@ function downscaleToDataURI(file, crop, max){
       img.onerror = ()=> reject(new Error('that file is not an image this browser can read.'));
       img.onload = ()=>{
         const sx = crop ? crop.x : 0, sy = crop ? crop.y : 0;
-        const sw = crop ? crop.s : img.width, sh = crop ? crop.s : img.height;
+        const sw = crop ? crop.s : img.width, sh = crop ? (crop.t || crop.s) : img.height;
         const scale = Math.min(1, (max || BIO_IMAGE_MAX)/Math.max(sw, sh));
         const w = Math.max(1, Math.round(sw*scale));
         const h = Math.max(1, Math.round(sh*scale));
@@ -600,7 +628,7 @@ bioImageFile.addEventListener('change', async ()=>{
       return;
     }
     const crop = await openCropper(file, 'Choose the part of the picture to use',
-                                   roundTarget ? 'circle' : 'square');
+                                   roundTarget ? 'circle' : 'rect');
     if(crop === 'cancel') return;
     target.value = await downscaleToDataURI(file, crop, roundTarget ? BIO_IMAGE_MAX : PICTURE_IMAGE_MAX);
     target.dispatchEvent(new Event('input', {bubbles:true}));

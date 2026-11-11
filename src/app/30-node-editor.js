@@ -511,9 +511,36 @@ function openTextEditorOn(target, opts){
 }
 /* The field is set in the face, size, alignment and ink of whatever it is
    open on, so what is being typed looks like what it will be. */
+/* A size set on a run is in the chart's units, and the field is the
+   drawing at its zoom: the field's own size is multiplied by the zoom,
+   and a run's must be too — written as it is stored (data-size, px) it
+   stood at its size at 100% whatever the zoom, so a run made larger
+   looked larger or smaller in the field than it came out on the chart
+   (the owner's list of 11.11). And inside a reading, a run is drawn at
+   RUBY_SCALE of its size, as the chart draws an annotation (layoutLine).
+   The stored value stays data-size; only the shown size is scaled, and
+   it is scaled again whenever anything in the field changes or the zoom
+   does. */
+function scaleFieldSizes(surface){
+  surface.querySelectorAll('[data-size]').forEach(e=>{
+    const v = parseFloat(e.dataset.size);
+    if(!Number.isFinite(v)) return;
+    const inRt = !!(e.closest('rt') && surface.contains(e.closest('rt')));
+    const want = (v * vs * (inRt ? RUBY_SCALE : 1)).toFixed(2) + 'px';
+    if(e.style.fontSize !== want) e.style.fontSize = want;
+  });
+}
+function watchFieldSizes(surface){
+  if(surface._sizesWatched) return;
+  surface._sizesWatched = true;
+  new MutationObserver(()=>{ if(nodeEditorTarget) scaleFieldSizes(surface); })
+    .observe(surface, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-size']});
+}
 function syncNodeEditorLook(){
   const rec = richFields.get('nodeEditorText');
   if(!rec || !nodeEditorTarget) return;
+  watchFieldSizes(rec.surface);
+  scaleFieldSizes(rec.surface);
   if(nodeEditorTarget.kind === 'note'){
     rec.surface.style.fontFamily = EDGE_NOTE_FAMILY;
     rec.surface.style.fontSize = (EDGE_NOTE_FS * vs).toFixed(2) + 'px';
@@ -592,8 +619,26 @@ function finishNodeEditorLook(rec){
   rec.surface.style.textAlign = nodeEditorAlign();
   /* The border scales with the drawing, as the type does; the padding is
      whatever is left of the box round the words (see positionNodeEditor). */
-  rec.surface.style.borderWidth = Math.max(0.6, 1.6*vs).toFixed(2) + 'px';
+  const bw = Math.max(0.6, 1.6*vs);
+  rec.surface.style.borderWidth = bw.toFixed(2) + 'px';
   rec.surface.style.borderRadius = (5*vs).toFixed(2) + 'px';
+  /* …and so does the frame drawn for it, which is the entry's outline: as
+     thick as the box's border at this zoom, and as round as its corners —
+     a square entry opened a field with rounded ones, and at any zoom but
+     100% the frame's 1.6 screen pixels stood a pixel or two inside or
+     outside the border it covers (the owner's list of 11.11). */
+  rec.surface.style.setProperty('--bw', bw.toFixed(2) + 'px');
+  const t = nodeEditorTarget;
+  const drawn = !t ? null : t.kind === 'note'
+    ? arrowLayer.querySelector(`.edge-note[data-from="${cssEscape(t.from)}"][data-to="${cssEscape(t.to)}"] .edge-note-plate`)
+    : qNode(`.node[data-id="${cssEscape(t.id)}"] > rect:not(.node-hover-pad):not(.array-hit)`);
+  const rx = drawn ? parseFloat(drawn.getAttribute('rx')) || 0 : 5;
+  const half = t && t.kind === 'note' ? EDGE_NOTE_FRAME_W / 2 : NODE_BORDER_W / 2;
+  rec.surface.style.setProperty('--fr', (rx > 0 ? (rx + half) * vs : 0).toFixed(2) + 'px');
+  /* The drawn border stands half outside the box's edge and half inside
+     it, and the frame is laid over the whole of it: it starts that half
+     further out than the field's own edge. */
+  rec.surface.style.setProperty('--bo', (t && t.kind === 'note' ? 0 : half * vs).toFixed(2) + 'px');
 }
 /* How the words are set in the field: the way the thing being edited sets
    them. A connector's note is centred on the drawing; an entry's label,

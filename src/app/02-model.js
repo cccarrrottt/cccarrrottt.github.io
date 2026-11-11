@@ -418,8 +418,6 @@ const CARD_MEDIUM_SCALE = 1 / 1.5;
    whatever its depth (30.10), so these bound only a picture sized by hand
    — the upper one wide enough to hold any picture so fitted. */
 const CARD_IMG_MINH = 26, CARD_IMG_MAXH = 800;
-// The rule between a card's bands — .card-rule in the stylesheet.
-const CARD_RULE_W = 1;
 /* Default box for a free-standing picture before anyone resizes it: the
    size a character bio starts at. It was 180 by 120 — five times a
    portrait's width — so a picture put down beside the portraits it was

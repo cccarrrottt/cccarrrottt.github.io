@@ -21,10 +21,14 @@ function el(tag, attrs, parent){
    the box was mostly the gap between its own lines. 12.8 is a little over
    1.1, which is as close as lines of this size go before the descenders of
    one row start meeting the ascenders of the next.
-   RUBY_EXTRA is what a line carrying a reading adds on top, and it is
-   untouched: the annotation needs its own storey whatever the leading is,
-   and closing the lines up must not take it away. */
-const NODE_FS = 11.5, RUBY_FS = 7.5, LINE_H = 12.8, RUBY_GAP = 8, RUBY_EXTRA = 9;
+   RUBY_EXTRA is what a line carrying a reading adds on top: no more than
+   the annotation stands above the tallest a letter of the line does, so
+   the reading keeps the same leading from the line above that any letter
+   keeps (the owner's list of 11.11). It was 9, a storey of its own —
+   nearly twice what the annotation needs at RUBY_GAP over the baseline.
+   0.72 is the face's cap height against its size, for both. */
+const NODE_FS = 11.5, RUBY_FS = 7.5, LINE_H = 12.8, RUBY_GAP = 8;
+const RUBY_EXTRA = Math.max(0, RUBY_GAP + RUBY_FS * 0.72 - NODE_FS * 0.72);
 /* The annotation over a ruby unit is set against the size of the run the
    unit sits in, not against the entry's own size — a phrase set bigger
    takes its readings up with it. */

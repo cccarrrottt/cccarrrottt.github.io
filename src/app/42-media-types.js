@@ -254,10 +254,10 @@ function buildMediaTab(){
       box.appendChild(row);
     });
     if(!readOnlyView){
-      const addField = document.createElement('button');
-      addField.type = 'button';
-      addField.className = 'media-add-field';
-      addField.textContent = '+ field';
+      /* The + every other list on the page adds with (the owner's list of
+         11.11, afternoon), not a dashed "+ field" of its own. */
+      const addField = makePlusButton('Add a field to this kind');
+      addField.classList.add('media-add-field');
       addField.addEventListener('click', ev=>{
         ev.stopPropagation();
         let fid = null;

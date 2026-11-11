@@ -205,7 +205,6 @@ const styleBar = (()=>{
     bar.appendChild(row);
     return row;
   };
-  group('align', STYLE_BAR_ALIGN);
   group('border', STYLE_BAR_BORDERS);
   group('hatch', STYLE_BAR_HATCH);
   group('decor', STYLE_BAR_DECOR);
@@ -214,6 +213,9 @@ const styleBar = (()=>{
   group('corners', STYLE_BAR_CORNERS);
   group('endIn', STYLE_BAR_END_IN);
   group('endOut', STYLE_BAR_END_OUT);
+  /* The words' side stands just before the turn (the owner's list of
+     11.11, afternoon). */
+  group('align', STYLE_BAR_ALIGN);
   group('turn', STYLE_BAR_TURN);
   group('stack', STYLE_BAR_STACK);
   group('leader', STYLE_BAR_LEADER);
@@ -584,7 +586,9 @@ function syncStyleBarRows(){
   rows.hatch.hidden = rows.arrayInk.hidden = !isArr;
   rows.link.hidden = !isArr;
   // An array is as big as what it holds and stands the way that does.
-  rows.turn.hidden = !n || styleBarFree(n) || isArr;
+  /* …and a link is a circle with an arrow through it, which a quarter
+     turn only points somewhere it does not go (the owner's list of 11.11). */
+  rows.turn.hidden = !n || styleBarFree(n) || isArr || isLinkNode(n);
   /* Furniture's bar is the stack and nothing else. A caption and a
      picture have no border of their own to outline, no corners, and
      nothing a connector could meet. */
@@ -1119,7 +1123,7 @@ function openPicturePlayer(id){
    buttons, and clear of the words a card writes under its picture. */
 function placePicturePlayer(){
   if(!picturePlayerFor || picturePlayer.hidden) return;
-  const img = pictureElementOf(picturePlayerFor);
+  const img = pictureWantsPlayer(nodes.get(picturePlayerFor)) ? pictureElementOf(picturePlayerFor) : null;
   if(!img){ closePicturePlayer(); return; }
   const host = document.querySelector('.app > .main').getBoundingClientRect();
   const r = img.getBoundingClientRect();
@@ -1163,41 +1167,73 @@ picturePlayer.addEventListener('click', (ev)=>{
    pointer, so it is the point that is asked, against the picture's box.
    Leaving waits a moment, as the style bar does, so the buttons can be
    reached across the edge of the picture. */
+function pictureAtPoint(ev){
+  const g = ev.target && ev.target.closest ? ev.target.closest('g.node') : null;
+  const id = g && g.dataset.id;
+  const img = id && pictureWantsPlayer(nodes.get(id)) ? pictureElementOf(id) : null;
+  if(!img) return null;
+  const r = img.getBoundingClientRect();
+  return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom ? id : null;
+}
 document.addEventListener('pointermove', (ev)=>{
   if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')){
     clearTimeout(picturePlayerTimer);
     return;
   }
-  const g = ev.target && ev.target.closest ? ev.target.closest('g.node') : null;
-  const id = g && g.dataset.id;
-  const img = id && pictureWantsPlayer(nodes.get(id)) ? pictureElementOf(id) : null;
-  if(img && !chartUnderHand()){
-    const r = img.getBoundingClientRect();
-    if(ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom){
-      if(picturePlayerFor !== id || picturePlayer.hidden) openPicturePlayer(id);
-      else { clearTimeout(picturePlayerTimer); placePicturePlayer(); }
-      return;
-    }
+  /* While the chart or an entry is being carried the player goes at once
+     rather than lingering: it stood still over the place the picture had
+     left while the picture went on under the pointer (the owner's list of
+     11.11, afternoon — "it still breaks now and then"). */
+  if(chartUnderHand()){
+    if(picturePlayerFor) closePicturePlayer();
+    return;
+  }
+  const id = pictureAtPoint(ev);
+  if(id){
+    if(picturePlayerFor !== id || picturePlayer.hidden) openPicturePlayer(id);
+    else { clearTimeout(picturePlayerTimer); placePicturePlayer(); }
+    return;
   }
   if(picturePlayerFor && !picturePlayer.hidden){
     clearTimeout(picturePlayerTimer);
     picturePlayerTimer = setTimeout(closePicturePlayer, STYLE_BAR_LINGER);
   }
 }, {passive: true});
+/* A finger brings no movement before it presses, so on a touch screen the
+   player came up only when a tap happened to wobble — and the next press
+   took it away. A press let go where it began, on a picture, offers the
+   player, whatever the pointer; a press on the picture the player stands
+   over leaves it be, since that press is choosing the entry, not leaving
+   it. */
+let picturePressAt = null;
+document.addEventListener('pointerup', (ev)=>{
+  const at = picturePressAt;
+  picturePressAt = null;
+  if(!at || Math.hypot(ev.clientX - at.x, ev.clientY - at.y) > 6) return;
+  if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')) return;
+  const id = pictureAtPoint(ev);
+  if(id) setTimeout(()=>{ if(!chartUnderHand()) openPicturePlayer(id); }, 0);
+}, true);
 /* …and the moments no pointermove comes to say the pointer has gone,
    which is where the player used to stay up for good (the owner's list of
    2.11, evening): the pointer leaving the window — straight off the
    player, often, since it sits at the picture's foot — the window losing
-   the focus, a press anywhere but on the player itself, and the wheel,
-   which moves the picture out from under a player that stays where it
-   was put; the next movement over the picture brings it back. */
-document.documentElement.addEventListener('pointerleave', ()=>{
+   the focus, a press anywhere but on the player or its picture, and the
+   wheel, which moves the picture out from under a player that stays where
+   it was put; the next movement over the picture brings it back. */
+/* A finger "leaves" the page every time it lifts, between the press on a
+   button and the click it makes — which shut the player before any of its
+   buttons could be tapped. Only a mouse leaving the window means leaving. */
+document.documentElement.addEventListener('pointerleave', (ev)=>{
+  if(ev.pointerType && ev.pointerType !== 'mouse') return;
   if(picturePlayerFor) closePicturePlayer();
 });
 window.addEventListener('blur', ()=>{ if(picturePlayerFor) closePicturePlayer(); });
 document.addEventListener('pointerdown', (ev)=>{
+  picturePressAt = {x: ev.clientX, y: ev.clientY};
   if(!picturePlayerFor || picturePlayer.hidden) return;
   if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')) return;
+  if(pictureAtPoint(ev) === picturePlayerFor) return;
   closePicturePlayer();
 }, true);
 document.addEventListener('wheel', (ev)=>{
@@ -1205,3 +1241,99 @@ document.addEventListener('wheel', (ev)=>{
   if(ev.target && ev.target.closest && ev.target.closest('#picturePlayer')) return;
   closePicturePlayer();
 }, {passive: true, capture: true});
+
+
+/* =========================================================================
+   MENUS MOVED BY HAND
+   -----------------------------------------------------------------------
+   A menu comes up beside what it is for, and sometimes that is exactly
+   where the eye needs to be: the style bar over the line below its entry,
+   the panel over the picture it is choosing (the owner's list of 11.11,
+   afternoon). Each one has a grip — the dots at its start — that carries
+   it elsewhere for as long as it stands for the same thing.
+
+   The hand's shift is the element's `translate`, a property of its own
+   beside the left and top its placing code writes, so the two never fight:
+   the menu still follows its thing when that moves, by the same shift.
+   The shift goes when the menu closes or turns to something else — a menu
+   that reopened for the next entry far from it would be a menu lost.
+   ========================================================================= */
+const MENU_GRIP_GLYPH = '<svg viewBox="0 0 8 12" width="7" height="11" aria-hidden="true" fill="currentColor">' +
+  '<circle cx="2" cy="2" r="1.1"/><circle cx="6" cy="2" r="1.1"/><circle cx="2" cy="6" r="1.1"/>' +
+  '<circle cx="6" cy="6" r="1.1"/><circle cx="2" cy="10" r="1.1"/><circle cx="6" cy="10" r="1.1"/></svg>';
+function menuGrip(){
+  const g = document.createElement('span');
+  g.className = 'menu-grip';
+  g.title = 'Drag to move this menu out of the way';
+  g.setAttribute('aria-hidden', 'true');
+  g.innerHTML = MENU_GRIP_GLYPH;
+  return g;
+}
+function resetMenuMove(el){
+  el.style.translate = '';
+  delete el.dataset.movedFor;
+}
+/* el: what moves. grips: what can be taken hold of. watch: the element
+   whose opening, closing and placing say the menu has turned to something
+   else (the editor's bar moves inside the editor its code places). key:
+   what the menu stands for now. shown: whether it is up. */
+function makeMovable({el, grips, watch = el, key, shown}){
+  const settle = ()=>{
+    if(!el.dataset.movedFor) return;
+    if(!shown() || key() !== el.dataset.movedFor) resetMenuMove(el);
+  };
+  new MutationObserver(settle).observe(watch, {attributes: true, attributeFilter: ['hidden', 'class', 'style']});
+  grips.forEach(grip=>{
+    grip.classList.add('menu-grip-host');
+    grip.addEventListener('pointerdown', (ev)=>{
+      if(ev.button !== 0 && ev.pointerType === 'mouse') return;
+      // The buttons and fields in a head are still pressed as themselves.
+      if(ev.target.closest('button, input, select, textarea, label, a') && !ev.target.closest('.menu-grip')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const [ox, oy] = (el.style.translate || '0px 0px').split(/\s+/).map(v=> parseFloat(v) || 0);
+      const sx = ev.clientX, sy = ev.clientY;
+      el.dataset.movedFor = key();
+      el.classList.add('menu-moving');
+      try{ grip.setPointerCapture(ev.pointerId); }catch(e){}
+      const move = (e)=>{
+        el.style.translate = `${Math.round(ox + e.clientX - sx)}px ${Math.round(oy + e.clientY - sy)}px`;
+      };
+      const up = ()=>{
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        el.classList.remove('menu-moving');
+      };
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+    // Nor is a press on the grip a press on the chart or a click away.
+    grip.addEventListener('mousedown', ev=>{ if(!ev.target.closest('button, input, select, textarea')) ev.stopPropagation(); });
+  });
+}
+(()=>{
+  const headOf = (el)=>{
+    const head = el.querySelector(':scope > .edge-popover-head');
+    head.insertBefore(menuGrip(), head.firstChild);
+    return head;
+  };
+  const bar = menuGrip();
+  styleBar.insertBefore(bar, styleBar.firstChild);
+  makeMovable({el: styleBar, grips: [bar],
+    key: ()=>{ const t = styleBarTarget; return t ? [t.kind, t.id, t.from, t.to].join('\u0001') : ''; },
+    shown: ()=> !styleBar.hidden});
+  makeMovable({el: edgePopover, grips: [headOf(edgePopover)],
+    key: ()=> JSON.stringify(currentEdgeStyleTarget || null),
+    shown: ()=> edgePopover.classList.contains('open')});
+  makeMovable({el: freeMenu, grips: [headOf(freeMenu)],
+    key: ()=> String(freeMenuId || ''),
+    shown: ()=> freeMenu.classList.contains('open')});
+  const edBar = document.getElementById('nodeEditorBar');
+  const edGrip = menuGrip();
+  edBar.insertBefore(edGrip, edBar.firstChild);
+  makeMovable({el: edBar, grips: [edGrip], watch: document.getElementById('nodeEditor'),
+    key: ()=> JSON.stringify(nodeEditorTarget || null),
+    shown: ()=> !document.getElementById('nodeEditor').hidden});
+})();
