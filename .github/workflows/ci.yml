@@ -167,10 +167,21 @@ jobs:
         with:
           python-version: '3.11'
 
+      # --with-deps asks apt for the system packages Chromium wants, most of
+      # them fonts the runner image already has. On 11.11 the runners could
+      # not resolve Ubuntu's mirrors for hours, and every shard of a green
+      # change went red before a test ran — twice. apt is tried three times;
+      # if the mirrors are still gone the browser is installed on its own,
+      # with what the image carries, and the run says so.
       - name: Install Playwright
         run: |
           npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          for i in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "Installing Chromium with its system packages failed (attempt $i)"; sleep $((i * 15))
+          done
+          echo "::warning::Ubuntu's package mirrors were unreachable; Chromium installed without its system packages"
+          npx playwright install chromium
 
       # The src suite serves src/ directly, but building first is what proves
       # the checkout is whole, and it costs seconds.
