@@ -14835,7 +14835,10 @@ async function main(){
       nodeControlsOn(id);
       const shown = [...styleBar.querySelectorAll('.style-bar-group')]
         .filter(r=> !r.hidden).map(r=> r.dataset.group);
-      out.freeBar[id] = (!styleBar.hidden && shown.length === 1 && shown[0] === 'stack' &&
+      /* A caption has words, so it wears their side as well (the owner's
+         list of 11.11); a picture has the stack alone. */
+      const want = id === 'htT' ? 'align,stack' : 'stack';
+      out.freeBar[id] = (!styleBar.hidden && shown.join() === want &&
                          !!document.querySelector(`.node[data-id="${id}"] .node-rotate`)) ||
                         JSON.stringify({open: !styleBar.hidden, shown});
     }
@@ -14980,7 +14983,7 @@ async function main(){
   check('the style bar stays where it was when its turn button is pressed', rW.barStill === true);
   check('a turned portrait takes its card round with it', rW.bioCardTurns, rW.bioCardAt);
   check('a turned entry\'s ground turns with it', rW.groundTurned);
-  check('furniture wears the stack button alone, and keeps its own handle',
+  check('furniture wears the stack button alone (a caption its words\' side too), and keeps its own handle',
         rW.freeBar.htT === true && rW.freeBar.htI === true,
         JSON.stringify(rW.freeBar));
   check('and the bar stands clear of that handle',
