@@ -202,6 +202,13 @@ const REF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const REF_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M6.4 2.8H3v17.4h3.4M16.8 2.8h3.4v10"/><path d="M9.2 7.4 12.4 5v15.2"/>' +
   '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2" stroke-linecap="butt"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2" stroke-linecap="butt"/></svg>';
+/* The Media tab's film frame with the same + — what adds a kind of
+   medium, as the tag and the folder add theirs (the owner's list of
+   15.11). The frame is drawn smaller and to the upper left, so the +
+   has its corner to itself. */
+const MEDIA_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">' +
+  '<path d="M14 16.5H3.5A1.5 1.5 0 0 1 2 15V4.5A1.5 1.5 0 0 1 3.5 3h13A1.5 1.5 0 0 1 18 4.5V13"/><path d="M5.5 3v13.5M14.5 3v9M2 7h3.5M2 11.5h3.5M14.5 7H18"/>' +
+  '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2"/></svg>';
 function makePlusButton(title, svg){
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'icon-action plus-mini'; b.title = title;

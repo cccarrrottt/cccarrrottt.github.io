@@ -207,7 +207,59 @@ function takeColourOver(span, surface){
     a = up;
   }
 }
-function applyRichCommand(surface, kind, arg, restyle){
+/* The parts of a selection that lie in each of a field's lines, when it
+   lies in more than one: null otherwise. Lines whose part holds nothing
+   are left out. */
+function linePartsOf(surface, range){
+  const isLine = (n)=> n && n.nodeType === 1 && n.parentNode === surface && /^(DIV|P)$/.test(n.tagName);
+  const lineOf = (c, off, end)=>{
+    if(c === surface) return surface.childNodes[end ? off - 1 : off] || null;
+    while(c && c.parentNode !== surface) c = c.parentNode;
+    return c;
+  };
+  const a = lineOf(range.startContainer, range.startOffset, false);
+  const b = lineOf(range.endContainer, range.endOffset, true);
+  if(!a || !b || a === b || !isLine(a) || !isLine(b)) return null;
+  const parts = [];
+  for(let n = a; n; n = n.nextSibling){
+    if(isLine(n)){
+      const r = document.createRange();
+      r.selectNodeContents(n);
+      if(n === a && range.startContainer !== surface) r.setStart(range.startContainer, range.startOffset);
+      if(n === b && range.endContainer !== surface) r.setEnd(range.endContainer, range.endOffset);
+      if(!r.collapsed && (r.toString() || r.cloneContents().querySelector('[data-sticker], [data-ref], [data-media]'))) parts.push(r);
+    }
+    if(n === b) break;
+  }
+  return parts.length ? parts : null;
+}
+/* A run's look put round a selection that crosses lines. A field's lines
+   are blocks, and a span round two of them is an inline holding blocks:
+   the browser lays that out with an empty line box before and after each
+   block, so ruling three lines in the in-entry editor pushed them apart,
+   and taking the rule off left the span, and the gaps, where they were
+   until the field was closed (the owner's list of 15.11). Each line's
+   words get a wrapper of their own instead, a copy of `wrap`, and the
+   lines stay lines. Returns what to insert. */
+function wrapInlineRuns(frag, wrap){
+  const isBlock = (n)=> n.nodeType === 1 && /^(DIV|P)$/.test(n.tagName);
+  if(!Array.from(frag.childNodes).some(isBlock)){ wrap.appendChild(frag); return wrap; }
+  let run = null;
+  Array.from(frag.childNodes).forEach(n=>{
+    if(isBlock(n)){
+      run = null;
+      if(!n.textContent && !n.querySelector('[data-sticker], [data-ref], [data-media]')) return;
+      const w = wrap.cloneNode(false);
+      while(n.firstChild) w.appendChild(n.firstChild);
+      n.appendChild(w);
+      return;
+    }
+    if(!run){ run = wrap.cloneNode(false); frag.insertBefore(run, n); }
+    run.appendChild(n);
+  });
+  return frag;
+}
+function applyRichCommand(surface, kind, arg, restyle, hadAll){
   surface.focus({preventScroll:true});
   // Ask for tags rather than inline styles, so what comes back out is
   // <b>/<i> and maps straight onto the stored markup.
@@ -290,7 +342,28 @@ function applyRichCommand(surface, kind, arg, restyle){
     if(!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
     if(range.collapsed || !surface.contains(range.commonAncestorContainer)) return;
-    const had = !restyle && !!lineStateOf(surface)[kind === 'under' ? 'under' : 'strike'];
+    const had = hadAll !== undefined ? hadAll : !restyle && !!lineStateOf(surface)[kind === 'under' ? 'under' : 'strike'];
+    /* A selection across lines is ruled, or cleared, line by line, each
+       line's part on its own: taken out whole it came back as lines of
+       its own, so ruling from the middle of one line to the middle of
+       the next split both in two (the owner's list of 15.11). Whether the
+       rule goes on or off is decided once, for the whole selection. */
+    const parts = linePartsOf(surface, range);
+    if(parts){
+      const done = [];
+      for(let k = parts.length - 1; k >= 0; k--){
+        sel.removeAllRanges(); sel.addRange(parts[k]);
+        applyRichCommand(surface, kind, arg, restyle, had);
+        if(sel.rangeCount) done.push(sel.getRangeAt(0).cloneRange());
+      }
+      if(done.length){
+        const all = document.createRange();
+        all.setStart(done[done.length - 1].startContainer, done[done.length - 1].startOffset);
+        all.setEnd(done[0].endContainer, done[0].endOffset);
+        sel.removeAllRanges(); sel.addRange(all);
+      }
+      return;
+    }
     const frag = range.extractContents();
     // Strip whatever this kind of rule the selection already carries.
     const strip = (node)=>{
@@ -302,6 +375,10 @@ function applyRichCommand(surface, kind, arg, restyle){
         const keeps = child.getAttribute(other);
         child.style.textDecorationLine = keeps ? otherLine : '';
         if(keeps) child.style.textDecorationStyle = (LINE_STYLES[keeps] || LINE_STYLES.solid).css;
+        /* …and the rule's style with it: a span left holding nothing but
+           a text-decoration-style was no longer bare, stayed, and kept
+           whatever it had wrapped where it had been put. */
+        else child.style.removeProperty('text-decoration-style');
         const bare = child.tagName === 'SPAN' && !keeps &&
           (!child.getAttribute('style') || !child.getAttribute('style').trim()) &&
           !child.getAttribute('data-font') && !child.getAttribute('data-size') &&
@@ -381,8 +458,7 @@ function applyRichCommand(surface, kind, arg, restyle){
       wrap.style.textDecorationLine = line;
       wrap.style.textDecorationStyle = (LINE_STYLES[style] || LINE_STYLES.solid).css;
       wrap.setAttribute(attr, style);
-      wrap.appendChild(frag);
-      range.insertNode(wrap);
+      range.insertNode(wrapInlineRuns(frag, wrap));
     }
     surface.dispatchEvent(new Event('input', {bubbles:true}));
     return;

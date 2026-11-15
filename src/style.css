@@ -838,7 +838,7 @@
   .edge-note.edge-picked > .edge-note-along-frame,
   .callout-leader.focused .leader-line, .callout-leader.focused .leader-dot,
   .node.selected > image, .bio-card-g.focused > rect,
-  .edge.edge-picked, .edge-arrow.edge-picked{
+  .edge.edge-picked, .edge-arrow.edge-picked, .edge-arrow.bar-picked{
     filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
@@ -948,14 +948,6 @@
   .node-copy-link-icon{fill:none;stroke:var(--ink);stroke-width:0.75;stroke-linecap:round;}
   .node-copy-link:hover .node-copy-link-bg{stroke:var(--accent);}
   .node-copy-link:hover .node-copy-link-icon, .node-copy-link.done .node-copy-link-icon{stroke:var(--accent);}
-  /* The picture's own corners, shown only while the picture is the thing
-     being edited — so they are not four more handles competing with the
-     box's own on every card on the chart. */
-  .card-img-grip{cursor:nwse-resize;}
-  .card-img-grip-ne, .card-img-grip-sw{cursor:nesw-resize;}
-  .card-img-grip-mark{fill:var(--panel);stroke:var(--accent);stroke-width:1.4;}
-  .card-img-frame{fill:none;stroke:var(--accent);stroke-width:1;
-                  stroke-dasharray:4 3;pointer-events:none;opacity:0.8;}
   .node-resize-hit{fill:transparent;stroke:none;}
   .node-resize-mark{fill:var(--panel);stroke:var(--ink-faint);stroke-width:0.9;}
   .node-resize:hover .node-resize-mark{fill:var(--accent);stroke:var(--accent);}
@@ -1229,6 +1221,13 @@
   .edge-open > path{stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;}
   .edge-open.lit > path{stroke-width:2.4;}
   .edge-arrow.lit, .amalgam-bead.lit{opacity:1;}
+  /* The dot a picked line of a merge joins at, and a split being carried,
+     swell as a callout's point does in the hand (the owner's list of
+     15.11). Scaled about their own middle, so nothing they stand on moves. */
+  .amalgam-bead.bead-picked, .node-split.dragging > circle:not(.split-hit):not(.node-hover-pad){
+    transform-box:fill-box;transform-origin:center;transform:scale(1.6);
+    transition:transform 90ms ease-out;
+  }
 
 
   /* ---------- The side tabs: tags, references and the legend ----------
@@ -1268,12 +1267,14 @@
   #keyPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 2 + var(--side-tab-gap) * 2);}
   #mediaPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 3 + var(--side-tab-gap) * 3);}
   #minimapPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 4 + var(--side-tab-gap) * 4);}
-  /* A reader has neither the legend's nor the media's drawer, so the edge
-     is shared by the three they do have, not left with two gaps in it
-     (the owner's list of 2.11, evening). */
-  body.read-only .side-tab{height:calc((100% - var(--side-tab-gap) * 2) / 3);}
-  body.read-only #refsPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 + var(--side-tab-gap));}
-  body.read-only #minimapPanel{top:calc((100% - var(--side-tab-gap) * 2) / 3 * 2 + var(--side-tab-gap) * 2);}
+  /* A reader has no legend's drawer, so the edge is shared by the four
+     they do have, not left with a gap in it (the owner's list of 2.11,
+     evening). The media's drawer is theirs since the list of 15.11: the
+     kinds, their counts and their eyes, with nothing to add or unfold. */
+  body.read-only .side-tab{height:calc((100% - var(--side-tab-gap) * 3) / 4);}
+  body.read-only #refsPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 + var(--side-tab-gap));}
+  body.read-only #mediaPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 2 + var(--side-tab-gap) * 2);}
+  body.read-only #minimapPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 3 + var(--side-tab-gap) * 3);}
   .side-tab-body{
     position:absolute;left:25px;top:0;bottom:0;
     width:252px;
@@ -3186,7 +3187,7 @@
     text-transform:uppercase;letter-spacing:0.4px;}
   /* A reader is not shown the legend at all: it is the author's working
      key while the chart is being made (the owner's call, 2026-10-14). */
-  body.read-only #keyPanel, body.read-only #mediaPanel{display:none !important;}
+  body.read-only #keyPanel{display:none !important;}
   .ref-item{
     padding:7px 8px;border-bottom:1px solid var(--line);position:relative;
   }
@@ -3392,12 +3393,15 @@
      RUBY_RISE, 05-render-text): the browser lays a reading on top of the
      base's whole line box, a third of its own size higher than the chart
      draws it, and the field showed the reading floating off the word it
-     belongs to (the owner's list of 28.10). It is let down by that much. */
+     belongs to (the owner's list of 28.10). Since the chart sets a reading
+     clear of the tallest letter under it (the list of 15.11), the field's
+     is seated by measure instead (seatFieldReadings, 30-node-editor) —
+     a fixed nudge agreed with the chart only on the faces it was set on. */
   .rich-surface ruby rt{
     font-family:inherit;
     font-size:0.652em;line-height:1;
     text-align:center;
-    position:relative;top:0.4em;
+    position:relative;
   }
 
   /* ---- smart guides -------------------------------------------------

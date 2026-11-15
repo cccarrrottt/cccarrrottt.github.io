@@ -152,44 +152,6 @@ const COPY_LINK_R = 4.2;
 const COPY_LINK_TITLE = 'Copy a link to this entry';
 const COPY_LINK_ICON = 'M-0.6,0.6 L0.6,-0.6 M-0.3,-1.5 L0.6,-2.4 A1.27,1.27 0 0 1 2.4,-0.6 L1.5,0.3 '
                      + 'M0.3,1.5 L-0.6,2.4 A1.27,1.27 0 0 1 -2.4,0.6 L-1.5,-0.3';
-/* The card whose PICTURE is being edited, if any.
- *
- * A card is two things in one box — words and a picture — and a double
- * click has to mean one of them. On the words it opens the text where the
- * text is; on the picture it opens the picture, which means showing the
- * picture's own corners and letting them be pulled. Nothing else about the
- * entry changes while this is open, and a click anywhere else closes it. */
-let cardImgEditId = null;
-function cardImageEditable(n){
-  return !!(n && n.card && n.image && !readOnlyView);
-}
-function repaintAfterCardImageEdit(){
-  renderNodes();
-  redrawEdges();
-  applyVisibility();
-  if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
-  paintMultiSelection();
-}
-function openCardImageEdit(id){
-  const n = nodes.get(id);
-  if(!cardImageEditable(n)) return false;
-  if(cardImgEditId === id) return true;
-  cardImgEditId = id;
-  repaintAfterCardImageEdit();
-  return true;
-}
-function closeCardImageEdit(){
-  if(!cardImgEditId) return;
-  cardImgEditId = null;
-  repaintAfterCardImageEdit();
-}
-/* Whether a point is over a card's picture band — which is what decides
-   what a double click on a card means. */
-function overCardPicture(n, px, py){
-  if(!cardImageEditable(n)) return false;
-  const band = n.cardTop || 0;
-  return band > 0.5 && py >= n.y && py <= n.y + band && px >= n.x && px <= n.x + n.w;
-}
 /* How tall a picture is for its width, remembered per source.
  *
  * A card's picture band is drawn synchronously, and the one thing that
@@ -1572,27 +1534,6 @@ const drawOne = (n)=>{
       }
       return line(yy, 'card-rule', NODE_BORDER_W);
     };
-    /* The picture's own corners, while it is the thing being edited: four
-       grips on the box the picture is drawn in. Free by default — the
-       picture takes the shape you pull it into — and proportional with
-       Shift held, which is the one thing a picture usually wants. */
-    /* Not on a turned card: the grips would turn with the picture, and a
-       corner dragged one way would pull the picture another. */
-    if(cardImgEditId === n.id && n.image && cardImgB > n.y + 0.5 && !turn){
-      const gy0 = imgY, gy1 = imgY + imgH;
-      [[imgX, gy0, 'nw'], [imgX + imgW, gy0, 'ne'],
-       [imgX, gy1, 'sw'], [imgX + imgW, gy1, 'se']].forEach(([gx, gyy, key])=>{
-        const grip = el('g', {class:'card-img-grip card-img-grip-' + key,
-                              transform:`translate(${gx.toFixed(2)},${gyy.toFixed(2)})`}, g);
-        el('rect', {x:-4.5, y:-4.5, width:9, height:9, rx:1.5, class:'card-img-grip-mark'}, grip);
-        grip.addEventListener('mousedown', ev=> beginCardImageResize(ev, liveN()));
-        grip.addEventListener('click', ev=> ev.stopPropagation());
-        el('title', {}, grip).textContent =
-          'Drag to resize the picture; hold Shift to keep its proportions';
-      });
-      el('rect', {x:imgX, y:gy0, width:imgW, height:gy1 - gy0,
-                  class:'card-img-frame'}, g);
-    }
     if(cardImgB > n.y + 0.5 && n.image) rule(cardImgB);
     if(cardMedium || cardBody) rule(cardHeadB);
     /* A figure's own lines (a subroutine's bars, a cylinder's lip). */
@@ -2398,19 +2339,10 @@ const drawOne = (n)=>{
         updateAddFabPosition();
       }
     }
-    /* A card's picture is its own thing to edit. A double click on the
-       picture band opens the picture — its corners, to be pulled — rather
-       than dropping a text cursor into a band that has no text in it. */
-    if(isCard && cardImageEditable(liveN())){
-      const at = clientToWorld(ev.clientX, ev.clientY);
-      if(overCardPicture(liveN(), at.x, at.y)){
-        selectNode(n.id, {quiet:true});
-        paintMultiSelection();
-        openCardImageEdit(n.id);
-        return;
-      }
-    }
-    closeCardImageEdit();
+    /* A double click on a card's picture used to open the picture: four
+       corners of its own, to be pulled. The owner had it taken out (the
+       list of 15.11) — a card is resized by the card's own corners, and
+       a double click anywhere on it opens its words. */
     /* A free-standing element is edited in its OWN card, not in the
        entry drawer.
      *

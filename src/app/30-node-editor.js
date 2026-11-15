@@ -530,11 +530,57 @@ function scaleFieldSizes(surface){
     if(e.style.fontSize !== want) e.style.fontSize = want;
   });
 }
+/* A reading in the field stands as high over its word as the chart puts
+ * it (rubyRise): clear of the word's tallest letter, by the letters
+ * themselves.
+ *
+   It used to be a fixed nudge in the stylesheet, set to agree with the
+   chart on one machine — and the chart's height is measured from the
+   face, so on a machine with other faces the two parted by a few pixels.
+   Here each reading's baseline and its word's are found where the
+   browser put them (an empty mark standing on each), and the reading is
+   moved by the difference, in its own ems so a zoom keeps it. */
+let seatingReadings = false;
+function seatFieldReadings(surface){
+  if(seatingReadings) return;
+  const rubies = surface.querySelectorAll('ruby');
+  if(!rubies.length) return;
+  seatingReadings = true;
+  try{
+    const cs = getComputedStyle(surface);
+    const own = (parseFloat(cs.fontSize) || NODE_FS * vs) / (vs || 1);
+    const family = cs.fontFamily;
+    rubies.forEach(ruby=>{
+      const rt = ruby.querySelector('rt');
+      if(!rt) return;
+      const word = [...ruby.childNodes].filter(c=> c !== rt && c.nodeName !== 'RP').map(c=> c.textContent).join('');
+      if(!word.trim()) return;
+      const bold = parseInt(getComputedStyle(ruby).fontWeight, 10) >= 600;
+      const rise = inkReach(word, {bold, fontSize: own, family}).up + RUBY_PAD * own / NODE_FS + own * RUBY_SCALE * 0.21;
+      const mark = ()=>{ const m = document.createElement('span'); m.style.cssText = 'display:inline-block;width:0;height:0;'; return m; };
+      const inWord = mark(), inReading = mark();
+      ruby.insertBefore(inWord, rt);
+      rt.appendChild(inReading);
+      rt.style.top = '0px';
+      const was = inReading.getBoundingClientRect().bottom;
+      const want = inWord.getBoundingClientRect().bottom - rise * vs;
+      inWord.remove(); inReading.remove();
+      const em = parseFloat(getComputedStyle(rt).fontSize) || 1;
+      rt.style.top = ((want - was) / em).toFixed(3) + 'em';
+    });
+  } finally {
+    /* The marks set and taken away are not edits: what they told the
+       watcher below is dropped, or it would seat the readings again,
+       and again. */
+    if(surface._sizesWatcher) surface._sizesWatcher.takeRecords();
+    seatingReadings = false;
+  }
+}
 function watchFieldSizes(surface){
   if(surface._sizesWatched) return;
   surface._sizesWatched = true;
-  new MutationObserver(()=>{ if(nodeEditorTarget) scaleFieldSizes(surface); })
-    .observe(surface, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-size']});
+  surface._sizesWatcher = new MutationObserver(()=>{ if(nodeEditorTarget && !seatingReadings){ scaleFieldSizes(surface); seatFieldReadings(surface); } });
+  surface._sizesWatcher.observe(surface, {subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-size']});
 }
 function syncNodeEditorLook(){
   const rec = richFields.get('nodeEditorText');
@@ -617,6 +663,8 @@ function finishNodeEditorLook(rec){
       (nodes.get(nodeEditorTarget.id) || {}).shape === 'callout'));
   if(hex){ hex.style.display = inherits ? 'none' : ''; showHexSquare(hex, !inherits); }
   rec.surface.style.textAlign = nodeEditorAlign();
+  // Once the field is in its face and size: see seatFieldReadings.
+  seatFieldReadings(rec.surface);
   /* The border scales with the drawing, as the type does; the padding is
      whatever is left of the box round the words (see positionNodeEditor). */
   const bw = Math.max(0.6, 1.6*vs);

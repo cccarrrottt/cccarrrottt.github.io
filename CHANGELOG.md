@@ -6,6 +6,41 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.25.8 — "Clear of the capitals" (2026-11-15)
+
+The owner's list of 15.11.
+
+- A reading stands clear of the tallest letter of the word it reads, measured, so it no longer sits on a capital; two readings on one line stand at one height over the same letters. A reading whose text is all erased goes, slot and all, and is written again with its button.
+- In the in-entry editor, underline and strike-through across several lines no longer spread the lines apart, and taken off they come back together.
+- A reader has the Media tab: the kinds, their counts and their eyes, with nothing to add, unfold or take out. The author adds a kind with the tab's own frame and a plus, as tags and references do.
+- A picked merge is lit only as far as each line goes, so a lineage ending in a T at the bar leaves no white notch in the glow, and the T is lit with it.
+- A card's picture no longer has corners of its own on a double click; a card is sized by its own corners.
+- A split swells while it is carried, as a callout's point does, and the dot a picked lineage of a merge joins at swells with it.
+- A split carried along a line that turns goes round the corner after the hand; it used to jump from one leg to the other and skip the corner.
+
+- **Ruby.** `rubyRise` (`05-render-text.js`) is the base's measured ink
+  top (`inkReach`, cached, cleared in `fontsLanded`) plus `RUBY_PAD` plus
+  the reading's size's descent; `RUBY_GAP`/`RUBY_RISE` are gone and
+  `RUBY_EXTRA` keeps room for the tallest letter. `dropEmptyReadings`
+  (`24-rich-fields.js`) unwraps a `ruby` whose `rt` is empty on input.
+- **Under/strike in the editor.** `applyRichCommand` (`25-figures.js`)
+  works line by line (`linePartsOf`), wraps inside each block
+  (`wrapInlineRuns`) rather than round the blocks, and strips a leftover
+  `text-decoration-style`.
+- **Media for readers.** `#mediaPanel` is no longer hidden in read-only;
+  the reader's four tabs share the edge. `MEDIA_ADD_SVG` (`16-tags.js`).
+- **Merge glow.** A lineage's `barPieces` stop at its end's line point;
+  its bar-end head carries `.bar-end` and is lit `.bar-picked` with the
+  bar (`paintBarFocus`).
+- **Card picture corners removed**: `cardImgEditId`, `openCardImageEdit`,
+  `overCardPicture`, `beginCardImageResize` and their CSS. Stored
+  `cardImgW/H` are still drawn and still written by a card resize.
+- **Swelling dots.** `.node-split.dragging` and `.amalgam-bead.bead-picked`
+  (`pickMergeBeads`, `32-guides-bends.js`) scale 1.6 about their middle.
+- **Split carry.** `carrySplitAlong` (`18-canvas-gestures.js`) moves the
+  dot to the nearest point of its track but no further along it than the
+  hand moved.
+
 ## 0.25.7 — "Out of the way" (2026-11-11)
 
 The owner's second list of 11.11.

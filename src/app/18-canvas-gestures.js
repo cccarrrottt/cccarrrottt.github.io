@@ -966,14 +966,50 @@ function nearestOnTrack(track, x, y){
       const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (len * len)));
       const s = Math.max(track.lo, Math.min(track.hi, run + t * len));
       if(s >= run && s <= run + len){
-        const c = {x: a.x + dx * (s - run) / len, y: a.y + dy * (s - run) / len};
+        const c = {x: a.x + dx * (s - run) / len, y: a.y + dy * (s - run) / len, s};
         const k = Math.hypot(c.x - x, c.y - y);
         if(k < d){ d = k; best = c; }
       }
     }
     run += len;
   }
-  return best || {x, y};
+  return best || {x, y, s: null};
+}
+/* The point a given way along a split's track. */
+function pointOnTrack(track, s){
+  const L = track.line;
+  let run = 0;
+  for(let i = 1; i < L.length; i++){
+    const a = L[i-1], b = L[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+    if(len > 0 && s <= run + len) return {x: a.x + (b.x - a.x) * (s - run) / len, y: a.y + (b.y - a.y) * (s - run) / len, s};
+    run += len;
+  }
+  const z = L[L.length - 1];
+  return {x: z.x, y: z.y, s: run};
+}
+/* Where a carried split goes: to the nearest point of its line, but never
+ * further along the line than the hand has moved.
+ *
+   The nearest point alone jumped (the owner's list of 15.11). Where the
+   line turns, a hand inside the corner is as far from one leg as from the
+   other, and as it crossed that middle the dot leapt from one leg to the
+   other, skipping the corner and every part of the line between. A dot
+   that may go only as far along as the hand went cannot skip anything:
+   it runs round the corner after the hand instead, and on a straight
+   stretch, where the nearest point never jumps, nothing changes. */
+function carrySplitAlong(track, x, y){
+  const want = nearestOnTrack(track, x, y);
+  if(want.s == null) return want;
+  if(track.at == null || !track.hand){
+    track.at = want.s; track.hand = {x, y};
+    return want;
+  }
+  const reach = Math.hypot(x - track.hand.x, y - track.hand.y) + 1;
+  track.hand = {x, y};
+  const step = want.s - track.at;
+  if(Math.abs(step) <= reach){ track.at = want.s; return want; }
+  track.at = Math.max(track.lo, Math.min(track.hi, track.at + Math.sign(step) * reach));
+  return pointOnTrack(track, track.at);
 }
 function mergeCarriedWhole(id, group){
   const m = nodes.get(id);
@@ -1121,7 +1157,14 @@ window.addEventListener('mousemove', e=>{
     : st.originY + snapToGrid(rawY - st.originY);
   let offX = placedX - st.originX, offY = placedY - st.originY;
   if(st.splitLine && !free){
-    const c = nearestOnTrack(st.splitLine, rawX + st.node.w/2, rawY + st.node.h/2);
+    const t = st.splitLine;
+    if(t.at == null){
+      /* Where the dot stands and where the hand stands, as the carry
+         begins — what the first step is measured from. */
+      t.at = nearestOnTrack(t, st.originX + st.node.w/2, st.originY + st.node.h/2).s;
+      t.hand = {x: st.originX + st.node.w/2, y: st.originY + st.node.h/2};
+    }
+    const c = carrySplitAlong(t, rawX + st.node.w/2, rawY + st.node.h/2);
     offX = Math.round((c.x - st.node.w/2 - st.originX) * 100) / 100;
     offY = Math.round((c.y - st.node.h/2 - st.originY) * 100) / 100;
     clearGuides();
@@ -1439,7 +1482,7 @@ function beginNodeResize(ev, n, g, corner){
    corner pulled in shrank the picture. Its size is written down where
    the resize starts, as it is seen, and from then on the card grows and
    shrinks round it; the band it no longer covers is the blurred picture.
-   Its own corners (beginCardImageResize) are how a picture is resized. */
+   There is no other way to size it (the owner's list of 15.11). */
 function cardPictureAsDrawn(n){
   if(!n || !n.card || !n.image || (n.cardImgW != null && n.cardImgH != null)) return null;
   const band = n.cardImgBand;
@@ -1545,71 +1588,6 @@ window.addEventListener('mouseup', ()=>{
     } else if((st.growShift || st.growShiftX) && Array.isArray(opts.pos)){
       opts.pos = [opts.pos[0] - st.growShiftX, opts.pos[1] - st.growShift];
     }
-    putEntry(found.index, found.entry, opts);
-  });
-});
-
-/* Pulling a card's picture by its corners.
- *
- * The picture stands in the middle of its band, so a corner says two
- * things at once: how wide the picture is (twice its distance from the
- * card's middle) and how deep its band is (how far it stands below the
- * card's top). Free, the two are independent — a picture may be made any
- * shape and is fitted or cropped inside it exactly as before. With Shift
- * held the second follows the first at the picture's own proportions,
- * which is what a picture usually wants and what every drawing program
- * means by that key. */
-let cardImgResizeState = null;
-function beginCardImageResize(ev, n){
-  if(ev.button !== 0 || readOnlyView) return;
-  ev.stopPropagation();
-  ev.preventDefault();
-  cardImgResizeState = {node:n, moved:false,
-                        startW: n.cardImgW == null ? n.w : n.cardImgW,
-                        startH: n.cardImgH == null ? ((n.cardImgBand && n.cardImgBand.h) || n.cardTop || CARD_IMG_H) : n.cardImgH};
-}
-window.addEventListener('mousemove', e=>{
-  if(!cardImgResizeState) return;
-  const st = cardImgResizeState;
-  const n = st.node;
-  const p = clientToWorld(e.clientX, e.clientY);
-  const cx = n.x + n.w/2;
-  let iw = Math.max(CARD_IMG_MINH, Math.min(CARD_MAXW, Math.abs(p.x - cx) * 2));
-  /* A card sized by hand holds its picture in the middle of the band
-     (see renderNodes), so a corner says the depth as it says the width:
-     twice its distance from the middle. */
-  const band = n.size && n.cardImgBand;
-  let ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH,
-    band ? Math.abs(p.y - (n.y + band.top + band.h / 2)) * 2 : p.y - n.y));
-  if(e.shiftKey){
-    const r = imageAspect(n.image);
-    if(r) ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, iw * r));
-  }
-  if(!st.moved && Math.abs(iw - st.startW) < 1 && Math.abs(ih - st.startH) < 1) return;
-  st.moved = true;
-  n.cardImgW = Math.round(iw);
-  n.cardImgH = Math.round(ih);
-  /* A card sized by hand keeps its own height; one that sizes itself
-     follows the picture, so the box grows and shrinks under the pointer
-     exactly as the band does. */
-  renderNodes();
-  redrawEdges();
-  applyVisibility();
-  if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
-  paintMultiSelection();
-  followStyleBar();
-});
-window.addEventListener('mouseup', ()=>{
-  const st = cardImgResizeState;
-  cardImgResizeState = null;
-  if(!st || !st.moved) return;
-  const n = st.node;
-  applyEdit(()=>{
-    const found = workingEntry(n.id);
-    if(!found) return;
-    const opts = entryOpts(found.entry);
-    opts.cardImgW = n.cardImgW;
-    opts.cardImgH = n.cardImgH;
     putEntry(found.index, found.entry, opts);
   });
 });

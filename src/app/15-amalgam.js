@@ -1106,7 +1106,13 @@ function drawAmalgam(list, ports){
     if(bar){
       const piece = style.sinusoid ? wavyPath([land, bar], 0, 0, true)
         : `M${land.x.toFixed(2)},${land.y.toFixed(2)} L${bar.x.toFixed(2)},${bar.y.toFixed(2)}`;
-      barPieces.push({from: e.from, d: piece});
+      /* Lit as far as the line goes, not to the bar point: a lineage
+         ending in a T stops its gap short of the next one, and the paper
+         tracing laid on to the point showed there as a white notch in the
+         glow, the grid wiped out under it (the owner's list of 15.11). */
+      const lit = !own ? piece : style.sinusoid ? wavyPath([land, bar], 0, own.cut, true)
+        : `M${land.x.toFixed(2)},${land.y.toFixed(2)} L${own.line.x.toFixed(2)},${own.line.y.toFixed(2)}`;
+      barPieces.push({from: e.from, d: lit});
       spans.push({lo: Math.min(o, inward), hi: Math.max(o, inward), d: piece, stroke: paint, style, from: e.from});
     }
     starts.push({from: e.from, at: o});
@@ -1386,8 +1392,12 @@ function drawMergeMemberEnds(e, style, pts, port, paint, tail){
                        e.from, e.to, port.wavy ? e.from : null, port.ring || 0, style.openIn);
   }
   if(tail){
-    if(style.barEnd === 'tout') drawTeeHead(arrowLayer, tail.x, tail.y, tail.ang, paint, e.from, e.to, 0);
-    else drawArrowHead(arrowLayer, tail.x, tail.y, tail.ang, paint, e.from, e.to, null, 0, style.barEnd === 'oout');
+    const g = style.barEnd === 'tout' ? drawTeeHead(arrowLayer, tail.x, tail.y, tail.ang, paint, e.from, e.to, 0)
+      : drawArrowHead(arrowLayer, tail.x, tail.y, tail.ang, paint, e.from, e.to, null, 0, style.barEnd === 'oout');
+    /* Marked as the end at the bar, which a picked bar lights with it
+       (see paintBarFocus): the line it ends is lit, and the T or the head
+       on the end of it is part of that line. */
+    g.classList.add('bar-end');
   }
 }
 /* The merged arrow, in whatever look it has been given.
@@ -1837,6 +1847,7 @@ function setBarFocus(id){
   if(next === amalgamBarFocus) return;
   amalgamBarFocus = next;
   edgeLayer.querySelectorAll('.amalgam-bar-focus').forEach(p=> p.remove());
+  arrowLayer.querySelectorAll('.bar-end.bar-picked').forEach(g=> g.classList.remove('bar-picked'));
   if(!next) return;
   paintBarFocus(next);
 }
@@ -1862,6 +1873,7 @@ function paintBarFocus(id){
     if(w) glow.style.strokeWidth = w;
     edgeLayer.insertBefore(glow, edgeLayer.firstChild);
   });
+  arrowLayer.querySelectorAll(`.bar-end[data-to="${CSS.escape(id)}"]`).forEach(g=> g.classList.add('bar-picked'));
 }
 /* The place a bar stands, fixed: what it is told to keep from now on. A
    bar no drag has touched is worked out afresh from where the entry is,

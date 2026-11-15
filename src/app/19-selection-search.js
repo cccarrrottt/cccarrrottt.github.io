@@ -316,8 +316,6 @@ function selectNode(id, opts){
     paintSelectionHighlight(id);
     return;
   }
-  /* …and so does moving to a different entry. */
-  if(typeof cardImgEditId !== 'undefined' && cardImgEditId && cardImgEditId !== id) closeCardImageEdit();
   // A plain selection replaces the set; the multi-select paths add to it
   // themselves before calling in here.
   if(!(opts && opts.keepSelection)){
@@ -416,9 +414,6 @@ svg.addEventListener('click', (ev)=>{
 function deselect(){
   selectedId=null;
   markEntryOpen(false);
-  /* A picture being resized belongs to the entry that was open; letting
-     go of the entry lets go of the picture. */
-  closeCardImageEdit();
   multiSelection.clear();
   qNodes('.node.multi').forEach(g=>g.classList.remove('multi'));
   qNodes('.node').forEach(g=>{ g.classList.remove('selected'); g.classList.remove('dim'); g.classList.remove('lit'); });
