@@ -138,7 +138,7 @@ function buildMediaTab(){
   const kinds = mediaTypesOf();
   const head = sectionHead('Media', kinds.length);
   if(!readOnlyView){
-    const add = makePlusButton('Add a kind of medium');
+    const add = makePlusButton('Add a kind of medium', MEDIA_ADD_SVG);
     add.addEventListener('click', ev=>{
       ev.stopPropagation();
       const id = newMediaTypeId('kind');
@@ -188,11 +188,13 @@ function buildMediaTab(){
     const box = document.createElement('div');
     box.className = 'media-kind';
     box.dataset.kind = kind.id;
-    const open = mediaKindsOpen().has(kind.id);
+    /* A reader is shown the kinds and their eyes, not their insides: no
+       ▸ and no fold on the heading (the owner's list of 15.11). */
+    const open = !readOnlyView && mediaKindsOpen().has(kind.id);
     box.classList.toggle('shut', !open);
     const top = document.createElement('div');
     top.className = 'media-kind-top';
-    top.title = open ? 'Fold this kind away' : 'Unfold this kind: its fields';
+    if(!readOnlyView) top.title = open ? 'Fold this kind away' : 'Unfold this kind: its fields';
     const toggle = ()=>{
       const set = mediaKindsOpen();
       if(set.has(kind.id)) set.delete(kind.id); else set.add(kind.id);
@@ -200,10 +202,10 @@ function buildMediaTab(){
     };
     /* The heading folds, as a category's does; the ▸ stands between the
        name and the count, where the tags panel has it. */
-    top.addEventListener('click', ev=>{
+    if(!readOnlyView) top.addEventListener('click', ev=>{
       if(ev.target.closest('button') || ev.target.isContentEditable) return;
       if(mediaHeadTimer){ clearTimeout(mediaHeadTimer); mediaHeadTimer = 0; return; }
-      mediaHeadTimer = setTimeout(()=>{ mediaHeadTimer = 0; toggle(); }, readOnlyView ? 0 : DOUBLE_CLICK_GRACE);
+      mediaHeadTimer = setTimeout(()=>{ mediaHeadTimer = 0; toggle(); }, DOUBLE_CLICK_GRACE);
     });
     /* Its eye, as a tag's: every entry of this kind faded off the chart
        and back, whether or not it is drawn as a card just now. */
@@ -220,14 +222,16 @@ function buildMediaTab(){
     }
     top.appendChild(nameText('media-kind-name', kind.name, 'Name of the kind', kind.name, v=>
       editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.name = v || t.name; })));
-    const fold = document.createElement('button');
-    fold.type = 'button';
-    fold.className = 'media-fold';
-    fold.textContent = '▸';
-    fold.title = top.title;
-    fold.setAttribute('aria-expanded', open ? 'true' : 'false');
-    fold.addEventListener('click', ev=>{ ev.stopPropagation(); toggle(); });
-    top.appendChild(fold);
+    if(!readOnlyView){
+      const fold = document.createElement('button');
+      fold.type = 'button';
+      fold.className = 'media-fold';
+      fold.textContent = '▸';
+      fold.title = top.title;
+      fold.setAttribute('aria-expanded', open ? 'true' : 'false');
+      fold.addEventListener('click', ev=>{ ev.stopPropagation(); toggle(); });
+      top.appendChild(fold);
+    }
     const uses = mediaUses(kind.id);
     const count = document.createElement('span');
     count.className = 'media-kind-count';
@@ -239,7 +243,7 @@ function buildMediaTab(){
     if(!readOnlyView) top.appendChild(cross('Take this kind out of the chart (its cards keep their facts)', ()=>
       editMediaTypes(list=>{ const i = list.findIndex(x=> x.id === kind.id); if(i >= 0) list.splice(i, 1); })));
     box.appendChild(top);
-    kind.fields.forEach(f=>{
+    if(!readOnlyView) kind.fields.forEach(f=>{
       const row = document.createElement('div');
       row.className = 'media-field';
       row.dataset.field = f.id;

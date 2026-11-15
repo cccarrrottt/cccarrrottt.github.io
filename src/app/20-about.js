@@ -11,9 +11,18 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.7';
+const APP_VERSION = '0.25.8';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.25.8', date:'2026-11-15', title:'Clear of the capitals', notes:[
+'A reading stands clear of the tallest letter of the word it reads, measured, so it no longer sits on a capital; two readings on one line stand at one height over the same letters. A reading whose text is all erased goes, slot and all, and is written again with its button.',
+'In the in-entry editor, underline and strike-through across several lines no longer spread the lines apart, and taken off they come back together.',
+'A reader has the Media tab: the kinds, their counts and their eyes, with nothing to add, unfold or take out. The author adds a kind with the tab\'s own frame and a plus, as tags and references do.',
+'A picked merge is lit only as far as each line goes, so a lineage ending in a T at the bar leaves no white notch in the glow, and the T is lit with it.',
+'A card\'s picture no longer has corners of its own on a double click; a card is sized by its own corners.',
+'A split swells while it is carried, as a callout\'s point does, and the dot a picked lineage of a merge joins at swells with it.',
+'A split carried along a line that turns goes round the corner after the hand; it used to jump from one leg to the other and skip the corner.'
+  ]},
   {v:'0.25.7', date:'2026-11-11', title:'Out of the way', notes:[
 'A menu that covers what is needed can be moved by hand: the style bar and the in-entry editor\'s bar by the dots at their start, an entry\'s or a connector\'s panel by its head, with a mouse or a finger. It keeps the place for as long as it stands for the same thing.',
 'The player on a moving picture keeps working: on a phone a tap brings it and its buttons take taps (a finger lifting shut it, and the picture\'s own menu lay over it); it goes while the chart or the entry is carried and follows the picture when it is redrawn; a picture that plays on hover keeps playing while the pointer is on the buttons; the wheel over it zooms.',

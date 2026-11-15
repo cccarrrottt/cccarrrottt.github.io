@@ -433,6 +433,33 @@ function readingWordAt(surface, x, y){
   out.setStart(node, a); out.setEnd(node, b);
   return out;
 }
+/* A reading typed away to nothing is no reading: its word stands on its
+   own again, and a new reading is put over it with the Ruby button. The
+   empty slot used to stay — written to the chart as the bare word, but
+   still in the field, where nothing could be typed into it again (the
+   owner's list of 15.11). The caret goes where the reading was, after
+   its word. */
+function dropEmptyReadings(surface){
+  surface.querySelectorAll('ruby').forEach(ruby=>{
+    const rt = ruby.querySelector('rt');
+    if(rt && rt.textContent.replace(/[\u200b\ufeff]/g, '') !== '') return;
+    const sel = window.getSelection();
+    const hadCaret = !!(sel && sel.rangeCount && ruby.contains(sel.getRangeAt(0).startContainer));
+    if(rt) rt.remove();
+    const parent = ruby.parentNode, last = ruby.lastChild;
+    while(ruby.firstChild) parent.insertBefore(ruby.firstChild, ruby);
+    const after = ruby.nextSibling;
+    ruby.remove();
+    if(hadCaret && sel){
+      const r = document.createRange();
+      if(last && last.parentNode === parent) r.setStartAfter(last);
+      else if(after) r.setStartBefore(after);
+      else r.selectNodeContents(parent), r.collapse(false);
+      r.collapse(true);
+      sel.removeAllRanges(); sel.addRange(r);
+    }
+  });
+}
 function wordInReadingOnly(surface){
   const pick = (x, y)=>{
     const r = readingWordAt(surface, x, y);
@@ -482,6 +509,8 @@ function makeRichField(textarea){
   if(textarea.rows) surface.style.minHeight = (textarea.rows * 20 + 14) + 'px';
   textarea.parentNode.insertBefore(surface, textarea);
   textarea.style.display = 'none';
+  /* Before the field's text is read, so the markup and the field agree. */
+  surface.addEventListener('input', (ev)=>{ if(!ev.isComposing) dropEmptyReadings(surface); }, true);
   surface.addEventListener('input', ()=>{ textarea.value = richHtmlToMarkup(surface); });
   wordInReadingOnly(surface);
   // See insertIntoReading: a character typed inside a reading is placed by

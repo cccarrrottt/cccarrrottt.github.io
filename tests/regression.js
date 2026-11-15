@@ -12832,33 +12832,16 @@ async function main(){
       out.bandTookTheRoom = hn.cardTop > 120;
     }
 
-    /* ---- a double click on the picture opens the PICTURE ---- */
+    /* ---- a double click on the picture no longer resizes it ---- */
     {
       const g = document.querySelector('.node[data-id="cdM"]');
       const r = g.getBoundingClientRect();
       g.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true,
         clientX: r.x + r.width/2, clientY: r.y + 14}));
       await wait(350);
-      out.picGrips = document.querySelectorAll('.card-img-grip').length;
-      out.picNoTextEditor = !!document.getElementById('nodeEditor').hidden;
-      // …and the panel the first click of that double would have opened is
-      // not left standing behind it.
-      out.picNoDrawer = !document.getElementById('detail').classList.contains('open');
-      /* The grips move the picture, and the picture only. */
-      const grip = document.querySelector('.card-img-grip-se');
-      const gb = grip.getBoundingClientRect();
-      const bandWas = nodes.get('cdM').cardTop;
-      grip.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true,
-        button:0, clientX: gb.x + gb.width/2, clientY: gb.y + gb.height/2}));
-      for(let k = 1; k <= 8; k++){
-        window.dispatchEvent(new MouseEvent('mousemove',
-          {bubbles:true, clientX: gb.x + gb.width/2, clientY: gb.y + gb.height/2 + k * 6}));
-        await wait(16);
-      }
-      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-      await wait(500);
-      out.picResized = nodes.get('cdM').cardTop > bandWas + 10;
-      out.picBands = JSON.stringify({was:Math.round(bandWas), now:Math.round(nodes.get('cdM').cardTop)});
+      out.picGrips = document.querySelectorAll('.card-img-grip, .card-img-frame').length;
+      out.picNoResizer = typeof beginCardImageResize === 'undefined' && typeof openCardImageEdit === 'undefined';
+      closeNodeEditor();
       deselect();
       await wait(150);
     }
@@ -12916,10 +12899,8 @@ async function main(){
         JSON.stringify({medium:rC.mediumDrawn, rules:rC.cardRules}));
   check('and a card sized by hand gives the room to its picture',
         rC.bandTookTheRoom, String(rC.handCardBand));
-  check('a double click on a card’s picture opens the picture, not its words',
-        rC.picGrips === 4 && rC.picNoTextEditor && rC.picNoDrawer,
-        JSON.stringify({grips:rC.picGrips, text:rC.picNoTextEditor, drawer:rC.picNoDrawer}));
-  check('and its corners resize it', rC.picResized, rC.picBands);
+  check('a double click on a card’s picture shows no corners of its own, and nothing resizes it by them (15.11)',
+        rC.picGrips === 0 && rC.picNoResizer, JSON.stringify({grips:rC.picGrips, gone:rC.picNoResizer}));
   check('a merge carried into its parents leaves them where they stand',
         !rC.mergePushedParent, rC.mergePushAt);
   check('and a parent carried into the merge leaves the merge where it stands',
@@ -22327,7 +22308,7 @@ async function main(){
       await wait(200);
       r.asReader = readOnlyView && document.body.classList.contains('reader-preview') &&
                    getComputedStyle(toggle).display !== 'none' &&
-                   getComputedStyle(document.getElementById('mediaPanel')).display === 'none' &&
+                   getComputedStyle(document.getElementById('mediaPanel')).display !== 'none' &&
                    getComputedStyle(document.getElementById('keyPanel')).display === 'none';
       toggle.click();
       await wait(200);
@@ -22369,11 +22350,11 @@ async function main(){
   check('…picked in the card\'s panel, with a field for each fact, and built in the Media drawer',
         out.panelKind === 'SELECT:Film' && out.panelFacts === 'Toei||1986' && out.typedHidden && out.drawer === 'Film:Studio,Director,Year',
         JSON.stringify([out.panelKind, out.panelFacts, out.typedHidden, out.drawer]));
-  check('the owner looks at the chart as a reader without the Media drawer, and comes back to the same chart',
+  check('the owner looks at the chart as a reader, with the Media drawer since 15.11 but no legend, and comes back to the same chart',
         out.toggleShown && out.asReader && out.back, JSON.stringify([out.toggleShown, out.asReader, out.back]));
   });
 
-  await scenario("the owner's list of 2.11, evening: a gear within reach, folded kinds, a player that goes, a preview in the clear, a card's even bands, a reader's three drawers, faded tags", async () => {
+  await scenario("the owner's list of 2.11, evening: a gear within reach, folded kinds, a player that goes, a preview in the clear, a card's even bands, a reader's drawers, faded tags", async () => {
   const X = 157000, Y = 157000;
   /* 1. The figures open from the gear and stay open on the way to them:
         the pointer crossing from the column to the card left the menu
@@ -22574,13 +22555,15 @@ async function main(){
         r.coInk = [...g.querySelectorAll('[stroke]')].map(e=> e.getAttribute('stroke')).filter(v=> v !== 'none' && !/var|url/.test(v));
       }
 
-      /* 6. A reader's edge is three drawers, not five with two gaps. */
+      /* 6. A reader's edge is the drawers they have, with no gaps: three
+            then, four since the Media drawer is theirs (15.11). */
       setReaderPreview(true);
       await wait(150);
       {
         const box = id=> document.getElementById(id).getBoundingClientRect();
-        const t = box('tagsPanel'), f = box('refsPanel'), m = box('minimapPanel');
-        r.reader = [t.height, f.height, m.height].map(v=> +v.toFixed(1)).concat([+(f.top - t.bottom).toFixed(1), +(m.top - f.bottom).toFixed(1)]);
+        const t = box('tagsPanel'), f = box('refsPanel'), d = box('mediaPanel'), m = box('minimapPanel');
+        r.reader = [t.height, f.height, d.height, m.height].map(v=> +v.toFixed(1))
+          .concat([+(f.top - t.bottom).toFixed(1), +(d.top - f.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
       }
       setReaderPreview(false);
       await wait(150);
@@ -22619,9 +22602,9 @@ async function main(){
         JSON.stringify([out.cutBefore, out.cropTurnsCutOff, out.cutTurnsCropOff, out.bothIsCrop]));
   check('the entry\'s panel carries no help under the picture or the colours, no medium preview, and its facts stepped in and smaller',
         out.helpGone && out.noPreview && out.factIn, JSON.stringify([out.helpGone, out.noPreview, out.factIn]));
-  check('a reader\'s edge is shared by the three drawers they have',
-        out.reader[0] > 100 && Math.abs(out.reader[0] - out.reader[1]) < 1 && Math.abs(out.reader[1] - out.reader[2]) < 1 &&
-        out.reader[3] < 20 && out.reader[3] >= 0 && Math.abs(out.reader[3] - out.reader[4]) < 1, JSON.stringify(out.reader));
+  check('a reader\'s edge is shared by the four drawers they have',
+        out.reader[0] > 100 && [1, 2, 3].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
+        out.reader[4] < 20 && out.reader[4] >= 0 && [5, 6].every(i=> Math.abs(out.reader[i] - out.reader[4]) < 1), JSON.stringify(out.reader));
   });
 
   await scenario("the owner's list of 7.11: a figure on card layout, a card's things kept, faded lines, a ruled space, one tick, a lit reader's eye, a link that darkens, a line round a box", async () => {
@@ -23474,8 +23457,8 @@ async function main(){
         JSON.stringify([out.ruleW, out.ruleDash, out.borderDash, out.ruleOpacity]));
   check('…and a double border\'s rules are doubled', out.doubleRules >= 2 && out.doubleInner * 2 === out.doubleRules,
         JSON.stringify([out.doubleRules, out.doubleInner]));
-  check('a reading over a line adds only the room its own type needs over the line\'s, not a fixed 9',
-        out.rubyExtra < 9 && Math.abs(out.rubyExtra - (8 + 7.5 * 0.72 - 11.5 * 0.72)) < 0.01, String(out.rubyExtra));
+  check('a reading over a line adds only the room its own type needs over the line\'s, not a fixed 9 — kept for the tallest letter since 15.11',
+        out.rubyExtra < 9 && Math.abs(out.rubyExtra - (11.5 * 0.75 + 1.5 + 7.5 * 0.21 + 7.5 * 0.72 - 11.5 * 0.72)) < 0.01, String(out.rubyExtra));
   check('a size chosen in the field shows as it is drawn: scaled with the chart, and smaller again in a reading',
         out.sizeShown[0] === 40 && out.sizeShown[1] !== null && Math.abs(out.sizeShown[1] - 40 * 7.5 / 11.5) < 0.1,
         JSON.stringify(out.sizeShown));
@@ -23655,6 +23638,229 @@ async function main(){
     await page.evaluate(()=>{
       const k = window.__k1111;
       closeStyleBar(); closeNodeEditor(false); closePicturePlayer();
+      workingNodes = k.nodes; refill(EDGE_STYLES, k.styles);
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
+    });
+  }
+  });
+  await scenario("the owner's list of 15.11: a reading clear of a capital and gone with its text, lines that come back together in the editor, a reader's media tab, a merge's glow past a T, no picture corners, dots that swell, a split that does not jump", async () => {
+  const X = 191000, Y = 191000;
+  await page.evaluate(()=>{ window.__k1511 = {nodes: workingNodes.map(x=> x.slice()), styles: EDGE_STYLES.map(x=> Object.assign({}, x)),
+    settings: JSON.parse(JSON.stringify(SETTINGS))}; return true; });
+  try{
+  const out = await page.evaluate(async ([X, Y])=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    SETTINGS.mediaTypes = [{id:'k1511', name:'Film', fields:[{id:'f1', label:'Studio'}]}];
+    applyEdit(()=>{
+      workingNodes.push(['q15_r', 'Some [[Optimus|оптимус]] [[mus|му]]', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['q15_e', 'First line\nSecond line\nThird line', null, null, null, null, {pos:[X, Y + 200]}]);
+    });
+    await wait(300);
+
+    /* 1. A reading stands clear of the tallest letter under it, so higher
+       over a capital than over small letters; and one emptied in the
+       editor goes, slot and all. */
+    {
+      const ts = [...document.querySelectorAll('.node[data-id="q15_r"] tspan')];
+      const y = t=> t ? +t.getAttribute('y') : NaN;
+      const base = ts.find(t=> t.textContent === 'Optimus'), read = ts.find(t=> t.textContent === 'оптимус');
+      const read2 = ts.find(t=> t.textContent === 'му');
+      r.rise = y(base) - y(read);
+      r.riseSmall = y(base) - y(read2);
+      openNodeEditor('q15_r'); await wait(250);
+      const surf = document.querySelector('#nodeEditor .rich-surface');
+      const rt = surf.querySelector('rt');
+      const sel = getSelection(), rg = document.createRange();
+      rg.selectNodeContents(rt); sel.removeAllRanges(); sel.addRange(rg);
+      document.execCommand('delete');
+      surf.dispatchEvent(new InputEvent('input', {bubbles:true}));
+      await wait(50);
+      r.rubies = surf.querySelectorAll('ruby').length;
+      r.text = surf.textContent;
+      closeNodeEditor(false); await wait(150);
+    }
+
+    /* 2. Underlined and struck across three lines and taken off again:
+       the lines stand where they stood, and the markup is what it was. */
+    {
+      openNodeEditor('q15_e'); await wait(250);
+      const surf = document.querySelector('#nodeEditor .rich-surface');
+      const lines = ()=> [...surf.querySelectorAll(':scope > div')].map(d=>{ const b = d.getBoundingClientRect(); return b.top.toFixed(1) + '/' + b.height.toFixed(1); }).join(' ');
+      r.html0 = surf.innerHTML; r.lines0 = lines();
+      const sel = getSelection();
+      r.edits = [];
+      for(const kind of ['under', 'strike']){
+        const ds = surf.querySelectorAll(':scope > div');
+        const rg = document.createRange(); rg.setStart(ds[0].firstChild, 6); rg.setEnd(ds[2].firstChild, 5);
+        sel.removeAllRanges(); sel.addRange(rg);
+        applyRichCommand(surf, kind); await wait(100);
+        const rg2 = document.createRange(); rg2.selectNodeContents(surf); sel.removeAllRanges(); sel.addRange(rg2);
+        applyRichCommand(surf, kind); await wait(100);
+        r.edits.push({kind, lines: lines(), html: surf.innerHTML});
+      }
+      closeNodeEditor(false); await wait(150);
+    }
+
+    /* 3. A reader has the Media tab, with nothing in it to add or unfold;
+       the author's + is the tab's own frame with a plus. */
+    {
+      setReaderPreview(true); await wait(150);
+      const panel = document.getElementById('mediaPanel');
+      buildMediaTab();
+      const list = document.getElementById('mediaList');
+      r.readerTab = getComputedStyle(panel).display !== 'none' && !!list.querySelector('.media-kind');
+      r.readerBare = !list.querySelector('.plus-mini, .media-fold, .media-x, .media-field, .media-add-field');
+      const tabs = ['tagsPanel', 'refsPanel', 'mediaPanel', 'minimapPanel'].map(id=> document.getElementById(id).getBoundingClientRect());
+      r.readerStacked = tabs.every((b, i)=> i === 0 || b.top >= tabs[i - 1].bottom - 1);
+      setReaderPreview(false); await wait(150);
+      buildMediaTab();
+      const add = document.querySelector('#mediaList .plus-mini:not(.media-add-field)');
+      r.addGlyph = !!add && add.querySelectorAll('line').length === 2 && add.querySelectorAll('path').length === 2 &&
+                   add.title === 'Add a kind of medium';
+    }
+
+    /* 4 and 6. A merge whose lineage ends in a T at the bar: picked, the
+       bar is lit only as far as that lineage's line goes, and its T is
+       lit with it; a picked lineage swells the dot it joins at. */
+    applyEdit(()=>{
+      workingNodes.push(['q15_a', 'A', null, null, null, null, {pos:[X + 600, Y]}]);
+      workingNodes.push(['q15_b', 'B', null, null, null, null, {pos:[X + 900, Y]}]);
+      workingNodes.push(['q15_c', 'C', null, null, null, null, {pos:[X + 1200, Y]}]);
+      workingNodes.push(['q15_m', 'M', ['q15_a', 'q15_b', 'q15_c'], null, null, null, {pos:[X + 900, Y + 300], merge:true}]);
+      ['q15_a', 'q15_b', 'q15_c'].forEach(f=> EDGE_STYLES.push({from:f, to:'q15_m', routing:'orthogonal', dash:'solid', arrow:true, toSide:'top'}));
+    });
+    await wait(300);
+    applyEdit(()=> setEdgeStyleOverride('q15_a', 'q15_m', Object.assign({}, edgeStyleFor('q15_a', 'q15_m'), {barEnd:'tout'})));
+    await wait(300);
+    {
+      setBarFocus('q15_m'); await wait(50);
+      const nums = d=> (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      const line = document.querySelector('.edge.amalgam-member[data-from="q15_a"][data-to="q15_m"]');
+      const lineEnd = nums(line.getAttribute('d')).slice(-2);
+      const focus = [...document.querySelectorAll('.amalgam-bar-focus[data-amalgam="q15_m"]')].map(p=> nums(p.getAttribute('d')));
+      r.focusStops = focus.some(f=> Math.hypot(f[f.length - 2] - lineEnd[0], f[f.length - 1] - lineEnd[1]) < 0.05);
+      r.focusPastLine = focus.some(f=> f.length >= 4 && [0, f.length - 2].some(k=> {
+        const dLine = Math.hypot(f[k] - lineEnd[0], f[k + 1] - lineEnd[1]);
+        return dLine > 0.05 && dLine < TEE_CUT + AMALGAM_BEAD_R + 0.5 && Math.abs(f[1] - lineEnd[1]) < 0.05 && Math.abs(f[0] - f[2]) > 0 &&
+               Math.min(f[0], f[2]) < lineEnd[0] && Math.max(f[0], f[2]) > lineEnd[0] + 0.05;
+      }));
+      r.teeLit = !!document.querySelector('.edge-tee.bar-end.bar-picked[data-from="q15_a"]');
+      setBarFocus(null); await wait(50);
+      r.teeUnlit = !document.querySelector('.bar-picked');
+      openEdgeStylePopover('q15_a', 'q15_m', {clientX: 1300, clientY: 800, stopPropagation(){}});
+      await wait(200);
+      const bead = document.querySelector('.amalgam-bead.bead-picked[data-to="q15_m"]');
+      r.beadSwells = !!bead && /matrix\(1\.[5-6]/.test(getComputedStyle(bead).transform);
+      closeEdgePopover(); await wait(100);
+      r.beadBack = !document.querySelector('.bead-picked');
+    }
+
+    /* 5. No corners of its own on a card's picture. */
+    r.noPictureCorners = typeof beginCardImageResize === 'undefined' && typeof openCardImageEdit === 'undefined' &&
+                         typeof cardImgEditId === 'undefined';
+
+    /* 6 and 7. A split carried along a line that turns swells, and goes
+       round the corner after the hand rather than jumping it. */
+    applyEdit(()=>{
+      workingNodes.push(['q15_s', 'Source', null, null, null, null, {pos:[X, Y + 500]}]);
+      workingNodes.push(['q15_t', 'Target', 'q15_s', null, null, null, {pos:[X + 300, Y + 760]}]);
+      EDGE_STYLES.push({from:'q15_s', to:'q15_t', routing:'orthogonal'});
+    });
+    await wait(300);
+    {
+      const rv = svg.getBoundingClientRect();
+      const toClient = p=> ({x: rv.left + vx + p.x * vs, y: rv.top + vy + p.y * vs});
+      const mid = pointAtFraction(drawnLineOf('q15_s', 'q15_t'), 0.5);
+      const c = toClient(mid);
+      openEdgeStylePopover('q15_s', 'q15_t', {clientX: c.x, clientY: c.y, stopPropagation(){}});
+      openTouchMenu(c.x, c.y, 'edge', true);
+      touchMenu.querySelector('[data-act="split"]').click();
+      await wait(300);
+      if(typeof endSplitBranch === 'function') endSplitBranch();
+      closeEdgePopover(); closeTouchMenu();
+      const dotId = (workingNodes.find(e=> e[5] === 'split' && e[2] === 'q15_s') || [])[0];
+      const dot = nodes.get(dotId);
+      const track = splitTrackOf(dot);
+      /* The corner nearest the dot, and the hand carried straight across
+         the inside of it from one leg to the other. */
+      const L = track.line;
+      let corner = null, ci = -1;
+      for(let i = 1; i < L.length - 1; i++){
+        const a = L[i-1], b = L[i], cc = L[i+1];
+        const turn = Math.abs((b.x - a.x) * (cc.y - b.y) - (b.y - a.y) * (cc.x - b.x));
+        if(turn > 1 && Math.hypot(b.x - a.x, b.y - a.y) > 30 && Math.hypot(cc.x - b.x, cc.y - b.y) > 30){ corner = b; ci = i; break; }
+      }
+      r.corner = !!corner;
+      if(corner){
+        const a = L[ci-1], cc = L[ci+1];
+        const la = Math.hypot(corner.x - a.x, corner.y - a.y), lc = Math.hypot(cc.x - corner.x, cc.y - corner.y);
+        const p0 = {x: corner.x + (a.x - corner.x) / la * 28, y: corner.y + (a.y - corner.y) / la * 28};
+        const p1 = {x: corner.x + (cc.x - corner.x) / lc * 28, y: corner.y + (cc.y - corner.y) / lc * 28};
+        const hit = document.querySelector(`.node[data-id="${dotId}"] .split-hit`);
+        const s0 = toClient({x: dot.x + dot.w/2, y: dot.y + dot.h/2});
+        hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX: s0.x, clientY: s0.y}));
+        const along = ()=>{ const n = nodes.get(dotId); return nearestOnTrack(track, n.x + n.w/2, n.y + n.h/2).s; };
+        /* To the first leg, near the corner… */
+        const steps = 30, seen = [];
+        let last = {x: dot.x + dot.w/2, y: dot.y + dot.h/2};
+        const go = async p=>{
+          const q = toClient(p);
+          window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX: q.x, clientY: q.y}));
+          await wait(4);
+        };
+        for(let k = 1; k <= steps; k++){
+          await go({x: last.x + (p0.x - last.x) * k / steps, y: last.y + (p0.y - last.y) * k / steps});
+        }
+        await wait(30);
+        const dg = document.querySelector(`.node[data-id="${dotId}"] > circle:not(.split-hit):not(.node-hover-pad)`);
+        r.splitSwells = /matrix\(1\.[5-6]/.test(getComputedStyle(dg).transform);
+        /* …then across the inside of the corner, small steps, to the other. */
+        const inside = {x: (p0.x + p1.x) / 2 + (p0.x + p1.x - 2 * corner.x) * 0.3, y: (p0.y + p1.y) / 2 + (p0.y + p1.y - 2 * corner.y) * 0.3};
+        let prev = along();
+        r.maxStep = 0;
+        for(const [from, to] of [[p0, inside], [inside, p1]]){
+          for(let k = 1; k <= 12; k++){
+            await go({x: from.x + (to.x - from.x) * k / 12, y: from.y + (to.y - from.y) * k / 12});
+            const now = along();
+            r.maxStep = Math.max(r.maxStep, Math.abs(now - prev));
+            seen.push(Math.round(now));
+            prev = now;
+          }
+        }
+        r.handStep = Math.max(Math.hypot(inside.x - p0.x, inside.y - p0.y), Math.hypot(p1.x - inside.x, p1.y - inside.y)) / 12;
+        r.seen = seen.join(',');
+        window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+        await wait(200);
+        r.splitShrinks = getComputedStyle(document.querySelector(`.node[data-id="${dotId}"] > circle:not(.split-hit):not(.node-hover-pad)`)).transform === 'none';
+      }
+    }
+    return r;
+  }, [X, Y]);
+  check('a reading stands clear of a capital under it, and lower over small letters, as measured (15.11)',
+        out.rise > 11.5 * 0.72 + 1.5 + 7.5 * 0.21 - 0.3 && out.riseSmall < out.rise - 1, JSON.stringify([out.rise, out.riseSmall]));
+  check('…and one emptied in the editor goes, slot and all, leaving its word',
+        out.rubies === 1 && /Optimus/.test(out.text) && !/оптимус/.test(out.text), JSON.stringify([out.rubies, out.text]));
+  check('underline and strike-through across three lines, taken off again, leave the lines where they stood and the markup as it was',
+        out.edits.every(e=> e.lines === out.lines0 && e.html === out.html0), JSON.stringify({was: [out.lines0, out.html0], edits: out.edits}));
+  check('a reader has the Media tab, in its place down the edge, with nothing to add, unfold or take out',
+        out.readerTab && out.readerBare && out.readerStacked, JSON.stringify([out.readerTab, out.readerBare, out.readerStacked]));
+  check('…and the author adds a kind with the tab’s own frame and a plus', out.addGlyph);
+  check('a picked merge is lit only as far as a lineage ending in a T goes, and the T is lit with it',
+        out.focusStops && !out.focusPastLine && out.teeLit && out.teeUnlit,
+        JSON.stringify([out.focusStops, out.focusPastLine, out.teeLit, out.teeUnlit]));
+  check('a picked lineage of a merge swells the dot it joins at, and lets it go when put down', out.beadSwells && out.beadBack,
+        JSON.stringify([out.beadSwells, out.beadBack]));
+  check('a card’s picture has no corners of its own to resize it by', out.noPictureCorners);
+  check('a split swells while it is carried, and not after', out.splitSwells && out.splitShrinks, JSON.stringify([out.splitSwells, out.splitShrinks]));
+  check('a split carried across the inside of a corner goes round it after the hand, never jumping a stretch of the line',
+        out.corner && out.maxStep <= out.handStep + 1.5, JSON.stringify({corner: out.corner, max: out.maxStep, hand: out.handStep, seen: out.seen}));
+  } finally {
+    await page.evaluate(()=>{
+      const k = window.__k1511;
+      setBarFocus(null); closeEdgePopover(); closeNodeEditor(false); setReaderPreview(false);
       workingNodes = k.nodes; refill(EDGE_STYLES, k.styles);
       Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
       vs = 1; applyTransform(); rebuildChart(); buildSideTabs();

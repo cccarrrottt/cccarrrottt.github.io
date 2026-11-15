@@ -21,19 +21,20 @@ function el(tag, attrs, parent){
    the box was mostly the gap between its own lines. 12.8 is a little over
    1.1, which is as close as lines of this size go before the descenders of
    one row start meeting the ascenders of the next.
-   RUBY_EXTRA is what a line carrying a reading adds on top: no more than
-   the annotation stands above the tallest a letter of the line does, so
-   the reading keeps the same leading from the line above that any letter
-   keeps (the owner's list of 11.11). It was 9, a storey of its own —
-   nearly twice what the annotation needs at RUBY_GAP over the baseline.
-   0.72 is the face's cap height against its size, for both. */
-const NODE_FS = 11.5, RUBY_FS = 7.5, LINE_H = 12.8, RUBY_GAP = 8;
-const RUBY_EXTRA = Math.max(0, RUBY_GAP + RUBY_FS * 0.72 - NODE_FS * 0.72);
+   RUBY_EXTRA is what a line carrying a reading adds on top, and the
+   reading itself stands RUBY_PAD clear of the tallest letter of the word
+   it reads (rubyRise, measured): it stood at a fixed RUBY_GAP over the
+   baseline, which is under the top of a capital, and a reading over
+   "Optimus" sat on the O (the owner's list of 15.11). The line keeps room
+   for the worst case — an ascender, a reading with a descender — so a
+   line's height does not depend on which letters it holds: 0.75 of the
+   size for the tallest letter, 0.72 for a capital, 0.21 for a descender. */
+const NODE_FS = 11.5, RUBY_FS = 7.5, LINE_H = 12.8, RUBY_PAD = 1.5;
+const RUBY_EXTRA = Math.max(0, NODE_FS * 0.75 + RUBY_PAD + RUBY_FS * 0.21 + RUBY_FS * 0.72 - NODE_FS * 0.72);
 /* The annotation over a ruby unit is set against the size of the run the
    unit sits in, not against the entry's own size — a phrase set bigger
    takes its readings up with it. */
 const RUBY_SCALE = RUBY_FS / NODE_FS;
-const RUBY_RISE  = RUBY_GAP / NODE_FS;
 /* Every look a run can carry, written onto one tspan. Bold, italic, face
    and colour are independent — a word can be all of them at once — and
    face and colour have to share a single style attribute, because the
@@ -156,6 +157,41 @@ const inkCtx = (()=>{
   try{ return document.createElement('canvas').getContext('2d'); }
   catch(e){ return null; }
 })();
+/* How far a run's letters reach above and below the baseline, from the
+   face itself: a capital or an l reaches higher than an a, a y lower. The
+   fallback is the face's usual proportions. */
+const inkReachCache = new Map();
+function inkReach(text, {bold, italic, fontSize, family}={}){
+  const size = fontSize || NODE_FS;
+  const face = family || "'IBM Plex Sans',sans-serif";
+  const key = text + '\u0000' + (bold?1:0) + (italic?1:0) + size + '\u0000' + face;
+  const hit = inkReachCache.get(key);
+  if(hit) return hit;
+  let up = size * 0.75, down = size * 0.21;
+  if(inkCtx && text){
+    inkCtx.font = `${italic ? 'italic ' : ''}${bold ? 700 : 500} ${size}px ${face}`;
+    const m = inkCtx.measureText(text);
+    if(Number.isFinite(m.actualBoundingBoxAscent)){ up = Math.max(0, m.actualBoundingBoxAscent); down = Math.max(0, m.actualBoundingBoxDescent); }
+  }
+  const r = {up, down};
+  if(inkReachCache.size >= MEASURE_CACHE_MAX) inkReachCache.clear();
+  inkReachCache.set(key, r);
+  return r;
+}
+/* How high a reading's baseline stands over its word's: the word's
+   tallest letter, RUBY_PAD, and the reading's lowest, all at the size the
+   unit is set in. */
+function rubyRise(baseRuns, annoRuns, own, family){
+  const reach = (runs, scale, side)=> Math.max(0, ...(runs || []).filter(t=> t.type === 'plain' && t.text).map(t=>
+    inkReach(t.text, {bold: !!t.bold, italic: !!t.italic, fontSize: (t.size || own) * scale,
+                      family: t.font ? fontFamilyFor(t.font) : family})[side]));
+  /* The reading's own depth is its size's, not its letters': measured,
+     a reading with a "у" in it stood higher than one beside it without,
+     and two readings on one line stood at two heights. */
+  const anno = Math.max(own * RUBY_SCALE, ...(annoRuns || []).filter(t=> t.type === 'plain' && t.text)
+    .map(t=> (t.size || own) * RUBY_SCALE));
+  return reach(baseRuns, 1, 'up') + RUBY_PAD * own / NODE_FS + anno * 0.21;
+}
 /* How much larger than drawn a run is set to be measured.
  *
    Chromium rounds a string's ink box out to whole pixels, and rounds it
@@ -260,6 +296,7 @@ function measureSpace(opts){
    would keep their first-paint sizes for the rest of the session. */
 function fontsLanded(){
   measureCache.clear();
+  inkReachCache.clear();
   /* And the block cache with it. It is declared further down — the two
      are emptied for one reason and must be emptied together, so this
      reaches forward rather than growing a second handler that could be
@@ -401,7 +438,7 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
       drawRow(w.baseRuns, cursorX, baselineY, 1, null);
       const annoW = runsWidth(w.annoRuns, own, family) * RUBY_SCALE;
       drawRow(w.annoRuns, cursorX + width/2 - annoW/2,
-              baselineY - own*RUBY_RISE, RUBY_SCALE, 'ruby-anno');
+              baselineY - rubyRise(w.baseRuns, w.annoRuns, own, family), RUBY_SCALE, 'ruby-anno');
     } else {
       const t = el('tspan',{x:cursorX, y:baselineY}, textEl);
       applyRunStyle(t, w);
