@@ -3394,14 +3394,14 @@
      base's whole line box, a third of its own size higher than the chart
      draws it, and the field showed the reading floating off the word it
      belongs to (the owner's list of 28.10). Since the chart sets a reading
-     clear of the tallest letter under it (the list of 15.11), it stands
-     higher there, and the field's is raised to meet it: on the word the
-     suite measures, the two agree to a tenth of a pixel. */
+     clear of the tallest letter under it (the list of 15.11), the field's
+     is seated by measure instead (seatFieldReadings, 30-node-editor) —
+     a fixed nudge agreed with the chart only on the faces it was set on. */
   .rich-surface ruby rt{
     font-family:inherit;
     font-size:0.652em;line-height:1;
     text-align:center;
-    position:relative;top:-0.27em;
+    position:relative;
   }
 
   /* ---- smart guides -------------------------------------------------
