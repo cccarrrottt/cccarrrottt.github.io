@@ -81,6 +81,17 @@ function looseBin(make){
   return bin;
 }
 function realCategories(){ return TAG_CATS.filter(c=> c.name !== UNGROUPED); }
+/* Whether a reader is shown a tag (the owner's list of 19.11). A tag no
+   category claims is one its author has not decided about yet — the field
+   it waits in is the author's desk, not the chart — so a reader is not
+   shown it anywhere: not in the Tags tab, not on an entry, not in a
+   search's results, not in the text version. A tag that acts and the
+   Untagged bucket are not waiting for anybody. */
+function tagForReader(tag){
+  if(!readOnlyView || tag === UNTAGGED || tagIsSpecial(tag)) return true;
+  return realCategories().some(c=> c.tags.indexOf(tag) >= 0);
+}
+function readerTags(tags){ return (tags || []).filter(tagForReader); }
 /* Also the suite's, for the same reason: it is the plain statement of which
    category owns a tag, which the legend's own grouping is checked against. */
 // eslint-disable-next-line no-unused-vars
@@ -469,6 +480,133 @@ function editOwnKeyRow(id, field, value){
 }
 function deleteOwnKeyRow(id){
   editLegend(o=>{ o.legendOwn = o.legendOwn.filter(r=> r.id !== id); });
+  setKeyIcon(id, null);
+}
+/* A row's mark can be a picture of the author's own (the owner's list of
+   19.11): one brought in from a file, or one of the chart's stickers. It
+   is kept in SETTINGS.legendIcons, keyed by the mark's key or by the own
+   row's id, and drawn where the program's drawing would be, in the same
+   40 by 20 room. Taken off, the program's drawing is back. */
+const KEY_ICON_W = 120, KEY_ICON_H = 60;   // stored at three times the room
+function keyIconOf(key){
+  const icons = legendSetting('legendIcons', {});
+  const src = icons && typeof icons[key] === 'string' ? icons[key] : null;
+  return src && pictureSrcOk(src) ? src : null;
+}
+function keyIconHtml(src, label){
+  return `<img class="key-sample key-icon" src="${escapeHtml(src)}" alt="${escapeHtml(label || '')}" width="${KEY_SVG_W}" height="${KEY_SVG_H}">`;
+}
+function setKeyIcon(key, src){
+  const now = keyIconOf(key);
+  if((now || null) === (src || null)) return;
+  if(readOnlyView) return;
+  applyEdit(()=>{
+    const next = Object.assign({}, legendSetting('legendIcons', {}));
+    if(src) next[key] = src; else delete next[key];
+    if(Object.keys(next).length) SETTINGS.legendIcons = next; else delete SETTINGS.legendIcons;
+  });
+}
+/* The pictures the legend wears, for My files. */
+function legendIconFiles(){
+  const icons = legendSetting('legendIcons', {});
+  return Object.keys(icons || {}).filter(k=> keyIconOf(k)).map(k=>{
+    const mark = KEY_MARKS.find(m=> m.key === k);
+    const own = legendSetting('legendOwn', []).find(r=> r.id === k);
+    return {src: icons[k], name: 'Legend: ' + (mark ? keyNameOf(mark) : own ? own.name : k)};
+  });
+}
+/* A still picture is drawn into the room it will stand in, at three times
+   its size; a moving one is kept whole, as a sticker is, so it moves. */
+function keyIconFromFile(file){
+  return fileMoves(file).then(moving=> new Promise((resolve, reject)=>{
+    if(moving && file.size > STICKER_GIF_LIMIT){
+      reject(new Error(`"${file.name}" is too big to move in the legend — under ${Math.round(STICKER_GIF_LIMIT / 1024)} KB, please.`));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = ()=> reject(new Error(`could not read "${file.name}".`));
+    reader.onload = ()=>{
+      if(moving){ resolve(reader.result); return; }
+      const img = new Image();
+      img.onerror = ()=> reject(new Error(`"${file.name}" is not an image this browser can read.`));
+      img.onload = ()=>{
+        const k = Math.min(KEY_ICON_W / img.width, KEY_ICON_H / img.height, 1);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * k));
+        c.height = Math.max(1, Math.round(img.height * k));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }));
+}
+const keyIconFile = document.createElement('input');
+keyIconFile.type = 'file';
+keyIconFile.accept = 'image/png,image/jpeg,image/gif,image/webp';
+keyIconFile.hidden = true;
+document.body.appendChild(keyIconFile);
+let keyIconFor = null;
+keyIconFile.addEventListener('change', ()=>{
+  const f = keyIconFile.files && keyIconFile.files[0];
+  keyIconFile.value = '';
+  const key = keyIconFor;
+  keyIconFor = null;
+  if(!f || !key) return;
+  keyIconFromFile(f).then(src=> setKeyIcon(key, src))
+    .catch(err=> flashStatus(String(err && err.message || err)));
+});
+let keyIconMenu = null;
+function closeKeyIconMenu(){ if(keyIconMenu){ keyIconMenu.remove(); keyIconMenu = null; } }
+document.addEventListener('pointerdown', ev=>{
+  if(keyIconMenu && !keyIconMenu.contains(ev.target) && !(ev.target.closest && ev.target.closest('.key-sample-btn'))) closeKeyIconMenu();
+}, true);
+function openKeyIconMenu(btn, key){
+  closeKeyIconMenu();
+  const menu = document.createElement('div');
+  menu.className = 'key-icon-menu';
+  const item = (label, fn)=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'key-icon-item';
+    b.textContent = label;
+    b.addEventListener('click', ev=>{ ev.stopPropagation(); closeKeyIconMenu(); fn(); });
+    menu.appendChild(b);
+    return b;
+  };
+  item('Upload a picture\u2026', ()=>{ keyIconFor = key; keyIconFile.click(); });
+  if(STICKERS.length){
+    const head = document.createElement('div');
+    head.className = 'key-icon-head';
+    head.textContent = 'Or a sticker';
+    menu.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'key-icon-stickers';
+    STICKERS.forEach(st=>{
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.title = st.name || st.key;
+      b.innerHTML = `<img src="${escapeHtml(st.src)}" alt="">`;
+      b.addEventListener('click', ev=>{ ev.stopPropagation(); closeKeyIconMenu(); setKeyIcon(key, st.src); });
+      grid.appendChild(b);
+    });
+    menu.appendChild(grid);
+  }
+  if(keyIconOf(key)) item(key.indexOf(':') > 0 ? 'Back to the program\u2019s drawing' : 'Back to the colour', ()=> setKeyIcon(key, null));
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(window.innerWidth - 200, r.left)) + 'px';
+  menu.style.top = Math.min(window.innerHeight - menu.offsetHeight - 8, r.bottom + 4) + 'px';
+  keyIconMenu = menu;
+}
+/* The mark at the head of a row: a button for the author, a picture for
+   a reader. */
+function keySampleFor(key, html, label){
+  const src = keyIconOf(key);
+  const inner = src ? keyIconHtml(src, label) : html;
+  if(readOnlyView) return inner;
+  return `<button type="button" class="key-sample-btn" data-icon-for="${escapeHtml(key)}" title="Change this mark: a picture of your own, or a sticker">${inner}</button>`;
 }
 /* A field that settles on Enter or leaving it, and puts back what it had
    on Escape — the legend's words, its names and its colours alike. */
@@ -566,6 +704,12 @@ function buildKeyTab(){
     const r = document.createElement('div');
     r.className = 'key-item';
     r.innerHTML = sampleHtml;
+    const pick = r.querySelector('.key-sample-btn');
+    if(pick) pick.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      if(keyIconMenu){ closeKeyIconMenu(); return; }
+      openKeyIconMenu(pick, pick.dataset.iconFor);
+    });
     const w = document.createElement('div');
     w.className = 'key-words';
     words.forEach(x=> w.appendChild(x));
@@ -578,10 +722,11 @@ function buildKeyTab(){
     heading(m.group);
     const name = keyNameOf(m), meaning = keyMeaningOf(m);
     let r;
+    const sample = keySampleFor(m.key, m.sample(), name);
     if(readOnlyView){
-      r = row(m.sample(), [text('key-name', name)].concat(meaning ? [text('key-meaning', meaning)] : []));
+      r = row(sample, [text('key-name', name)].concat(meaning ? [text('key-meaning', meaning)] : []));
     } else {
-      r = row(m.sample(), [
+      r = row(sample, [
         keyField('input', 'key-name-input', name, m.name, `The name of “${m.name}” in the legend`, v=> setKeyName(m.key, v)),
         keyField('textarea', 'key-meaning-input', meaning, 'What it means on this chart',
                  `What “${name}” means on this chart`, v=> setKeyMeaning(m.key, v))
@@ -592,7 +737,7 @@ function buildKeyTab(){
   });
   own.forEach(o=>{
     heading('Your own');
-    const swatch = keySvg(`<rect ${KEY_BOX} class="key-own" style="fill:${escapeHtml(o.color || '#20242b')}"/>`);
+    const swatch = keySampleFor(o.id, keySvg(`<rect ${KEY_BOX} class="key-own" style="fill:${escapeHtml(o.color || '#20242b')}"/>`), o.name);
     let r;
     if(readOnlyView){
       r = row(swatch, [text('key-name', o.name)].concat(o.meaning ? [text('key-meaning', o.meaning)] : []));
@@ -659,7 +804,7 @@ function buildLegend(){
   if(special.length) groups.push({name: UNGROUPED, tags: special});
 
   legendList.innerHTML = '';
-  const tagHead = sectionHead('Tags', allTags.length);
+  const tagHead = sectionHead('Tags', allTags.length - (readOnlyView ? uncategorised.length : 0));
   /* Two buttons, one for each thing that can be made here. The single +
      opened a two-item menu, which is a click spent asking which of two
      things was meant when there could have been one button for each. And
@@ -679,12 +824,9 @@ function buildLegend(){
   legendList.appendChild(tagHead);
   legendList.appendChild(buildTagFilterRow());
   /* A reader files nothing, so the field where tags wait to be filed is
-     not theirs (the owner's list of 9.11): a tag no category claims is
-     listed for them as any other, and an empty field is not drawn. */
-  {
-    const loose = uncategorised.filter(tagMatchesFilter);
-    if(!readOnlyView || loose.length) legendList.appendChild(buildLooseBlock(loose));
-  }
+     not theirs (9.11) — and nor are the tags in it (19.11): see
+     tagForReader. */
+  if(!readOnlyView) legendList.appendChild(buildLooseBlock(uncategorised.filter(tagMatchesFilter)));
   /* A category being named stands at the top, under the field of tags
      with none, and is made there (createCategory puts it first): reaching
      for the button at the head of the panel and finding the new heading at
@@ -700,7 +842,7 @@ function buildLegend(){
     any = true;
     legendList.appendChild(buildCategoryBlock(group));
   });
-  if(tagFilterText && !any && !uncategorised.length){
+  if(tagFilterText && !any && (readOnlyView || !uncategorised.filter(tagMatchesFilter).length)){
     const none = document.createElement('div');
     none.className = 'legend-empty';
     none.textContent = `No tag matches \u201c${tagFilterText}\u201d.`;
@@ -1104,11 +1246,15 @@ function buildTagRow(tag, catName){
      give no colour, so they have no square: a square there promised a
      colour that could never be set. Pressed, it opens the colour to type
      in; a tag with no colour yet shows the default ink, dashed. */
+  /* A reader sees the squares too (19.11) — the colour is part of what a
+     tag says — but cannot press them, and nothing about them offers to:
+     no pointer, no dashed edge marking a colour nobody has chosen yet. */
   const colorable = tag !== UNTAGGED && !tagIsSpecial(tag);
   const own = colorable ? tagColorOf(tag) : null;
   row.innerHTML =
-    (colorable && (own || !readOnlyView)
-      ? `<div class="swatch${own ? '' : ' swatch-unset'}" style="background:${escapeHtml(own || DEFAULT_NODE_COLOR)}"></div>`
+    (colorable
+      ? `<div class="swatch${own || readOnlyView ? '' : ' swatch-unset'}" style="background:${escapeHtml(own || DEFAULT_NODE_COLOR)}"` +
+        (readOnlyView ? ` title="${escapeHtml(own || DEFAULT_NODE_COLOR)} — the colour of entries with this tag"` : '') + `></div>`
       : `<div class="swatch swatch-none"></div>`) +
     `<div class="name">${tagShapeHtml(displayName, {special: tagIsSpecial(tag),
                                                     reserved: tag === UNTAGGED,
@@ -1145,7 +1291,20 @@ function buildTagRow(tag, catName){
      nothing to put back, greyed, so the row does not change shape under
      the pointer. */
   const groundKey = groundKeyOf(tag);
-  if(groundKey && !readOnlyView){
+  if(groundKey && readOnlyView){
+    const box = document.createElement('span');
+    box.className = 'ground-colors';
+    GROUND_SLOTS.forEach(slot=>{
+      const sq = document.createElement('div');
+      sq.className = 'swatch ground-swatch';
+      sq.dataset.slot = slot;
+      sq.style.background = groundColorOf(groundKey, slot);
+      sq.title = `${groundColorOf(groundKey, slot)} — ${slot === 'base' ? 'the ground’s ruling' : 'the light crossing it'}`;
+      box.appendChild(sq);
+    });
+    const slot = row.querySelector('.swatch-none');
+    if(slot) slot.replaceWith(box); else row.insertBefore(box, row.querySelector('.name'));
+  } else if(groundKey){
     const box = document.createElement('span');
     box.className = 'ground-colors';
     GROUND_SLOTS.forEach(slot=>{

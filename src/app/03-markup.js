@@ -29,7 +29,43 @@
 function tokenizeLabel(label, opts){
   const out = [];
   parseMarkupInto(String(label === null || label === undefined ? '' : label), {}, out);
-  return (opts && opts.media) ? out : out.filter(t=> t.type !== 'media');
+  const runs = (opts && opts.media) ? out : out.filter(t=> t.type !== 'media');
+  return (opts && opts.blocks) ? runs : flattenNoteBlocks(runs);
+}
+/* A note's lists and dividers, as words (the owner's list of 19.11).
+ *
+ * A line of a note may start with `{{ul}}` or `{{ol}}`, an item of a list,
+ * or be a `{{hr:style|title}}`, a line across the note. They are lines of
+ * a DOCUMENT, and only the editor and the note read full size draw them
+ * as one (`opts.blocks`). Everything else that reads a note is setting
+ * words — the card on the chart, the search, the text version, a line of
+ * plain text — and there an item is its bullet or its number, the way it
+ * would be typed, and a divider is a rule of the line it is drawn in, with
+ * its title in the middle. Numbered as the editor numbers them: an item
+ * counts on from the item on the line before, and any other line starts
+ * the count again. */
+function flattenNoteBlocks(runs){
+  if(!runs.some(t=> t.type === 'li' || t.type === 'rule')) return runs;
+  const RULE_TEXT = {solid:'\u2500', dashed:'\u254C', dotted:'\u2508', double:'\u2550', wavy:'\u223F'};
+  const out = [];
+  let n = 0, lineIsItem = false;
+  runs.forEach(t=>{
+    if(t.type === 'li'){
+      if(t.list === 'ol'){ n += 1; lineIsItem = true; out.push({type:'plain', text: n + '. '}); }
+      else out.push({type:'plain', text:'\u2022 '});
+      return;
+    }
+    if(t.type === 'rule'){
+      const bit = RULE_TEXT[t.line] || RULE_TEXT.solid;
+      out.push({type:'plain', text: t.title ? bit.repeat(2) + ' ' + t.title + ' ' + bit.repeat(2) : bit.repeat(6)});
+      return;
+    }
+    if(t.type === 'plain' && t.text && t.text.indexOf('\n') >= 0){
+      for(let k = 0; k < t.text.split('\n').length - 1; k++){ if(!lineIsItem) n = 0; lineIsItem = false; }
+    }
+    out.push(t);
+  });
+  return out;
 }
 /* Where the closing `}}` of a wrapper is, counting nested ones. */
 function matchWrapEnd(src, from){
@@ -164,6 +200,24 @@ function parseMarkupInto(src, st, out){
         if(kind === 'media' && atomic[3]) tok.w = clampFigureWidth(+atomic[3]);
         out.push(tok);
         i += atomic[0].length;
+        continue;
+      }
+      /* A note's line-level marks — see flattenNoteBlocks. A divider's
+         title is written escaped, as typed text always is, so a brace in
+         it cannot end it early. */
+      const item = /^\{\{(ul|ol)\}\}/.exec(src.slice(i));
+      if(item){
+        flush();
+        out.push({type:'li', list:item[1]});
+        i += item[0].length;
+        continue;
+      }
+      const rule = /^\{\{hr:([a-z]+)(?:\|((?:\\[\s\S]|[^\\}])*))?\}\}/.exec(src.slice(i));
+      if(rule){
+        flush();
+        out.push({type:'rule', line: LINE_STYLES[rule[1]] ? rule[1] : 'solid',
+                  title: (rule[2] || '').replace(/\\([\s\S])/g, '$1')});
+        i += rule[0].length;
         continue;
       }
       const head = /^\{\{(#[0-9a-fA-F]{3,8}|f:[A-Za-z0-9_-]+|z:\d{1,2}(?:\.\d)?|[ut]:[a-z]+)\|/.exec(src.slice(i));

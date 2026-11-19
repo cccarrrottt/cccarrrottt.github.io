@@ -45,8 +45,10 @@
     <button class="icon-btn" id="fileToggle" title="Export or import this chart as a file">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5.5M9.5 14.5 12 17l2.5-2.5"/></svg>
     </button>
-    <button class="icon-btn" id="stickersToggle" title="Stickers">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 12.5A8.5 8.5 0 1 1 12 3.5a8.5 8.5 0 0 1 8.5 9z"/><path d="M20.4 12.4c-4.3 0-7.9 3.5-7.9 7.9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.4" r="1" fill="currentColor" stroke="none"/></svg>
+    <!-- My files (the owner's list of 19.11): the stickers, and every
+         picture and video the chart holds. -->
+    <button class="icon-btn" id="filesToggle" title="My files — the stickers, and every picture and video in the chart">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 7A1.5 1.5 0 0 1 5 5.5h4.2l2 2.2H19A1.5 1.5 0 0 1 20.5 9.2V17.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 10.5h17"/></svg>
     </button>
     <button class="icon-btn" id="commentsToggle" title="Suggestions" style="display:none;">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
@@ -336,14 +338,12 @@
           <div class="mini-toolbar" id="detailNoteToolbar" style="display:none;">
             <button type="button" data-wrap-target="detailNoteInput" data-wrap="bold">B</button>
             <button type="button" data-wrap-target="detailNoteInput" data-wrap="italic">I</button>
+            <button type="button" class="tb-list-btn" data-wrap-target="detailNoteInput" data-wrap="ul" title="A bulleted list"><svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><g fill="currentColor"><circle cx="1.6" cy="2" r="1.4"/><circle cx="1.6" cy="6" r="1.4"/><circle cx="1.6" cy="10" r="1.4"/></g><g stroke="currentColor" stroke-width="1.4"><path d="M5 2H16M5 6H16M5 10H16"/></g></svg></button>
+            <button type="button" class="tb-list-btn" data-wrap-target="detailNoteInput" data-wrap="ol" title="A numbered list"><svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><g fill="currentColor" font-family="IBM Plex Mono,monospace" font-size="4.6" font-weight="700"><text x="0" y="3.6">1</text><text x="0" y="7.6">2</text><text x="0" y="11.6">3</text></g><g stroke="currentColor" stroke-width="1.4"><path d="M5 2H16M5 6H16M5 10H16"/></g></svg></button>
             <button type="button" data-wrap-target="detailNoteInput" data-wrap="ruby">Ruby</button>
             <input type="text" class="tb-hex" data-hex-for="detailNoteInput" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="detailNoteInput" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
           </div>
           <textarea id="detailNoteInput" rows="3" spellcheck="false" placeholder="No note yet."></textarea>
-          <div class="detail-note-actions" id="detailNoteActions" style="display:none;">
-            <button class="editor-btn" id="detailNoteCancel">Cancel</button>
-            <button class="editor-btn primary" id="detailNoteApply">Apply</button>
-          </div>
         </div>
       </div>
     </div>
@@ -514,12 +514,19 @@
          adds; each tile's ✕ removes it, and Replace swaps its picture. -->
     <div class="file-popover sticker-pop" id="stickerOverlay">
       <div class="edge-popover-head">
-        <span>Stickers</span>
-        <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers" title="Add stickers: square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">+</button>
+        <span>My files</span>
         <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
       </div>
-      <div class="sticker-status editor-status" id="stickerStatus"></div>
-      <div class="sticker-grid" id="stickerGrid"></div>
+      <div class="files-body">
+        <div class="files-head">
+          <span>Stickers</span><span class="files-count" id="stickerCount"></span>
+          <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers" title="Add stickers: square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">+</button>
+        </div>
+        <div class="sticker-status editor-status" id="stickerStatus"></div>
+        <div class="sticker-grid" id="stickerGrid"></div>
+        <div class="files-head"><span>Pictures and video</span><span class="files-count" id="filesCount"></span></div>
+        <div class="files-grid" id="filesGrid"></div>
+      </div>
     </div>
     <input type="file" id="stickerFile" accept="image/*" multiple style="display:none;">
 

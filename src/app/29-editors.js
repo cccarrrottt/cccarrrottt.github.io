@@ -4,13 +4,13 @@
    It sits in the drawer rather than inside the entry form because a note
    is the thing you read when you click a node, and wanting to fix a word
    in it shouldn't mean opening a separate editing mode for the whole
-   entry. It shows as plain italic text until you press the pencil, and
-   Apply commits it and locks the field again.
+   entry. The pencil opens it where it stands, looking just as it did, with
+   the formatting buttons under "Note" (the owner's list of 19.11); the
+   words settle as they are written, and the pencil again closes it.
    ------------------------------------------------------------------ */
 const detailNoteInput = document.getElementById('detailNoteInput');
 const detailNoteEditBtn = document.getElementById('detailNoteEdit');
 const detailNoteToolbar = document.getElementById('detailNoteToolbar');
-const detailNoteActions = document.getElementById('detailNoteActions');
 const detailNoteSurface = richFields.get('detailNoteInput').surface;
 let detailNoteEditing = false;
 
@@ -18,14 +18,22 @@ function setDetailNoteEditing(on){
   detailNoteEditing = on;
   detailNoteSurface.contentEditable = on ? 'true' : 'false';
   detailNoteSurface.classList.toggle('locked', !on);
+  detailNoteSurface.classList.toggle('doc-open', on);
   // makeRichField sets a min-height inline to match the textarea it stood
   // in for; inline styles outrank the .locked rule, so it has to be
   // cleared by hand or a one-line note would still reserve three rows.
-  detailNoteSurface.style.minHeight = on ? '74px' : '';
+  detailNoteSurface.style.minHeight = '';
   detailNoteToolbar.style.display = on ? '' : 'none';
-  detailNoteActions.style.display = on ? '' : 'none';
   detailNoteEditBtn.classList.toggle('active', on);
-  if(on) detailNoteSurface.focus();
+  if(!on) closeRulePanel();
+  if(on){
+    detailNoteSurface.focus();
+    /* At the end of what is written: inside the last line, or the last
+       item of a list that ends it — never between a list's items. */
+    let last = detailNoteSurface.lastElementChild;
+    while(last && /^(UL|OL)$/.test(last.tagName) && last.lastElementChild) last = last.lastElementChild;
+    placeCaret(last || detailNoteSurface, true);
+  }
 }
 function showDetailNote(markup){
   setRichValue(detailNoteInput, markup);
@@ -53,11 +61,9 @@ function syncNoteExpandBtn(){
  * undo, because as far as the chart was concerned nothing had happened.
  *
  * So it commits on a pause, exactly as the label does, and the whole time
- * the field is open is one step of undo. Apply now means "I have
- * finished"; Cancel means "put it back the way it was when I started",
- * which is a promise the field can only keep by remembering that. */
+ * the field is open is one step of undo. There is no Apply and no Cancel
+ * any more (19.11): what was written is kept, and Ctrl+Z is the way back. */
 let detailNoteUndoPushed = false;
-let detailNoteOriginal = '';
 let detailNoteTimer = 0;
 let detailNoteOwner = null;      // the entry the open editor belongs to
 function commitDetailNote(){
@@ -92,31 +98,9 @@ detailNoteEditBtn.onclick = (ev)=>{
   ev.stopPropagation();
   if(!selectedId || readOnlyView) return;
   if(detailNoteEditing){ flushDetailNoteCommit(); setDetailNoteEditing(false); return; }
-  const n = nodes.get(selectedId);
   detailNoteOwner = selectedId;
-  detailNoteOriginal = n ? (n.note || '') : '';
   detailNoteUndoPushed = false;
   setDetailNoteEditing(true);
-};
-document.getElementById('detailNoteCancel').onclick = (ev)=>{
-  ev.stopPropagation();
-  const id = detailNoteOwner;
-  if(detailNoteTimer){ clearTimeout(detailNoteTimer); detailNoteTimer = 0; }
-  if(id){
-    // Back to the words that were there when the pencil was pressed —
-    // undoing whatever settled itself along the way.
-    setRichValue(detailNoteInput, detailNoteOriginal);
-    commitDetailNote();
-  }
-  const n = nodes.get(selectedId);
-  showDetailNote(n ? (n.note || '') : '');
-  detailNoteOwner = null;
-};
-document.getElementById('detailNoteApply').onclick = (ev)=>{
-  ev.stopPropagation();
-  flushDetailNoteCommit();
-  setDetailNoteEditing(false);
-  detailNoteOwner = null;
 };
 
 /* ---------------------------------------------------------------------
@@ -400,7 +384,7 @@ function serializeSettings(o){
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
-  const extraPart = Object.keys(extra).map(k=> `, ${k}: ${k === 'legendNames' || k === 'tagColors' ? quoted(extra[k]) : jsVal(extra[k])}`).join('');
+  const extraPart = Object.keys(extra).map(k=> `, ${k}: ${k === 'legendNames' || k === 'tagColors' || k === 'legendIcons' ? quoted(extra[k]) : jsVal(extra[k])}`).join('');
   // Which form the file's entries are written in: see DATA_FORMAT.
   return `const SETTINGS = {format: ${DATA_FORMAT}, refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}${extraPart}};`;
 }
@@ -425,6 +409,15 @@ function cleanLegendRows(o){
     const list = Array.isArray(o[k]) ? Array.from(new Set(o[k].filter(x=> typeof x === 'string' && LEGEND_KEY_RE.test(x)))) : [];
     if(list.length) out[k] = list;
   });
+  /* A row's own picture, by the mark's key or the own row's id. */
+  if(o.legendIcons && typeof o.legendIcons === 'object' && !Array.isArray(o.legendIcons)){
+    const icons = {};
+    Object.keys(o.legendIcons).sort().forEach(k=>{
+      const v = o.legendIcons[k];
+      if((LEGEND_KEY_RE.test(k) || /^own\d+$/.test(k)) && typeof v === 'string' && pictureSrcOk(v)) icons[k] = v;
+    });
+    if(Object.keys(icons).length) out.legendIcons = icons;
+  }
   const own = Array.isArray(o.legendOwn) ? o.legendOwn.filter(r=> r && typeof r.id === 'string' && /^own\d+$/.test(r.id))
     .map(r=> ({id: r.id, name: typeof r.name === 'string' ? r.name : '',
                meaning: typeof r.meaning === 'string' && r.meaning ? r.meaning : undefined,

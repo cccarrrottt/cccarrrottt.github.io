@@ -494,6 +494,28 @@ function figureAspectOf(v){
    ({name, d}) with its outline read once here. Only an ordinary box takes
    one — a portrait, a picture, a caption, a callout or an array has a shape
    of its own. */
+/* The templates the menu offers (the owner's list of 19.11): the ones the
+   chart keeps, and every one an entry is drawn with, whether it was kept
+   or not — an entry's own copy is a template as good as the file it came
+   from, and a chart brought in, or one whose template was taken out of
+   the menu, used to have entries in shapes nobody could put down again.
+   Told apart by their outlines. `worn` counts the entries drawn with one:
+   while any is, it cannot be taken out. */
+function figureTemplatesOffered(){
+  const out = cleanFigureTemplates(SETTINGS.figures);
+  const byD = new Map(out.map(t=> [t.d, t]));
+  (typeof workingNodes !== 'undefined' ? workingNodes : []).forEach(entry=>{
+    const f = entry && entry[6] && entry[6].figure;
+    if(!f || typeof f !== 'object' || Array.isArray(f) || !parseFigurePath(f.d)) return;
+    let t = byD.get(f.d);
+    if(!t){
+      t = cleanFigureTemplates([f])[0];
+      out.push(t); byD.set(t.d, t);
+    }
+    t.worn = (t.worn || 0) + 1;
+  });
+  return out;
+}
 function figureOf(v, shape){
   if(shape && shape !== 'rect') return null;
   if(isBuiltinFigure(v)) return v;
@@ -1162,19 +1184,22 @@ function buildFigureMenu(){
   });
   head('Templates');
   const g2 = grid();
-  cleanFigureTemplates(SETTINGS.figures).forEach((t, i)=>{
+  figureTemplatesOffered().forEach((t, i)=>{
     const b = figureButton(t.name, figureIcon(t), ()=>{ closeAddFab(); addEntryOfFigure(Object.assign({name: t.name, d: t.d}, t.ar ? {ar: t.ar} : {})); });
     b.classList.add('figure-template');
     b.dataset.template = String(i);
     const x = document.createElement('span');
-    x.className = 'figure-template-drop';
+    x.className = 'figure-template-drop' + (t.worn ? ' worn' : '');
     x.textContent = '×';
-    x.title = 'Take this template out of the menu (entries drawn with it keep it)';
+    x.title = t.worn
+      ? `${t.worn} ${t.worn === 1 ? 'entry is' : 'entries are'} drawn with it — it stays while any is`
+      : 'Take this template out of the menu';
+    x.setAttribute('aria-disabled', t.worn ? 'true' : 'false');
     x.addEventListener('click', ev=>{
       ev.stopPropagation();
+      if(t.worn) return;
       applyEdit(()=>{
-        const next = cleanFigureTemplates(SETTINGS.figures);
-        next.splice(i, 1);
+        const next = cleanFigureTemplates(SETTINGS.figures).filter(k=> k.d !== t.d);
         if(next.length) SETTINGS.figures = next; else delete SETTINGS.figures;
       });
       buildFigureMenu();

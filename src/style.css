@@ -290,7 +290,7 @@
      view rather than left visible and failing on click. Reading, search,
      tag filters, language tabs and the bio cards all stay. */
   body.read-only #saveBtn,
-  body.read-only #stickersToggle,
+  body.read-only #filesToggle,
   body.read-only #addFab,
   body.read-only #detailEditToggle,
   body.read-only .detail-note-btn,
@@ -1779,9 +1779,9 @@
      ask to change it — read like text, edit in place, Apply to commit. The
      locked state is deliberately flat and borderless so the drawer still
      reads as a description rather than a form until you engage with it. */
-  .detail-note-block{
-    padding-bottom:10px;margin-bottom:10px;border-bottom:1px dashed var(--line);
-  }
+  /* No rule under it (the owner's list of 19.11): the dashed line said
+     "a form ends here" under a note that is read, not filled in. */
+  .detail-note-block{padding-bottom:10px;margin-bottom:10px;}
   .detail-note-head{
     display:flex;align-items:center;gap:6px;margin-bottom:5px;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
@@ -1793,7 +1793,8 @@
   }
   .detail-note-btn:hover{color:var(--accent);}
   .detail-note-btn.active{color:var(--accent);}
-  .detail-note-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:7px;}
+  .mini-toolbar button.tb-list-btn{padding:3px 7px;line-height:0;}
+  .mini-toolbar button.tb-list-btn.on{background:var(--accent);color:#fff;border-color:var(--accent);}
 
   /* A language tab is a chip in the Tags row's clothes — see the field in
      index.html. The one difference is that its name is TYPED, so the chip
@@ -2097,6 +2098,9 @@
   }
   .figure-template:hover .figure-template-drop, body.touch-input .figure-template-drop{display:block;}
   .figure-template-drop:hover{color:var(--accent);}
+  /* While an entry is drawn with the template the × is there but spent:
+     greyed, no pointer, and what it would say is on its title. */
+  .figure-template-drop.worn, .figure-template-drop.worn:hover{opacity:0.35;color:var(--ink-faint);cursor:default;}
   .figure-upload-plus{font-size:20px;line-height:30px;height:30px;color:var(--ink-dim);}
 
   /* Undo, redo and the guides, small, under the counts at the end of the
@@ -2665,8 +2669,36 @@
   .sticker-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
     gap:10px;padding:6px 6px 2px;margin:0 -6px;
-    max-height:min(52vh, 420px);overflow-y:auto;overscroll-behavior:contain;
   }
+  /* My files: two sections, scrolled together inside the menu. */
+  .files-body{max-height:min(62vh, 520px);overflow-y:auto;overscroll-behavior:contain;
+    margin:0 -6px;padding:0 6px;}
+  .files-head{
+    display:flex;align-items:center;gap:6px;margin:10px 0 2px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-faint);
+  }
+  .files-head:first-child{margin-top:2px;}
+  .files-head .sticker-plus{margin-left:auto;}
+  .files-count{color:var(--ink-dim);}
+  .files-grid{
+    display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
+    gap:10px;padding:6px 0 4px;
+  }
+  .file-cell{
+    position:relative;border:1px solid var(--line);border-radius:7px;background:var(--panel-2);
+    padding:6px;display:flex;flex-direction:column;align-items:center;gap:5px;
+    cursor:pointer;font:inherit;color:inherit;text-align:center;min-width:0;
+  }
+  .file-cell:hover{border-color:var(--accent);}
+  .file-cell img, .file-cell video{width:100%;height:64px;object-fit:contain;display:block;pointer-events:none;}
+  .file-cell .file-name{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;color:var(--ink-dim);
+    width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .file-cell .file-kind{position:absolute;top:4px;left:5px;font-family:'IBM Plex Mono',monospace;
+    font-size:8.5px;letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-faint);
+    background:var(--panel);border-radius:3px;padding:0 3px;}
   .sticker-cell{
     position:relative;
     border:1px solid var(--line);border-radius:7px;background:var(--panel-2);
@@ -2757,6 +2789,70 @@
 
   /* Room for a figure while the comment is being written. */
   .detail-note-block .rich-surface{max-height:460px;}
+  /* The note is written the way it is read (19.11): open, it keeps the
+     look it has shut — no box, no fill — and only the caret and the
+     toolbar under "Note" say it is being written. */
+  .detail-note-block .rich-surface.doc-open{
+    background:transparent;border-color:transparent;border-radius:0;padding:0 0 2px;
+    min-height:44px;
+  }
+  .detail-note-block .rich-surface.doc-open:focus{border-color:transparent;}
+
+  /* A note's lists and dividers, wherever a note is set as a document —
+     the drawer, and the note read full size. */
+  .rich-surface ul, .rich-surface ol, .note-overlay-body ul, .note-overlay-body ol{
+    margin:0;padding-left:1.5em;
+  }
+  .rich-surface ol, .note-overlay-body ol{padding-left:2.3em;}
+  .rich-surface li, .note-overlay-body li{padding-left:0.1em;}
+  /* A divider is the line under the drawer's tags, held in from the sides,
+     in any of the kinds a word can be underlined with; its title sits in a
+     gap in the middle. */
+  .note-rule{
+    display:flex;align-items:center;gap:8px;margin:6px 14px;min-height:12px;
+    white-space:normal;user-select:none;
+    --rule-line:1px solid var(--line);
+  }
+  .note-rule::before, .note-rule::after{content:'';flex:1 1 0;border-top:var(--rule-line);}
+  .note-rule[data-line="dashed"]{--rule-line:1px dashed var(--ink-faint);}
+  .note-rule[data-line="dotted"]{--rule-line:1.5px dotted var(--ink-faint);}
+  .note-rule[data-line="double"]{--rule-line:3px double var(--line);}
+  /* No border is wavy, so the wave is a picture of one, drawn in the
+     colour of the line. */
+  .note-rule[data-line="wavy"]::before, .note-rule[data-line="wavy"]::after{
+    border-top:none;height:5px;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 2.5Q2 0 4 2.5T8 2.5' fill='none' stroke='%238291a8' stroke-width='1'/%3E%3C/svg%3E") repeat-x center;
+  }
+  .note-rule-title{
+    flex:0 1 auto;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-faint);
+    overflow-wrap:anywhere;text-align:center;
+  }
+  .rich-surface:not(.locked) .note-rule{cursor:pointer;border-radius:3px;}
+  .rich-surface:not(.locked) .note-rule:hover{background:var(--panel-2);}
+  .rich-surface .note-rule.picked{background:rgba(194,59,34,0.16);outline:1px solid var(--accent);}
+  /* The panel a divider is set in: its kind of line, and its title. */
+  .rule-panel{
+    position:fixed;z-index:60;display:flex;flex-direction:column;gap:6px;
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    padding:8px;box-shadow:0 6px 20px rgba(0,0,0,0.18);width:220px;
+  }
+  .rule-panel .rule-kinds{display:flex;gap:4px;}
+  .rule-panel .rule-kinds button{
+    flex:1 1 0;background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+    color:var(--ink-dim);cursor:pointer;font-size:12px;padding:3px 0;line-height:1.2;
+  }
+  .rule-panel .rule-kinds button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .rule-panel input{
+    width:100%;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:5px 7px;
+  }
+  .rule-panel input:focus{outline:none;border-color:var(--accent);}
+  .rule-panel .rule-del{
+    align-self:flex-end;background:none;border:none;color:var(--ink-faint);cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:10px;padding:0;
+  }
+  .rule-panel .rule-del:hover{color:var(--accent);}
 
   /* A figure standing in the flow of a comment, the way one stands in a
      document: on its own line, the width of the column, with the caption
@@ -3123,9 +3219,34 @@
     margin:9px 6px 2px;font-size:10px;letter-spacing:0.5px;text-transform:uppercase;
     color:var(--ink-faint);font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
   }
-  .key-item{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:4px;}
+  /* The mark stands level with the middle of its words (the owner's list
+     of 19.11), whether they are one line or three. */
+  .key-item{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;}
   .key-item:hover{background:var(--panel-2);}
-  .key-sample{flex:0 0 auto;overflow:visible;margin-top:1px;}
+  .key-sample{flex:0 0 auto;overflow:visible;display:block;}
+  .key-icon{object-fit:contain;}
+  .key-sample-btn{
+    flex:0 0 auto;display:block;padding:0;margin:0;border:none;background:none;cursor:pointer;
+    border-radius:3px;line-height:0;
+  }
+  .key-sample-btn:hover{box-shadow:0 0 0 1.5px var(--accent);}
+  .key-icon-menu{
+    position:fixed;z-index:150;width:190px;display:flex;flex-direction:column;gap:2px;
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.18);
+  }
+  .key-icon-item{
+    text-align:left;background:none;border:none;border-radius:4px;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;color:var(--ink);padding:5px 7px;
+  }
+  .key-icon-item:hover{background:var(--panel-2);color:var(--accent);}
+  .key-icon-head{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.5px;
+    text-transform:uppercase;color:var(--ink-faint);padding:4px 7px 0;}
+  .key-icon-stickers{display:grid;grid-template-columns:repeat(5, 1fr);gap:3px;padding:3px 4px;}
+  .key-icon-stickers button{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;
+    padding:2px;cursor:pointer;line-height:0;}
+  .key-icon-stickers button:hover{border-color:var(--accent);}
+  .key-icon-stickers img{width:100%;aspect-ratio:1;object-fit:contain;}
   .key-box{fill:var(--panel);stroke:var(--ink);stroke-width:1.5;}
   .key-thin{stroke-width:1;}
   .key-faint{stroke:var(--ink-faint);stroke-width:1;}
@@ -3167,7 +3288,7 @@
   .key-own-hex.hex-input{height:20px;margin-top:3px;font-size:10px;}
   .key-own{stroke:var(--ink);stroke-width:1;}
   .key-remove{
-    flex:0 0 auto;align-self:flex-start;background:none;border:none;cursor:pointer;
+    flex:0 0 auto;align-self:center;background:none;border:none;cursor:pointer;
     color:var(--ink-faint);font-size:11px;padding:2px 3px;opacity:0;
   }
   .key-item:hover .key-remove, .key-remove:focus{opacity:1;}

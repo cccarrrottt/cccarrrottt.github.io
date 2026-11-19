@@ -514,7 +514,7 @@ async function main(){
   await scenario("panels open", async () => {
   for(const [btn, panel] of [['#tagsTab','#tagsPanel .side-tab-body'], ['#refsTab','#refsPanel .side-tab-body'],
                              ['#fileToggle','#filePopover'],
-                             ['#aboutToggle','#aboutOverlay'], ['#stickersToggle','#stickerOverlay'],
+                             ['#aboutToggle','#aboutOverlay'], ['#filesToggle','#stickerOverlay'],
                              ['#addFabBtn','#addFabStyles']]){
     const ok = await page.evaluate(async ([b, p]) => {
       const el = document.querySelector(b); if(!el) return 'no button';
@@ -4687,7 +4687,7 @@ async function main(){
     /* An undo repaints the panel the change was made in. */
     refill(STICKERS, [{key:'st_probe', name:'a', src:'data:image/png;base64,iVBORw0KGgo='}]);
     rebuildStickerMap();
-    document.getElementById('stickersToggle').click();
+    document.getElementById('filesToggle').click();
     await wait(260);
     applyEdit(()=>{ STICKERS.splice(0, 1); rebuildStickerMap(); });
     renderStickerLibrary();
@@ -18569,11 +18569,11 @@ async function main(){
     document.getElementById('fileToggle').click(); await pause(100);
     out.file = {pop: rect('filePopover'), btn: rect('fileToggle')};
     document.getElementById('fileToggle').click();
-    document.getElementById('stickersToggle').click(); await pause(100);
-    out.stick = {pop: rect('stickerOverlay'), btn: rect('stickersToggle'),
+    document.getElementById('filesToggle').click(); await pause(100);
+    out.stick = {pop: rect('stickerOverlay'), btn: rect('filesToggle'),
                  plus: document.getElementById('stickerUpload').textContent.trim(),
                  overlay: document.getElementById('stickerOverlay').classList.contains('about-overlay')};
-    document.getElementById('stickersToggle').click(); await pause(50);
+    document.getElementById('filesToggle').click(); await pause(50);
     out.stickShut = !document.getElementById('stickerOverlay').classList.contains('open');
     /* The chart as text is offered in About, not in the bar. */
     out.textIn = !!document.querySelector('#aboutOverlay #textViewToggle') && !document.querySelector('.topbar #textViewToggle');
@@ -23868,6 +23868,218 @@ async function main(){
       setBarFocus(null); closeEdgePopover(); closeNodeEditor(false); setReaderPreview(false);
       workingNodes = k.nodes; refill(EDGE_STYLES, k.styles);
       Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
+    });
+  }
+  });
+  await scenario("the owner's list of 19.11: a note written as it is read, with lists and dividers; a reader's tags and squares; templates kept while worn; My files; a legend's own marks, level with their words", async () => {
+  const X = 197000, Y = 197000;
+  await page.evaluate(()=>{ window.__k1911 = {nodes: workingNodes.map(x=> x.slice()), stickers: STICKERS.map(x=> Object.assign({}, x)),
+    cats: JSON.parse(JSON.stringify(TAG_CATS)), settings: JSON.parse(JSON.stringify(SETTINGS))}; return true; });
+  try{
+  await page.evaluate(([X, Y])=>{
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{
+      workingNodes.push(['q19_n', 'Noted', null, null, null, null, {pos:[X, Y], tags:['q19filed', 'q19loose']}]);
+      workingNodes.push(['q19_c', 'Card', null, null, '{{ul}}apple\n{{ol}}one\n{{ol}}two\n{{hr:dashed|Mid}}\nend', null, {pos:[X + 260, Y], card:true}]);
+    });
+    TAG_CATS.push({name:'Q19 cat', tags:['q19filed']});
+    assignTagCategory('q19loose', '');
+    rebuildChart(); buildSideTabs();
+    selectNode('q19_n');
+    return true;
+  }, [X, Y]);
+  await page.waitForTimeout(300);
+  /* 1. The note: the pencil opens it as it reads, Enter is a new line,
+     the list buttons make lists, three dashes and Enter a divider. */
+  await page.click('#detailNoteEdit');
+  await page.waitForTimeout(200);
+  await page.keyboard.type('Top line');
+  await page.keyboard.press('Enter');
+  await page.click('#detailNoteToolbar [data-wrap="ul"]');
+  await page.keyboard.type('apple'); await page.keyboard.press('Enter');
+  await page.keyboard.type('pear'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+  await page.keyboard.type('---'); await page.keyboard.press('Enter');
+  await page.click('#detailNoteToolbar [data-wrap="ol"]');
+  await page.keyboard.type('one'); await page.keyboard.press('Enter');
+  await page.keyboard.type('two'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+  await page.keyboard.type('end');
+  await page.waitForTimeout(650);
+  const n1 = await page.evaluate(()=>{
+    const blk = document.getElementById('detailNoteBlock');
+    const surf = richFields.get('detailNoteInput').surface;
+    return {note: (nodes.get('q19_n') || {}).note, noButtons: !document.getElementById('detailNoteApply') && !document.getElementById('detailNoteCancel'),
+            noRule: getComputedStyle(blk).borderBottomStyle === 'none' || parseFloat(getComputedStyle(blk).borderBottomWidth) === 0,
+            open: surf.isContentEditable, flat: getComputedStyle(surf).backgroundColor, toolbar: document.getElementById('detailNoteToolbar').style.display !== 'none'};
+  });
+  /* The divider, pressed: its kind of line and its title. */
+  await page.click('#detailNoteBlock .note-rule');
+  await page.click('.rule-panel [data-line="dotted"]');
+  await page.click('.rule-panel input');
+  await page.keyboard.type('Fruit');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(650);
+  const n2 = await page.evaluate(()=> (nodes.get('q19_n') || {}).note);
+  /* Backspace at the start of the line after it makes it the three dashes
+     again; Enter makes it a divider once more; pressed and Delete, gone. */
+  await page.evaluate(()=>{
+    const surf = richFields.get('detailNoteInput').surface;
+    const after = surf.querySelector('.note-rule').nextElementSibling;
+    const li = after.querySelector('li') || after;
+    placeCaret(li, false);
+  });
+  await page.keyboard.press('Backspace');
+  const n3 = await page.evaluate(()=> detailNoteInput.value);
+  await page.evaluate(()=>{
+    const surf = richFields.get('detailNoteInput').surface;
+    const back = [...surf.children].find(c=> c.textContent === '---');
+    placeCaret(back, true);
+  });
+  await page.keyboard.press('Enter');
+  const n4 = await page.evaluate(()=> detailNoteInput.value);
+  await page.click('#detailNoteBlock .note-rule');
+  await page.keyboard.press('Delete');
+  const n5 = await page.evaluate(()=> detailNoteInput.value);
+  await page.click('#detailNoteEdit');
+  await page.waitForTimeout(300);
+  const out = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    const surf = richFields.get('detailNoteInput').surface;
+    r.locked = !surf.isContentEditable && !!surf.querySelector('ul > li') && !!surf.querySelector('ol > li');
+    r.lockedNote = nodes.get('q19_n').note;
+    /* The same note round the editor and back is the same note. */
+    const m = '{{ul}}a **b**\n{{ul}}c\nplain\n{{hr:wavy|T\\}it\\{le}}\n{{ol}}x\n{{ol}}y';
+    setRichValue(detailNoteInput, m);
+    r.round = richHtmlToMarkup(surf) === m;
+    r.ruleTitle = (surf.querySelector('.note-rule') || {}).dataset.title;
+    showDetailNote(nodes.get('q19_n').note);
+    /* Everything else that reads a note reads words: bullets, numbers in
+       order, a rule of the divider's line. */
+    r.strip = stripMarkup('{{ul}}apple\n{{ol}}one\n{{ol}}two\nx\n{{ol}}again\n{{hr:dashed|Mid}}');
+    r.card = [...document.querySelectorAll('.node[data-id="q19_c"] text')].map(t=> t.textContent).join('|');
+    openNoteOverlay('q19_c');
+    { const b = document.getElementById('noteOverlayBody');
+      r.overlay = {ul: !!b.querySelector('ul li'), ol: b.querySelectorAll('ol li').length, rule: !!b.querySelector('.note-rule[data-line="dashed"]')};
+      noteOverlay.classList.remove('open'); }
+
+    /* 2. A reader is not shown a tag waiting to be filed, anywhere; the
+       squares are there, and nothing about them can be pressed. */
+    setReaderPreview(true); await wait(250);
+    selectNode('q19_n'); await wait(150);
+    setSideTab(document.getElementById('tagsPanel'), true); await wait(250);
+    buildSideTabs();
+    const rows = [...document.querySelectorAll('#tagsList .legend-item')].map(x=> x.dataset.tag);
+    r.readerLoose = rows.includes('q19loose');
+    r.readerFiled = rows.includes('q19filed');
+    r.readerChips = document.getElementById('detailTags').textContent;
+    const sq = document.querySelector('#tagsList .legend-item[data-tag="q19filed"] .swatch');
+    r.readerSquareSeen = sq ? [sq.className, getComputedStyle(sq).visibility, getComputedStyle(sq).cursor] : null;
+    r.readerSquare = !!sq && !sq.classList.contains('swatch-none') && !sq.classList.contains('swatch-pick') &&
+      getComputedStyle(sq).visibility !== 'hidden' && getComputedStyle(sq).cursor !== 'pointer';
+    searchInput.value = 'Noted'; searchInput.dispatchEvent(new Event('input', {bubbles:true})); await wait(80);
+    const hit = [...document.querySelectorAll('#searchResults .row')].find(x=> /Noted/.test(x.textContent));
+    r.readerSearch = hit ? hit.querySelector('.cl').textContent : null;
+    searchInput.value = ''; searchInput.dispatchEvent(new Event('input', {bubbles:true}));
+    r.spoken = spokenNameOf(nodes.get('q19_n'));
+    setSideTab(document.getElementById('tagsPanel'), false);
+    setReaderPreview(false); await wait(250);
+    buildSideTabs();
+    r.authorLoose = [...document.querySelectorAll('#tagsList .legend-item')].some(x=> x.dataset.tag === 'q19loose');
+
+    /* 3. A template an entry wears is in the menu, whether or not the chart
+       kept it, and cannot be taken out while it is worn. */
+    const tri = {name:'Q19 tri', d:'M0 100L50 0L100 100Z'};
+    const box = {name:'Q19 box', d:'M0 0L100 0L100 100L0 100Z'};
+    SETTINGS.figures = [box];
+    applyEdit(()=> workingNodes.push(['q19_f', 'Tri', null, null, null, null, {pos:[X0(), Y0()], figure: tri}]));
+    function X0(){ return 197000; } function Y0(){ return 197400; }
+    buildFigureMenu();
+    const tpl = name=> [...document.querySelectorAll('#addFabFigures .figure-template')].find(b=> b.title === name);
+    r.worn = !!tpl('Q19 tri') && tpl('Q19 tri').querySelector('.figure-template-drop').classList.contains('worn');
+    tpl('Q19 tri').querySelector('.figure-template-drop').click();
+    buildFigureMenu();
+    r.wornStays = !!tpl('Q19 tri');
+    tpl('Q19 box').querySelector('.figure-template-drop').click();
+    r.unwornGoes = !tpl('Q19 box') && !(SETTINGS.figures || []).some(t=> t.name === 'Q19 box');
+
+    /* 4. My files: the stickers and the pictures, under one button. */
+    refill(STICKERS, [{key:'q19st', name:'q', src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='}]);
+    rebuildStickerMap();
+    const pic = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    applyEdit(()=> workingNodes.push(['q19_p', 'Pictured', null, null, null, null, {pos:[X0() + 300, Y0()], image: pic}]));
+    r.noStickerButton = !document.getElementById('stickersToggle') && !!document.getElementById('filesToggle');
+    document.getElementById('filesToggle').click(); await wait(150);
+    r.filesOpen = document.getElementById('stickerOverlay').classList.contains('open');
+    r.filesSticker = document.querySelectorAll('#stickerGrid .sticker-cell').length === 1;
+    const cell = [...document.querySelectorAll('#filesGrid .file-cell')].find(c=> c.querySelector('img') && c.querySelector('img').getAttribute('src') === pic);
+    r.filesPicture = !!cell;
+    if(cell){ cell.click(); await wait(150); }
+    r.filesGoes = selectedId === 'q19_p';
+    r.faceKept = !!document.querySelector('#detailNoteToolbar .tb-sticker-btn svg');
+
+    /* 5. The legend: a row's mark may be a picture of the author's own,
+       and stands level with the middle of its words. */
+    setSideTab(document.getElementById('keyPanel'), true); await wait(100);
+    setKeyIcon('shape:entry', STICKERS[0].src); await wait(100);
+    buildKeyTab();
+    const row = document.querySelector('#keyList .key-item[data-key="shape:entry"]');
+    r.icon = !!(row && row.querySelector('.key-sample-btn img.key-icon'));
+    const mid = e=>{ const b = e.getBoundingClientRect(); return b.top + b.height / 2; };
+    r.level = [...document.querySelectorAll('#keyList .key-item')].map(it=>{
+      const s = it.querySelector('.key-sample'), w = it.querySelector('.key-words');
+      return s && w ? Math.abs(mid(s) - mid(w)) : 0;
+    });
+    r.iconKept = !!(cleanLegendRows(SETTINGS).legendIcons || {})['shape:entry'];
+    setReaderPreview(true); await wait(200);
+    buildKeyTab();
+    const rrow = document.querySelector('#keyList .key-item[data-key="shape:entry"]');
+    r.readerIcon = !rrow || (!!rrow.querySelector('img.key-icon') && !rrow.querySelector('.key-sample-btn'));
+    setReaderPreview(false); await wait(200);
+    setKeyIcon('shape:entry', null);
+    r.iconOff = !SETTINGS.legendIcons;
+    setSideTab(document.getElementById('keyPanel'), false);
+    return r;
+  });
+  check('the note opens where it stands, flat, with its buttons under "Note", no Apply or Cancel, and no rule under the block (19.11)',
+        n1.noButtons && n1.noRule && n1.open && n1.toolbar && /rgba\(0, 0, 0, 0\)|transparent/.test(n1.flat), JSON.stringify(n1));
+  check('…Enter is a new line, the buttons make a bulleted and a numbered list, and three dashes and Enter a divider — written as it settles',
+        n1.note === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:solid}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n1.note));
+  check('…a divider pressed takes its kind of line and a title', n2 === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:dotted|Fruit}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n2));
+  check('…Backspace after a divider makes it the three dashes again, and Enter a divider once more', /\n---\n/.test(n3) && /\{\{hr:solid\}\}/.test(n4) && !/---/.test(n4),
+        JSON.stringify([n3, n4]));
+  check('…a divider pressed and Delete is gone', !/\{\{hr/.test(n5) && /pear\n\{\{ol\}\}one|pear\n\n?\{\{ol\}\}one/.test(n5), JSON.stringify(n5));
+  check('…shut, the note shows its lists, and a note goes round the editor unchanged — a divider’s title with braces in it too',
+        out.locked && out.round && out.ruleTitle === 'T}it{le', JSON.stringify([out.locked, out.round, out.ruleTitle]));
+  check('everything else that reads a note reads its lists as bullets and numbers, and a divider as a rule of its line',
+        out.strip === '• apple\n1. one\n2. two\nx\n1. again\n╌╌ Mid ╌╌' && /•\s*apple/.test(out.card) && /1\.\s*one/.test(out.card) && /2\.\s*two/.test(out.card),
+        JSON.stringify([out.strip, out.card]));
+  check('…and the note read full size draws them as the drawer does', out.overlay.ul && out.overlay.ol === 2 && out.overlay.rule, JSON.stringify(out.overlay));
+  check('a reader is not shown a tag waiting to be filed — not in the Tags tab, on the entry, in a search or in its spoken name — and its author is',
+        !out.readerLoose && out.readerFiled && !/q19loose/.test(out.readerChips) && /q19filed/.test(out.readerChips) &&
+        out.readerSearch !== null && !/q19loose/.test(out.readerSearch) && !/q19loose/.test(out.spoken) && out.authorLoose,
+        JSON.stringify([out.readerLoose, out.readerFiled, out.readerChips, out.readerSearch, out.spoken, out.authorLoose]));
+  check('…a reader sees a tag’s colour square, and nothing about it can be pressed', out.readerSquare, JSON.stringify(out.readerSquareSeen));
+  check('a template an entry wears is in the add menu even when the chart did not keep it, and cannot be taken out while worn; one nobody wears can',
+        out.worn && out.wornStays && out.unwornGoes, JSON.stringify([out.worn, out.wornStays, out.unwornGoes]));
+  check('My files replaces the Stickers button: the stickers, and every picture in the chart, which takes you to its entry',
+        out.noStickerButton && out.filesOpen && out.filesSticker && out.filesPicture && out.filesGoes && out.faceKept,
+        JSON.stringify([out.noStickerButton, out.filesOpen, out.filesSticker, out.filesPicture, out.filesGoes, out.faceKept]));
+  check('a legend row’s mark can be a picture of the author’s own, kept with the chart, shown to a reader as a picture, and taken off again',
+        out.icon && out.iconKept && out.readerIcon && out.iconOff, JSON.stringify([out.icon, out.iconKept, out.readerIcon, out.iconOff]));
+  check('…and every mark stands level with the middle of its words', out.level.length > 0 && out.level.every(d=> d <= 1.5), JSON.stringify(out.level));
+  } finally {
+    await page.evaluate(()=>{
+      const k = window.__k1911;
+      if(typeof closeRulePanel === 'function') closeRulePanel();
+      setReaderPreview(false);
+      document.getElementById('stickerOverlay').classList.remove('open');
+      if(typeof openFigureMenu === 'function') openFigureMenu(false);
+      if(detailNoteEditing) setDetailNoteEditing(false);
+      workingNodes = k.nodes; refill(STICKERS, k.stickers); rebuildStickerMap();
+      refill(TAG_CATS, k.cats);
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      selectedId = null;
       vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
     });
   }

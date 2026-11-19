@@ -337,7 +337,7 @@ function importChartFromText(text){
     if(figuresIn.length) SETTINGS.figures = figuresIn; else delete SETTINGS.figures;
     const mediaTypesIn = cleanMediaTypes(settingsIn && settingsIn.mediaTypes);
     if(mediaTypesIn.length) SETTINGS.mediaTypes = mediaTypesIn; else delete SETTINGS.mediaTypes;
-    ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn'].forEach(k=>{
+    ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn', 'legendIcons'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
     });
     // Last, so a step that adds an entry adds it to the chart coming in.

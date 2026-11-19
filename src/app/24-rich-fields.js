@@ -31,7 +31,7 @@ function markupToRichHtml(markup){
    * a break can be understood at all, and the RUNS are then cut at their
    * newlines — each fragment keeping everything the run carried, so the
    * underline simply continues onto the next line. */
-  const runs = tokenizeLabel(String(markup == null ? '' : markup), {media:true});
+  const runs = tokenizeLabel(String(markup == null ? '' : markup), {media:true, blocks:true});
   const lines = [[]];
   runs.forEach(t=>{
     const text = (t.type === 'plain') ? (t.text || '') : null;
@@ -41,7 +41,44 @@ function markupToRichHtml(markup){
       if(part !== '') lines[lines.length-1].push(Object.assign({}, t, {text:part}));
     });
   });
-  return lines.map(ls=> `<div>${ls.length ? runsToHtml(ls) : '<br>'}</div>`).join('');
+  /* A note's lists and dividers are lines of their own (see
+     flattenNoteBlocks): the items of one list on consecutive lines are
+     one <ul> or <ol>, which is what the browser's own Enter and Backspace
+     know how to carry on and leave, and a divider is one element the
+     caret steps over. Anything of the kind in the middle of a line is
+     left as words. A divider at the very end is followed by an empty
+     line, or there would be nowhere after it to put the caret. */
+  const lineHtml = ls=> ls.length ? runsToHtml(flattenNoteBlocks(ls)) : '<br>';
+  let html = '', list = null;
+  const closeList = ()=>{ if(list){ html += `</${list}>`; list = null; } };
+  lines.forEach((ls, i)=>{
+    const head = ls[0];
+    if(head && head.type === 'li'){
+      if(list !== head.list){ closeList(); list = head.list; html += `<${list}>`; }
+      html += `<li>${lineHtml(ls.slice(1))}</li>`;
+      return;
+    }
+    closeList();
+    if(head && head.type === 'rule'){
+      html += noteRuleHtml(head.line, head.title);
+      const rest = ls.slice(1);
+      if(rest.length || i === lines.length - 1) html += `<div>${lineHtml(rest)}</div>`;
+      return;
+    }
+    html += `<div>${lineHtml(ls)}</div>`;
+  });
+  closeList();
+  return html;
+}
+/* One divider, as the editor and the note read full size show it: a line
+   in one of the kinds a text can be underlined with, inset from the sides,
+   with its title in a gap in the middle. It is one element the caret steps
+   over, carrying what it is so the writer can read it back. */
+function noteRuleHtml(line, title){
+  const kind = LINE_STYLES[line] ? line : 'solid';
+  const t = String(title || '');
+  return `<div class="note-rule" contenteditable="false" data-line="${kind}" data-title="${escapeHtml(t)}">` +
+         (t ? `<span class="note-rule-title">${escapeHtml(t)}</span>` : '') + `</div>`;
 }
 
 // HTML -> markup. Walks the editable surface and re-emits the stored form.
@@ -136,11 +173,11 @@ function strikeOfEl(el){
  * off a COPY, so the caret in the live surface is not disturbed. */
 function withoutBlockTailNewlines(root){
   const copy = root.cloneNode(true);
-  const blocks = [copy].concat([...copy.querySelectorAll('div,p')]);
+  const blocks = [copy].concat([...copy.querySelectorAll('div,p,li')]);
   blocks.forEach(b=>{
     let node = b.lastChild;
     while(node && node.nodeType === 1 &&
-          !/^(DIV|P)$/.test(node.tagName) && node.lastChild){
+          !/^(DIV|P|LI|UL|OL)$/.test(node.tagName) && node.lastChild){
       node = node.lastChild;
     }
     if(node && node.nodeType === 3 && node.nodeValue.slice(-1) === '\n'){
@@ -284,9 +321,24 @@ function richHtmlToMarkup(root, opts){
         return;
       }
       if(tag === 'RT') return;               // handled by its <ruby>
+      /* A divider is a line of its own, and what follows it starts the
+         next one. */
+      if(child.classList && child.classList.contains('note-rule')){
+        if(out !== '' && !out.endsWith('\n')) writeText('\n');
+        const kind = LINE_STYLES[child.dataset.line] ? child.dataset.line : 'solid';
+        const title = String(child.dataset.title || '').replace(/\n/g, ' ').trim();
+        writeAtomic(`{{hr:${kind}${title ? '|' + escapeMarkup(title) : ''}}}`);
+        writeText('\n');
+        return;
+      }
       // Block-level children start a new line, except the very first one.
-      const isBlock = (tag === 'DIV' || tag === 'P');
+      // An item of a list is a line that starts with its list's mark.
+      const isBlock = /^(DIV|P|LI|UL|OL)$/.test(tag);
       if(isBlock && out !== '' && !out.endsWith('\n')) writeText('\n');
+      if(tag === 'LI'){
+        const owner = child.parentElement && child.parentElement.closest('ul,ol');
+        writeAtomic(owner && owner.tagName === 'OL' ? '{{ol}}' : '{{ul}}');
+      }
       const bold = !state.bold && isBoldEl(child);
       const italic = !state.italic && isItalicEl(child);
       const color = !state.color && colorOfEl(child);
@@ -542,6 +594,9 @@ function makeRichField(textarea){
      else, or the ✓ on the field's own toolbar. */
   surface.addEventListener('keydown', ev=>{
     if(ev.key !== 'Enter' || ev.isComposing) return;
+    /* A document's Enter is the browser's own: a new line, an item after
+       an item, out of a list from an empty one. See makeRichDocument. */
+    if(richDocFields.has(textarea.id) && !ev.shiftKey) return;
     ev.preventDefault();
     if(ev.shiftKey || keysAreOnScreen()){ document.execCommand('insertLineBreak'); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
     // Whatever is in the surface reaches the textarea BEFORE the field is
@@ -564,3 +619,194 @@ function makeRichField(textarea){
   setRichValue(textarea, textarea.value);
 }
 
+
+/* ---------------------------------------------------------------------
+   A field written as a document — the note in the drawer (19.11).
+
+   It is written the way it is read: the same look open as shut, Enter a
+   new line, a list a list. Three dashes alone on a line, and Enter, make
+   a divider. A divider is pressed to choose its kind of line and to give
+   it a title; pressed and then Delete, it is gone; with the caret at the
+   start of the line after it, Backspace or Delete makes it the three
+   dashes it was typed as again.
+   ------------------------------------------------------------------ */
+const richDocFields = new Set();
+/* The browser's list commands leave lists wherever they like — inside the
+   line they were made from, with a stray break after. A list is a line of
+   the document's own here, so it is lifted to the top. */
+function tidyNoteLists(surface){
+  // Moving a node takes the caret out of it, so where it was is put back.
+  const sel = window.getSelection();
+  const r = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+  const at = r && [r.startContainer, r.startOffset, r.endContainer, r.endOffset];
+  let moved = false;
+  surface.querySelectorAll(':scope > div > ul, :scope > div > ol').forEach(list=>{
+    const host = list.parentNode;
+    if([...host.childNodes].every(c=> c === list || (c.nodeType === 1 && c.tagName === 'BR') ||
+                                     (c.nodeType === 3 && !c.nodeValue.trim()))){
+      host.replaceWith(list);
+      moved = true;
+    }
+  });
+  if(moved && at && surface.contains(at[0]) && surface.contains(at[2])){
+    const back = document.createRange();
+    back.setStart(at[0], at[1]); back.setEnd(at[2], at[3]);
+    sel.removeAllRanges(); sel.addRange(back);
+  }
+}
+function noteLineOf(surface, node){
+  let n = node;
+  while(n && n.parentNode !== surface) n = n.parentNode;
+  return n && n.parentNode === surface ? n : null;
+}
+/* Whether nothing stands between the start of a line and the caret. */
+function caretAtLineStart(line, range){
+  const r = document.createRange();
+  r.selectNodeContents(line);
+  r.setEnd(range.startContainer, range.startOffset);
+  if(r.toString().replace(/[​﻿]/g, '') !== '') return false;
+  const bits = r.cloneContents();
+  return !bits.querySelector || !bits.querySelector('img,[data-media],[data-ref],[data-sticker]');
+}
+function placeCaret(node, atEnd){
+  const sel = window.getSelection();
+  const r = document.createRange();
+  r.selectNodeContents(node);
+  r.collapse(!atEnd);
+  sel.removeAllRanges(); sel.addRange(r);
+}
+let rulePanel = null;
+function closeRulePanel(){
+  if(!rulePanel) return;
+  const {el, rule} = rulePanel;
+  rulePanel = null;
+  el.remove();
+  if(rule) rule.classList.remove('picked');
+}
+function openRulePanel(surface, rule){
+  closeRulePanel();
+  rule.classList.add('picked');
+  const el = document.createElement('div');
+  el.className = 'rule-panel';
+  const changed = ()=> surface.dispatchEvent(new Event('input', {bubbles:true}));
+  const kinds = document.createElement('div');
+  kinds.className = 'rule-kinds';
+  Object.keys(LINE_STYLES).forEach(k=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = LINE_STYLES[k].label;
+    b.title = k;
+    b.dataset.line = k;
+    b.classList.toggle('on', (rule.dataset.line || 'solid') === k);
+    b.addEventListener('mousedown', ev=> ev.preventDefault());
+    b.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      rule.dataset.line = k;
+      kinds.querySelectorAll('button').forEach(x=> x.classList.toggle('on', x === b));
+      changed();
+    });
+    kinds.appendChild(b);
+  });
+  const title = document.createElement('input');
+  title.type = 'text';
+  title.placeholder = 'Title';
+  title.spellcheck = false;
+  title.maxLength = 80;
+  title.value = rule.dataset.title || '';
+  title.addEventListener('input', ()=>{
+    const t = title.value;
+    rule.dataset.title = t;
+    let span = rule.querySelector('.note-rule-title');
+    if(t && !span){ span = document.createElement('span'); span.className = 'note-rule-title'; rule.appendChild(span); }
+    if(span){ if(t) span.textContent = t; else span.remove(); }
+    changed();
+  });
+  title.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter' || ev.key === 'Escape'){ ev.preventDefault(); closeRulePanel(); surface.focus(); }
+  });
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'rule-del';
+  del.textContent = 'Remove the line';
+  del.addEventListener('mousedown', ev=> ev.preventDefault());
+  del.addEventListener('click', ev=>{ ev.stopPropagation(); removeNoteRule(surface, rule); });
+  el.append(kinds, title, del);
+  document.body.appendChild(el);
+  const box = rule.getBoundingClientRect();
+  const w = 220;
+  el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, box.left + box.width / 2 - w / 2)) + 'px';
+  el.style.top = Math.min(window.innerHeight - 120, box.bottom + 6) + 'px';
+  rulePanel = {el, rule, surface};
+}
+function removeNoteRule(surface, rule){
+  closeRulePanel();
+  const next = rule.nextElementSibling;
+  rule.remove();
+  if(next) placeCaret(next, false);
+  surface.focus();
+  surface.dispatchEvent(new Event('input', {bubbles:true}));
+}
+document.addEventListener('pointerdown', ev=>{
+  if(!rulePanel) return;
+  if(rulePanel.el.contains(ev.target) || rulePanel.rule.contains(ev.target)) return;
+  closeRulePanel();
+}, true);
+function makeRichDocument(textarea){
+  const rec = textarea && richFields.get(textarea.id);
+  if(!rec) return;
+  richDocFields.add(textarea.id);
+  const surface = rec.surface;
+  const changed = ()=> surface.dispatchEvent(new Event('input', {bubbles:true}));
+  surface.addEventListener('mousedown', ev=>{
+    const rule = ev.target.closest && ev.target.closest('.note-rule');
+    if(!rule || !surface.contains(rule) || surface.contentEditable !== 'true') return;
+    ev.preventDefault();
+    surface.focus({preventScroll:true});
+    openRulePanel(surface, rule);
+  });
+  surface.addEventListener('keydown', ev=>{
+    if(ev.isComposing) return;
+    if(rulePanel && rulePanel.surface === surface){
+      if(ev.key === 'Delete' || ev.key === 'Backspace'){ ev.preventDefault(); removeNoteRule(surface, rulePanel.rule); return; }
+      if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); closeRulePanel(); return; }
+      closeRulePanel();
+    }
+    const sel = window.getSelection();
+    if(!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if(!range.collapsed || !surface.contains(range.startContainer)) return;
+    const line = noteLineOf(surface, range.startContainer);
+    if(ev.key === 'Enter' && !ev.shiftKey && line && line.tagName === 'DIV' &&
+       !line.classList.contains('note-rule') && line.textContent === '---'){
+      ev.preventDefault();
+      const holder = document.createElement('div');
+      holder.innerHTML = noteRuleHtml('solid', '');
+      const rule = holder.firstChild;
+      const after = document.createElement('div');
+      after.appendChild(document.createElement('br'));
+      line.replaceWith(rule);
+      rule.after(after);
+      placeCaret(after, false);
+      changed();
+      return;
+    }
+    /* The line after a divider may be a list, whose first item is then
+       the line the caret starts. */
+    const first = line && /^(UL|OL)$/.test(line.tagName) ? line.firstElementChild : line;
+    if((ev.key === 'Backspace' || ev.key === 'Delete') && first && /^(DIV|LI)$/.test(first.tagName) &&
+       first.contains(range.startContainer) &&
+       line.previousElementSibling && line.previousElementSibling.classList.contains('note-rule') &&
+       caretAtLineStart(first, range)){
+      ev.preventDefault();
+      const rule = line.previousElementSibling;
+      const back = document.createElement('div');
+      back.textContent = '---';
+      rule.replaceWith(back);
+      // The line after it was only the room left for the caret: it goes.
+      if(line.tagName === 'DIV' && !line.textContent && !line.querySelector('img,[data-media],[data-ref],[data-sticker]')) line.remove();
+      placeCaret(back, true);
+      changed();
+    }
+  });
+}

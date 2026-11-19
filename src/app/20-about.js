@@ -11,9 +11,19 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.8';
+const APP_VERSION = '0.26.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.26.0', date:'2026-11-19', title:'Written as it is read', notes:[
+'The tab\'s icon and the home-screen icons are drawn from an SVG of the R·P mark, so they are sharp at any size.',
+'An entry\'s note is written the way it is read: the pencil opens it where it stands, with its formatting buttons under Note, and every change is kept as it is made, with no Apply or Cancel. Enter starts a new line. The dashed line under the note is gone.',
+'A note can hold bulleted and numbered lists, from two buttons on its bar. Three dashes alone on a line, then Enter, make a divider held in from the sides. Pressed, a divider takes a kind of line and a title. Pressed and then Delete, it is gone. Backspace at the start of the line after it turns it back into three dashes. On the chart and in the text version, lists read as bullets and numbers, and a divider as a line of dashes.',
+'A reader is not shown tags that are not in a category: not in the Tags tab, not on an entry, not in search results and not in the text version. A reader does see a tag\'s colour square, but cannot press it.',
+'Every template an entry is drawn with is offered in the add menu, even one the chart did not keep. A template cannot be removed while any entry is still drawn with it.',
+'My files replaces the Stickers button. It holds the stickers, and every picture and video in the chart, each shown once. Pressing one takes you to the entry it is on.',
+'A legend row\'s mark can be a picture of your own, uploaded or chosen from the stickers. Every mark now sits level with the middle of its words.',
+'Code 1: a menu moved by hand can no longer be left beyond the edge of the window.'
+  ]},
   {v:'0.25.8', date:'2026-11-15', title:'Clear of the capitals', notes:[
 'A reading stands clear of the tallest letter of the word it reads, measured, so it no longer sits on a capital; two readings on one line stand at one height over the same letters. A reading whose text is all erased goes, slot and all, and is written again with its button.',
 'In the in-entry editor, underline and strike-through across several lines no longer spread the lines apart, and taken off they come back together.',
