@@ -707,37 +707,62 @@ function openRulePanel(surface, rule){
     });
     kinds.appendChild(b);
   });
-  const title = document.createElement('input');
-  title.type = 'text';
-  title.placeholder = 'Title';
-  title.spellcheck = false;
-  title.maxLength = 80;
-  title.value = rule.dataset.title || '';
-  title.addEventListener('input', ()=>{
-    const t = title.value;
-    rule.dataset.title = t;
-    let span = rule.querySelector('.note-rule-title');
-    if(t && !span){ span = document.createElement('span'); span.className = 'note-rule-title'; rule.appendChild(span); }
-    if(span){ if(t) span.textContent = t; else span.remove(); }
-    changed();
-  });
-  title.addEventListener('keydown', ev=>{
-    ev.stopPropagation();
-    if(ev.key === 'Enter' || ev.key === 'Escape'){ ev.preventDefault(); closeRulePanel(); surface.focus(); }
-  });
   const del = document.createElement('button');
   del.type = 'button';
   del.className = 'rule-del';
   del.textContent = 'Remove the line';
   del.addEventListener('mousedown', ev=> ev.preventDefault());
   del.addEventListener('click', ev=>{ ev.stopPropagation(); removeNoteRule(surface, rule); });
-  el.append(kinds, title, del);
+  el.append(kinds, del);
   document.body.appendChild(el);
   const box = rule.getBoundingClientRect();
   const w = 220;
   el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, box.left + box.width / 2 - w / 2)) + 'px';
   el.style.top = Math.min(window.innerHeight - 120, box.bottom + 6) + 'px';
   rulePanel = {el, rule, surface};
+}
+/* A divider's title, typed where it stands, over the line at its left
+   (the owner's note of 19.11): a double click on the divider. Enter or
+   leaving keeps it, Escape puts back what was there, and a title typed
+   away to nothing is no title. */
+function nameNoteRule(surface, rule){
+  closeRulePanel();
+  const was = rule.dataset.title || '';
+  let t = rule.querySelector('.note-rule-title');
+  if(!t){ t = document.createElement('span'); t.className = 'note-rule-title'; rule.insertBefore(t, rule.firstChild); }
+  t.contentEditable = 'plaintext-only';
+  t.classList.add('naming');
+  t.spellcheck = false;
+  t.focus();
+  try{ const r = document.createRange(); r.selectNodeContents(t); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); }catch(e){}
+  const changed = ()=> surface.dispatchEvent(new Event('input', {bubbles:true}));
+  let done = false;
+  const finish = keep=>{
+    if(done) return;
+    done = true;
+    t.removeEventListener('keydown', onKey);
+    t.removeEventListener('blur', onBlur);
+    t.removeEventListener('input', onInput);
+    t.contentEditable = 'false';
+    t.removeAttribute('contenteditable');
+    t.classList.remove('naming');
+    const v = keep ? (t.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80) : was;
+    rule.dataset.title = v;
+    if(v) t.textContent = v; else t.remove();
+    changed();
+    const next = rule.nextElementSibling;
+    if(next){ surface.focus({preventScroll:true}); placeCaret(next, false); }
+  };
+  function onInput(ev){ ev.stopPropagation(); rule.dataset.title = (t.textContent || '').replace(/\s+/g, ' ').trim(); changed(); }
+  function onKey(ev){
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  }
+  function onBlur(){ finish(true); }
+  t.addEventListener('keydown', onKey);
+  t.addEventListener('blur', onBlur);
+  t.addEventListener('input', onInput);
 }
 function removeNoteRule(surface, rule){
   closeRulePanel();
@@ -761,7 +786,9 @@ function makeRichDocument(textarea){
   surface.addEventListener('mousedown', ev=>{
     const rule = ev.target.closest && ev.target.closest('.note-rule');
     if(!rule || !surface.contains(rule) || surface.contentEditable !== 'true') return;
+    if(ev.target.closest('.note-rule-title.naming')) return;
     ev.preventDefault();
+    if(ev.detail >= 2){ nameNoteRule(surface, rule); return; }
     surface.focus({preventScroll:true});
     openRulePanel(surface, rule);
   });

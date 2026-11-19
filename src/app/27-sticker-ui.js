@@ -238,48 +238,68 @@ function chartFiles(){
   if(typeof legendIconFiles === 'function') legendIconFiles().forEach(f=> add(f.src, 'image', f.name, null));
   return files;
 }
+/* Which kinds are folded shut. Like the tag panel's categories it is how
+   somebody is looking right now, not something about the chart, so it
+   lives for the session. */
+const filesFolded = new Set();
+document.querySelectorAll('#stickerOverlay .files-section').forEach(sec=>{
+  sec.querySelector('.files-head').addEventListener('click', ev=>{
+    if(ev.target.closest('button')) return;
+    const kind = sec.dataset.kind;
+    if(filesFolded.has(kind)) filesFolded.delete(kind); else filesFolded.add(kind);
+    sec.classList.toggle('collapsed', filesFolded.has(kind));
+  });
+});
+function chartFileCell(f){
+  const cell = document.createElement('button');
+  cell.type = 'button';
+  cell.className = 'file-cell';
+  const pic = document.createElement(f.kind === 'video' ? 'video' : 'img');
+  if(f.kind === 'video'){ pic.preload = 'metadata'; pic.muted = true; pic.playsInline = true; }
+  else { pic.alt = f.name || ''; pic.loading = 'lazy'; }
+  pic.src = f.src;
+  const name = document.createElement('div');
+  name.className = 'file-name';
+  name.textContent = f.name || '';
+  cell.append(pic, name);
+  // Video has a section of its own now; a GIF is an image, and says it moves.
+  if(f.kind !== 'video' && pictureMoves(f.src)){
+    const k = document.createElement('span');
+    k.className = 'file-kind';
+    k.textContent = 'gif';
+    cell.appendChild(k);
+  }
+  const where = f.owners.map(id=>{ const n = nodes.get(id); return n ? (stripMarkup(n.label || '').trim() || id) : id; });
+  cell.title = (f.name || '') + (where.length ? ' — on ' + where.join(', ') : '');
+  cell.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const id = f.owners[0];
+    if(!id || !nodes.get(id)) return;
+    stickerOverlay.classList.remove('open');
+    selectNode(id); flyToNode(id);
+  });
+  return cell;
+}
 function renderChartFiles(){
   const grid = document.getElementById('filesGrid');
   if(!grid) return;
   const files = chartFiles();
-  grid.textContent = '';
-  document.getElementById('filesCount').textContent = files.length ? String(files.length) : '';
+  const images = files.filter(f=> f.kind !== 'video'), videos = files.filter(f=> f.kind === 'video');
   document.getElementById('stickerCount').textContent = STICKERS.length ? String(STICKERS.length) : '';
-  if(!files.length){
-    const p = document.createElement('div');
-    p.className = 'sticker-empty';
-    p.textContent = 'No pictures or video in the chart yet.';
-    grid.appendChild(p);
-    return;
-  }
-  files.forEach(f=>{
-    const cell = document.createElement('button');
-    cell.type = 'button';
-    cell.className = 'file-cell';
-    const pic = document.createElement(f.kind === 'video' ? 'video' : 'img');
-    if(f.kind === 'video'){ pic.preload = 'metadata'; pic.muted = true; pic.playsInline = true; }
-    else { pic.alt = f.name || ''; pic.loading = 'lazy'; }
-    pic.src = f.src;
-    const name = document.createElement('div');
-    name.className = 'file-name';
-    name.textContent = f.name || '';
-    cell.append(pic, name);
-    if(f.kind === 'video' || pictureMoves(f.src)){
-      const k = document.createElement('span');
-      k.className = 'file-kind';
-      k.textContent = f.kind === 'video' ? 'video' : 'gif';
-      cell.appendChild(k);
+  document.querySelectorAll('#stickerOverlay .files-section').forEach(sec=>
+    sec.classList.toggle('collapsed', filesFolded.has(sec.dataset.kind)));
+  [[grid, 'filesCount', images, 'No images in the chart yet.'],
+   [document.getElementById('videoGrid'), 'videoCount', videos, 'No video in the chart yet.']].forEach(([g, countId, list, empty])=>{
+    g.textContent = '';
+    document.getElementById(countId).textContent = list.length ? String(list.length) : '';
+    if(!list.length){
+      const p = document.createElement('div');
+      p.className = 'sticker-empty';
+      p.textContent = empty;
+      g.appendChild(p);
+      return;
     }
-    const where = f.owners.map(id=>{ const n = nodes.get(id); return n ? (stripMarkup(n.label || '').trim() || id) : id; });
-    cell.title = (f.name || '') + (where.length ? ' — on ' + where.join(', ') : '');
-    cell.addEventListener('click', ev=>{
-      ev.stopPropagation();
-      const id = f.owners[0];
-      if(!id || !nodes.get(id)) return;
-      stickerOverlay.classList.remove('open');
-      selectNode(id); flyToNode(id);
-    });
-    grid.appendChild(cell);
+    list.forEach(f=> g.appendChild(chartFileCell(f)));
   });
 }
 function openStickerLibrary(){

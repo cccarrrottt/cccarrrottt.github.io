@@ -518,14 +518,26 @@
         <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
       </div>
       <div class="files-body">
-        <div class="files-head">
-          <span>Stickers</span><span class="files-count" id="stickerCount"></span>
-          <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers" title="Add stickers: square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">+</button>
+        <!-- Each kind of file folds away under its heading, as a category
+             of tags does (the owner's note of 19.11). -->
+        <div class="files-section" data-kind="stickers">
+          <div class="files-head" title="Fold this kind away">
+            <span>Stickers</span><span class="legend-group-fold">▸</span><span class="files-count" id="stickerCount"></span>
+            <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers" title="Add stickers: square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">+</button>
+          </div>
+          <div class="files-fold">
+            <div class="sticker-status editor-status" id="stickerStatus"></div>
+            <div class="sticker-grid" id="stickerGrid"></div>
+          </div>
         </div>
-        <div class="sticker-status editor-status" id="stickerStatus"></div>
-        <div class="sticker-grid" id="stickerGrid"></div>
-        <div class="files-head"><span>Pictures and video</span><span class="files-count" id="filesCount"></span></div>
-        <div class="files-grid" id="filesGrid"></div>
+        <div class="files-section" data-kind="image">
+          <div class="files-head" title="Fold this kind away"><span>Images</span><span class="legend-group-fold">▸</span><span class="files-count" id="filesCount"></span></div>
+          <div class="files-fold"><div class="files-grid" id="filesGrid"></div></div>
+        </div>
+        <div class="files-section" data-kind="video">
+          <div class="files-head" title="Fold this kind away"><span>Video</span><span class="legend-group-fold">▸</span><span class="files-count" id="videoCount"></span></div>
+          <div class="files-fold"><div class="files-grid" id="videoGrid"></div></div>
+        </div>
       </div>
     </div>
     <input type="file" id="stickerFile" accept="image/*" multiple style="display:none;">

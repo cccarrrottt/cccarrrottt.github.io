@@ -2092,6 +2092,12 @@
   }
   .add-fab-figures-grid{display:grid;grid-template-columns:repeat(4, 62px);gap:4px;}
   .add-fab-figures .node-style-btn{background:var(--panel-2);position:relative;}
+  /* A template is named after the file it came from, and a file's name can
+     be a sentence: one line, cut with an ellipsis, the whole of it in the
+     tooltip (the owner's note of 19.11). */
+  .figure-template .node-style-cap{
+    display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
   .figure-template-drop{
     position:absolute;top:1px;right:3px;font-size:11px;line-height:1;color:var(--ink-faint);
     display:none;
@@ -2678,7 +2684,14 @@
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
     text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-faint);
   }
-  .files-head:first-child{margin-top:2px;}
+  /* A kind of file folds away under its heading, with the ▸ every other
+     fold on the page wears; the + on the stickers' heading is still a
+     button of its own. */
+  .files-head{cursor:pointer;user-select:none;}
+  .files-head:hover .legend-group-fold{color:var(--accent);}
+  .files-section:first-child .files-head{margin-top:2px;}
+  .files-section.collapsed .legend-group-fold{transform:none;}
+  .files-section.collapsed .files-fold{display:none;}
   .files-head .sticker-plus{margin-left:auto;}
   .files-count{color:var(--ink-dim);}
   .files-grid{
@@ -2805,33 +2818,44 @@
   }
   .rich-surface ol, .note-overlay-body ol{padding-left:2.3em;}
   .rich-surface li, .note-overlay-body li{padding-left:0.1em;}
-  /* A divider is the line under the drawer's tags, held in from the sides,
-     in any of the kinds a word can be underlined with; its title sits in a
-     gap in the middle. */
+  /* A divider is the line under the drawer's tags, in any of the kinds a
+     word can be underlined with, running almost to the edges of the
+     window it is in, with its title over it at the left, as a section's
+     heading stands over its rule in a wiki (the owner's note of 19.11). */
   .note-rule{
-    display:flex;align-items:center;gap:8px;margin:6px 14px;min-height:12px;
-    white-space:normal;user-select:none;
+    display:block;margin:10px 0 6px;white-space:normal;user-select:none;
     --rule-line:1px solid var(--line);
   }
-  .note-rule::before, .note-rule::after{content:'';flex:1 1 0;border-top:var(--rule-line);}
+  .note-rule::after{content:'';display:block;border-top:var(--rule-line);}
+  .note-rule:not(:has(.note-rule-title)){padding-top:4px;}
   .note-rule[data-line="dashed"]{--rule-line:1px dashed var(--ink-faint);}
   .note-rule[data-line="dotted"]{--rule-line:1.5px dotted var(--ink-faint);}
   .note-rule[data-line="double"]{--rule-line:3px double var(--line);}
   /* No border is wavy, so the wave is a picture of one, drawn in the
      colour of the line. */
-  .note-rule[data-line="wavy"]::before, .note-rule[data-line="wavy"]::after{
+  .note-rule[data-line="wavy"]::after{
     border-top:none;height:5px;
     background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 2.5Q2 0 4 2.5T8 2.5' fill='none' stroke='%238291a8' stroke-width='1'/%3E%3C/svg%3E") repeat-x center;
   }
   .note-rule-title{
-    flex:0 1 auto;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
-    text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-faint);
-    overflow-wrap:anywhere;text-align:center;
+    display:block;width:fit-content;max-width:100%;box-sizing:border-box;text-align:left;font-weight:700;font-size:1.1em;line-height:1.3;
+    color:var(--ink);overflow-wrap:anywhere;padding:0 0 2px;outline:none;
   }
+  .note-rule-title.naming{user-select:text;cursor:text;background:var(--panel);
+    box-shadow:0 0 0 1px var(--accent);border-radius:2px;}
+  /* In the drawer the note's field reaches out to 4px from the window's
+     sides, with its words where they were, so a divider can run there. */
+  .detail-note-block .rich-surface,
+  .detail-note-block .rich-surface.locked,
+  .detail-note-block .rich-surface.doc-open{margin-left:-12px;margin-right:-12px;width:calc(100% + 24px);
+    padding-left:12px;padding-right:12px;box-sizing:border-box;}
+  .detail-note-block .note-rule{margin-left:-10px;margin-right:-10px;}
+  .detail-note-block .note-rule-title{padding-left:10px;}
   .rich-surface:not(.locked) .note-rule{cursor:pointer;border-radius:3px;}
   .rich-surface:not(.locked) .note-rule:hover{background:var(--panel-2);}
   .rich-surface .note-rule.picked{background:rgba(194,59,34,0.16);outline:1px solid var(--accent);}
-  /* The panel a divider is set in: its kind of line, and its title. */
+  /* The panel a divider is set in: its kind of line. Its title is typed
+     over it, on a double click. */
   .rule-panel{
     position:fixed;z-index:60;display:flex;flex-direction:column;gap:6px;
     background:var(--panel);border:1px solid var(--line);border-radius:6px;
@@ -2843,11 +2867,6 @@
     color:var(--ink-dim);cursor:pointer;font-size:12px;padding:3px 0;line-height:1.2;
   }
   .rule-panel .rule-kinds button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .rule-panel input{
-    width:100%;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;
-    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:5px 7px;
-  }
-  .rule-panel input:focus{outline:none;border-color:var(--accent);}
   .rule-panel .rule-del{
     align-self:flex-end;background:none;border:none;color:var(--ink-faint);cursor:pointer;
     font-family:'IBM Plex Mono',monospace;font-size:10px;padding:0;

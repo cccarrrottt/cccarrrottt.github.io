@@ -23912,14 +23912,24 @@ async function main(){
             noRule: getComputedStyle(blk).borderBottomStyle === 'none' || parseFloat(getComputedStyle(blk).borderBottomWidth) === 0,
             open: surf.isContentEditable, flat: getComputedStyle(surf).backgroundColor, toolbar: document.getElementById('detailNoteToolbar').style.display !== 'none'};
   });
-  /* The divider, pressed: its kind of line and its title. */
+  /* The divider, pressed: its kind of line; pressed twice, its title,
+     typed over it at the left. */
   await page.click('#detailNoteBlock .note-rule');
   await page.click('.rule-panel [data-line="dotted"]');
-  await page.click('.rule-panel input');
+  await page.dblclick('#detailNoteBlock .note-rule');
   await page.keyboard.type('Fruit');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(650);
   const n2 = await page.evaluate(()=> (nodes.get('q19_n') || {}).note);
+  /* …and it runs almost to the edges of the drawer, its title over it at
+     the left. */
+  const n2look = await page.evaluate(()=>{
+    const rule = document.querySelector('#detailNoteBlock .note-rule'), d = document.getElementById('detail').getBoundingClientRect();
+    const rb = rule.getBoundingClientRect(), tb = rule.querySelector('.note-rule-title').getBoundingClientRect();
+    const line = parseFloat(getComputedStyle(rule, '::after').borderTopWidth);
+    return {left: rb.left - d.left, right: d.right - rb.right, titleAbove: tb.bottom <= rb.bottom - line + 0.5,
+            titleLeft: tb.left - rb.left < 14 && tb.width < rb.width / 2, noPanelInput: !document.querySelector('.rule-panel input')};
+  });
   /* Backspace at the start of the line after it makes it the three dashes
      again; Enter makes it a divider once more; pressed and Delete, gone. */
   await page.evaluate(()=>{
@@ -23996,6 +24006,8 @@ async function main(){
     function X0(){ return 197000; } function Y0(){ return 197400; }
     buildFigureMenu();
     const tpl = name=> [...document.querySelectorAll('#addFabFigures .figure-template')].find(b=> b.title === name);
+    const capOf = name=> tpl(name) && tpl(name).querySelector('.node-style-cap');
+    r.oneLine = !!capOf('Q19 box') && getComputedStyle(capOf('Q19 box')).textOverflow === 'ellipsis' && getComputedStyle(capOf('Q19 box')).whiteSpace === 'nowrap';
     r.worn = !!tpl('Q19 tri') && tpl('Q19 tri').querySelector('.figure-template-drop').classList.contains('worn');
     tpl('Q19 tri').querySelector('.figure-template-drop').click();
     buildFigureMenu();
@@ -24017,6 +24029,25 @@ async function main(){
     if(cell){ cell.click(); await wait(150); }
     r.filesGoes = selectedId === 'q19_p';
     r.faceKept = !!document.querySelector('#detailNoteToolbar .tb-sticker-btn svg');
+    /* The owner's note on My files: images are called that, video has a
+       section of its own, and each kind folds away under its heading. */
+    MEDIA.push({key:'q19vid', name:'Clip', kind:'video', src:'data:video/mp4;base64,AAAA'});
+    document.getElementById('filesToggle').click(); await wait(100);
+    document.getElementById('filesToggle').click(); await wait(150);
+    r.heads = [...document.querySelectorAll('#stickerOverlay .files-head > span:first-child')].map(e=> e.textContent).join('|');
+    r.videoOwn = !!document.querySelector('#videoGrid .file-cell video') && !document.querySelector('#filesGrid .file-cell video');
+    const imgSec = document.querySelector('#stickerOverlay .files-section[data-kind="image"]');
+    imgSec.querySelector('.files-head').click(); await wait(50);
+    r.folds = imgSec.classList.contains('collapsed') && getComputedStyle(imgSec.querySelector('.files-fold')).display === 'none';
+    document.getElementById('stickerClose').click();
+    document.getElementById('filesToggle').click(); await wait(150);
+    r.foldStays = imgSec.classList.contains('collapsed');
+    imgSec.querySelector('.files-head').click(); await wait(50);
+    r.unfolds = !imgSec.classList.contains('collapsed');
+    const plusBefore = document.querySelector('#stickerOverlay .files-section[data-kind="stickers"]').classList.contains('collapsed');
+    r.plusNoFold = plusBefore === false;
+    MEDIA.splice(MEDIA.findIndex(m=> m.key === 'q19vid'), 1);
+    document.getElementById('stickerClose').click();
 
     /* 5. The legend: a row's mark may be a picture of the author's own,
        and stands level with the middle of its words. */
@@ -24045,7 +24076,10 @@ async function main(){
         n1.noButtons && n1.noRule && n1.open && n1.toolbar && /rgba\(0, 0, 0, 0\)|transparent/.test(n1.flat), JSON.stringify(n1));
   check('…Enter is a new line, the buttons make a bulleted and a numbered list, and three dashes and Enter a divider — written as it settles',
         n1.note === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:solid}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n1.note));
-  check('…a divider pressed takes its kind of line and a title', n2 === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:dotted|Fruit}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n2));
+  check('…a divider runs to a few pixels from the drawer’s sides, its title over it at the left (19.11, the owner’s note)',
+        n2look.left > 1 && n2look.left <= 8 && n2look.right > 1 && n2look.right <= 8 && n2look.titleAbove && n2look.titleLeft && n2look.noPanelInput,
+        JSON.stringify(n2look));
+  check('…a divider pressed takes its kind of line, and pressed twice a title', n2 === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:dotted|Fruit}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n2));
   check('…Backspace after a divider makes it the three dashes again, and Enter a divider once more', /\n---\n/.test(n3) && /\{\{hr:solid\}\}/.test(n4) && !/---/.test(n4),
         JSON.stringify([n3, n4]));
   check('…a divider pressed and Delete is gone', !/\{\{hr/.test(n5) && /pear\n\{\{ol\}\}one|pear\n\n?\{\{ol\}\}one/.test(n5), JSON.stringify(n5));
@@ -24060,11 +24094,14 @@ async function main(){
         out.readerSearch !== null && !/q19loose/.test(out.readerSearch) && !/q19loose/.test(out.spoken) && out.authorLoose,
         JSON.stringify([out.readerLoose, out.readerFiled, out.readerChips, out.readerSearch, out.spoken, out.authorLoose]));
   check('…a reader sees a tag’s colour square, and nothing about it can be pressed', out.readerSquare, JSON.stringify(out.readerSquareSeen));
-  check('a template an entry wears is in the add menu even when the chart did not keep it, and cannot be taken out while worn; one nobody wears can',
-        out.worn && out.wornStays && out.unwornGoes, JSON.stringify([out.worn, out.wornStays, out.unwornGoes]));
+  check('a template an entry wears is in the add menu even when the chart did not keep it, and cannot be taken out while worn; one nobody wears can; a long name is cut with an ellipsis',
+        out.worn && out.oneLine && out.wornStays && out.unwornGoes, JSON.stringify([out.worn, out.oneLine, out.wornStays, out.unwornGoes]));
   check('My files replaces the Stickers button: the stickers, and every picture in the chart, which takes you to its entry',
         out.noStickerButton && out.filesOpen && out.filesSticker && out.filesPicture && out.filesGoes && out.faceKept,
         JSON.stringify([out.noStickerButton, out.filesOpen, out.filesSticker, out.filesPicture, out.filesGoes, out.faceKept]));
+  check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note)',
+        out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold,
+        JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds]));
   check('a legend row’s mark can be a picture of the author’s own, kept with the chart, shown to a reader as a picture, and taken off again',
         out.icon && out.iconKept && out.readerIcon && out.iconOff, JSON.stringify([out.icon, out.iconKept, out.readerIcon, out.iconOff]));
   check('…and every mark stands level with the middle of its words', out.level.length > 0 && out.level.every(d=> d <= 1.5), JSON.stringify(out.level));

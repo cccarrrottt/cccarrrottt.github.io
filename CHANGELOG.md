@@ -12,10 +12,10 @@ The owner's list of 19.11.
 
 - The tab's icon and the home-screen icons are drawn from an SVG of the R·P mark, so they are sharp at any size.
 - An entry's note is written the way it is read: the pencil opens it where it stands, with its formatting buttons under Note, and every change is kept as it is made, with no Apply or Cancel. Enter starts a new line. The dashed line under the note is gone.
-- A note can hold bulleted and numbered lists, from two buttons on its bar. Three dashes alone on a line, then Enter, make a divider held in from the sides. Pressed, a divider takes a kind of line and a title. Pressed and then Delete, it is gone. Backspace at the start of the line after it turns it back into three dashes. On the chart and in the text version, lists read as bullets and numbers, and a divider as a line of dashes.
+- A note can hold bulleted and numbered lists, from two buttons on its bar. Three dashes alone on a line, then Enter, make a divider that runs almost to the edges of the window. Pressed, a divider takes a kind of line. Pressed twice, it takes a title, written over the line at the left, as section headings are on a wiki. Pressed and then Delete, it is gone. Backspace at the start of the line after it turns it back into three dashes. On the chart and in the text version, lists read as bullets and numbers, and a divider as a line of dashes.
 - A reader is not shown tags that are not in a category: not in the Tags tab, not on an entry, not in search results and not in the text version. A reader does see a tag's colour square, but cannot press it.
-- Every template an entry is drawn with is offered in the add menu, even one the chart did not keep. A template cannot be removed while any entry is still drawn with it.
-- My files replaces the Stickers button. It holds the stickers, and every picture and video in the chart, each shown once. Pressing one takes you to the entry it is on.
+- Every template an entry is drawn with is offered in the add menu, even one the chart did not keep. A template cannot be removed while any entry is still drawn with it. A long name is cut short with an ellipsis.
+- My files replaces the Stickers button. It holds the stickers, the images and the video in the chart, each kind under a heading that folds it away, and each file shown once. Pressing one takes you to the entry it is on.
 - A legend row's mark can be a picture of your own, uploaded or chosen from the stickers. Every mark now sits level with the middle of its words.
 - Code 1: a menu moved by hand can no longer be left beyond the edge of the window.
 
