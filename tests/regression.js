@@ -514,7 +514,7 @@ async function main(){
   await scenario("panels open", async () => {
   for(const [btn, panel] of [['#tagsTab','#tagsPanel .side-tab-body'], ['#refsTab','#refsPanel .side-tab-body'],
                              ['#fileToggle','#filePopover'],
-                             ['#aboutToggle','#aboutOverlay'], ['#stickersToggle','#stickerOverlay'],
+                             ['#aboutToggle','#aboutOverlay'], ['#filesToggle','#stickerOverlay'],
                              ['#addFabBtn','#addFabStyles']]){
     const ok = await page.evaluate(async ([b, p]) => {
       const el = document.querySelector(b); if(!el) return 'no button';
@@ -4687,7 +4687,7 @@ async function main(){
     /* An undo repaints the panel the change was made in. */
     refill(STICKERS, [{key:'st_probe', name:'a', src:'data:image/png;base64,iVBORw0KGgo='}]);
     rebuildStickerMap();
-    document.getElementById('stickersToggle').click();
+    document.getElementById('filesToggle').click();
     await wait(260);
     applyEdit(()=>{ STICKERS.splice(0, 1); rebuildStickerMap(); });
     renderStickerLibrary();
@@ -18569,11 +18569,11 @@ async function main(){
     document.getElementById('fileToggle').click(); await pause(100);
     out.file = {pop: rect('filePopover'), btn: rect('fileToggle')};
     document.getElementById('fileToggle').click();
-    document.getElementById('stickersToggle').click(); await pause(100);
-    out.stick = {pop: rect('stickerOverlay'), btn: rect('stickersToggle'),
+    document.getElementById('filesToggle').click(); await pause(100);
+    out.stick = {pop: rect('stickerOverlay'), btn: rect('filesToggle'),
                  plus: document.getElementById('stickerUpload').textContent.trim(),
                  overlay: document.getElementById('stickerOverlay').classList.contains('about-overlay')};
-    document.getElementById('stickersToggle').click(); await pause(50);
+    document.getElementById('filesToggle').click(); await pause(50);
     out.stickShut = !document.getElementById('stickerOverlay').classList.contains('open');
     /* The chart as text is offered in About, not in the bar. */
     out.textIn = !!document.querySelector('#aboutOverlay #textViewToggle') && !document.querySelector('.topbar #textViewToggle');
@@ -18617,16 +18617,21 @@ async function main(){
     await pause(150);
     const sw = sel=> parseFloat(getComputedStyle(document.querySelector(`.node[data-id="rc_a"] ${sel}`)).strokeWidth);
     out.tabs = {chip: sw('.lang-chip-bg'), link: sw('.node-link-bg'), border: NODE_BORDER_W};
-    /* The tab's icon is the owner's own R·P drawing (87 × 87), written
-       into the page — the PNG itself, not a redrawing of it. */
+    /* The tab's icon is the R·P drawing as an SVG (the owner's list of
+       19.11: the PNG was blurred where an app is opened), written into the
+       page, with a PNG drawn from it after it for a browser that takes no
+       SVG icon. */
     const icon = document.querySelector('link[rel="icon"]');
-    // Inline in the built page; beside it, as a file, in the sources.
-    const bytes = !icon ? new Uint8Array(0) : new Uint8Array(await fetch(icon.href)
+    const png = document.querySelector('link[rel="alternate icon"]');
+    // Inline in the built page; beside it, as files, in the sources.
+    const text = !icon ? '' : await fetch(icon.href).then(r=> r.ok ? r.text() : '').catch(()=> '');
+    out.favicon = (icon && icon.getAttribute('type')) === 'image/svg+xml' && /^<svg[^>]*viewBox="0 0 87 87"/.test(text) &&
+                  (text.match(/<path /g) || []).length === 2 && /#c23b22/.test(text);
+    const bytes = !png ? new Uint8Array(0) : new Uint8Array(await fetch(png.href)
       .then(r=> r.ok ? r.arrayBuffer() : new ArrayBuffer(0)).catch(()=> new ArrayBuffer(0)));
-    const u32 = (o)=> ((bytes[o] << 24) | (bytes[o+1] << 16) | (bytes[o+2] << 8) | bytes[o+3]) >>> 0;
-    out.favicon = bytes.length > 24 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
-                  u32(16) === 87 && u32(20) === 87;
-    out.faviconInline = /^data:image\/png;base64,/.test(icon ? icon.getAttribute('href') : '');
+    out.faviconPng = bytes.length > 24 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    out.faviconInline = /^data:image\/svg\+xml;base64,/.test(icon ? icon.getAttribute('href') : '') &&
+                        /^data:image\/png;base64,/.test(png ? png.getAttribute('href') : '');
     flyToNode('rc_a'); await pause(150);
     const at = id=>{ const b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect(); return {x: b.left + b.width/2, y: b.top + b.height/2}; };
     out.a = at('rc_a'); out.b = at('rc_b');
@@ -18647,7 +18652,7 @@ async function main(){
   check('a GIF for a portrait or a picture is kept whole, with no cropper', r.portraitGif && r.cropperShut);
   check('language tabs and a link\'s tab are outlined at the border\'s weight',
         r.tabs.chip === r.tabs.border && r.tabs.link === r.tabs.border, JSON.stringify(r.tabs));
-  check('the tab\'s icon is the owner\'s R·P drawing', r.favicon);
+  check('the tab\'s icon is the R·P drawing as an SVG, with a PNG of it to fall back on (19.11)', r.favicon && r.faviconPng);
   if(MODE !== 'src') check('and the built page carries it inside', r.faviconInline);
   /* A right click: the menu at the pointer over what was clicked. */
   await page.mouse.click(r.a.x, r.a.y, {button: 'right'});
@@ -21260,6 +21265,23 @@ async function main(){
     await page.mouse.up();
     await new Promise(ok=> setTimeout(ok, 120));
     out.split = await page.evaluate(([id, x, y])=>{ const n = nodes.get(id); return {dx: +(n.x - x).toFixed(2), dy: +(n.y - y).toFixed(2)}; }, [split.id, split.x, split.y]);
+    /* …and back again, the way it came, by the dot and nothing else: no
+       grips or connector strips stand over it to take the hand instead,
+       and the pointer over it is the two-headed arrow of its line (the
+       owner's list of 19.11). */
+    const back = await page.evaluate(id=>{
+      nodeControlsOn(id);
+      const g = document.querySelector(`.node[data-id="${id}"]`), b = g.getBoundingClientRect();
+      return {x: nodes.get(id).x, sx: b.x + b.width/2, sy: b.y + b.height/2,
+              bare: !g.querySelector('.node-resize, .node-handle')};
+    }, split.id);
+    await page.mouse.move(back.sx + 30, back.sy + 30); await page.mouse.move(back.sx, back.sy);
+    out.splitCursor = await page.evaluate(([x, y])=> getComputedStyle(document.elementFromPoint(x, y)).cursor, [back.sx, back.sy]);
+    await page.mouse.down();
+    for(let i = 1; i <= 8; i++){ await page.mouse.move(back.sx - i * 7, back.sy - i * 4); }
+    await page.mouse.up();
+    await new Promise(ok=> setTimeout(ok, 120));
+    out.splitBack = {bare: back.bare, dx: +(await page.evaluate(id=> nodes.get(id).x, split.id) - back.x).toFixed(2)};
 
     /* 7. Cards: a picture as wide as the heading, stopping at its rule; a
           wavy card no bigger than a plain one; chips inside the box; no
@@ -21356,6 +21378,8 @@ async function main(){
         Math.abs(out.along.offset - 11) < 0.6, JSON.stringify(out.along));
   check('a long press on a merge\'s bar is its lineage\'s menu', out.barMenu === 'bar', String(out.barMenu));
   check('a split\'s dot is carried along its line', out.split.dx > 20 && Math.abs(out.split.dy) < 0.01, JSON.stringify(out.split));
+  check('…and back the way it came, taken by the dot alone, under a two-headed arrow of its line (19.11)',
+        out.splitBack.bare && out.splitBack.dx < -20 && out.splitCursor === 'ew-resize', JSON.stringify([out.splitBack, out.splitCursor]));
   check('a card\'s picture is as wide as its heading and stops at its rule',
         Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - out.card.ruleHalf)) < 0.05,
         JSON.stringify(out.card));
@@ -23750,12 +23774,25 @@ async function main(){
       r.teeLit = !!document.querySelector('.edge-tee.bar-end.bar-picked[data-from="q15_a"]');
       setBarFocus(null); await wait(50);
       r.teeUnlit = !document.querySelector('.bar-picked');
-      openEdgeStylePopover('q15_a', 'q15_m', {clientX: 1300, clientY: 800, stopPropagation(){}});
+      /* Picked, the merged arrow leaves its junction's bead as it is; the
+         bead swells only while the junction is carried (the owner's list
+         of 19.11 put right what 15.11 had it do on a pick). */
+      openEdgeStylePopover('', 'q15_m', {clientX: 1300, clientY: 800, stopPropagation(){}});
       await wait(200);
-      const bead = document.querySelector('.amalgam-bead.bead-picked[data-to="q15_m"]');
-      r.beadSwells = !!bead && /matrix\(1\.[5-6]/.test(getComputedStyle(bead).transform);
+      const junction = ()=> document.querySelector('.amalgam-bead.amalgam-junction[data-to="q15_m"]');
+      const swollen = c=> !!c && /matrix\(1\.[5-6]/.test(getComputedStyle(c).transform);
+      r.beadStill = !!junction() && !swollen(junction());
       closeEdgePopover(); await wait(100);
-      r.beadBack = !document.querySelector('.bead-picked');
+      const hit = document.querySelector('.amalgam-junction-hit[data-amalgam="q15_m"]');
+      const hb = hit.getBoundingClientRect(), hx = hb.left + hb.width/2, hy = hb.top + hb.height/2;
+      hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, clientX:hx, clientY:hy, button:0}));
+      for(let i = 1; i <= 6; i++){ window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:hx + 6*i, clientY:hy})); await wait(20); }
+      await wait(120);
+      r.beadSwells = swollen(junction());
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, clientX:hx + 36, clientY:hy}));
+      await wait(200);
+      r.beadBack = !document.querySelector('.bead-carried') && !swollen(junction());
+      undoLastEdit(); await wait(200);
     }
 
     /* 5. No corners of its own on a card's picture. */
@@ -23851,8 +23888,8 @@ async function main(){
   check('a picked merge is lit only as far as a lineage ending in a T goes, and the T is lit with it',
         out.focusStops && !out.focusPastLine && out.teeLit && out.teeUnlit,
         JSON.stringify([out.focusStops, out.focusPastLine, out.teeLit, out.teeUnlit]));
-  check('a picked lineage of a merge swells the dot it joins at, and lets it go when put down', out.beadSwells && out.beadBack,
-        JSON.stringify([out.beadSwells, out.beadBack]));
+  check('a merge\'s junction swells while it is carried, not when its arrow is picked, and lets go when put down', out.beadStill && out.beadSwells && out.beadBack,
+        JSON.stringify([out.beadStill, out.beadSwells, out.beadBack]));
   check('a card’s picture has no corners of its own to resize it by', out.noPictureCorners);
   check('a split swells while it is carried, and not after', out.splitSwells && out.splitShrinks, JSON.stringify([out.splitSwells, out.splitShrinks]));
   check('a split carried across the inside of a corner goes round it after the hand, never jumping a stretch of the line',
@@ -23866,6 +23903,381 @@ async function main(){
       vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
     });
   }
+  });
+  await scenario("the owner's list of 19.11: a note written as it is read, with lists and dividers; a reader's tags and squares; templates kept while worn; My files; a legend's own marks, level with their words", async () => {
+  const X = 197000, Y = 197000;
+  await page.evaluate(()=>{ window.__k1911 = {nodes: workingNodes.map(x=> x.slice()), stickers: STICKERS.map(x=> Object.assign({}, x)),
+    cats: JSON.parse(JSON.stringify(TAG_CATS)), settings: JSON.parse(JSON.stringify(SETTINGS))}; return true; });
+  try{
+  await page.evaluate(([X, Y])=>{
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{
+      workingNodes.push(['q19_n', 'Noted', null, null, null, null, {pos:[X, Y], tags:['q19filed', 'q19loose']}]);
+      workingNodes.push(['q19_c', 'Card', null, null, '{{ul}}apple\n{{ol}}one\n{{ol}}two\n{{hr:dashed|Mid}}\nend', null, {pos:[X + 260, Y], card:true}]);
+    });
+    TAG_CATS.push({name:'Q19 cat', tags:['q19filed']});
+    assignTagCategory('q19loose', '');
+    rebuildChart(); buildSideTabs();
+    selectNode('q19_n');
+    return true;
+  }, [X, Y]);
+  await page.waitForTimeout(300);
+  /* 1. The note: the pencil opens it as it reads, Enter is a new line,
+     the list buttons make lists, three dashes and Enter a divider. */
+  await page.click('#detailNoteEdit');
+  await page.waitForTimeout(200);
+  await page.keyboard.type('Top line');
+  await page.keyboard.press('Enter');
+  await page.click('#detailNoteToolbar [data-wrap="ul"]');
+  await page.keyboard.type('apple'); await page.keyboard.press('Enter');
+  await page.keyboard.type('pear'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+  await page.keyboard.type('---'); await page.keyboard.press('Enter');
+  await page.click('#detailNoteToolbar [data-wrap="ol"]');
+  await page.keyboard.type('one'); await page.keyboard.press('Enter');
+  await page.keyboard.type('two'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter');
+  await page.keyboard.type('end');
+  await page.waitForTimeout(650);
+  const n1 = await page.evaluate(()=>{
+    const blk = document.getElementById('detailNoteBlock');
+    const surf = richFields.get('detailNoteInput').surface;
+    return {note: (nodes.get('q19_n') || {}).note, noButtons: !document.getElementById('detailNoteApply') && !document.getElementById('detailNoteCancel'),
+            noRule: getComputedStyle(blk).borderBottomStyle === 'none' || parseFloat(getComputedStyle(blk).borderBottomWidth) === 0,
+            open: surf.isContentEditable, flat: getComputedStyle(surf).backgroundColor, toolbar: document.getElementById('detailNoteToolbar').style.display !== 'none'};
+  });
+  /* The divider, pressed: its kind of line; pressed twice, its title,
+     typed over it at the left. */
+  await page.click('#detailNoteBlock .note-rule');
+  await page.click('.rule-panel [data-line="dotted"]');
+  await page.dblclick('#detailNoteBlock .note-rule');
+  await page.keyboard.type('Fruit');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(650);
+  const n2 = await page.evaluate(()=> (nodes.get('q19_n') || {}).note);
+  /* …and it runs almost to the edges of the drawer, its title over it at
+     the left. */
+  const n2look = await page.evaluate(()=>{
+    const rule = document.querySelector('#detailNoteBlock .note-rule'), d = document.getElementById('detail').getBoundingClientRect();
+    const rb = rule.getBoundingClientRect(), tb = rule.querySelector('.note-rule-title').getBoundingClientRect();
+    const line = parseFloat(getComputedStyle(rule, '::after').borderTopWidth);
+    const words = rule.parentElement.getBoundingClientRect().left + rule.parentElement.clientLeft + parseFloat(getComputedStyle(rule.parentElement).paddingLeft);
+    return {left: +(rb.left - words).toFixed(1), titleStart: +(tb.left - rb.left).toFixed(1), right: d.right - rb.right, titleAbove: tb.bottom <= rb.bottom - line + 0.5,
+            titleLeft: tb.left - rb.left < 14 && tb.width < rb.width / 2, noPanelInput: !document.querySelector('.rule-panel input')};
+  });
+  /* Backspace at the start of the line after it makes it the three dashes
+     again; Enter makes it a divider once more; pressed and Delete, gone. */
+  await page.evaluate(()=>{
+    const surf = richFields.get('detailNoteInput').surface;
+    const after = surf.querySelector('.note-rule').nextElementSibling;
+    const li = after.querySelector('li') || after;
+    placeCaret(li, false);
+  });
+  await page.keyboard.press('Backspace');
+  const n3 = await page.evaluate(()=> detailNoteInput.value);
+  await page.evaluate(()=>{
+    const surf = richFields.get('detailNoteInput').surface;
+    const back = [...surf.children].find(c=> c.textContent === '---');
+    placeCaret(back, true);
+  });
+  await page.keyboard.press('Enter');
+  const n4 = await page.evaluate(()=> detailNoteInput.value);
+  await page.click('#detailNoteBlock .note-rule');
+  await page.keyboard.press('Delete');
+  const n5 = await page.evaluate(()=> detailNoteInput.value);
+  await page.click('#detailNoteEdit');
+  await page.waitForTimeout(300);
+  const out = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const r = {};
+    const surf = richFields.get('detailNoteInput').surface;
+    r.locked = !surf.isContentEditable && !!surf.querySelector('ul > li') && !!surf.querySelector('ol > li');
+    r.lockedNote = nodes.get('q19_n').note;
+    /* The same note round the editor and back is the same note. */
+    const m = '{{ul}}a **b**\n{{ul}}c\nplain\n{{hr:wavy|T\\}it\\{le}}\n{{ol}}x\n{{ol}}y';
+    setRichValue(detailNoteInput, m);
+    r.round = richHtmlToMarkup(surf) === m;
+    r.ruleTitle = (surf.querySelector('.note-rule') || {}).dataset.title;
+    showDetailNote(nodes.get('q19_n').note);
+    /* Everything else that reads a note reads words: bullets, numbers in
+       order, a rule of the divider's line. */
+    r.strip = stripMarkup('{{ul}}apple\n{{ol}}one\n{{ol}}two\nx\n{{ol}}again\n{{hr:dashed|Mid}}');
+    r.card = [...document.querySelectorAll('.node[data-id="q19_c"] text')].map(t=> t.textContent).join('|');
+    openNoteOverlay('q19_c');
+    { const b = document.getElementById('noteOverlayBody');
+      r.overlay = {ul: !!b.querySelector('ul li'), ol: b.querySelectorAll('ol li').length, rule: !!b.querySelector('.note-rule[data-line="dashed"]')};
+      noteOverlay.classList.remove('open'); }
+
+    /* 2. A reader is not shown a tag waiting to be filed, anywhere; the
+       squares are there, and nothing about them can be pressed. */
+    setReaderPreview(true); await wait(250);
+    selectNode('q19_n'); await wait(150);
+    setSideTab(document.getElementById('tagsPanel'), true); await wait(250);
+    buildSideTabs();
+    const rows = [...document.querySelectorAll('#tagsList .legend-item')].map(x=> x.dataset.tag);
+    r.readerLoose = rows.includes('q19loose');
+    r.readerFiled = rows.includes('q19filed');
+    r.readerChips = document.getElementById('detailTags').textContent;
+    const sq = document.querySelector('#tagsList .legend-item[data-tag="q19filed"] .swatch');
+    r.readerSquareSeen = sq ? [sq.className, getComputedStyle(sq).visibility, getComputedStyle(sq).cursor] : null;
+    r.readerSquare = !!sq && !sq.classList.contains('swatch-none') && !sq.classList.contains('swatch-pick') &&
+      getComputedStyle(sq).visibility !== 'hidden' && getComputedStyle(sq).cursor !== 'pointer';
+    searchInput.value = 'Noted'; searchInput.dispatchEvent(new Event('input', {bubbles:true})); await wait(80);
+    const hit = [...document.querySelectorAll('#searchResults .row')].find(x=> /Noted/.test(x.textContent));
+    r.readerSearch = hit ? hit.querySelector('.cl').textContent : null;
+    searchInput.value = ''; searchInput.dispatchEvent(new Event('input', {bubbles:true}));
+    r.spoken = spokenNameOf(nodes.get('q19_n'));
+    setSideTab(document.getElementById('tagsPanel'), false);
+    setReaderPreview(false); await wait(250);
+    buildSideTabs();
+    r.authorLoose = [...document.querySelectorAll('#tagsList .legend-item')].some(x=> x.dataset.tag === 'q19loose');
+
+    /* 3. A template an entry wears is in the menu, whether or not the chart
+       kept it, and cannot be taken out while it is worn. */
+    const tri = {name:'Q19 tri', d:'M0 100L50 0L100 100Z'};
+    const box = {name:'Q19 box', d:'M0 0L100 0L100 100L0 100Z'};
+    SETTINGS.figures = [box];
+    applyEdit(()=> workingNodes.push(['q19_f', 'Tri', null, null, null, null, {pos:[X0(), Y0()], figure: tri}]));
+    function X0(){ return 197000; } function Y0(){ return 197400; }
+    buildFigureMenu();
+    const tpl = name=> [...document.querySelectorAll('#addFabFigures .figure-template')].find(b=> b.title === name);
+    const capOf = name=> tpl(name) && tpl(name).querySelector('.node-style-cap');
+    r.oneLine = !!capOf('Q19 box') && getComputedStyle(capOf('Q19 box')).textOverflow === 'ellipsis' && getComputedStyle(capOf('Q19 box')).whiteSpace === 'nowrap';
+    r.worn = !!tpl('Q19 tri') && tpl('Q19 tri').querySelector('.figure-template-drop').classList.contains('worn');
+    tpl('Q19 tri').querySelector('.figure-template-drop').click();
+    buildFigureMenu();
+    r.wornStays = !!tpl('Q19 tri');
+    tpl('Q19 box').querySelector('.figure-template-drop').click();
+    r.unwornGoes = !tpl('Q19 box') && !(SETTINGS.figures || []).some(t=> t.name === 'Q19 box');
+
+    /* 4. My files: the stickers and the pictures, under one button. */
+    refill(STICKERS, [{key:'q19st', name:'q', src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='}]);
+    rebuildStickerMap();
+    const pic = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    applyEdit(()=> workingNodes.push(['q19_p', 'Pictured', null, null, null, null, {pos:[X0() + 300, Y0()], image: pic}]));
+    r.noStickerButton = !document.getElementById('stickersToggle') && !!document.getElementById('filesToggle');
+    document.getElementById('filesToggle').click(); await wait(150);
+    r.filesOpen = document.getElementById('stickerOverlay').classList.contains('open');
+    r.filesSticker = document.querySelectorAll('#stickerGrid .sticker-cell').length === 1;
+    const cell = [...document.querySelectorAll('#filesGrid .file-cell')].find(c=> c.querySelector('img') && c.querySelector('img').getAttribute('src') === pic);
+    r.filesPicture = !!cell;
+    if(cell){ cell.click(); await wait(150); }
+    r.filesGoes = selectedId === 'q19_p';
+    r.faceKept = !!document.querySelector('#detailNoteToolbar .tb-sticker-btn svg');
+    /* The owner's note on My files: images are called that, video has a
+       section of its own, and each kind folds away under its heading. */
+    MEDIA.push({key:'q19vid', name:'Clip', kind:'video', src:'data:video/mp4;base64,AAAA'});
+    document.getElementById('filesToggle').click(); await wait(100);
+    document.getElementById('filesToggle').click(); await wait(150);
+    r.heads = [...document.querySelectorAll('#stickerOverlay .files-head > span:first-child')].map(e=> e.textContent).join('|');
+    r.videoOwn = !!document.querySelector('#videoGrid .file-cell video') && !document.querySelector('#filesGrid .file-cell video');
+    const imgSec = document.querySelector('#stickerOverlay .files-section[data-kind="image"]');
+    imgSec.querySelector('.files-head').click(); await wait(50);
+    r.folds = imgSec.classList.contains('collapsed') && getComputedStyle(imgSec.querySelector('.files-fold')).display === 'none';
+    document.getElementById('stickerClose').click();
+    document.getElementById('filesToggle').click(); await wait(150);
+    r.foldStays = imgSec.classList.contains('collapsed');
+    imgSec.querySelector('.files-head').click(); await wait(50);
+    r.unfolds = !imgSec.classList.contains('collapsed');
+    const plusBefore = document.querySelector('#stickerOverlay .files-section[data-kind="stickers"]').classList.contains('collapsed');
+    r.plusNoFold = plusBefore === false;
+    MEDIA.splice(MEDIA.findIndex(m=> m.key === 'q19vid'), 1);
+    document.getElementById('stickerClose').click();
+
+    /* 5. The legend: a row's mark may be a picture of the author's own,
+       and stands level with the middle of its words. */
+    setSideTab(document.getElementById('keyPanel'), true); await wait(100);
+    setKeyIcon('shape:entry', STICKERS[0].src); await wait(100);
+    buildKeyTab();
+    const row = document.querySelector('#keyList .key-item[data-key="shape:entry"]');
+    r.icon = !!(row && row.querySelector('.key-sample-btn img.key-icon'));
+    const mid = e=>{ const b = e.getBoundingClientRect(); return b.top + b.height / 2; };
+    r.level = [...document.querySelectorAll('#keyList .key-item')].map(it=>{
+      const s = it.querySelector('.key-sample'), w = it.querySelector('.key-words');
+      return s && w ? Math.abs(mid(s) - mid(w)) : 0;
+    });
+    r.iconKept = !!(cleanLegendRows(SETTINGS).legendIcons || {})['shape:entry'];
+    setReaderPreview(true); await wait(200);
+    buildKeyTab();
+    const rrow = document.querySelector('#keyList .key-item[data-key="shape:entry"]');
+    r.readerIcon = !rrow || (!!rrow.querySelector('img.key-icon') && !rrow.querySelector('.key-sample-btn'));
+    setReaderPreview(false); await wait(200);
+    setKeyIcon('shape:entry', null);
+    r.iconOff = !SETTINGS.legendIcons;
+    setSideTab(document.getElementById('keyPanel'), false);
+    return r;
+  });
+  check('the note opens where it stands, flat, with its buttons under "Note", no Apply or Cancel, and no rule under the block (19.11)',
+        n1.noButtons && n1.noRule && n1.open && n1.toolbar && /rgba\(0, 0, 0, 0\)|transparent/.test(n1.flat), JSON.stringify(n1));
+  check('…Enter is a new line, the buttons make a bulleted and a numbered list, and three dashes and Enter a divider — written as it settles',
+        n1.note === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:solid}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n1.note));
+  check('…a divider starts with the words and its title, and runs to a few pixels from the drawer’s right side, its title over it (19.11, the owner’s notes)',
+        Math.abs(n2look.left) < 0.6 && Math.abs(n2look.titleStart) < 0.6 && n2look.right > 1 && n2look.right <= 8 && n2look.titleAbove && n2look.titleLeft && n2look.noPanelInput,
+        JSON.stringify(n2look));
+  check('…a divider pressed takes its kind of line, and pressed twice a title', n2 === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:dotted|Fruit}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n2));
+  check('…Backspace after a divider makes it the three dashes again, and Enter a divider once more', /\n---\n/.test(n3) && /\{\{hr:solid\}\}/.test(n4) && !/---/.test(n4),
+        JSON.stringify([n3, n4]));
+  check('…a divider pressed and Delete is gone', !/\{\{hr/.test(n5) && /pear\n\{\{ol\}\}one|pear\n\n?\{\{ol\}\}one/.test(n5), JSON.stringify(n5));
+  check('…shut, the note shows its lists, and a note goes round the editor unchanged — a divider’s title with braces in it too',
+        out.locked && out.round && out.ruleTitle === 'T}it{le', JSON.stringify([out.locked, out.round, out.ruleTitle]));
+  check('everything else that reads a note reads its lists as bullets and numbers, and a divider as a rule of its line',
+        out.strip === '• apple\n1. one\n2. two\nx\n1. again\n╌╌ Mid ╌╌' && /•\s*apple/.test(out.card) && /1\.\s*one/.test(out.card) && /2\.\s*two/.test(out.card),
+        JSON.stringify([out.strip, out.card]));
+  check('…and the note read full size draws them as the drawer does', out.overlay.ul && out.overlay.ol === 2 && out.overlay.rule, JSON.stringify(out.overlay));
+  check('a reader is not shown a tag waiting to be filed — not in the Tags tab, on the entry, in a search or in its spoken name — and its author is',
+        !out.readerLoose && out.readerFiled && !/q19loose/.test(out.readerChips) && /q19filed/.test(out.readerChips) &&
+        out.readerSearch !== null && !/q19loose/.test(out.readerSearch) && !/q19loose/.test(out.spoken) && out.authorLoose,
+        JSON.stringify([out.readerLoose, out.readerFiled, out.readerChips, out.readerSearch, out.spoken, out.authorLoose]));
+  check('…a reader sees a tag’s colour square, and nothing about it can be pressed', out.readerSquare, JSON.stringify(out.readerSquareSeen));
+  check('a template an entry wears is in the add menu even when the chart did not keep it, and cannot be taken out while worn; one nobody wears can; a long name is cut with an ellipsis',
+        out.worn && out.oneLine && out.wornStays && out.unwornGoes, JSON.stringify([out.worn, out.oneLine, out.wornStays, out.unwornGoes]));
+  check('My files replaces the Stickers button: the stickers, and every picture in the chart, which takes you to its entry',
+        out.noStickerButton && out.filesOpen && out.filesSticker && out.filesPicture && out.filesGoes && out.faceKept,
+        JSON.stringify([out.noStickerButton, out.filesOpen, out.filesSticker, out.filesPicture, out.filesGoes, out.faceKept]));
+  /* The owner's list of 19.11, evening: an array's hatching does not show
+     through the border of an entry in it — a border in a colour the paper
+     shows through, dotted, with a link tab — and a faded entry gives it
+     back. */
+  const hatchHoles = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['h19_a', 'Through', null, null, null, null, {pos:[188000, 188000], colors:['#22cc'], border:'dotted', square:true, link:'https://example.com/', tags:['h19-tag']}]);
+      workingNodes.push(['h19_b', 'Beside', null, null, null, null, {pos:[188200, 188000]}]);
+    });
+    setSelection(['h19_a', 'h19_b'], 'h19_a');
+    const id = makeArrayOfSelection();
+    applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === id); e[6] = Object.assign({}, e[6], {hatch:'diag-r'}); });
+    await wait(150);
+    const hatch = document.querySelector(`.node[data-id="${id}"] .array-hatch`);
+    const mask = hatch && hatch.getAttribute('mask') && document.querySelector(hatch.getAttribute('mask').replace(/^url\((.*)\)$/, '$1'));
+    const holes = mask ? [...mask.querySelectorAll('.hatch-hole[data-hole="h19_a"]')] : [];
+    const a = nodes.get('h19_a');
+    const box = holes.find(h=> h.tagName === 'rect' && +h.getAttribute('x') <= a.x - 1 && +h.getAttribute('x') + +h.getAttribute('width') >= a.x + a.w + 1);
+    const tab = holes.find(h=> +h.getAttribute('y') + +h.getAttribute('height') <= a.y + 0.5);
+    hiddenTags.add('h19-tag'); applyVisibility(); await wait(50);
+    const gives = holes.length > 0 && holes.every(h=> h.isConnected && h.style.display === 'none');
+    hiddenTags.delete('h19-tag'); applyVisibility();
+    return {box: !!box, tab: !!tab, gives, n: holes.length};
+  });
+  check('an array\'s hatching stops under the border and tabs of an entry in it, and comes back under one faded (19.11, evening)',
+        hatchHoles.box && hatchHoles.tab && hatchHoles.gives, JSON.stringify(hatchHoles));
+  check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note)',
+        out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold,
+        JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds]));
+  check('a legend row’s mark can be a picture of the author’s own, kept with the chart, shown to a reader as a picture, and taken off again',
+        out.icon && out.iconKept && out.readerIcon && out.iconOff, JSON.stringify([out.icon, out.iconKept, out.readerIcon, out.iconOff]));
+  check('…and every mark stands level with the middle of its words', out.level.length > 0 && out.level.every(d=> d <= 1.5), JSON.stringify(out.level));
+  } finally {
+    await page.evaluate(()=>{
+      const k = window.__k1911;
+      if(typeof closeRulePanel === 'function') closeRulePanel();
+      setReaderPreview(false);
+      document.getElementById('stickerOverlay').classList.remove('open');
+      if(typeof openFigureMenu === 'function') openFigureMenu(false);
+      if(detailNoteEditing) setDetailNoteEditing(false);
+      workingNodes = k.nodes; refill(STICKERS, k.stickers); rebuildStickerMap();
+      refill(TAG_CATS, k.cats);
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      selectedId = null;
+      vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
+    });
+  }
+  });
+  await scenario("the page in another language: a menu on the top bar, the page's own words translated, a person's left alone", async () => {
+    const r = await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const out = {};
+      const btn = document.getElementById('langToggle');
+      out.button = !!btn && btn.textContent.trim() === 'EN';
+      btn.click(); await wait(50);
+      const menu = document.getElementById('langMenu');
+      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> b.textContent).join('|') === 'English|Русский';
+      menu.classList.remove('open');
+      const kept = LANG_TABLES.ru;
+      LANG_TABLES.ru = {name: 'Русский', strings: {
+        'Save': 'Сохранить', 'Undo (Ctrl+Z)': 'Отменить (Ctrl+Z)', 'About this project': 'О проекте',
+        'Imported {0} {1}. Press Save to keep it.': 'Импортировано: {1} — {0}. Нажмите Сохранить.'}};
+      applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
+      await wait(100);
+      menu.querySelector('[data-lang="ru"]').click(); await wait(50);
+      out.ru = document.documentElement.lang === 'ru' && btn.textContent.trim() === 'RU' &&
+               document.getElementById('saveBtn').textContent === 'Сохранить' &&
+               document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Отменить (Ctrl+Z)';
+      out.stored = localStorage.getItem('rhizome.lang') === 'ru';
+      // What the program writes later is caught as it lands, its pieces in the translation's order.
+      const said = document.createElement('div');
+      said.textContent = 'Imported 3 entries. Press Save to keep it.';
+      document.body.appendChild(said); await wait(50);
+      out.later = said.textContent === 'Импортировано: entries — 3. Нажмите Сохранить.';
+      document.getElementById('aboutToggle').setAttribute('title', 'About this project'); await wait(50);
+      out.rewritten = document.getElementById('aboutToggle').getAttribute('title') === 'О проекте';
+      // The chart's own words are a person's.
+      const label = [...document.querySelectorAll('.node[data-id="l19_a"] text tspan, .node[data-id="l19_a"] text')].map(t=> t.textContent).join('');
+      out.chartKept = /Save/.test(label) && !/Сохранить/.test(label);
+      menu.querySelector('[data-lang="en"]').click(); await wait(50);
+      out.back = document.documentElement.lang === 'en' && document.getElementById('saveBtn').textContent === 'Save' &&
+                 document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Undo (Ctrl+Z)' &&
+                 said.textContent === 'Imported 3 entries. Press Save to keep it.' && localStorage.getItem('rhizome.lang') === null;
+      said.remove(); LANG_TABLES.ru = kept;
+      undoLastEdit(); await wait(100);
+      return out;
+    });
+    check('a language button on the top bar opens a menu of the languages, each in its own words', r.button && r.menu, JSON.stringify(r));
+    check('…chosen, the page says its own words in it, and is remembered', r.ru && r.stored, JSON.stringify(r));
+    check('…including what it writes later, its pieces where the translation puts them, and a title written again', r.later && r.rewritten, JSON.stringify(r));
+    check('…never the chart\'s own words, and back in English everything is as the program wrote it', r.chartKept && r.back, JSON.stringify(r));
+  });
+  await scenario("the field: whole pages round the entries, a page more where an entry is carried to the edge, a pan that stays on it", async () => {
+    const r = await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const out = {};
+      const f = chartField, W = FIELD_PAGE_W, H = FIELD_PAGE_H;
+      const whole = v=> Math.abs(((v / W) % 1 + 1) % 1 - 0.5) < 1e-9;
+      out.pages = whole(f.x0) && whole(f.x1) && Math.abs((((f.y0 / H) % 1) + 1) % 1 - 0.5) < 1e-9;
+      out.holds = [...nodes.values()].every(n=> n.x >= f.x0 && n.y >= f.y0 && n.x + n.w <= f.x1 && n.y + n.h <= f.y1);
+      const rect = document.getElementById('chartField');
+      out.drawn = +rect.getAttribute('width') === f.x1 - f.x0 && +rect.getAttribute('x') === f.x0 &&
+                  document.querySelector('#alignGrid rect').getAttribute('width') === rect.getAttribute('width');
+      // An entry put just inside the right edge, then carried past it: a page more, on that side only.
+      applyEdit(()=> workingNodes.push(['fld_a', 'Edge', null, null, null, null, {pos:[f.x1 - 200, (f.y0 + f.y1) / 2]}]));
+      await wait(100);
+      const before = Object.assign({}, chartField);
+      out.sameBefore = before.x1 === f.x1;
+      vs = 1; const n = nodes.get('fld_a');
+      const sr = svg.getBoundingClientRect();
+      vx = sr.width / 2 - (n.x + n.w / 2); vy = sr.height / 2 - (n.y + n.h / 2); applyTransform();
+      const g = document.querySelector('.node[data-id="fld_a"]').getBoundingClientRect();
+      const sx = g.x + g.width / 2, sy = g.y + g.height / 2;
+      return {out, sx, sy, before, f: Object.assign({}, f)};
+    });
+    await page.mouse.move(r.sx, r.sy); await page.mouse.down();
+    for(let i = 1; i <= 10; i++) await page.mouse.move(r.sx + i * 20, r.sy);
+    const mid = await page.evaluate(()=> Object.assign({}, chartField));
+    await page.mouse.up();
+    await new Promise(ok=> setTimeout(ok, 150));
+    const after = await page.evaluate(async ()=>{
+      const f = chartField;
+      const grown = Object.assign({}, f);
+      // A pan far past the field stops with the middle of the view on its edge.
+      const sr = svg.getBoundingClientRect();
+      return {grown, W: sr.width, H: sr.height, vs, vx};
+    });
+    // Pan by the hand, far to the left (the chart to the right).
+    await page.mouse.move(700, 500); await page.mouse.down();
+    for(let i = 1; i <= 10; i++) await page.mouse.move(700 + i * 400, 500);
+    await page.mouse.up();
+    const pan = await page.evaluate(()=>{
+      const sr = svg.getBoundingClientRect();
+      const mid = (sr.width / 2 - vx) / vs;
+      return {mid, x0: chartField.x0};
+    });
+    await page.evaluate(async ()=>{ undoLastEdit(); await new Promise(ok=> setTimeout(ok, 150)); });
+    const back = await page.evaluate(()=> chartField.x1);
+    const W = await page.evaluate(()=> FIELD_PAGE_W);
+    check('the field is whole pages, holds every entry, and the grid is ruled on it', r.out.pages && r.out.holds && r.out.drawn, JSON.stringify(r.out));
+    check('…an entry carried past its edge lays a page more on that side as it goes, and only there',
+          r.out.sameBefore && mid.x1 === r.f.x1 + W && after.grown.x1 === r.f.x1 + W && after.grown.x0 === r.f.x0 && after.grown.y0 === r.f.y0,
+          JSON.stringify([r.f, mid, after.grown]));
+    check('…a pan stops with the middle of the view on the field', Math.abs(pan.mid - pan.x0) < 0.5, JSON.stringify(pan));
+    check('…and the page goes again with the entry', back === r.f.x1, JSON.stringify([back, r.f.x1]));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

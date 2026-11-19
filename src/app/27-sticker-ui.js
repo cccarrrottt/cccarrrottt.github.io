@@ -140,6 +140,7 @@ stickerFile.addEventListener('change', async ()=>{
 });
 
 function renderStickerLibrary(){
+  renderChartFiles();
   stickerGrid.innerHTML = '';
   if(!STICKERS.length){
     const p = document.createElement('div');
@@ -203,14 +204,112 @@ function renderStickerLibrary(){
   });
 }
 
+/* ---- My files (the owner's list of 19.11) ----------------------------
+ *
+ * The stickers had a button of their own on the bar; it is one section of
+ * My files now, and the other is everything else the chart holds that
+ * somebody brought in: the pictures entries wear, free-standing pictures,
+ * the figures and clips in comments, the legend's own marks. Each once,
+ * however many places use it, named by the first of them, and pressed it
+ * takes you to the entry it is on. They are changed where they are used —
+ * here they are found. */
+function chartFiles(){
+  const files = [], bySrc = new Map();
+  const add = (src, kind, name, owner)=>{
+    if(typeof src !== 'string' || !src) return;
+    let f = bySrc.get(src);
+    if(!f){ f = {src, kind, name, owners: []}; bySrc.set(src, f); files.push(f); }
+    if(owner && f.owners.indexOf(owner) < 0) f.owners.push(owner);
+  };
+  nodes.forEach(n=>{
+    if(n.image) add(n.image, 'image', stripMarkup(n.label || '').trim() || n.id, n.id);
+  });
+  (typeof MEDIA !== 'undefined' ? MEDIA : []).forEach(m=>{
+    if(!m || !m.src) return;
+    const token = '{{m:' + m.key;
+    const owners = [];
+    nodes.forEach(n=>{
+      const texts = [n.label, n.note].concat((n.langTabs || []).map(t=> t && t.text));
+      if(texts.some(t=> typeof t === 'string' && (t.indexOf(token + '}}') >= 0 || t.indexOf(token + '@') >= 0))) owners.push(n.id);
+    });
+    add(m.src, m.kind === 'video' ? 'video' : 'image', m.name || m.key, owners[0]);
+    owners.slice(1).forEach(o=> add(m.src, null, null, o));
+  });
+  if(typeof legendIconFiles === 'function') legendIconFiles().forEach(f=> add(f.src, 'image', f.name, null));
+  return files;
+}
+/* Which kinds are folded shut. Like the tag panel's categories it is how
+   somebody is looking right now, not something about the chart, so it
+   lives for the session. */
+const filesFolded = new Set();
+document.querySelectorAll('#stickerOverlay .files-section').forEach(sec=>{
+  sec.querySelector('.files-head').addEventListener('click', ev=>{
+    if(ev.target.closest('button')) return;
+    const kind = sec.dataset.kind;
+    if(filesFolded.has(kind)) filesFolded.delete(kind); else filesFolded.add(kind);
+    sec.classList.toggle('collapsed', filesFolded.has(kind));
+  });
+});
+function chartFileCell(f){
+  const cell = document.createElement('button');
+  cell.type = 'button';
+  cell.className = 'file-cell';
+  const pic = document.createElement(f.kind === 'video' ? 'video' : 'img');
+  if(f.kind === 'video'){ pic.preload = 'metadata'; pic.muted = true; pic.playsInline = true; }
+  else { pic.alt = f.name || ''; pic.loading = 'lazy'; }
+  pic.src = f.src;
+  const name = document.createElement('div');
+  name.className = 'file-name';
+  name.textContent = f.name || '';
+  cell.append(pic, name);
+  // Video has a section of its own now; a GIF is an image, and says it moves.
+  if(f.kind !== 'video' && pictureMoves(f.src)){
+    const k = document.createElement('span');
+    k.className = 'file-kind';
+    k.textContent = 'gif';
+    cell.appendChild(k);
+  }
+  const where = f.owners.map(id=>{ const n = nodes.get(id); return n ? (stripMarkup(n.label || '').trim() || id) : id; });
+  cell.title = (f.name || '') + (where.length ? ' — on ' + where.join(', ') : '');
+  cell.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const id = f.owners[0];
+    if(!id || !nodes.get(id)) return;
+    stickerOverlay.classList.remove('open');
+    selectNode(id); flyToNode(id);
+  });
+  return cell;
+}
+function renderChartFiles(){
+  const grid = document.getElementById('filesGrid');
+  if(!grid) return;
+  const files = chartFiles();
+  const images = files.filter(f=> f.kind !== 'video'), videos = files.filter(f=> f.kind === 'video');
+  document.getElementById('stickerCount').textContent = STICKERS.length ? String(STICKERS.length) : '';
+  document.querySelectorAll('#stickerOverlay .files-section').forEach(sec=>
+    sec.classList.toggle('collapsed', filesFolded.has(sec.dataset.kind)));
+  [[grid, 'filesCount', images, 'No images in the chart yet.'],
+   [document.getElementById('videoGrid'), 'videoCount', videos, 'No video in the chart yet.']].forEach(([g, countId, list, empty])=>{
+    g.textContent = '';
+    document.getElementById(countId).textContent = list.length ? String(list.length) : '';
+    if(!list.length){
+      const p = document.createElement('div');
+      p.className = 'sticker-empty';
+      p.textContent = empty;
+      g.appendChild(p);
+      return;
+    }
+    list.forEach(f=> g.appendChild(chartFileCell(f)));
+  });
+}
 function openStickerLibrary(){
   clearStickerStatus();
   renderStickerLibrary();
   stickerOverlay.classList.add('open');
-  placeUnderButton(stickerOverlay, document.getElementById('stickersToggle'));
+  placeUnderButton(stickerOverlay, document.getElementById('filesToggle'));
 }
 /* The button opens the menu and shuts it again, as Export/Import's does. */
-document.getElementById('stickersToggle').onclick = ()=>{
+document.getElementById('filesToggle').onclick = ()=>{
   const open = stickerOverlay.classList.contains('open');
   closeToolbarMenus('stickerOverlay');
   if(open) stickerOverlay.classList.remove('open');
@@ -369,12 +468,10 @@ function addStickerButton(bar){
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'tb-sticker-btn';
-  /* The same face as the Stickers button on the toolbar, copied from it
-     so the two cannot drift apart: a ☺ here and a drawn face there read
-     as two different things (the owner's list of 31.10). */
-  const face = document.querySelector('#stickersToggle svg');
-  if(face) btn.appendChild(face.cloneNode(true));
-  else btn.textContent = '\u263a';
+  /* The face the Stickers button on the bar wore (the owner's list of
+     31.10): a ☺ here and a drawn face there read as two different things.
+     That button is My files now, and the face is kept here. */
+  btn.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 12.5A8.5 8.5 0 1 1 12 3.5a8.5 8.5 0 0 1 8.5 9z"/><path d="M20.4 12.4c-4.3 0-7.9 3.5-7.9 7.9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.4" r="1" fill="currentColor" stroke="none"/></svg>';
   btn.title = 'Insert a sticker';
   btn.addEventListener('click', ev=>{
     ev.stopPropagation();

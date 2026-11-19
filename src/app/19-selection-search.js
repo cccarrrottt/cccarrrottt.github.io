@@ -357,10 +357,11 @@ function selectNode(id, opts){
        where most entries carry no tags, every panel opened with a label
        announcing an absence. */
     const line = document.getElementById('detailTags');
-    const has = !!(n.tags && n.tags.length);
+    const shown = readerTags(n.tags);
+    const has = shown.length > 0;
     line.style.display = has ? '' : 'none';
     line.innerHTML = has
-      ? n.tags.map(t=> tagShapeHtml(t, {special: tagIsSpecial(t), why: SPECIAL_TAGS[t]})).join('')
+      ? shown.map(t=> tagShapeHtml(t, {special: tagIsSpecial(t), why: SPECIAL_TAGS[t]})).join('')
       : '';
   }
 
@@ -453,7 +454,7 @@ function updateAddFabPosition(){
    time because they are created all over this file. The tabs at the left
    edge are not among them: they cover none of these, and each keeps its
    own state until it is pressed again. */
-const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'aboutOverlay', 'textViewOverlay'];
+const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'aboutOverlay', 'textViewOverlay', 'langMenu'];
 function closeToolbarMenus(keep){
   TOOLBAR_SURFACES.forEach(id=>{
     if(id === keep) return;
@@ -554,8 +555,7 @@ searchInput.addEventListener('input', ()=>{
     const n = hit.n;
     /* The tags as tags — the same labels the entry's card and the tags
        drawer draw — rather than a comma-separated line of their names. */
-    const tagsLabel = (n.tags && n.tags.length)
-      ? n.tags.map(t=> tagShapeHtml(t, {special: tagIsSpecial(t), why: SPECIAL_TAGS[t]})).join('') : '';
+    const tagsLabel = readerTags(n.tags).map(t=> tagShapeHtml(t, {special: tagIsSpecial(t), why: SPECIAL_TAGS[t]})).join('');
     const row = document.createElement('div');
     row.className='row';
     /* The colour goes in escaped, like everything else here. It comes from
@@ -979,6 +979,7 @@ function rebuildChart(){
   applyGroundColors();
   buildModel();
   renderNodes();
+  syncField();
   redrawEdges();
   buildSideTabs();
   updateStats();

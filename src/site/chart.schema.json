@@ -181,6 +181,8 @@
         "legendOwn": {"type": "array", "items": {"type": "object", "required": ["id"],
           "properties": {"id": {"type": "string", "pattern": "^own\\d+$"}, "name": {"type": "string"},
                          "meaning": {"type": "string"}, "color": {"$ref": "#/definitions/hex"}}}},
+        "legendIcons": {"type": "object", "additionalProperties": {"type": "string"},
+                        "description": "A legend row's own picture, by the mark's key or the own row's id: an embedded picture or a media/ path (0.26.0)."},
         "tagColors": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}},
         "groundColors": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/definitions/hex"}}},
         "figures": {"type": "array", "items": {"$ref": "#/definitions/figureTemplate"},

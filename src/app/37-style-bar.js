@@ -1296,8 +1296,13 @@ function makeMovable({el, grips, watch = el, key, shown}){
       el.dataset.movedFor = key();
       el.classList.add('menu-moving');
       try{ grip.setPointerCapture(ev.pointerId); }catch(e){}
+      /* The hand is held to the window: a menu let go past its edge took
+         its grip with it, and could not be taken hold of again until it
+         closed (code 1, 19.11). */
       const move = (e)=>{
-        el.style.translate = `${Math.round(ox + e.clientX - sx)}px ${Math.round(oy + e.clientY - sy)}px`;
+        const cx = Math.max(6, Math.min(window.innerWidth - 6, e.clientX));
+        const cy = Math.max(6, Math.min(window.innerHeight - 6, e.clientY));
+        el.style.translate = `${Math.round(ox + cx - sx)}px ${Math.round(oy + cy - sy)}px`;
       };
       const up = ()=>{
         grip.removeEventListener('pointermove', move);

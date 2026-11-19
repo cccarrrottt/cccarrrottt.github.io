@@ -167,6 +167,44 @@ function arrayHatchPaint(a, colour){
               stroke: colour, 'stroke-width': 1, 'stroke-opacity': 0.5, fill:'none'}, p);
   return `url(#${id})`;
 }
+/* The hatching stops at every entry standing over it.
+ *
+ * An entry is drawn over its array, so its ground already covers the
+ * hatching inside it — but not its border: a border in a colour that lets
+ * the paper through, or dashed, or dotted, showed the hatching across it,
+ * and between its dots (the owner's list of 19.11: "ни при каком
+ * раскладе"). So the hatching is masked out under each entry, out to the
+ * edge of its outermost ring. A figure is left alone: its outline is no
+ * box to cut, and a hole the shape of its box would leave paper round it.
+ * An entry faded by a hidden tag gives its hole up (applyVisibility), or
+ * it would stand on a hole of paper. */
+function arrayHatchHoles(a){
+  const x0 = a.x - 2, y0 = a.y - 2, x1 = a.x + a.w + 2, y1 = a.y + a.h + 2;
+  const over = [];
+  nodes.forEach(m=>{
+    if(m === a || isArrayNode(m) || nodeFigure(m)) return;
+    if(m.x > x1 || m.y - 20 > y1 || m.x + m.w < x0 || m.y + m.h < y0) return;
+    over.push(m);
+  });
+  if(!over.length) return null;
+  const id = defId('hatch-holes-', a.id);
+  const mask = el('mask', {id, maskUnits:'userSpaceOnUse', x: x0, y: y0, width: x1 - x0, height: y1 - y0}, nodeDefs);
+  el('rect', {x: x0, y: y0, width: x1 - x0, height: y1 - y0, fill:'#fff'}, mask);
+  over.forEach(m=>{
+    // Half a border's width past the outermost ring, and a hair for the edge's smoothing.
+    const out = (ringCountOf(m) - 1) * ringStepFor(m) + 1.2;
+    if(isRoundShape(m)){
+      el('ellipse', {cx: m.x + m.w/2, cy: m.y + m.h/2, rx: m.w/2 + out, ry: m.h/2 + out, fill:'#000', class:'hatch-hole', 'data-hole': m.id}, mask);
+    } else {
+      el('rect', {x: m.x - out, y: m.y - out, width: m.w + out*2, height: m.h + out*2,
+                  rx: m.square ? 0 : 5 + out, fill:'#000', class:'hatch-hole', 'data-hole': m.id}, mask);
+    }
+    // …and under the tabs it stands on its top edge, which are its border too.
+    (m.tabHoles || []).forEach(t=> el('rect', {x: t.x - 1.2, y: t.y - 1.2, width: t.w + 2.4, height: t.h + 1.2,
+                                               rx: t.r + 1.2, fill:'#000', class:'hatch-hole', 'data-hole': m.id}, mask));
+  });
+  return `url(#${id})`;
+}
 /* The arrays again, from where their members are now — for a drag, which
    moves entries without drawing the chart again. Returns the arrays that
    moved, so their connectors are routed afresh with the rest. */

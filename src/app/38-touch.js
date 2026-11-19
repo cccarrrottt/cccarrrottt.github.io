@@ -399,8 +399,9 @@ function pinchBasis(st, touches){
     vs, wx: (cx - vx) / vs, wy: (cy - vy) / vs,
   };
 }
+var pinchOnField = false;
 function pinchMove(st, touches){
-  if(!st.pinch || st.pinch.n !== touches.length) pinchBasis(st, touches);
+  if(!st.pinch || st.pinch.n !== touches.length){ pinchBasis(st, touches); pinchOnField = viewOnField(); }
   const p = st.pinch, rect = svg.getBoundingClientRect();
   let cx = 0, cy = 0;
   for(const t of touches){ cx += t.clientX; cy += t.clientY; }
@@ -411,6 +412,8 @@ function pinchMove(st, touches){
   }
   vx = cx - p.wx * vs;
   vy = cy - p.wy * vs;
+  // As the wheel does: a view on the field stays on it, one off it is the hand's.
+  if(pinchOnField) keepFieldInView();
   applyTransform();
 }
 

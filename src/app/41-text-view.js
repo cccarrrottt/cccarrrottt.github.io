@@ -45,7 +45,8 @@ function textViewName(n){
    its name (renderNodes). */
 function spokenNameOf(n){
   const name = textViewName(n);
-  return n.tags && n.tags.length ? name + ' (' + n.tags.join(', ') + ')' : name;
+  const tags = readerTags(n.tags);
+  return tags.length ? name + ' (' + tags.join(', ') + ')' : name;
 }
 
 function textViewEntryLink(n){
@@ -62,10 +63,10 @@ function textViewItem(n, under, drawn){
   const head = document.createElement('div');
   head.className = 'tv-head';
   head.appendChild(textViewEntryLink(n));
-  if(n.tags && n.tags.length){
+  if(readerTags(n.tags).length){
     const tags = document.createElement('span');
     tags.className = 'tv-tags';
-    tags.textContent = n.tags.join(', ');
+    tags.textContent = readerTags(n.tags).join(', ');
     head.appendChild(tags);
   }
   li.appendChild(head);

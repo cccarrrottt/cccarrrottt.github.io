@@ -181,6 +181,13 @@ function applyVisibility(opts){
       const n = nodes.get(r.dataset.id);
       fadeForTags(r, fadedOnChart(n));
     });
+    /* An entry faded over an array gives the hatching back: a hole of
+       paper under an entry barely there would be the only thing left of
+       it (see arrayHatchHoles). */
+    nodeDefs.querySelectorAll('mask .hatch-hole').forEach(h=>{
+      const want = fadedOnChart(nodes.get(h.dataset.hole)) ? 'none' : '';
+      if(h.style.display !== want) h.style.display = want;
+    });
   }
   // Every piece of a connector, not only its line: the arrowheads, the ring
   // caps and the notes live in the layer above the entries, and hiding a
@@ -550,8 +557,10 @@ window.addEventListener('mouseup', ()=>{
 window.addEventListener('mousemove', e=>{
   if(!dragging) return;
   chartCarriedAt = performance.now();
+  const wasX = vx, wasY = vy;
   vx = dragStart.vx + (e.clientX-dragStart.x);
   vy = dragStart.vy + (e.clientY-dragStart.y);
+  keepFieldInView(wasX, wasY);
   applyTransform();
 });
 /* A pan is not a click on empty canvas.
@@ -630,8 +639,11 @@ function chartWheel(e){
   const factor = Math.exp(-e.deltaY*0.0016);
   const newScale = Math.min(3, Math.max(0.08, vs*factor));
   const wx = (mx - vx)/vs, wy=(my-vy)/vs;
+  // A zoom from a view on the field stays on it; one from off it is left as it is.
+  const onField = viewOnField();
   vx = mx - wx*newScale; vy = my - wy*newScale;
   vs = newScale;
+  if(onField) keepFieldInView();
   /* A pan in progress holds the view it began from, and its next move
      put that view back — undoing the zoom about the pointer and throwing
      the chart sideways. Its origin moves with the zoom instead; where the
@@ -1068,6 +1080,9 @@ window.addEventListener('mousemove', e=>{
        gives way to it or jumps across the lineages when the entry passes
        their middle. See fixAmalgamBars. */
     st.barsFixed = fixAmalgamBars(st.members.map(m=> m.id));
+    /* Carried by its junction, the junction's bead swells in the hand;
+       every redraw of the drag draws it so (see drawAmalgam). */
+    if(st.alongBar) qEdges(`.amalgam-junction[data-to="${CSS.escape(st.node.id)}"]`).forEach(c=> c.classList.add('bead-carried'));
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and
@@ -1272,6 +1287,8 @@ window.addEventListener('mousemove', e=>{
 let dragRedrawFrame = 0, dragRedrawTimer = 0;
 const DRAG_REDRAW_BUDGET = 24;
 function queueDragRedraw(st){
+  // A page more as the carry reaches the field's edge, at once (see syncField).
+  syncField(st);
   if(dragRedrawFrame || dragRedrawTimer) return;
   const owed = st && st.redrawCost > DRAG_REDRAW_BUDGET
     ? Math.min(250, st.redrawCost) - (performance.now() - st.redrawEnd) : 0;
@@ -1317,6 +1334,7 @@ window.addEventListener('mouseup', ()=>{
   const st = nodeDragState;
   nodeDragState = null;
   if(!st) return;
+  qEdges('.bead-carried').forEach(c=> c.classList.remove('bead-carried'));
   // A frame still owing from the drag would draw over what settling the
   // drag is about to draw, from a state that no longer exists.
   if(dragRedrawFrame || dragRedrawTimer){

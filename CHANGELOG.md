@@ -6,6 +6,56 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.26.0 — "Written as it is read" (2026-11-19)
+
+The owner's list of 19.11.
+
+- The tab's icon and the home-screen icons are drawn from an SVG of the R·P mark, so they are sharp at any size.
+- An entry's note is written the way it is read: the pencil opens it where it stands, with its formatting buttons under Note, and every change is kept as it is made, with no Apply or Cancel. Enter starts a new line. The dashed line under the note is gone.
+- A note can hold bulleted and numbered lists, from two buttons on its bar. Three dashes alone on a line, then Enter, make a divider that starts with the words and runs almost to the right edge of the window. Pressed, a divider takes a kind of line. Pressed twice, it takes a title, written over the line at the left, as section headings are on a wiki. Pressed and then Delete, it is gone. Backspace at the start of the line after it turns it back into three dashes. On the chart and in the text version, lists read as bullets and numbers, and a divider as a line of dashes.
+- A reader is not shown tags that are not in a category: not in the Tags tab, not on an entry, not in search results and not in the text version. A reader does see a tag's colour square, but cannot press it.
+- Every template an entry is drawn with is offered in the add menu, even one the chart did not keep. A template cannot be removed while any entry is still drawn with it. A long name is cut short with an ellipsis.
+- My files replaces the Stickers button. It holds the stickers, the images and the video in the chart, each kind under a heading that folds it away, and each file shown once. Pressing one takes you to the entry it is on.
+- A legend row's mark can be a picture of your own, uploaded or chosen from the stickers. Every mark now sits level with the middle of its words.
+- The page can speak another language: a globe on the top bar picks English or Russian. Every text the page says is in src/i18n/ru.json with an empty place for its translation, written by hand; a text not yet translated stays in English, and what a person wrote is never translated.
+- A split is taken hold of by its dot and nothing else, and goes back along its line as well as forward, under a two-headed arrow of its line's way; it has no corners or connector strips any more. A merge's junction swells while it is carried, not when its arrow is picked.
+- An array's hatching no longer shows through the border or the tabs of an entry in it, whatever the border's colour or dashes.
+- The chart lies on a field of pages, as a drawing in Visio does: as many whole pages as its entries need, the grid ruled on them alone. Carry an entry up to an edge and a page more is laid on that side; a pan or a zoom keeps the middle of the view on the field, so the chart cannot be lost in the empty space round it.
+- Code 1: a menu moved by hand can no longer be left beyond the edge of the window.
+
+- **Icons.** `src/favicon.svg` is the mark. `tools/icons.js` draws
+  `src/favicon.png` and the three home-screen PNGs from it. `favicon_link`
+  (`build.py`) inlines the SVG with the PNG as `alternate icon`, because an
+  SVG is never a file on the site.
+- **Notes as documents.** A line of markup may start with `{{ul}}` or
+  `{{ol}}`, or be `{{hr:style|title}}` (a title is escaped).
+  - `parseMarkupInto` makes `li` and `rule` tokens. `tokenizeLabel` turns
+    them into words (`flattenNoteBlocks`), except for `opts.blocks`.
+  - `markupToRichHtml` puts runs of items into `<ul>`/`<ol>`, and a divider
+    becomes `noteRuleHtml`. `richHtmlToMarkup` reads `LI` and `.note-rule`
+    back.
+  - `makeRichDocument` (`24-rich-fields.js`) handles Enter, `---`, the
+    divider panel and Backspace or Delete. `tidyNoteLists` lifts a list
+    out of its line.
+  - The detail note loses Apply and Cancel, and gains `doc-open`. The
+    `ul`/`ol` commands are in `applyRichCommand`.
+- **Readers' tags.** `tagForReader` and `readerTags` (`16-tags.js`) are
+  used by the Tags tab, the drawer's chips, search results and
+  `spokenNameOf`/the text view. A reader's squares are plain `.swatch`
+  elements, ground squares included.
+- **Templates.** `figureTemplatesOffered` (`34-add-node.js`) is
+  `SETTINGS.figures` plus every template an entry wears, matched by
+  outline. `worn` counts the entries, and makes the × inert.
+- **My files.** `#filesToggle` replaces `#stickersToggle`. `chartFiles`
+  and `renderChartFiles` (`27-sticker-ui.js`) list entry pictures, `MEDIA`
+  figures and legend icons. The sticker face is now inline in
+  `addStickerButton`.
+- **Legend icons.** `SETTINGS.legendIcons` maps a mark key or own-row id
+  to a picture (`keyIconOf`, `setKeyIcon`, `openKeyIconMenu`). It is
+  cleaned in `cleanLegendRows`, read at import, and added to the schema.
+  `.key-item` is `align-items:center`.
+- **Moved menus** are clamped to the window (`makeMovable`).
+
 ## 0.25.8 — "Clear of the capitals" (2026-11-15)
 
 The owner's list of 15.11.

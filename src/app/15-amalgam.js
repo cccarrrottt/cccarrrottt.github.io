@@ -1369,7 +1369,8 @@ function drawAmalgam(list, ports){
     {x: dimple.x + ux*beadR, y: dimple.y + uy*beadR}
   ]);
   beadGround(dimple, beadR);
-  el('circle', {class:'amalgam-bead amalgam-junction', cx:dimple.x.toFixed(2), cy:dimple.y.toFixed(2),
+  const carried = nodeDragState && nodeDragState.moved && nodeDragState.alongBar && nodeDragState.node.id === b.id;
+  el('circle', {class:'amalgam-bead amalgam-junction' + (carried ? ' bead-carried' : ''), cx:dimple.x.toFixed(2), cy:dimple.y.toFixed(2),
                 r:beadR, fill:beadPaint, 'data-from':'', 'data-to':b.id}, edgeLayer);
 }
 /* How much of a lineage's start its own end gives up: an arrowhead's or a

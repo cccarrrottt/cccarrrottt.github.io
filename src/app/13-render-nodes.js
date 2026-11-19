@@ -240,8 +240,32 @@ svg.addEventListener('pointerover', ev=>{
   const was = nodeUnderPointer;
   nodeUnderPointer = g ? g.dataset.id : null;
   if(g) nodeControlsOn(g.dataset.id);
+  if(g && g.classList.contains('node-split')) aimSplitCursor(g);
   if(was !== nodeUnderPointer) showLinkPreview(nodeUnderPointer);
 });
+/* A split goes only along its line, so the pointer over it is the
+   two-headed arrow of that line's way at the dot, as a merge's junction
+   is (the owner's list of 19.11). Asked when the pointer arrives, since
+   the line is routed after the dot is drawn. */
+function aimSplitCursor(g){
+  const hit = g.querySelector('.split-hit'), n = nodes.get(g.dataset.id);
+  if(!hit || !n || readOnlyView) return;
+  const t = splitTrackOf(n);
+  if(!t){ hit.style.cursor = ''; return; }
+  const cx = n.x + n.w/2, cy = n.y + n.h/2;
+  let best = null, d = Infinity;
+  for(let i = 1; i < t.line.length; i++){
+    const a = t.line[i-1], b = t.line[i], dx = b.x - a.x, dy = b.y - a.y, len2 = dx*dx + dy*dy;
+    if(!len2) continue;
+    const k = Math.max(0, Math.min(1, ((cx - a.x) * dx + (cy - a.y) * dy) / len2));
+    const e = Math.hypot(a.x + dx*k - cx, a.y + dy*k - cy);
+    if(e < d){ d = e; best = {dx, dy}; }
+  }
+  if(!best){ hit.style.cursor = ''; return; }
+  const deg = (Math.atan2(best.dy, best.dx) * 180 / Math.PI + 180) % 180;
+  hit.style.cursor = deg < 22.5 || deg >= 157.5 ? 'ew-resize'
+    : deg < 67.5 ? 'nwse-resize' : deg < 112.5 ? 'ns-resize' : 'nesw-resize';
+}
 svg.addEventListener('pointerleave', ()=>{ nodeUnderPointer = null; showLinkPreview(null); });
 /* The drawing the site was published with (tools/prerender.js), shown
    while the program was still on its way. It goes the moment this draws
@@ -380,6 +404,8 @@ const drawOne = (n)=>{
   /* A split is the same circle again, smaller, and filled with its colour:
      a dot on the line, which is what it is — see isSplitNode. */
   const isSplit = shape==='split';
+  // The tabs this drawing stands on its top edge, for an array's hatching to stop at (arrayHatchHoles).
+  n.tabHoles = [];
   const isRound = isBio || isLinkNode || isSplit;
   const isImage = shape==='image';
   const isTextbox = shape==='textbox';
@@ -1755,6 +1781,8 @@ const drawOne = (n)=>{
       const ins = borderReachIn(n);
       // As a style: the stylesheet's ground for `.node > rect` outranks an attribute.
       const a = {class:'array-hatch', style:`fill:${hatch};stroke:none;pointer-events:none;`};
+      const holes = arrayHatchHoles(n);
+      if(holes) a.mask = holes;
       if(isWavy) a.d = wavyRectPath(n.x+ins, n.y+ins, n.w-ins*2, h-ins*2, -ins);
       else Object.assign(a, {x:n.x+ins, y:n.y+ins, width:n.w-ins*2, height:h-ins*2, rx:rad(cornerR-ins)});
       el(isWavy ? 'path' : 'rect', a, g);
@@ -1906,6 +1934,7 @@ const drawOne = (n)=>{
       const cy = base.y + TAB_SINK - th/2;
       const chipG = el('g', {class:'lang-chip' + (isActive ? ' active' : ''),
                              transform:`translate(${cx},${cy})`}, chipGroup);
+      n.tabHoles.push({x: cx - chipW/2, y: cy - th/2, w: chipW, h: th, r: CHIP_R});
       el('path', {d: tabOutline(chipW, th, CHIP_R), class:'lang-chip-bg',
                   'data-w': +chipW.toFixed(2), 'data-h': +th.toFixed(2), 'data-r': CHIP_R}, chipG);
       const chipLabelEl = el('text', {x:0, y:2.1*k - base.sink/2, 'text-anchor':'middle', 'font-size':fs,
@@ -1975,8 +2004,11 @@ const drawOne = (n)=>{
   const controls = el('g', {class:'node-controls'}, g);
   nodeControlsWanted.set(n.id, ()=>{
     const n = liveN();
-    /* An array has no size to set: it is as big as what it holds. */
-    if(!isArray){
+    /* An array has no size to set: it is as big as what it holds. Nor
+       has a split: it is a point on a line, and its grips and strips stood
+       over the dot itself, so taking hold of it took hold of them instead
+       (the owner's list of 19.11). */
+    if(!isArray && !isSplit){
       const CORNERS = [
         {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
         {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
@@ -2078,7 +2110,7 @@ const drawOne = (n)=>{
     // comes out black, from the grey ring and it comes out grey. That's what
     // makes a two-colour node able to carry two differently-coloured
     // lineages without them being confused for one.
-    const handles = isFree ? null : el('g', {class:'node-handles'}, controls);
+    const handles = (isFree || isSplit) ? null : el('g', {class:'node-handles'}, controls);
     /* The side a callout's own leader arrives at is not a side you can
        connect to. Something is already attached there — the line back to the
        place on the connector this card is talking about — and a second line
@@ -2100,7 +2132,7 @@ const drawOne = (n)=>{
                                                'stop-color': c}, gr));
       return `url(#${id})`;
     })() : null;
-    if(!isFree) SIDES.forEach(side=>{
+    if(handles) SIDES.forEach(side=>{
       if(side === takenSide) return;
       // Innermost ring first, so where two hit strips still graze each other
       // the inner one is the one on top and stays reachable.
@@ -2191,6 +2223,7 @@ const drawOne = (n)=>{
     if(tabMask) linkWrap.setAttribute('mask', tabMask);
     const lg = el('g',{class:'node-link',
       transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y + TAB_SINK - lh/2})`}, linkWrap);
+    n.tabHoles.push({x: base.right - 2 - LINK_TAB, y: base.y + TAB_SINK - lh, w: LINK_TAB, h: lh, r: 2.5});
     el('path',{d: tabOutline(LINK_TAB, lh, 2.5), class:'node-link-bg',
                'data-w': LINK_TAB, 'data-h': lh}, lg);
     const arrow = el('path',{d:'M-1.6,1.9 L1.6,-1.3 M-0.5,-1.3 L1.6,-1.3 L1.6,0.8', fill:'none',

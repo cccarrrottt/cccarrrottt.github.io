@@ -275,6 +275,14 @@ function applyRichCommand(surface, kind, arg, restyle, hadAll){
       if(!r0.collapsed && surface.contains(r0.commonAncestorContainer)) widenOverRuby(surface, r0);
     }
   }
+  /* A list is the browser's own, so its Enter and Backspace carry on and
+     leave it the way they do in every editor; pressed again over a list,
+     the same button takes it off. */
+  if(kind === 'ul' || kind === 'ol'){
+    document.execCommand(kind === 'ul' ? 'insertUnorderedList' : 'insertOrderedList');
+    tidyNoteLists(surface);
+    return;
+  }
   if(kind === 'bold'){ document.execCommand('bold'); return; }
   if(kind === 'italic'){ document.execCommand('italic'); return; }
   /* Taking a colour OFF. There is no execCommand for "inherit", so the
@@ -1370,13 +1378,9 @@ document.querySelectorAll('[data-hex-reset]').forEach(btn=>{
 
 ['detailNoteInput','nodeEditorText']
   .forEach(id=> makeRichField(document.getElementById(id)));
-/* The note editor is the one field whose Enter means more than "stop
-   typing": Enter is Apply, the same thing its own button does, so the note
-   closes rather than being left open over the entry it belongs to. */
-setRichEnter('detailNoteInput', ()=>{
-  const btn = document.getElementById('detailNoteApply');
-  if(btn) btn.click();
-});
+/* The note is a document (the owner's list of 19.11): Enter starts the
+   next line, as in any editor, and the note is settled as it is written. */
+makeRichDocument(document.getElementById('detailNoteInput'));
 /* Typing in either of these redraws the element itself, on the next frame
    so a fast typist doesn't trigger a re-layout per keystroke. A caption, a
    callout and a connector's note all used to have a field of their own in

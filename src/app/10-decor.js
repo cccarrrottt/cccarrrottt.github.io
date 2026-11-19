@@ -179,21 +179,24 @@ const FANFIC_HALO = 38;
    aside for the coarse one once its lines would be too close together to
    tell apart.
    ------------------------------------------------------------------ */
-const ALIGN_SPAN = 60000;   // world units the grid covers, centred on the origin
 const alignFine = el('path', {d:`M0,0 H${GRID} M0,0 V${GRID}`, class:'align-line'},
   el('pattern', {id:'align-grid', width:GRID, height:GRID, patternUnits:'userSpaceOnUse'}, svgDefs));
 const alignMajor = el('path', {d:`M0,0 H${GRID*5} M0,0 V${GRID*5}`, class:'align-line align-line-major'},
   el('pattern', {id:'align-grid-major', width:GRID*5, height:GRID*5, patternUnits:'userSpaceOnUse'}, svgDefs));
-const alignGrid = el('g', {id:'alignGrid', style:'display:none;pointer-events:none;'}, bgLayer);
-bgLayer.insertBefore(alignGrid, bgLayer.firstChild);
-const alignGridFine = el('rect', {x:-ALIGN_SPAN/2, y:-ALIGN_SPAN/2,
-  width:ALIGN_SPAN, height:ALIGN_SPAN, fill:'url(#align-grid)'}, alignGrid);
+/* The field the chart is drawn on, and the grid with it, in a layer of
+   their own under everything: not in the drawing's ground, which a
+   picture of the chart is measured and cut from. */
+const fieldLayer = el('g', {id:'fieldLayer', style:'pointer-events:none;'}, viewport);
+viewport.insertBefore(fieldLayer, viewport.firstChild);
+const fieldRect = el('rect', {id:'chartField', class:'chart-field'}, fieldLayer);
+const alignGrid = el('g', {id:'alignGrid', style:'display:none;pointer-events:none;'}, fieldLayer);
+// Ruled on the field and nowhere else: syncField gives both rulings its box.
+const alignGridFine = el('rect', {fill:'url(#align-grid)'}, alignGrid);
 // Named by nothing on purpose: the call is what matters — it puts the
 // coarse ruling into the grid group — and the element is never referred to
 // again. A binding kept for symmetry with the fine one above is a binding
 // that reads as "someone will need this", which nobody ever did.
-el('rect', {x:-ALIGN_SPAN/2, y:-ALIGN_SPAN/2,
-  width:ALIGN_SPAN, height:ALIGN_SPAN, fill:'url(#align-grid-major)'}, alignGrid);
+el('rect', {fill:'url(#align-grid-major)'}, alignGrid);
 
 const ALIGN_GRID_KEY = carryOverKey('axiomNexus.alignGrid', 'rhizome.alignGrid');
 let alignGridOn = false;
@@ -221,6 +224,81 @@ function syncAlignGrid(){
   alignFine.style.strokeWidth = (0.55 / s).toFixed(3);
   alignMajor.style.strokeWidth = (0.95 / s).toFixed(3);
 }
+/* ---- The field: pages, as many as the chart needs ----------------------
+ *
+ * The chart is drawn on a field of pages, as a drawing in Visio is, rather
+ * than on paper without an edge (the owner's list of 19.11). A page is
+ * FIELD_PAGE_W by FIELD_PAGE_H, the first one centred on the origin, and
+ * the field is the fewest whole pages, side by side, that hold every entry
+ * with FIELD_MARGIN to spare. Carry an entry up to an edge and a page
+ * more is laid on that side, the moment it is needed; take everything off
+ * a page and it goes again. It is worked out from the entries each time,
+ * so it is never kept and can never disagree with the chart.
+ *
+ * The grid is ruled on the field and nowhere else, and a pan or a zoom
+ * keeps the middle of the view on it (keepFieldInView), so the chart
+ * cannot be lost in the empty space round it. */
+const FIELD_PAGE_W = 1200, FIELD_PAGE_H = 800, FIELD_MARGIN = 40;
+var chartField = null;
+var fieldReady = false;
+function fieldOf(carried){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  /* What a carry holds is asked where the carry has it: the model can be
+     drawn again under a carry, and its entries then stand where the carry
+     began until it is put down. */
+  const held = new Map();
+  ((carried && carried.members) || []).forEach(m=> m.node && held.set(m.id, m.node));
+  nodes.forEach((n, id)=>{
+    if(held.has(id)) n = held.get(id);
+    if(!Number.isFinite(n.x) || !Number.isFinite(n.y)) return;
+    x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y);
+    x1 = Math.max(x1, n.x + (n.w || 0)); y1 = Math.max(y1, n.y + (n.h || 0));
+  });
+  if(!Number.isFinite(x0)){ x0 = x1 = 0; y0 = y1 = 0; }
+  const W = FIELD_PAGE_W, H = FIELD_PAGE_H, m = FIELD_MARGIN;
+  /* Pages stand edge to edge from the one centred on the origin, so page
+     k runs from (k - ½) to (k + ½) of a page's width; the field is every
+     page from the one the first entry's margin is on to the last's. */
+  const i0 = Math.round((x0 - m) / W), i1 = Math.round((x1 + m) / W);
+  const j0 = Math.round((y0 - m) / H), j1 = Math.round((y1 + m) / H);
+  return {x0: (i0 - 0.5) * W, x1: (i1 + 0.5) * W, y0: (j0 - 0.5) * H, y1: (j1 + 0.5) * H};
+}
+function syncField(carried){
+  if(!fieldReady) return;
+  const f = fieldOf(carried);
+  const was = chartField;
+  chartField = f;
+  if(was && was.x0 === f.x0 && was.x1 === f.x1 && was.y0 === f.y0 && was.y1 === f.y1) return;
+  const box = {x: f.x0, y: f.y0, width: f.x1 - f.x0, height: f.y1 - f.y0};
+  [fieldRect].concat([...alignGrid.querySelectorAll('rect')]).forEach(r=>
+    Object.keys(box).forEach(k=> r.setAttribute(k, box[k])));
+}
+/* The middle of the view stays on the field. Asked by the hand's moves —
+   a pan, the wheel, a pinch — and not by a view set in so many words (a
+   link to an entry, the overview), which always lands on the chart. */
+function viewOnField(){
+  if(!chartField) return false;
+  const r = svg.getBoundingClientRect();
+  const cx = (r.width / 2 - vx) / vs, cy = (r.height / 2 - vy) / vs;
+  return cx >= chartField.x0 - 0.5 && cx <= chartField.x1 + 0.5 && cy >= chartField.y0 - 0.5 && cy <= chartField.y1 + 0.5;
+}
+/* A view already off the field (one set in so many words) is not pulled
+   back with a jump: the hand may bring it nearer, never further. */
+function keepFieldInView(wasX, wasY){
+  if(!chartField) return;
+  const r = svg.getBoundingClientRect();
+  const W = r.width || 0, H = r.height || 0;
+  const f = chartField;
+  const hold = (v, lo, hi, was)=>{
+    if(Number.isFinite(was)){ lo = Math.min(lo, was); hi = Math.max(hi, was); }
+    return Math.min(hi, Math.max(lo, v));
+  };
+  vx = hold(vx, W / 2 - f.x1 * vs, W / 2 - f.x0 * vs, wasX);
+  vy = hold(vy, H / 2 - f.y1 * vs, H / 2 - f.y0 * vs, wasY);
+}
+fieldReady = true;
+syncField();
+
 function setAlignGrid(on){
   alignGridOn = !!on;
   try{ localStorage.setItem(ALIGN_GRID_KEY, alignGridOn ? '1' : '0'); }catch(e){}

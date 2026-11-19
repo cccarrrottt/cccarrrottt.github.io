@@ -11,9 +11,23 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.25.8';
+const APP_VERSION = '0.26.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.26.0', date:'2026-11-19', title:'Written as it is read', notes:[
+'The tab\'s icon and the home-screen icons are drawn from an SVG of the R·P mark, so they are sharp at any size.',
+'An entry\'s note is written the way it is read: the pencil opens it where it stands, with its formatting buttons under Note, and every change is kept as it is made, with no Apply or Cancel. Enter starts a new line. The dashed line under the note is gone.',
+'A note can hold bulleted and numbered lists, from two buttons on its bar. Three dashes alone on a line, then Enter, make a divider that starts with the words and runs almost to the right edge of the window. Pressed, a divider takes a kind of line. Pressed twice, it takes a title, written over the line at the left, as section headings are on a wiki. Pressed and then Delete, it is gone. Backspace at the start of the line after it turns it back into three dashes. On the chart and in the text version, lists read as bullets and numbers, and a divider as a line of dashes.',
+'A reader is not shown tags that are not in a category: not in the Tags tab, not on an entry, not in search results and not in the text version. A reader does see a tag\'s colour square, but cannot press it.',
+'Every template an entry is drawn with is offered in the add menu, even one the chart did not keep. A template cannot be removed while any entry is still drawn with it. A long name is cut short with an ellipsis.',
+'My files replaces the Stickers button. It holds the stickers, the images and the video in the chart, each kind under a heading that folds it away, and each file shown once. Pressing one takes you to the entry it is on.',
+'A legend row\'s mark can be a picture of your own, uploaded or chosen from the stickers. Every mark now sits level with the middle of its words.',
+'The page can speak another language: a globe on the top bar picks English or Russian. Every text the page says is in src/i18n/ru.json with an empty place for its translation, written by hand; a text not yet translated stays in English, and what a person wrote is never translated.',
+'A split is taken hold of by its dot and nothing else, and goes back along its line as well as forward, under a two-headed arrow of its line\'s way; it has no corners or connector strips any more. A merge\'s junction swells while it is carried, not when its arrow is picked.',
+'An array\'s hatching no longer shows through the border or the tabs of an entry in it, whatever the border\'s colour or dashes.',
+'The chart lies on a field of pages, as a drawing in Visio does: as many whole pages as its entries need, the grid ruled on them alone. Carry an entry up to an edge and a page more is laid on that side; a pan or a zoom keeps the middle of the view on the field, so the chart cannot be lost in the empty space round it.',
+'Code 1: a menu moved by hand can no longer be left beyond the edge of the window.'
+  ]},
   {v:'0.25.8', date:'2026-11-15', title:'Clear of the capitals', notes:[
 'A reading stands clear of the tallest letter of the word it reads, measured, so it no longer sits on a capital; two readings on one line stand at one height over the same letters. A reading whose text is all erased goes, slot and all, and is written again with its button.',
 'In the in-entry editor, underline and strike-through across several lines no longer spread the lines apart, and taken off they come back together.',
