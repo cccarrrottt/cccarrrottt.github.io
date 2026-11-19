@@ -523,6 +523,12 @@ def main():
             check(f'{doc} says the suite has the {n} scenarios it has',
                   said and all(int(x) == n for x in said), f'{doc} says {said or "nothing"}')
 
+    # Every text the page says is a key in the files it is translated in
+    # (the owner's list of 19.11): a text added to the program and not to
+    # them is one nobody can translate. tools/i18n.js brings them up to date.
+    r = subprocess.run(['node', str(ROOT / 'tools' / 'i18n.js'), '--check'], capture_output=True, text=True)
+    check('src/i18n/ holds every text the page says (node tools/i18n.js)', r.returncode == 0, r.stdout + r.stderr)
+
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0
 

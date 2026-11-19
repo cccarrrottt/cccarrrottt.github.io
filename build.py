@@ -121,6 +121,7 @@ APP_PARTS = [
     '40-arrays.js',
     '41-text-view.js',
     '42-media-types.js',
+    '43-i18n.js',
 ]
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'
@@ -415,6 +416,30 @@ def chart_script(text):
     return f'<script type="application/json" id="{CHART_ID}">\n{body}\n</script>'
 
 
+def lang_script():
+    """The translations written so far, as the page carries them.
+
+    src/i18n/<lang>.json holds every text the page says with its
+    translation beside it, most of them empty until somebody writes them
+    (tools/i18n.js keeps the files up to date). Only what is written goes
+    into the page — an empty translation is English, which the page
+    already says — so a language nobody has translated yet costs a page
+    nothing. Read by 43-i18n.js, in a JSON element as the chart is, with
+    every "<" escaped for the same reason.
+    """
+    tables = {}
+    for f in sorted((SRC / 'i18n').glob('*.json')):
+        try:
+            data = json.loads(read(f))
+        except ValueError as e:
+            sys.exit(f'build: {f.relative_to(ROOT)} is not JSON that parses: {e}')
+        strings = {k: v for k, v in (data.get('strings') or {}).items() if isinstance(v, str) and v}
+        tables[data.get('language') or f.stem] = {'name': data.get('name') or f.stem, 'strings': strings}
+    body = (json.dumps(tables, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
+            .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
+    return f'<script type="application/json" id="i18n-data">\n{body}\n</script>'
+
+
 # The id of the chart's element. The program finds it by this name
 # (CHART_ELEMENT_ID, src/app/01-store.js), and the build refuses a program
 # that does not.
@@ -589,7 +614,7 @@ def build():
     body = slice_between(index, '<!-- @@BODY:BEGIN@@ -->', '<!-- @@BODY:END@@ -->',
                          'src/index.html body block').rstrip('\n')
     css = read(SRC / 'style.css')
-    chart = chart_script(read(SRC / 'chart.json'))
+    chart = chart_script(read(SRC / 'chart.json')) + '\n' + lang_script()
     app_js = read_app()
 
     # Markers around everything the page is made of.

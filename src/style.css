@@ -2517,6 +2517,15 @@
     display:none;flex-direction:column;gap:8px;
   }
   .file-popover.open{display:flex;}
+  /* The language: a globe and the code of the one spoken, and a menu of
+     the languages each in its own words. */
+  .icon-btn.lang-toggle{width:auto;padding:0 7px;gap:3px;display:inline-flex;align-items:center;}
+  .lang-code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.4px;}
+  .lang-menu{gap:2px;padding:6px;}
+  .lang-option{font:inherit;font-size:13px;text-align:left;padding:5px 12px;border:0;border-radius:5px;
+    background:none;color:var(--ink);cursor:pointer;}
+  .lang-option:hover{background:var(--panel-2);}
+  .lang-option.active{color:var(--accent);font-weight:600;}
   .file-popover .editor-status{margin:0;}
   /* A little smaller than they were (the owner's ask, 22.10). Four now,
      spread across the width five of them took, so the buttons below keep

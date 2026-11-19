@@ -24132,6 +24132,33 @@ async function main(){
   check('My files replaces the Stickers button: the stickers, and every picture in the chart, which takes you to its entry',
         out.noStickerButton && out.filesOpen && out.filesSticker && out.filesPicture && out.filesGoes && out.faceKept,
         JSON.stringify([out.noStickerButton, out.filesOpen, out.filesSticker, out.filesPicture, out.filesGoes, out.faceKept]));
+  /* The owner's list of 19.11, evening: an array's hatching does not show
+     through the border of an entry in it — a border in a colour the paper
+     shows through, dotted, with a link tab — and a faded entry gives it
+     back. */
+  const hatchHoles = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    applyEdit(()=>{
+      workingNodes.push(['h19_a', 'Through', null, null, null, null, {pos:[188000, 188000], colors:['#22cc'], border:'dotted', square:true, link:'https://example.com/', tags:['h19-tag']}]);
+      workingNodes.push(['h19_b', 'Beside', null, null, null, null, {pos:[188200, 188000]}]);
+    });
+    setSelection(['h19_a', 'h19_b'], 'h19_a');
+    const id = makeArrayOfSelection();
+    applyEdit(()=>{ const e = workingNodes.find(x=> x[0] === id); e[6] = Object.assign({}, e[6], {hatch:'diag-r'}); });
+    await wait(150);
+    const hatch = document.querySelector(`.node[data-id="${id}"] .array-hatch`);
+    const mask = hatch && hatch.getAttribute('mask') && document.querySelector(hatch.getAttribute('mask').replace(/^url\((.*)\)$/, '$1'));
+    const holes = mask ? [...mask.querySelectorAll('.hatch-hole[data-hole="h19_a"]')] : [];
+    const a = nodes.get('h19_a');
+    const box = holes.find(h=> h.tagName === 'rect' && +h.getAttribute('x') <= a.x - 1 && +h.getAttribute('x') + +h.getAttribute('width') >= a.x + a.w + 1);
+    const tab = holes.find(h=> +h.getAttribute('y') + +h.getAttribute('height') <= a.y + 0.5);
+    hiddenTags.add('h19-tag'); applyVisibility(); await wait(50);
+    const gives = holes.length > 0 && holes.every(h=> h.isConnected && h.style.display === 'none');
+    hiddenTags.delete('h19-tag'); applyVisibility();
+    return {box: !!box, tab: !!tab, gives, n: holes.length};
+  });
+  check('an array\'s hatching stops under the border and tabs of an entry in it, and comes back under one faded (19.11, evening)',
+        hatchHoles.box && hatchHoles.tab && hatchHoles.gives, JSON.stringify(hatchHoles));
   check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note)',
         out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold,
         JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds]));
@@ -24153,6 +24180,50 @@ async function main(){
       vs = 1; applyTransform(); rebuildChart(); buildSideTabs();
     });
   }
+  });
+  await scenario("the page in another language: a menu on the top bar, the page's own words translated, a person's left alone", async () => {
+    const r = await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const out = {};
+      const btn = document.getElementById('langToggle');
+      out.button = !!btn && btn.textContent.trim() === 'EN';
+      btn.click(); await wait(50);
+      const menu = document.getElementById('langMenu');
+      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> b.textContent).join('|') === 'English|Русский';
+      menu.classList.remove('open');
+      const kept = LANG_TABLES.ru;
+      LANG_TABLES.ru = {name: 'Русский', strings: {
+        'Save': 'Сохранить', 'Undo (Ctrl+Z)': 'Отменить (Ctrl+Z)', 'About this project': 'О проекте',
+        'Imported {0} {1}. Press Save to keep it.': 'Импортировано: {1} — {0}. Нажмите Сохранить.'}};
+      applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
+      await wait(100);
+      menu.querySelector('[data-lang="ru"]').click(); await wait(50);
+      out.ru = document.documentElement.lang === 'ru' && btn.textContent.trim() === 'RU' &&
+               document.getElementById('saveBtn').textContent === 'Сохранить' &&
+               document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Отменить (Ctrl+Z)';
+      out.stored = localStorage.getItem('rhizome.lang') === 'ru';
+      // What the program writes later is caught as it lands, its pieces in the translation's order.
+      const said = document.createElement('div');
+      said.textContent = 'Imported 3 entries. Press Save to keep it.';
+      document.body.appendChild(said); await wait(50);
+      out.later = said.textContent === 'Импортировано: entries — 3. Нажмите Сохранить.';
+      document.getElementById('aboutToggle').setAttribute('title', 'About this project'); await wait(50);
+      out.rewritten = document.getElementById('aboutToggle').getAttribute('title') === 'О проекте';
+      // The chart's own words are a person's.
+      const label = [...document.querySelectorAll('.node[data-id="l19_a"] text tspan, .node[data-id="l19_a"] text')].map(t=> t.textContent).join('');
+      out.chartKept = /Save/.test(label) && !/Сохранить/.test(label);
+      menu.querySelector('[data-lang="en"]').click(); await wait(50);
+      out.back = document.documentElement.lang === 'en' && document.getElementById('saveBtn').textContent === 'Save' &&
+                 document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Undo (Ctrl+Z)' &&
+                 said.textContent === 'Imported 3 entries. Press Save to keep it.' && localStorage.getItem('rhizome.lang') === null;
+      said.remove(); LANG_TABLES.ru = kept;
+      undoLastEdit(); await wait(100);
+      return out;
+    });
+    check('a language button on the top bar opens a menu of the languages, each in its own words', r.button && r.menu, JSON.stringify(r));
+    check('…chosen, the page says its own words in it, and is remembered', r.ru && r.stored, JSON.stringify(r));
+    check('…including what it writes later, its pieces where the translation puts them, and a title written again', r.later && r.rewritten, JSON.stringify(r));
+    check('…never the chart\'s own words, and back in English everything is as the program wrote it', r.chartKept && r.back, JSON.stringify(r));
   });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

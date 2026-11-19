@@ -404,6 +404,8 @@ const drawOne = (n)=>{
   /* A split is the same circle again, smaller, and filled with its colour:
      a dot on the line, which is what it is — see isSplitNode. */
   const isSplit = shape==='split';
+  // The tabs this drawing stands on its top edge, for an array's hatching to stop at (arrayHatchHoles).
+  n.tabHoles = [];
   const isRound = isBio || isLinkNode || isSplit;
   const isImage = shape==='image';
   const isTextbox = shape==='textbox';
@@ -1779,6 +1781,8 @@ const drawOne = (n)=>{
       const ins = borderReachIn(n);
       // As a style: the stylesheet's ground for `.node > rect` outranks an attribute.
       const a = {class:'array-hatch', style:`fill:${hatch};stroke:none;pointer-events:none;`};
+      const holes = arrayHatchHoles(n);
+      if(holes) a.mask = holes;
       if(isWavy) a.d = wavyRectPath(n.x+ins, n.y+ins, n.w-ins*2, h-ins*2, -ins);
       else Object.assign(a, {x:n.x+ins, y:n.y+ins, width:n.w-ins*2, height:h-ins*2, rx:rad(cornerR-ins)});
       el(isWavy ? 'path' : 'rect', a, g);
@@ -1930,6 +1934,7 @@ const drawOne = (n)=>{
       const cy = base.y + TAB_SINK - th/2;
       const chipG = el('g', {class:'lang-chip' + (isActive ? ' active' : ''),
                              transform:`translate(${cx},${cy})`}, chipGroup);
+      n.tabHoles.push({x: cx - chipW/2, y: cy - th/2, w: chipW, h: th, r: CHIP_R});
       el('path', {d: tabOutline(chipW, th, CHIP_R), class:'lang-chip-bg',
                   'data-w': +chipW.toFixed(2), 'data-h': +th.toFixed(2), 'data-r': CHIP_R}, chipG);
       const chipLabelEl = el('text', {x:0, y:2.1*k - base.sink/2, 'text-anchor':'middle', 'font-size':fs,
@@ -2218,6 +2223,7 @@ const drawOne = (n)=>{
     if(tabMask) linkWrap.setAttribute('mask', tabMask);
     const lg = el('g',{class:'node-link',
       transform: `translate(${base.right - 2 - LINK_TAB/2},${base.y + TAB_SINK - lh/2})`}, linkWrap);
+    n.tabHoles.push({x: base.right - 2 - LINK_TAB, y: base.y + TAB_SINK - lh, w: LINK_TAB, h: lh, r: 2.5});
     el('path',{d: tabOutline(LINK_TAB, lh, 2.5), class:'node-link-bg',
                'data-w': LINK_TAB, 'data-h': lh}, lg);
     const arrow = el('path',{d:'M-1.6,1.9 L1.6,-1.3 M-0.5,-1.3 L1.6,-1.3 L1.6,0.8', fill:'none',

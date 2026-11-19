@@ -181,6 +181,13 @@ function applyVisibility(opts){
       const n = nodes.get(r.dataset.id);
       fadeForTags(r, fadedOnChart(n));
     });
+    /* An entry faded over an array gives the hatching back: a hole of
+       paper under an entry barely there would be the only thing left of
+       it (see arrayHatchHoles). */
+    nodeDefs.querySelectorAll('mask .hatch-hole').forEach(h=>{
+      const want = fadedOnChart(nodes.get(h.dataset.hole)) ? 'none' : '';
+      if(h.style.display !== want) h.style.display = want;
+    });
   }
   // Every piece of a connector, not only its line: the arrowheads, the ring
   // caps and the notes live in the layer above the entries, and hiding a

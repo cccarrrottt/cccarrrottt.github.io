@@ -108,7 +108,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 150 named scenarios, and they do not depend on one another —
+The suite is 151 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -280,6 +280,22 @@ site") and `build_guard`:
 - Read-only is still a flag (`body.read-only`, `readOnlyView`), and
   `markEditable` is its way back; lifting it means drawing again, because
   some parts ask `readOnlyView` while they draw.
+
+## The page in other languages
+
+Every text the page says — and no person typed — is a key, in English, in
+`src/i18n/<lang>.json`, with its translation beside it, written by hand and
+empty until it is. `node tools/i18n.js` finds the keys in `src/index.html`
+and in every string of the program that reads as words, keeps every
+translation already written, and drops what the sources no longer say;
+`build_guard` fails when the files are behind, so **a text added to the
+program means running it**. A built page carries only the translations
+written (`lang_script`, `build.py`), and `43-i18n.js` puts them in place of
+the English on screen as it lands, by a MutationObserver, so nothing in
+the program is wrapped to be translated. It runs only once a language
+other than English is chosen on the top bar. The chart's own words, what
+is typed into a field, and anything under `translate="no"` are a person's
+and are never translated; on the chart only its tooltips are the page's.
 
 ## What has been measured, so it need not be argued
 

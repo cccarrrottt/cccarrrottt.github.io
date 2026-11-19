@@ -56,6 +56,11 @@
     <button class="icon-btn" id="aboutToggle" title="About this project">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
     </button>
+    <!-- The language the page speaks (the owner's list of 19.11): its
+         texts are translated by hand in src/i18n/, see 43-i18n.js. -->
+    <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5M12 3.5C9.6 5.9 8.4 8.7 8.4 12s1.2 6.1 3.6 8.5"/></svg><span class="lang-code" translate="no">EN</span>
+    </button>
     <!-- The owner looking at the chart as a reader sees it, without signing
          out (the owner's list of 2.11). Shown only to whoever may edit. -->
     <button class="icon-btn" id="readerToggle" title="See the chart as a reader sees it" aria-pressed="false">
@@ -512,6 +517,11 @@
     <!-- The sticker library: a menu dropped from its button, like
          Export/Import, rather than a window in the middle of the chart. +
          adds; each tile's ✕ removes it, and Replace swaps its picture. -->
+    <!-- Each language named in its own words, so the menu is never translated. -->
+    <div class="file-popover lang-menu" id="langMenu" role="menu" translate="no">
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="en">English</button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru">Русский</button>
+    </div>
     <div class="file-popover sticker-pop" id="stickerOverlay">
       <div class="edge-popover-head">
         <span>My files</span>
@@ -768,6 +778,7 @@
     '40-arrays.js',
     '41-text-view.js',
     '42-media-types.js',
+    '43-i18n.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){
@@ -779,13 +790,21 @@
   /* The chart is fetched with the parts and put where the build puts it,
      in a JSON script element a browser does not run, so the program reads
      it the one way it reads it in the built page (CHART_IN, 01-store.js). */
-  Promise.all([get('chart.json')].concat(PARTS.map(function(p){ return get('app/' + p); }))).then(function(got){
+  Promise.all([get('chart.json'), get('i18n/ru.json')].concat(PARTS.map(function(p){ return get('app/' + p); }))).then(function(got){
     var chart = document.createElement('script');
     chart.type = 'application/json';
     chart.id = 'chart-data';
     chart.textContent = got[0];
     document.body.appendChild(chart);
-    var sources = got.slice(1);
+    /* The translations, as the build carries them: only those written. */
+    var ru = JSON.parse(got[1]), strings = {};
+    Object.keys(ru.strings || {}).forEach(function(k){ if(ru.strings[k]) strings[k] = ru.strings[k]; });
+    var lang = document.createElement('script');
+    lang.type = 'application/json';
+    lang.id = 'i18n-data';
+    lang.textContent = JSON.stringify({ru: {name: ru.name, strings: strings}});
+    document.body.appendChild(lang);
+    var sources = got.slice(2);
     var s = document.createElement('script');
     /* Named, so a debugger shows the assembled program under one honest name
        rather than as an anonymous blob. It is the same text the build inlines
