@@ -18617,16 +18617,21 @@ async function main(){
     await pause(150);
     const sw = sel=> parseFloat(getComputedStyle(document.querySelector(`.node[data-id="rc_a"] ${sel}`)).strokeWidth);
     out.tabs = {chip: sw('.lang-chip-bg'), link: sw('.node-link-bg'), border: NODE_BORDER_W};
-    /* The tab's icon is the owner's own R·P drawing (87 × 87), written
-       into the page — the PNG itself, not a redrawing of it. */
+    /* The tab's icon is the R·P drawing as an SVG (the owner's list of
+       19.11: the PNG was blurred where an app is opened), written into the
+       page, with a PNG drawn from it after it for a browser that takes no
+       SVG icon. */
     const icon = document.querySelector('link[rel="icon"]');
-    // Inline in the built page; beside it, as a file, in the sources.
-    const bytes = !icon ? new Uint8Array(0) : new Uint8Array(await fetch(icon.href)
+    const png = document.querySelector('link[rel="alternate icon"]');
+    // Inline in the built page; beside it, as files, in the sources.
+    const text = !icon ? '' : await fetch(icon.href).then(r=> r.ok ? r.text() : '').catch(()=> '');
+    out.favicon = (icon && icon.getAttribute('type')) === 'image/svg+xml' && /^<svg[^>]*viewBox="0 0 87 87"/.test(text) &&
+                  (text.match(/<path /g) || []).length === 2 && /#c23b22/.test(text);
+    const bytes = !png ? new Uint8Array(0) : new Uint8Array(await fetch(png.href)
       .then(r=> r.ok ? r.arrayBuffer() : new ArrayBuffer(0)).catch(()=> new ArrayBuffer(0)));
-    const u32 = (o)=> ((bytes[o] << 24) | (bytes[o+1] << 16) | (bytes[o+2] << 8) | bytes[o+3]) >>> 0;
-    out.favicon = bytes.length > 24 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
-                  u32(16) === 87 && u32(20) === 87;
-    out.faviconInline = /^data:image\/png;base64,/.test(icon ? icon.getAttribute('href') : '');
+    out.faviconPng = bytes.length > 24 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    out.faviconInline = /^data:image\/svg\+xml;base64,/.test(icon ? icon.getAttribute('href') : '') &&
+                        /^data:image\/png;base64,/.test(png ? png.getAttribute('href') : '');
     flyToNode('rc_a'); await pause(150);
     const at = id=>{ const b = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect(); return {x: b.left + b.width/2, y: b.top + b.height/2}; };
     out.a = at('rc_a'); out.b = at('rc_b');
@@ -18647,7 +18652,7 @@ async function main(){
   check('a GIF for a portrait or a picture is kept whole, with no cropper', r.portraitGif && r.cropperShut);
   check('language tabs and a link\'s tab are outlined at the border\'s weight',
         r.tabs.chip === r.tabs.border && r.tabs.link === r.tabs.border, JSON.stringify(r.tabs));
-  check('the tab\'s icon is the owner\'s R·P drawing', r.favicon);
+  check('the tab\'s icon is the R·P drawing as an SVG, with a PNG of it to fall back on (19.11)', r.favicon && r.faviconPng);
   if(MODE !== 'src') check('and the built page carries it inside', r.faviconInline);
   /* A right click: the menu at the pointer over what was clicked. */
   await page.mouse.click(r.a.x, r.a.y, {button: 'right'});

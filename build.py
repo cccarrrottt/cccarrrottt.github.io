@@ -207,14 +207,20 @@ SHA_META = 'rhizome-data-sha'
 
 
 def favicon_link():
-    """The tab's icon, "R·P" (src/favicon.png), written into the head.
+    """The tab's icon, "R·P", written into the head.
 
-    The owner's own drawing, byte for byte — not a redrawing of it. Inline
-    as a data: address rather than a file beside the page, so it is the
-    same wherever the page is opened (the site, a copy on disk, an export)
-    and is never one more request that can fail."""
+    The drawing itself (src/favicon.svg), sharp at every size a tab, a
+    bookmark or an installed app asks for — it used to be an 87-pixel PNG,
+    which the app opened on blurred (the owner's list of 19.11). The PNG
+    drawn from it (tools/icons.js) follows for a browser that takes no SVG
+    icon. Inline as data: addresses rather than files beside the page, so
+    they are the same wherever the page is opened (the site, a copy on
+    disk, an export) and are never one more request that can fail."""
+    svg = (SRC / 'favicon.svg').read_bytes()
     png = (SRC / 'favicon.png').read_bytes()
-    return ('<link rel="icon" type="image/png" href="data:image/png;base64,'
+    return ('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,'
+            + base64.b64encode(svg).decode('ascii') + '">\n'
+            '<link rel="alternate icon" type="image/png" href="data:image/png;base64,'
             + base64.b64encode(png).decode('ascii') + '">\n')
 
 
