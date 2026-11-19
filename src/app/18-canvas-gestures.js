@@ -1068,6 +1068,9 @@ window.addEventListener('mousemove', e=>{
        gives way to it or jumps across the lineages when the entry passes
        their middle. See fixAmalgamBars. */
     st.barsFixed = fixAmalgamBars(st.members.map(m=> m.id));
+    /* Carried by its junction, the junction's bead swells in the hand;
+       every redraw of the drag draws it so (see drawAmalgam). */
+    if(st.alongBar) qEdges(`.amalgam-junction[data-to="${CSS.escape(st.node.id)}"]`).forEach(c=> c.classList.add('bead-carried'));
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and
@@ -1317,6 +1320,7 @@ window.addEventListener('mouseup', ()=>{
   const st = nodeDragState;
   nodeDragState = null;
   if(!st) return;
+  qEdges('.bead-carried').forEach(c=> c.classList.remove('bead-carried'));
   // A frame still owing from the drag would draw over what settling the
   // drag is about to draw, from a state that no longer exists.
   if(dragRedrawFrame || dragRedrawTimer){

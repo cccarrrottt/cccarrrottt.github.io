@@ -1221,10 +1221,11 @@
   .edge-open > path{stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;}
   .edge-open.lit > path{stroke-width:2.4;}
   .edge-arrow.lit, .amalgam-bead.lit{opacity:1;}
-  /* The dot a picked line of a merge joins at, and a split being carried,
-     swell as a callout's point does in the hand (the owner's list of
-     15.11). Scaled about their own middle, so nothing they stand on moves. */
-  .amalgam-bead.bead-picked, .node-split.dragging > circle:not(.split-hit):not(.node-hover-pad){
+  /* A merge's junction and a split swell while they are carried, as a
+     callout's point does in the hand, and only then: picking the line
+     they stand on leaves them as they are (the owner's lists of 15.11 and
+     19.11). Scaled about their own middle, so nothing they stand on moves. */
+  .amalgam-bead.bead-carried, .node-split.dragging > circle:not(.split-hit):not(.node-hover-pad){
     transform-box:fill-box;transform-origin:center;transform:scale(1.6);
     transition:transform 90ms ease-out;
   }
@@ -2692,7 +2693,9 @@
   .files-section:first-child .files-head{margin-top:2px;}
   .files-section.collapsed .legend-group-fold{transform:none;}
   .files-section.collapsed .files-fold{display:none;}
-  .files-head .sticker-plus{margin-left:auto;}
+  /* The fold and the count stand at the right, just before the +, the
+     same place under every heading (the owner's note of 19.11). */
+  .files-head .legend-group-fold{margin-left:auto;}
   .files-count{color:var(--ink-dim);}
   .files-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
@@ -2849,8 +2852,10 @@
   .detail-note-block .rich-surface.locked,
   .detail-note-block .rich-surface.doc-open{margin-left:-12px;margin-right:-12px;width:calc(100% + 24px);
     padding-left:12px;padding-right:12px;box-sizing:border-box;}
-  .detail-note-block .note-rule{margin-left:-10px;margin-right:-10px;}
-  .detail-note-block .note-rule-title{padding-left:10px;}
+  /* The line starts where its title does, with the words, and runs out
+     to the right; titled or not, it starts there (the owner's note of
+     19.11). */
+  .detail-note-block .note-rule{margin-right:-10px;}
   .rich-surface:not(.locked) .note-rule{cursor:pointer;border-radius:3px;}
   .rich-surface:not(.locked) .note-rule:hover{background:var(--panel-2);}
   .rich-surface .note-rule.picked{background:rgba(194,59,34,0.16);outline:1px solid var(--accent);}

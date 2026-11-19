@@ -21265,6 +21265,23 @@ async function main(){
     await page.mouse.up();
     await new Promise(ok=> setTimeout(ok, 120));
     out.split = await page.evaluate(([id, x, y])=>{ const n = nodes.get(id); return {dx: +(n.x - x).toFixed(2), dy: +(n.y - y).toFixed(2)}; }, [split.id, split.x, split.y]);
+    /* …and back again, the way it came, by the dot and nothing else: no
+       grips or connector strips stand over it to take the hand instead,
+       and the pointer over it is the two-headed arrow of its line (the
+       owner's list of 19.11). */
+    const back = await page.evaluate(id=>{
+      nodeControlsOn(id);
+      const g = document.querySelector(`.node[data-id="${id}"]`), b = g.getBoundingClientRect();
+      return {x: nodes.get(id).x, sx: b.x + b.width/2, sy: b.y + b.height/2,
+              bare: !g.querySelector('.node-resize, .node-handle')};
+    }, split.id);
+    await page.mouse.move(back.sx + 30, back.sy + 30); await page.mouse.move(back.sx, back.sy);
+    out.splitCursor = await page.evaluate(([x, y])=> getComputedStyle(document.elementFromPoint(x, y)).cursor, [back.sx, back.sy]);
+    await page.mouse.down();
+    for(let i = 1; i <= 8; i++){ await page.mouse.move(back.sx - i * 7, back.sy - i * 4); }
+    await page.mouse.up();
+    await new Promise(ok=> setTimeout(ok, 120));
+    out.splitBack = {bare: back.bare, dx: +(await page.evaluate(id=> nodes.get(id).x, split.id) - back.x).toFixed(2)};
 
     /* 7. Cards: a picture as wide as the heading, stopping at its rule; a
           wavy card no bigger than a plain one; chips inside the box; no
@@ -21361,6 +21378,8 @@ async function main(){
         Math.abs(out.along.offset - 11) < 0.6, JSON.stringify(out.along));
   check('a long press on a merge\'s bar is its lineage\'s menu', out.barMenu === 'bar', String(out.barMenu));
   check('a split\'s dot is carried along its line', out.split.dx > 20 && Math.abs(out.split.dy) < 0.01, JSON.stringify(out.split));
+  check('…and back the way it came, taken by the dot alone, under a two-headed arrow of its line (19.11)',
+        out.splitBack.bare && out.splitBack.dx < -20 && out.splitCursor === 'ew-resize', JSON.stringify([out.splitBack, out.splitCursor]));
   check('a card\'s picture is as wide as its heading and stops at its rule',
         Math.abs(out.card.band[0] - out.card.band[1]) < 0.6 && Math.abs(out.card.imgBottom - (out.card.band[0] - out.card.ruleHalf)) < 0.05,
         JSON.stringify(out.card));
@@ -23755,12 +23774,25 @@ async function main(){
       r.teeLit = !!document.querySelector('.edge-tee.bar-end.bar-picked[data-from="q15_a"]');
       setBarFocus(null); await wait(50);
       r.teeUnlit = !document.querySelector('.bar-picked');
-      openEdgeStylePopover('q15_a', 'q15_m', {clientX: 1300, clientY: 800, stopPropagation(){}});
+      /* Picked, the merged arrow leaves its junction's bead as it is; the
+         bead swells only while the junction is carried (the owner's list
+         of 19.11 put right what 15.11 had it do on a pick). */
+      openEdgeStylePopover('', 'q15_m', {clientX: 1300, clientY: 800, stopPropagation(){}});
       await wait(200);
-      const bead = document.querySelector('.amalgam-bead.bead-picked[data-to="q15_m"]');
-      r.beadSwells = !!bead && /matrix\(1\.[5-6]/.test(getComputedStyle(bead).transform);
+      const junction = ()=> document.querySelector('.amalgam-bead.amalgam-junction[data-to="q15_m"]');
+      const swollen = c=> !!c && /matrix\(1\.[5-6]/.test(getComputedStyle(c).transform);
+      r.beadStill = !!junction() && !swollen(junction());
       closeEdgePopover(); await wait(100);
-      r.beadBack = !document.querySelector('.bead-picked');
+      const hit = document.querySelector('.amalgam-junction-hit[data-amalgam="q15_m"]');
+      const hb = hit.getBoundingClientRect(), hx = hb.left + hb.width/2, hy = hb.top + hb.height/2;
+      hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, clientX:hx, clientY:hy, button:0}));
+      for(let i = 1; i <= 6; i++){ window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:hx + 6*i, clientY:hy})); await wait(20); }
+      await wait(120);
+      r.beadSwells = swollen(junction());
+      window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, clientX:hx + 36, clientY:hy}));
+      await wait(200);
+      r.beadBack = !document.querySelector('.bead-carried') && !swollen(junction());
+      undoLastEdit(); await wait(200);
     }
 
     /* 5. No corners of its own on a card's picture. */
@@ -23856,8 +23888,8 @@ async function main(){
   check('a picked merge is lit only as far as a lineage ending in a T goes, and the T is lit with it',
         out.focusStops && !out.focusPastLine && out.teeLit && out.teeUnlit,
         JSON.stringify([out.focusStops, out.focusPastLine, out.teeLit, out.teeUnlit]));
-  check('a picked lineage of a merge swells the dot it joins at, and lets it go when put down', out.beadSwells && out.beadBack,
-        JSON.stringify([out.beadSwells, out.beadBack]));
+  check('a merge\'s junction swells while it is carried, not when its arrow is picked, and lets go when put down', out.beadStill && out.beadSwells && out.beadBack,
+        JSON.stringify([out.beadStill, out.beadSwells, out.beadBack]));
   check('a card’s picture has no corners of its own to resize it by', out.noPictureCorners);
   check('a split swells while it is carried, and not after', out.splitSwells && out.splitShrinks, JSON.stringify([out.splitSwells, out.splitShrinks]));
   check('a split carried across the inside of a corner goes round it after the hand, never jumping a stretch of the line',
@@ -23927,7 +23959,8 @@ async function main(){
     const rule = document.querySelector('#detailNoteBlock .note-rule'), d = document.getElementById('detail').getBoundingClientRect();
     const rb = rule.getBoundingClientRect(), tb = rule.querySelector('.note-rule-title').getBoundingClientRect();
     const line = parseFloat(getComputedStyle(rule, '::after').borderTopWidth);
-    return {left: rb.left - d.left, right: d.right - rb.right, titleAbove: tb.bottom <= rb.bottom - line + 0.5,
+    const words = rule.parentElement.getBoundingClientRect().left + rule.parentElement.clientLeft + parseFloat(getComputedStyle(rule.parentElement).paddingLeft);
+    return {left: +(rb.left - words).toFixed(1), titleStart: +(tb.left - rb.left).toFixed(1), right: d.right - rb.right, titleAbove: tb.bottom <= rb.bottom - line + 0.5,
             titleLeft: tb.left - rb.left < 14 && tb.width < rb.width / 2, noPanelInput: !document.querySelector('.rule-panel input')};
   });
   /* Backspace at the start of the line after it makes it the three dashes
@@ -24076,8 +24109,8 @@ async function main(){
         n1.noButtons && n1.noRule && n1.open && n1.toolbar && /rgba\(0, 0, 0, 0\)|transparent/.test(n1.flat), JSON.stringify(n1));
   check('…Enter is a new line, the buttons make a bulleted and a numbered list, and three dashes and Enter a divider — written as it settles',
         n1.note === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:solid}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n1.note));
-  check('…a divider runs to a few pixels from the drawer’s sides, its title over it at the left (19.11, the owner’s note)',
-        n2look.left > 1 && n2look.left <= 8 && n2look.right > 1 && n2look.right <= 8 && n2look.titleAbove && n2look.titleLeft && n2look.noPanelInput,
+  check('…a divider starts with the words and its title, and runs to a few pixels from the drawer’s right side, its title over it (19.11, the owner’s notes)',
+        Math.abs(n2look.left) < 0.6 && Math.abs(n2look.titleStart) < 0.6 && n2look.right > 1 && n2look.right <= 8 && n2look.titleAbove && n2look.titleLeft && n2look.noPanelInput,
         JSON.stringify(n2look));
   check('…a divider pressed takes its kind of line, and pressed twice a title', n2 === 'Top line\n{{ul}}apple\n{{ul}}pear\n{{hr:dotted|Fruit}}\n{{ol}}one\n{{ol}}two\nend', JSON.stringify(n2));
   check('…Backspace after a divider makes it the three dashes again, and Enter a divider once more', /\n---\n/.test(n3) && /\{\{hr:solid\}\}/.test(n4) && !/---/.test(n4),

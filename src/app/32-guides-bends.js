@@ -402,7 +402,6 @@ function edgeIsPicked(from, to){
 function paintEdgePick(){
   const t = edgePopover.classList.contains('open') ? currentEdgeStyleTarget : null;
   qEdges('.edge-picked').forEach(p=> p.classList.remove('edge-picked'));
-  qEdges('.bead-picked').forEach(p=> p.classList.remove('bead-picked'));
   if(!t) return;
   // Every connector picked with it — see edgeSelection.
   edgeGroupFor(t.from, t.to).forEach(({from, to})=>{
@@ -410,31 +409,6 @@ function paintEdgePick(){
     // Its note too: the note is the connector's words.
     const lit = qEdges(`.edge${sel}:not(.dbl-inner):not(.amalgam-through), .edge-arrow${sel}, .edge-note${sel}`);
     lit.forEach(p=> p.classList.add('edge-picked'));
-    pickMergeBeads(to, lit);
-  });
-}
-/* The dot a picked lineage of a merge runs into, or the merged arrow
- * leaves from, swells as a carried split does (the owner's list of 15.11):
- * it is the place the picked line joins the rest, and at its own size it
- * is half hidden under the line's glow.
- *
-   Which dot that is, is read off the drawing rather than worked out
-   again: one standing at either end of the picked line, within the bead
-   and an end's length of it — a T or a head at the bar stops short of the
-   dot it points at. */
-function pickMergeBeads(id, lit){
-  const beads = qEdges(`.amalgam-bead[data-to="${CSS.escape(id)}"]`);
-  if(!beads.length) return;
-  const ends = [];
-  lit.forEach(p=>{
-    if(!p.classList.contains('edge')) return;
-    const nums = (p.getAttribute('d') || '').match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/gi);
-    if(!nums || nums.length < 4) return;
-    ends.push({x: +nums[0], y: +nums[1]}, {x: +nums[nums.length - 2], y: +nums[nums.length - 1]});
-  });
-  beads.forEach(c=>{
-    const cx = +c.getAttribute('cx'), cy = +c.getAttribute('cy'), r = +c.getAttribute('r') || 0;
-    if(ends.some(e=> Math.hypot(e.x - cx, e.y - cy) <= r + ARROW_LEN + 1)) c.classList.add('bead-picked');
   });
 }
 /* What a dragged bend may line itself up with: the OTHER connectors.

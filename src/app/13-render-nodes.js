@@ -240,8 +240,32 @@ svg.addEventListener('pointerover', ev=>{
   const was = nodeUnderPointer;
   nodeUnderPointer = g ? g.dataset.id : null;
   if(g) nodeControlsOn(g.dataset.id);
+  if(g && g.classList.contains('node-split')) aimSplitCursor(g);
   if(was !== nodeUnderPointer) showLinkPreview(nodeUnderPointer);
 });
+/* A split goes only along its line, so the pointer over it is the
+   two-headed arrow of that line's way at the dot, as a merge's junction
+   is (the owner's list of 19.11). Asked when the pointer arrives, since
+   the line is routed after the dot is drawn. */
+function aimSplitCursor(g){
+  const hit = g.querySelector('.split-hit'), n = nodes.get(g.dataset.id);
+  if(!hit || !n || readOnlyView) return;
+  const t = splitTrackOf(n);
+  if(!t){ hit.style.cursor = ''; return; }
+  const cx = n.x + n.w/2, cy = n.y + n.h/2;
+  let best = null, d = Infinity;
+  for(let i = 1; i < t.line.length; i++){
+    const a = t.line[i-1], b = t.line[i], dx = b.x - a.x, dy = b.y - a.y, len2 = dx*dx + dy*dy;
+    if(!len2) continue;
+    const k = Math.max(0, Math.min(1, ((cx - a.x) * dx + (cy - a.y) * dy) / len2));
+    const e = Math.hypot(a.x + dx*k - cx, a.y + dy*k - cy);
+    if(e < d){ d = e; best = {dx, dy}; }
+  }
+  if(!best){ hit.style.cursor = ''; return; }
+  const deg = (Math.atan2(best.dy, best.dx) * 180 / Math.PI + 180) % 180;
+  hit.style.cursor = deg < 22.5 || deg >= 157.5 ? 'ew-resize'
+    : deg < 67.5 ? 'nwse-resize' : deg < 112.5 ? 'ns-resize' : 'nesw-resize';
+}
 svg.addEventListener('pointerleave', ()=>{ nodeUnderPointer = null; showLinkPreview(null); });
 /* The drawing the site was published with (tools/prerender.js), shown
    while the program was still on its way. It goes the moment this draws
@@ -1975,8 +1999,11 @@ const drawOne = (n)=>{
   const controls = el('g', {class:'node-controls'}, g);
   nodeControlsWanted.set(n.id, ()=>{
     const n = liveN();
-    /* An array has no size to set: it is as big as what it holds. */
-    if(!isArray){
+    /* An array has no size to set: it is as big as what it holds. Nor
+       has a split: it is a point on a line, and its grips and strips stood
+       over the dot itself, so taking hold of it took hold of them instead
+       (the owner's list of 19.11). */
+    if(!isArray && !isSplit){
       const CORNERS = [
         {key:'se', sx: 1, sy: 1, x: n.x + w, y: n.y + h},
         {key:'sw', sx:-1, sy: 1, x: n.x,     y: n.y + h},
@@ -2078,7 +2105,7 @@ const drawOne = (n)=>{
     // comes out black, from the grey ring and it comes out grey. That's what
     // makes a two-colour node able to carry two differently-coloured
     // lineages without them being confused for one.
-    const handles = isFree ? null : el('g', {class:'node-handles'}, controls);
+    const handles = (isFree || isSplit) ? null : el('g', {class:'node-handles'}, controls);
     /* The side a callout's own leader arrives at is not a side you can
        connect to. Something is already attached there — the line back to the
        place on the connector this card is talking about — and a second line
@@ -2100,7 +2127,7 @@ const drawOne = (n)=>{
                                                'stop-color': c}, gr));
       return `url(#${id})`;
     })() : null;
-    if(!isFree) SIDES.forEach(side=>{
+    if(handles) SIDES.forEach(side=>{
       if(side === takenSide) return;
       // Innermost ring first, so where two hit strips still graze each other
       // the inner one is the one on top and stays reachable.
