@@ -432,9 +432,14 @@
      it slid under the drawing as you panned and lined nothing up with
      anything. The grid button draws a real one, in the chart's own
      coordinates; with it off the page is simply blank. */
+  /* Round the field, the desk it lies on: a shade off the paper, so the
+     field's edge reads without a line having to say it (see syncField). */
+  svg#canvas{--desk:#eef1f5;}
+  :root[data-theme="dark"] svg#canvas{--desk:#f6f7f9;}
+  .chart-field{fill:var(--paper);stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;}
   svg#canvas{
     display:block;width:100%;height:100%;
-    background:var(--paper);
+    background:var(--desk);
     cursor:grab;
     touch-action:none;
   }

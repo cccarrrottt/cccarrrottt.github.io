@@ -108,7 +108,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 151 named scenarios, and they do not depend on one another —
+The suite is 152 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -280,6 +280,16 @@ site") and `build_guard`:
 - Read-only is still a flag (`body.read-only`, `readOnlyView`), and
   `markEditable` is its way back; lifting it means drawing again, because
   some parts ask `readOnlyView` while they draw.
+
+## The field
+
+The chart is drawn on whole pages of `FIELD_PAGE_W`×`FIELD_PAGE_H`, the
+first centred on the origin, as many as hold every entry with
+`FIELD_MARGIN` to spare (`fieldOf`, `10-decor.js`). It is worked out from
+the entries on every rebuild and every frame of a carry, never kept. A pan,
+the wheel and a pinch keep the middle of the view on it
+(`keepFieldInView`); a view set in so many words (a link, the overview, a
+test) is not held to it.
 
 ## The page in other languages
 

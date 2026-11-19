@@ -24225,6 +24225,60 @@ async function main(){
     check('…including what it writes later, its pieces where the translation puts them, and a title written again', r.later && r.rewritten, JSON.stringify(r));
     check('…never the chart\'s own words, and back in English everything is as the program wrote it', r.chartKept && r.back, JSON.stringify(r));
   });
+  await scenario("the field: whole pages round the entries, a page more where an entry is carried to the edge, a pan that stays on it", async () => {
+    const r = await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const out = {};
+      const f = chartField, W = FIELD_PAGE_W, H = FIELD_PAGE_H;
+      const whole = v=> Math.abs(((v / W) % 1 + 1) % 1 - 0.5) < 1e-9;
+      out.pages = whole(f.x0) && whole(f.x1) && Math.abs((((f.y0 / H) % 1) + 1) % 1 - 0.5) < 1e-9;
+      out.holds = [...nodes.values()].every(n=> n.x >= f.x0 && n.y >= f.y0 && n.x + n.w <= f.x1 && n.y + n.h <= f.y1);
+      const rect = document.getElementById('chartField');
+      out.drawn = +rect.getAttribute('width') === f.x1 - f.x0 && +rect.getAttribute('x') === f.x0 &&
+                  document.querySelector('#alignGrid rect').getAttribute('width') === rect.getAttribute('width');
+      // An entry put just inside the right edge, then carried past it: a page more, on that side only.
+      applyEdit(()=> workingNodes.push(['fld_a', 'Edge', null, null, null, null, {pos:[f.x1 - 200, (f.y0 + f.y1) / 2]}]));
+      await wait(100);
+      const before = Object.assign({}, chartField);
+      out.sameBefore = before.x1 === f.x1;
+      vs = 1; const n = nodes.get('fld_a');
+      const sr = svg.getBoundingClientRect();
+      vx = sr.width / 2 - (n.x + n.w / 2); vy = sr.height / 2 - (n.y + n.h / 2); applyTransform();
+      const g = document.querySelector('.node[data-id="fld_a"]').getBoundingClientRect();
+      const sx = g.x + g.width / 2, sy = g.y + g.height / 2;
+      return {out, sx, sy, before, f: Object.assign({}, f)};
+    });
+    await page.mouse.move(r.sx, r.sy); await page.mouse.down();
+    for(let i = 1; i <= 10; i++) await page.mouse.move(r.sx + i * 20, r.sy);
+    const mid = await page.evaluate(()=> Object.assign({}, chartField));
+    await page.mouse.up();
+    await new Promise(ok=> setTimeout(ok, 150));
+    const after = await page.evaluate(async ()=>{
+      const f = chartField;
+      const grown = Object.assign({}, f);
+      // A pan far past the field stops with the middle of the view on its edge.
+      const sr = svg.getBoundingClientRect();
+      return {grown, W: sr.width, H: sr.height, vs, vx};
+    });
+    // Pan by the hand, far to the left (the chart to the right).
+    await page.mouse.move(700, 500); await page.mouse.down();
+    for(let i = 1; i <= 10; i++) await page.mouse.move(700 + i * 400, 500);
+    await page.mouse.up();
+    const pan = await page.evaluate(()=>{
+      const sr = svg.getBoundingClientRect();
+      const mid = (sr.width / 2 - vx) / vs;
+      return {mid, x0: chartField.x0};
+    });
+    await page.evaluate(async ()=>{ undoLastEdit(); await new Promise(ok=> setTimeout(ok, 150)); });
+    const back = await page.evaluate(()=> chartField.x1);
+    const W = await page.evaluate(()=> FIELD_PAGE_W);
+    check('the field is whole pages, holds every entry, and the grid is ruled on it', r.out.pages && r.out.holds && r.out.drawn, JSON.stringify(r.out));
+    check('…an entry carried past its edge lays a page more on that side as it goes, and only there',
+          r.out.sameBefore && mid.x1 === r.f.x1 + W && after.grown.x1 === r.f.x1 + W && after.grown.x0 === r.f.x0 && after.grown.y0 === r.f.y0,
+          JSON.stringify([r.f, mid, after.grown]));
+    check('…a pan stops with the middle of the view on the field', Math.abs(pan.mid - pan.x0) < 0.5, JSON.stringify(pan));
+    check('…and the page goes again with the entry', back === r.f.x1, JSON.stringify([back, r.f.x1]));
+  });
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

@@ -979,6 +979,7 @@ function rebuildChart(){
   applyGroundColors();
   buildModel();
   renderNodes();
+  syncField();
   redrawEdges();
   buildSideTabs();
   updateStats();

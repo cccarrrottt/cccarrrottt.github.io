@@ -59,7 +59,7 @@ const NOT_WORDS = new Set(['Enter', 'Escape', 'Backspace', 'Delete', 'Tab', 'Shi
 function isWords(s){
   if(!s || s.length < 2 || !/[A-Za-z]/.test(s)) return false;
   if(/^(https?:|mailto:|data:|blob:|#|\.|\/|\[|:|@@)/.test(s)) return false;
-  if(/[{};]|=>|\$\{|^\s*[a-z-]+\s*:\s*[^ ]+;?$/.test(s.replace(/\{\d+\}/g, ''))) return false;
+  if(/[{}]|;(?!\s|$)|=>|\$\{|^\s*[a-z-]+\s*:\s*[^ ]+;?$/.test(s.replace(/\{\d+\}/g, ''))) return false;
   if(/^[MmLlHhVvCcSsQqTtAaZz0-9 ,.\-e]+$/.test(s)) return false;           // path data
   if(/^[\w.-]+\.(js|css|json|png|svg|gif|jpe?g|webp|mp4|webm|html|map|md|py)$/i.test(s)) return false;
   if(/^[a-z0-9_.:-]+$/.test(s)) return false;                               // a name: node-split, rhizome.view

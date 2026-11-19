@@ -25,6 +25,7 @@ const VERSION_LOG = [
 'The page can speak another language: a globe on the top bar picks English or Russian. Every text the page says is in src/i18n/ru.json with an empty place for its translation, written by hand; a text not yet translated stays in English, and what a person wrote is never translated.',
 'A split is taken hold of by its dot and nothing else, and goes back along its line as well as forward, under a two-headed arrow of its line\'s way; it has no corners or connector strips any more. A merge\'s junction swells while it is carried, not when its arrow is picked.',
 'An array\'s hatching no longer shows through the border or the tabs of an entry in it, whatever the border\'s colour or dashes.',
+'The chart lies on a field of pages, as a drawing in Visio does: as many whole pages as its entries need, the grid ruled on them alone. Carry an entry up to an edge and a page more is laid on that side; a pan or a zoom keeps the middle of the view on the field, so the chart cannot be lost in the empty space round it.',
 'Code 1: a menu moved by hand can no longer be left beyond the edge of the window.'
   ]},
   {v:'0.25.8', date:'2026-11-15', title:'Clear of the capitals', notes:[

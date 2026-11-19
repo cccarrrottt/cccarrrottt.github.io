@@ -557,8 +557,10 @@ window.addEventListener('mouseup', ()=>{
 window.addEventListener('mousemove', e=>{
   if(!dragging) return;
   chartCarriedAt = performance.now();
+  const wasX = vx, wasY = vy;
   vx = dragStart.vx + (e.clientX-dragStart.x);
   vy = dragStart.vy + (e.clientY-dragStart.y);
+  keepFieldInView(wasX, wasY);
   applyTransform();
 });
 /* A pan is not a click on empty canvas.
@@ -637,8 +639,11 @@ function chartWheel(e){
   const factor = Math.exp(-e.deltaY*0.0016);
   const newScale = Math.min(3, Math.max(0.08, vs*factor));
   const wx = (mx - vx)/vs, wy=(my-vy)/vs;
+  // A zoom from a view on the field stays on it; one from off it is left as it is.
+  const onField = viewOnField();
   vx = mx - wx*newScale; vy = my - wy*newScale;
   vs = newScale;
+  if(onField) keepFieldInView();
   /* A pan in progress holds the view it began from, and its next move
      put that view back — undoing the zoom about the pointer and throwing
      the chart sideways. Its origin moves with the zoom instead; where the
@@ -1282,6 +1287,8 @@ window.addEventListener('mousemove', e=>{
 let dragRedrawFrame = 0, dragRedrawTimer = 0;
 const DRAG_REDRAW_BUDGET = 24;
 function queueDragRedraw(st){
+  // A page more as the carry reaches the field's edge, at once (see syncField).
+  syncField(st);
   if(dragRedrawFrame || dragRedrawTimer) return;
   const owed = st && st.redrawCost > DRAG_REDRAW_BUDGET
     ? Math.min(250, st.redrawCost) - (performance.now() - st.redrawEnd) : 0;
