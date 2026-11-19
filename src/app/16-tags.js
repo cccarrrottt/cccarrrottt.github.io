@@ -1145,7 +1145,7 @@ function buildCategoryBlock(group){
   const shut = collapsedCats.has(group.name) && !tagFilterText;
   wrap.classList.toggle('collapsed', shut);
   head.innerHTML =
-    `<span class="legend-group-name">${escapeHtml(isLoose ? 'Special' : group.name)}</span>` +
+    `<span class="legend-group-name">${escapeHtml(isLoose ? '★ Special' : group.name)}</span>` +
     `<span class="legend-group-fold">\u25b8</span>` +
     `<span class="legend-group-count">${group.tags.length}</span>`;
   head.classList.add('foldable');
