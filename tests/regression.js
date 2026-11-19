@@ -6306,7 +6306,7 @@ async function main(){
   check('\u2026and Untagged, which is not a tag, is not drawn as one',
         r30.bucketPlain === true);
   check('the last bucket is SPECIAL, in italic',
-        r30.groupNames.indexOf('Special') >= 0 && r30.groupNames.indexOf('Ungrouped') < 0 &&
+        r30.groupNames.indexOf('★ Special') >= 0 && r30.groupNames.indexOf('Ungrouped') < 0 &&
         r30.specialItalic, JSON.stringify(r30.groupNames));
   check('and it holds the acting tags however they were filed',
         !!r30.specialHolds && r30.specialHolds.indexOf('fan-fiction') >= 0 &&
