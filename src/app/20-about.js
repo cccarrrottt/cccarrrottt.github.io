@@ -11,9 +11,19 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.26.0';
+const APP_VERSION = '0.26.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.26.1', date:'2026-11-20', title:'Notes in the margin', notes:[
+'Notes in the margin: a pencil and an eraser on the top bar. The pencil writes by hand over everything on the field, and the entry under it is left alone. The eraser takes away whole strokes as it passes over them. Each stroke, and each run of the eraser, is one edit that can be undone. Escape or the tool\'s button puts the tool down. The strokes are saved with the chart and every reader sees them; only the author holds the tools.',
+'Tags are drawn with a ring where the eyelet was. A tag that does something hangs by a hollow blue five-pointed star instead, and the blue asterisk after its name is gone. The star before Special is blue.',
+'The × on a template that an entry is drawn with can be pressed again. It says why the template stays, takes the view to the nearest entry drawn with it, and lights that entry for a moment.',
+'Three dashes and Enter make a divider on the first line of a note too, including a note that was emptied by hand.',
+'The field is laid in pages of 2000 by 2000.',
+'Readers have the Legend drawer too. They can read it, but there is nothing in it for them to edit.',
+'When a parent is carried, the bead where its line meets a merge\'s bar swells, as the junction does when the merge is carried by it.',
+'In My files, the + sits beside the window\'s ✕ rather than on the Stickers heading.'
+  ]},
   {v:'0.26.0', date:'2026-11-19', title:'Written as it is read', notes:[
 'The tab\'s icon and the home-screen icons are drawn from an SVG of the R·P mark, so they are sharp at any size.',
 'An entry\'s note is written the way it is read: the pencil opens it where it stands, with its formatting buttons under Note, and every change is kept as it is made, with no Apply or Cancel. Enter starts a new line. The dashed line under the note is gone.',

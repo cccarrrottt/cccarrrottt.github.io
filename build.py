@@ -122,6 +122,7 @@ APP_PARTS = [
     '41-text-view.js',
     '42-media-types.js',
     '43-i18n.js',
+    '44-ink.js',
 ]
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'

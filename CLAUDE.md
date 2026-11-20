@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 43 files. **They are not modules.** The page is a single
+`src/app/` holds 45 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -108,7 +108,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 152 named scenarios, and they do not depend on one another —
+The suite is 153 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -283,13 +283,20 @@ site") and `build_guard`:
 
 ## The field
 
-The chart is drawn on whole pages of `FIELD_PAGE_W`×`FIELD_PAGE_H`, the
+The chart is drawn on whole pages of `FIELD_PAGE_W`×`FIELD_PAGE_H` (2000 square), the
 first centred on the origin, as many as hold every entry with
 `FIELD_MARGIN` to spare (`fieldOf`, `10-decor.js`). It is worked out from
 the entries on every rebuild and every frame of a carry, never kept. A pan,
 the wheel and a pinch keep the middle of the view on it
 (`keepFieldInView`); a view set in so many words (a link, the overview, a
 test) is not held to it.
+
+## Notes in the margin
+
+The pencil and the eraser on the top bar (`44-ink.js`) write by hand over
+the field. A stroke is world points in `SETTINGS.ink`, saved with the
+chart and part of the field's extent; while a tool is in the hand the
+chart takes no other gesture, and a reader holds neither.
 
 ## The page in other languages
 

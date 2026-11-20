@@ -659,6 +659,21 @@ function noteLineOf(surface, node){
   while(n && n.parentNode !== surface) n = n.parentNode;
   return n && n.parentNode === surface ? n : null;
 }
+/* Bare words standing straight in the surface, with whatever inline
+   neighbours they share a line with, put into a <div> of their own — the
+   shape every other line of a note already has. */
+function gatherNoteLine(surface, node){
+  const isBreak = n=> n.nodeType === 1 && (/^(DIV|P|UL|OL)$/.test(n.tagName) || n.tagName === 'BR');
+  let first = node, last = node;
+  while(first.previousSibling && !isBreak(first.previousSibling)) first = first.previousSibling;
+  while(last.nextSibling && !isBreak(last.nextSibling)) last = last.nextSibling;
+  const div = document.createElement('div');
+  surface.insertBefore(div, first);
+  let n = first;
+  for(;;){ const next = n.nextSibling; div.appendChild(n); if(n === last) break; n = next; }
+  if(div.nextSibling && div.nextSibling.nodeName === 'BR') div.nextSibling.remove();
+  return div;
+}
 /* Whether nothing stands between the start of a line and the caret. */
 function caretAtLineStart(line, range){
   const r = document.createRange();
@@ -803,20 +818,41 @@ function makeRichDocument(textarea){
     if(!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
     if(!range.collapsed || !surface.contains(range.startContainer)) return;
-    const line = noteLineOf(surface, range.startContainer);
-    if(ev.key === 'Enter' && !ev.shiftKey && line && line.tagName === 'DIV' &&
-       !line.classList.contains('note-rule') && line.textContent === '---'){
-      ev.preventDefault();
-      const holder = document.createElement('div');
-      holder.innerHTML = noteRuleHtml('solid', '');
-      const rule = holder.firstChild;
-      const after = document.createElement('div');
-      after.appendChild(document.createElement('br'));
-      line.replaceWith(rule);
-      rule.after(after);
-      placeCaret(after, false);
-      changed();
-      return;
+    let line = noteLineOf(surface, range.startContainer);
+    /* Three dashes and Enter make a divider — on any line, the first one
+       included (20.11). The first line of a field emptied by hand is not
+       a <div> but bare words straight in the surface, which the browser
+       leaves when everything is selected and deleted; it is gathered into
+       one first, as the line it is. And what stands after the caret is
+       carried down to the line after the divider, as Enter would. */
+    if(ev.key === 'Enter' && !ev.shiftKey && line && !(line.classList && line.classList.contains('note-rule')) &&
+       !(line.nodeType === 1 && /^(UL|OL)$/.test(line.tagName))){
+      if(!(line.nodeType === 1 && /^(DIV|P)$/.test(line.tagName))) line = gatherNoteLine(surface, line);
+      const before = document.createRange();
+      before.selectNodeContents(line);
+      before.setEnd(range.startContainer, range.startOffset);
+      if(before.toString() === '---'){
+        ev.preventDefault();
+        const rest = document.createRange();
+        rest.selectNodeContents(line);
+        rest.setStart(range.startContainer, range.startOffset);
+        const tail = rest.extractContents();
+        const holder = document.createElement('div');
+        holder.innerHTML = noteRuleHtml('solid', '');
+        const rule = holder.firstChild;
+        const after = document.createElement('div');
+        if(tail.textContent || (tail.querySelector && tail.querySelector('img,[data-media],[data-ref],[data-sticker]'))) after.appendChild(tail);
+        else after.appendChild(document.createElement('br'));
+        line.replaceWith(rule);
+        rule.after(after);
+        placeCaret(after, false);
+        if(after.firstChild && after.firstChild.nodeName !== 'BR'){
+          const r = document.createRange(); r.setStart(after, 0); r.collapse(true);
+          const sel2 = window.getSelection(); sel2.removeAllRanges(); sel2.addRange(r);
+        }
+        changed();
+        return;
+      }
     }
     /* The line after a divider may be a list, whose first item is then
        the line the caret starts. */

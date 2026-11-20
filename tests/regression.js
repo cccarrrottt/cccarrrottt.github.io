@@ -4125,11 +4125,18 @@ async function main(){
     rebuildChart(); buildSideTabs();
     setSideTab(document.getElementById('tagsPanel'), true);
     await new Promise(r=> setTimeout(r, 350));
-    const specialRow = document.querySelector(`.legend-item[data-tag="${FANFIC_TAG}"] .tag-special`);
-    const plainRow = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-special');
+    const specialRow = document.querySelector(`.legend-item[data-tag="${FANFIC_TAG}"] .tag-eye-star polygon`);
+    const plainRow = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-eye-star');
+    const plainEye = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-eye');
     out.starOnSpecial = !!specialRow;
     out.noStarOnPlain = !plainRow;
-    out.starIsBlue = specialRow ? getComputedStyle(specialRow).color : null;
+    out.starIsBlue = specialRow ? getComputedStyle(specialRow).stroke : null;
+    out.starHollow = specialRow ? getComputedStyle(specialRow).fill : null;
+    out.ringOnPlain = plainEye ? {bw:getComputedStyle(plainEye).borderTopWidth,
+                                  bg:getComputedStyle(plainEye).backgroundColor} : null;
+    out.noAsterisk = ![...document.querySelectorAll('.legend-item .name')].some(e=> /\*/.test(e.textContent));
+    const specialHead = [...document.querySelectorAll('.legend-group-special .special-mark')][0];
+    out.specialHeadBlue = specialHead ? getComputedStyle(specialHead).color : null;
 
     /* A control that cannot act does not answer the pointer either. */
     const dead = document.createElement('button');
@@ -4174,9 +4181,15 @@ async function main(){
         JSON.stringify({open:r18.blankNoteWhileOpen, kept:r18.blankLeaderKept}));
   check('while a plate nobody wrote is dropped when the popover closes',
         r18.blankPlateDropped, JSON.stringify({dropped:r18.blankPlateDropped}));
-  check('a tag that changes what carries it wears a star',
-        r18.starOnSpecial && r18.noStarOnPlain && /47, 111, 181|2f6fb5/.test(r18.starIsBlue || ''),
-        JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue}));
+  check('a tag that changes what carries it hangs by a hollow blue star, not an asterisk',
+        r18.starOnSpecial && r18.noStarOnPlain && /47, 111, 181|2f6fb5/.test(r18.starIsBlue || '') &&
+        r18.starHollow === 'none' && r18.noAsterisk,
+        JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue,
+                        fill:r18.starHollow, asterisk:!r18.noAsterisk}));
+  check('an ordinary tag hangs by a ring, and the Special group’s star is blue',
+        !!r18.ringOnPlain && r18.ringOnPlain.bw === '1px' && r18.ringOnPlain.bg === 'rgba(0, 0, 0, 0)' &&
+        /47, 111, 181/.test(r18.specialHeadBlue || ''),
+        JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue}));
   check('a control that cannot act is faded and takes no pointer',
         r18.disabledOpacity < 0.6 && r18.disabledCursor === 'default',
         JSON.stringify({o:r18.disabledOpacity, c:r18.disabledCursor}));
@@ -16495,7 +16508,12 @@ async function main(){
                        /legendOwn:/.test(serializeSettings(SETTINGS));
     setSideTab(document.getElementById('keyPanel'), false);
     markReadOnly(); await wait(200);
-    out.legendHiddenForReader = getComputedStyle(document.getElementById('keyPanel')).display === 'none';
+    // Since 20.11 the reader reads the legend too, and only reads it.
+    setSideTab(document.getElementById('keyPanel'), true); await wait(150);
+    out.legendHiddenForReader = getComputedStyle(document.getElementById('keyPanel')).display !== 'none' &&
+      !keyList.querySelector('input, textarea, .plus-mini, .key-sample-btn') &&
+      [...keyList.querySelectorAll('.key-name')].some(x=> x.textContent === 'Entity');
+    setSideTab(document.getElementById('keyPanel'), false);
     markEditable(); await wait(200);
 
     /* 2 and 3. A merge: the arrow out of it is a connector with a look of
@@ -16685,7 +16703,7 @@ async function main(){
   check('the form shows the tag colour and stores none of it', r.formShowsTagColour && r.formStoresNothing);
   check('border and background colours sit side by side', r.hexPair);
   check('a callout is added from a mark beside the path', r.calloutMark);
-  check('the legend takes rows of the author\'s own, and readers do not see it',
+  check('the legend takes rows of the author\'s own, and readers read it with nothing to edit (20.11)',
         r.legendOwnRow && r.legendHiddenForReader, JSON.stringify({own:r.legendOwnRow, hidden:r.legendHiddenForReader}));
   check('an amalgam may ripple', r.amalgamRipples);
   check('the merged arrow can be pointed at, styled, repainted and lit, but not deleted',
@@ -22333,7 +22351,7 @@ async function main(){
       r.asReader = readOnlyView && document.body.classList.contains('reader-preview') &&
                    getComputedStyle(toggle).display !== 'none' &&
                    getComputedStyle(document.getElementById('mediaPanel')).display !== 'none' &&
-                   getComputedStyle(document.getElementById('keyPanel')).display === 'none';
+                   getComputedStyle(document.getElementById('keyPanel')).display !== 'none';
       toggle.click();
       await wait(200);
       r.back = !readOnlyView && !document.body.classList.contains('reader-preview') &&
@@ -22580,14 +22598,15 @@ async function main(){
       }
 
       /* 6. A reader's edge is the drawers they have, with no gaps: three
-            then, four since the Media drawer is theirs (15.11). */
+            then, four since the Media drawer is theirs (15.11), all five
+            since the legend is too (20.11). */
       setReaderPreview(true);
       await wait(150);
       {
         const box = id=> document.getElementById(id).getBoundingClientRect();
-        const t = box('tagsPanel'), f = box('refsPanel'), d = box('mediaPanel'), m = box('minimapPanel');
-        r.reader = [t.height, f.height, d.height, m.height].map(v=> +v.toFixed(1))
-          .concat([+(f.top - t.bottom).toFixed(1), +(d.top - f.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
+        const t = box('tagsPanel'), f = box('refsPanel'), k = box('keyPanel'), d = box('mediaPanel'), m = box('minimapPanel');
+        r.reader = [t.height, f.height, k.height, d.height, m.height].map(v=> +v.toFixed(1))
+          .concat([+(f.top - t.bottom).toFixed(1), +(k.top - f.bottom).toFixed(1), +(d.top - k.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
       }
       setReaderPreview(false);
       await wait(150);
@@ -22626,9 +22645,9 @@ async function main(){
         JSON.stringify([out.cutBefore, out.cropTurnsCutOff, out.cutTurnsCropOff, out.bothIsCrop]));
   check('the entry\'s panel carries no help under the picture or the colours, no medium preview, and its facts stepped in and smaller',
         out.helpGone && out.noPreview && out.factIn, JSON.stringify([out.helpGone, out.noPreview, out.factIn]));
-  check('a reader\'s edge is shared by the four drawers they have',
-        out.reader[0] > 100 && [1, 2, 3].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
-        out.reader[4] < 20 && out.reader[4] >= 0 && [5, 6].every(i=> Math.abs(out.reader[i] - out.reader[4]) < 1), JSON.stringify(out.reader));
+  check('a reader\'s edge is shared by the five drawers they have',
+        out.reader[0] > 100 && [1, 2, 3, 4].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
+        out.reader[5] < 20 && out.reader[5] >= 0 && [6, 7, 8].every(i=> Math.abs(out.reader[i] - out.reader[5]) < 1), JSON.stringify(out.reader));
   });
 
   await scenario("the owner's list of 7.11: a figure on card layout, a card's things kept, faded lines, a ruled space, one tick, a lit reader's eye, a link that darkens, a line round a box", async () => {
@@ -24079,6 +24098,11 @@ async function main(){
     r.unfolds = !imgSec.classList.contains('collapsed');
     const plusBefore = document.querySelector('#stickerOverlay .files-section[data-kind="stickers"]').classList.contains('collapsed');
     r.plusNoFold = plusBefore === false;
+    /* 20.11: the + is the window's, beside its ✕, on no kind's heading. */
+    const plus = document.getElementById('stickerUpload');
+    r.plusByClose = plus.parentElement.classList.contains('edge-popover-head') &&
+                    plus.nextElementSibling === document.getElementById('stickerClose') &&
+                    !plus.closest('.files-head');
     MEDIA.splice(MEDIA.findIndex(m=> m.key === 'q19vid'), 1);
     document.getElementById('stickerClose').click();
 
@@ -24159,9 +24183,9 @@ async function main(){
   });
   check('an array\'s hatching stops under the border and tabs of an entry in it, and comes back under one faded (19.11, evening)',
         hatchHoles.box && hatchHoles.tab && hatchHoles.gives, JSON.stringify(hatchHoles));
-  check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note)',
-        out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold,
-        JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds]));
+  check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note), with its + beside the ✕ (20.11)',
+        out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold && out.plusByClose,
+        JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds, out.plusByClose]));
   check('a legend row’s mark can be a picture of the author’s own, kept with the chart, shown to a reader as a picture, and taken off again',
         out.icon && out.iconKept && out.readerIcon && out.iconOff, JSON.stringify([out.icon, out.iconKept, out.readerIcon, out.iconOff]));
   check('…and every mark stands level with the middle of its words', out.level.length > 0 && out.level.every(d=> d <= 1.5), JSON.stringify(out.level));
@@ -24279,6 +24303,143 @@ async function main(){
     check('…a pan stops with the middle of the view on the field', Math.abs(pan.mid - pan.x0) < 0.5, JSON.stringify(pan));
     check('…and the page goes again with the entry', back === r.f.x1, JSON.stringify([back, r.f.x1]));
   });
+  await scenario("the owner's list of 20.11: a divider on the first line, a worn template that shows who wears it, a field of 2000 square, a parent's bead in the hand, a pencil and an eraser", async () => {
+  const X = 230000, Y = 230000;
+  await page.evaluate(([X, Y])=>{
+    window.__k2011 = {nodes: workingNodes.map(x=> x.slice()), settings: JSON.parse(JSON.stringify(SETTINGS))};
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{
+      workingNodes.push(['q20_n', 'Noted', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['q20_a', 'One', null, null, null, null, {pos:[X, Y + 300]}]);
+      workingNodes.push(['q20_b', 'Two', null, null, null, null, {pos:[X + 260, Y + 300]}]);
+      workingNodes.push(['q20_c', 'Three', null, null, null, null, {pos:[X + 520, Y + 300]}]);
+      workingNodes.push(['q20_m', 'Merge', ['q20_a', 'q20_b', 'q20_c'], null, null, null, {merge:true, pos:[X + 160, Y + 500]}]);
+      workingNodes.push(['q20_f', 'Shaped', null, null, null, null, {pos:[X + 900, Y], figure:{name:'Q20 blob', d:'M0,0 L10,0 L10,10 Z'}}]);
+      workingNodes.push(['q20_g', 'Shaped far', null, null, null, null, {pos:[X + 9000, Y], figure:{name:'Q20 blob', d:'M0,0 L10,0 L10,10 Z'}}]);
+    });
+    rebuildChart();
+    selectNode('q20_n');
+    return true;
+  }, [X, Y]);
+  await page.waitForTimeout(300);
+  try{
+  /* 1. Three dashes and Enter on the first line of a field emptied by
+     hand make a divider, as on any other line. */
+  await page.click('#detailNoteEdit'); await page.waitForTimeout(150);
+  await page.keyboard.type('x');
+  await page.keyboard.press('Control+a'); await page.keyboard.press('Backspace');
+  await page.keyboard.type('---'); await page.keyboard.press('Enter');
+  await page.keyboard.type('below');
+  await page.waitForTimeout(650);
+  const firstRule = await page.evaluate(()=> (nodes.get('q20_n') || {}).note);
+  await page.evaluate(()=>{ deselect(); document.activeElement && document.activeElement.blur && document.activeElement.blur(); });
+  await page.waitForTimeout(150);
+
+  /* 2. The × of a template worn by an entry answers: it says why, and
+     the view goes to the nearest entry drawn with it, lit a moment. */
+  const worn = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    openFigureMenu(true); await wait(100);
+    const b = [...document.querySelectorAll('.figure-template')].find(x=> /Q20 blob/.test(x.textContent));
+    const x = b && b.querySelector('.figure-template-drop');
+    const clickable = !!x && x.getAttribute('aria-disabled') !== 'true' && getComputedStyle(x).cursor !== 'default';
+    if(x) x.click();
+    await wait(80);
+    const msg = document.getElementById('saveState') ? document.getElementById('saveState').textContent : '';
+    const lit = !!document.querySelector('.node.beacon[data-id="q20_f"]') && !document.querySelector('.node.beacon[data-id="q20_g"]');
+    const sr = svg.getBoundingClientRect(), n = nodes.get('q20_f');
+    const mid = {x: (sr.width / 2 - vx) / vs, y: (sr.height / 2 - vy) / vs};
+    const centred = Math.abs(mid.x - (n.x + n.w / 2)) < 1 && Math.abs(mid.y - (n.y + n.h / 2)) < 1;
+    const kept = cleanFigureTemplates(SETTINGS.figures).some(t=> t.d === 'M0,0 L10,0 L10,10 Z') ||
+                 workingNodes.some(e=> e[6] && e[6].figure && e[6].figure.name === 'Q20 blob');
+    await wait(1900);
+    const goes = !document.querySelector('.node.beacon');
+    return {clickable, msg, lit, centred, kept, goes};
+  });
+
+  /* 3. The field is pages of 2000 by 2000. */
+  const page2000 = await page.evaluate(()=> FIELD_PAGE_W === 2000 && FIELD_PAGE_H === 2000 &&
+    (chartField.x1 - chartField.x0) % 2000 === 0 && (chartField.y1 - chartField.y0) % 2000 === 0);
+
+  /* 4. A parent carried: the bead where its line meets the bar swells,
+     and only while it is in the hand. */
+  await page.evaluate(([X, Y])=>{ vs = 1; vx = -X + 200; vy = -Y + 100; applyTransform(); }, [X, Y]);
+  await page.waitForTimeout(150);
+  const pb = await page.evaluate(()=>{ const r = document.querySelector('.node[data-id="q20_b"] rect').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+  const beadBefore = await page.evaluate(()=> document.querySelectorAll('.amalgam-joint.bead-carried').length);
+  await page.mouse.move(pb[0], pb[1]); await page.mouse.down();
+  await page.mouse.move(pb[0] + 10, pb[1], {steps:3}); await page.mouse.move(pb[0] + 24, pb[1], {steps:3});
+  await page.waitForTimeout(80);
+  const beadIn = await page.evaluate(()=>{
+    const c = document.querySelector('.amalgam-joint.bead-carried');
+    return c ? {lands: c.dataset.lands, scale: getComputedStyle(c).transform} : null;
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const beadAfter = await page.evaluate(()=> document.querySelectorAll('.bead-carried').length);
+  await page.evaluate(()=> undoLastEdit());
+  await page.waitForTimeout(150);
+
+  /* 5. The pencil writes over everything, the entry under it untouched;
+     the eraser takes the stroke it passes; each is one edit; the strokes
+     are saved with the chart, and a reader sees them and holds neither. */
+  await page.click('#inkPen');
+  const nb = await page.evaluate(()=>{ const r = document.querySelector('.node[data-id="q20_n"] rect').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
+  await page.mouse.move(nb[0] - 20, nb[1] + nb[3] / 2); await page.mouse.down();
+  for(let i = 1; i <= 12; i++) await page.mouse.move(nb[0] - 20 + i * 12, nb[1] + nb[3] / 2 + (i % 2 ? 6 : -6));
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  const pen = await page.evaluate(()=>({
+    n: (SETTINGS.ink || []).length, drawn: document.querySelectorAll('#inkLayer .ink-stroke').length,
+    entryStays: !selectedId && Math.abs(nodes.get('q20_n').x - 230000) < 1,
+    onTop: [nodeLayer, frontLayer, edgeLayer].every(l=> [...viewport.children].indexOf(document.getElementById('inkLayer')) > [...viewport.children].indexOf(l)),
+    saved: /"ink":\[\{"pts":\[/.test(chartFileText()),
+    onField: (SETTINGS.ink || []).every(s=> s.pts.every((v, i)=> i % 2 ? v >= chartField.y0 && v <= chartField.y1 : v >= chartField.x0 && v <= chartField.x1))
+  }));
+  await page.click('#inkEraser');
+  await page.mouse.move(nb[0] + 40, nb[1] - 30); await page.mouse.down();
+  await page.mouse.move(nb[0] + 40, nb[1] + nb[3] + 30, {steps:12}); await page.mouse.up();
+  await page.waitForTimeout(100);
+  const erased = await page.evaluate(()=> (SETTINGS.ink || []).length);
+  await page.evaluate(()=> undoLastEdit()); await page.waitForTimeout(100);
+  const undone = await page.evaluate(()=>({n: (SETTINGS.ink || []).length, drawn: document.querySelectorAll('#inkLayer .ink-stroke').length}));
+  await page.keyboard.press('Escape');
+  const reader = await page.evaluate(async ()=>{
+    setReaderPreview(true); await new Promise(ok=> setTimeout(ok, 150));
+    const r = {sees: document.querySelectorAll('#inkLayer .ink-stroke').length,
+               noTools: getComputedStyle(document.getElementById('inkPen')).display === 'none' &&
+                        getComputedStyle(document.getElementById('inkEraser')).display === 'none',
+               down: !inkTool};
+    setReaderPreview(false); await new Promise(ok=> setTimeout(ok, 150));
+    return r;
+  });
+
+  check('three dashes and Enter make a divider on the very first line too, a field emptied by hand included (20.11)',
+        firstRule === '{{hr:solid}}\nbelow', JSON.stringify(firstRule));
+  check('a worn template\'s × still answers: it says why it stays, and shows the nearest entry drawn with it, lit a moment (20.11)',
+        worn.clickable && /can.t be taken out/.test(worn.msg) && worn.lit && worn.centred && worn.kept && worn.goes, JSON.stringify(worn));
+  check('the field is laid in pages of 2000 by 2000 (20.11)', page2000);
+  check('a parent carried swells the bead where its line meets the bar, and only while it is in the hand (20.11)',
+        beadBefore === 0 && !!beadIn && beadIn.lands === 'q20_b' && /matrix\(1\.6/.test(beadIn.scale) && beadAfter === 0,
+        JSON.stringify({beadBefore, beadIn, beadAfter}));
+  check('the pencil writes over the chart, leaving the entry under it be, and the stroke is saved with the chart (20.11)',
+        pen.n === 1 && pen.drawn === 1 && pen.entryStays && pen.onTop && pen.saved && pen.onField, JSON.stringify(pen));
+  check('…the eraser takes the stroke it passes over, and either is undone as one edit',
+        erased === 0 && undone.n === 1 && undone.drawn === 1, JSON.stringify({erased, undone}));
+  check('…and a reader sees the strokes, holding neither tool', reader.sees === 1 && reader.noTools && reader.down, JSON.stringify(reader));
+  } finally {
+    await page.evaluate(()=>{
+      if(inkTool) setInkTool(null);
+      const k = window.__k2011;
+      workingNodes = k.nodes;
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      rebuildChart();
+      delete window.__k2011;
+      return true;
+    });
+  }
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

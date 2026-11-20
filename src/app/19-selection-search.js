@@ -981,6 +981,7 @@ function rebuildChart(){
   renderNodes();
   syncField();
   redrawEdges();
+  drawInk();
   buildSideTabs();
   updateStats();
   applyVisibility();

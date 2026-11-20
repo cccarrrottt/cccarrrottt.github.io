@@ -266,6 +266,17 @@
   /* The reader's view, asked for by the owner: only an editor has the
      button, and while it is on it stays, lit, as the way back. */
   body.read-only:not(.reader-preview) #readerToggle{display:none;}
+  /* The pencil and the eraser are the author's (44-ink.js). */
+  body.read-only .ink-tool{display:none !important;}
+  /* A pencilled note: the page's ink, a little soft, as pencil is, over
+     everything on the field and taking no pointer of its own. */
+  .ink-layer{pointer-events:none;}
+  .ink-stroke{fill:none;stroke:var(--ink);stroke-opacity:0.82;stroke-linecap:round;stroke-linejoin:round;}
+  body.ink-pen:not(.read-only) svg#canvas, body.ink-pen:not(.read-only) svg#canvas *{cursor:crosshair !important;}
+  body.ink-eraser:not(.read-only) svg#canvas, body.ink-eraser:not(.read-only) svg#canvas *{
+    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='8.5' fill='white' fill-opacity='0.5' stroke='%23333' stroke-width='1.2'/%3E%3C/svg%3E") 10 10, cell !important;
+  }
+  body.ink-pen:not(.read-only) svg#canvas, body.ink-eraser:not(.read-only) svg#canvas{touch-action:none;}
   /* The owner's way in, on the published site only (see 36-site-owner.js).
      Quiet on purpose: every reader sees it, and nearly none of them are
      the owner. */
@@ -1273,14 +1284,9 @@
   #keyPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 2 + var(--side-tab-gap) * 2);}
   #mediaPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 3 + var(--side-tab-gap) * 3);}
   #minimapPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 4 + var(--side-tab-gap) * 4);}
-  /* A reader has no legend's drawer, so the edge is shared by the four
-     they do have, not left with a gap in it (the owner's list of 2.11,
-     evening). The media's drawer is theirs since the list of 15.11: the
-     kinds, their counts and their eyes, with nothing to add or unfold. */
-  body.read-only .side-tab{height:calc((100% - var(--side-tab-gap) * 3) / 4);}
-  body.read-only #refsPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 + var(--side-tab-gap));}
-  body.read-only #mediaPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 2 + var(--side-tab-gap) * 2);}
-  body.read-only #minimapPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 3 + var(--side-tab-gap) * 3);}
+  /* A reader has all five drawers, the legend's too since the owner's
+     list of 20.11 — read, with nothing to edit or add — so the edge is
+     cut the same way for both. */
   .side-tab-body{
     position:absolute;left:25px;top:0;bottom:0;
     width:252px;
@@ -1404,12 +1410,10 @@
      and set in italic, which is how the panel already writes the things
      that are not tags anybody typed. */
   .tag-bucket{color:var(--ink-faint);font-style:italic;}
-  /* A tag that does something to the entries carrying it, not merely name
-     them. See SPECIAL_TAGS. */
-  .tag-special{
-    color:#2f6fb5;font-weight:700;margin-left:3px;cursor:help;
-    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
-  }
+  /* The blue that marks a tag that does something to the entries
+     carrying it, not merely names them (SPECIAL_TAGS): its star eyelet,
+     and the star in front of the group that holds such tags. */
+  .legend-group-name .special-mark{color:#2f6fb5;}
   .legend-item .count{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;color:var(--ink-faint);}
 
   /* Categories. The heading carries the group's own show/hide dot; the
@@ -1601,14 +1605,21 @@
     border-right:none;border-top:none;
     border-radius:0 0 0 2px;
   }
-  /* The eyelet. Small, and in the faint ink, so it reads as part of the
-     label rather than as a bullet in front of the word. */
+  /* The eyelet: a ring, the hole a label hangs by, in the faint ink so it
+     reads as part of the label rather than as a bullet in front of the
+     word. A tag that acts has a hollow star there instead, in its blue. */
   .tag-shape > .tag-eye{
-    position:absolute;left:2px;top:50%;
-    width:2.6px;height:2.6px;margin-top:-1.3px;
-    border-radius:50%;background:var(--ink-faint);
+    position:absolute;left:1.5px;top:50%;
+    box-sizing:border-box;width:4.6px;height:4.6px;margin-top:-2.3px;
+    border-radius:50%;border:1px solid var(--ink-faint);background:none;
     pointer-events:none;
   }
+  .tag-eye.tag-eye-star{border:none;border-radius:0;}
+  .tag-shape > .tag-eye.tag-eye-star{left:0.5px;width:7px;height:7px;margin-top:-3.6px;}
+  .tag-eye-star svg{display:block;width:100%;height:100%;overflow:visible;}
+  .tag-eye-star polygon{fill:none;stroke:#2f6fb5;stroke-width:1.1;stroke-linejoin:round;}
+  .tag-shape.tag-shape-special{cursor:help;}
+  .tag-menu button .tag-eye-star{display:inline-block;width:8px;height:8px;margin-right:4px;vertical-align:-0.5px;}
   .tag-chip{
     display:inline-flex;align-items:center;gap:4px;
     background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
@@ -2110,9 +2121,17 @@
   }
   .figure-template:hover .figure-template-drop, body.touch-input .figure-template-drop{display:block;}
   .figure-template-drop:hover{color:var(--accent);}
-  /* While an entry is drawn with the template the × is there but spent:
-     greyed, no pointer, and what it would say is on its title. */
-  .figure-template-drop.worn, .figure-template-drop.worn:hover{opacity:0.35;color:var(--ink-faint);cursor:default;}
+  /* While an entry is drawn with the template the × is greyed, but it
+     still answers: pressed, it says why it stays and shows the nearest
+     entry drawn with it (20.11). */
+  .figure-template-drop.worn{opacity:0.45;color:var(--ink-faint);}
+  .figure-template-drop.worn:hover{opacity:0.8;color:var(--danger,#c23b22);}
+  /* An entry shown for a moment — lit and let go, outward only. */
+  .node.beacon{animation:node-beacon 1.6s ease-out;}
+  @keyframes node-beacon{
+    0%, 55%{filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 2px var(--accent));}
+    100%{filter:none;}
+  }
   .figure-upload-plus{font-size:20px;line-height:30px;height:30px;color:var(--ink-dim);}
 
   /* Undo, redo and the guides, small, under the counts at the end of the
@@ -2700,15 +2719,14 @@
     text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-faint);
   }
   /* A kind of file folds away under its heading, with the ▸ every other
-     fold on the page wears; the + on the stickers' heading is still a
-     button of its own. */
+     fold on the page wears. The + is the window's, beside its ✕. */
   .files-head{cursor:pointer;user-select:none;}
   .files-head:hover .legend-group-fold{color:var(--accent);}
   .files-section:first-child .files-head{margin-top:2px;}
   .files-section.collapsed .legend-group-fold{transform:none;}
   .files-section.collapsed .files-fold{display:none;}
-  /* The fold and the count stand at the right, just before the +, the
-     same place under every heading (the owner's note of 19.11). */
+  /* The fold and the count stand at the right, the same place under
+     every heading (the owner's note of 19.11). */
   .files-head .legend-group-fold{margin-left:auto;}
   .files-count{color:var(--ink-dim);}
   .files-grid{
@@ -3344,9 +3362,6 @@
   .key-add-menu button:hover{background:var(--panel-2);}
   .key-add-own{color:var(--accent) !important;font-family:'IBM Plex Mono',monospace !important;font-size:10.5px !important;
     text-transform:uppercase;letter-spacing:0.4px;}
-  /* A reader is not shown the legend at all: it is the author's working
-     key while the chart is being made (the owner's call, 2026-10-14). */
-  body.read-only #keyPanel{display:none !important;}
   .ref-item{
     padding:7px 8px;border-bottom:1px solid var(--line);position:relative;
   }
@@ -3726,6 +3741,11 @@
     .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
     .search-wrap svg{top:9px;}
     .topbar > .icon-btn{order:3;width:34px;height:34px;}
+    /* A phone has room for one more button, not two: the eraser stands
+       in for the look-as-a-reader eye while a tool is in the hand, and
+       otherwise the pencil is the one way in. */
+    body:not(.ink-pen):not(.ink-eraser) #inkEraser{display:none;}
+    body.ink-pen #readerToggle, body.ink-eraser #readerToggle{display:none;}
     /* The second row starts at the left like the first — undo, redo, the
        guides — and Save keeps to its right end, just before the account
        (the owner's list of 11.11): it stood in the middle of the row with

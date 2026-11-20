@@ -337,6 +337,8 @@ function importChartFromText(text){
     if(figuresIn.length) SETTINGS.figures = figuresIn; else delete SETTINGS.figures;
     const mediaTypesIn = cleanMediaTypes(settingsIn && settingsIn.mediaTypes);
     if(mediaTypesIn.length) SETTINGS.mediaTypes = mediaTypesIn; else delete SETTINGS.mediaTypes;
+    const inkIn = cleanInk(settingsIn && settingsIn.ink);
+    if(inkIn.length) SETTINGS.ink = inkIn; else delete SETTINGS.ink;
     ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn', 'legendIcons'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
     });
@@ -670,6 +672,7 @@ function markReadOnly(){
   if(readOnlyView) return;
   readOnlyView = true;
   document.body.classList.add('read-only');
+  if(inkTool) setInkTool(null);   // a reader holds no pencil
   setSaveState(null);
   // This can run during load, before the panels it tidies up have been
   // declared — nothing is open that early anyway, so each one is attempted
