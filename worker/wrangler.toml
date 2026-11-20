@@ -40,6 +40,12 @@ workers_dev = true
 REPO = "cccarrrottt/cccarrrottt.github.io"
 BRANCH = "main"
 OWNERS = "cccarrrottt"
+# Who writes the chart with the owner: GitHub logins, comma-separated. An
+# editor saves entries, connectors and pictures as the owner does, but not
+# the chart's settings, and does not close suggestions; see index.js. Each
+# also has to be able to push to the repository (Settings, Collaborators,
+# with Write), because the commit is made with their own token.
+EDITORS = ""
 ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
 
 # Keeps what the service writes to its console, so the owner can read it in
@@ -47,3 +53,11 @@ ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
 # site's readers meet, which the page sends to POST /report.
 [observability]
 enabled = true
+
+# Where the faults readers meet are counted (see "what goes wrong in readers'
+# browsers" in index.js), so they outlast the three days the log is kept.
+# No id on purpose: wrangler (4.45 and later) makes the namespace on the
+# first deploy and keeps using it, so there is nothing for the owner to
+# create by hand. The service runs without it, with the log alone.
+[[kv_namespaces]]
+binding = "FAULTS"

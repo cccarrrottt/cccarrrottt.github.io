@@ -870,6 +870,110 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     globalThis.fetch = ghFetch;
   }
 
+  /* Faults, counted. The log keeps them three days; the namespace keeps
+     them until the owner has read them. */
+  const kv = new Map();
+  const FAULTS = {
+    get: async k => kv.has(k) ? kv.get(k) : null,
+    put: async (k, v) => { if(FAULTS.full) throw new Error('KV put() limit exceeded for the day.'); kv.set(k, v); },
+    delete: async k => { kv.delete(k); },
+    list: async ({prefix}) => ({keys: [...kv.keys()].filter(k => k.startsWith(prefix)).map(name => ({name}))})
+  };
+  const KENV = {...ENV, FAULTS};
+  const report = (env, b) => svc.fetch(new Request(SVC + '/report', {method: 'POST', headers: {Origin: SITE}, body: JSON.stringify(b)}), env);
+  console.error = () => {};
+  for(let i = 0; i < 3; i++) await report(KENV, {...fault, version: '0.26.' + i});
+  await report(KENV, {...fault, stack: 'reached another way'});
+  await report(KENV, {...fault, message: 'a second fault'});
+  FAULTS.full = true;
+  r = await report(KENV, {...fault, message: 'a third, on a day the writes ran out'});
+  FAULTS.full = false;
+  console.error = consoleError;
+  check('a fault is still taken when the count cannot be written', r.status === 204, r.status);
+  const owners = (tok, p, init) => svc.fetch(new Request(SVC + p, Object.assign({headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
+                                              'Content-Type': 'application/json'}}, init || {})), KENV);
+  r = await owners(s, '/faults');
+  body = await r.json();
+  const first = body.faults && body.faults.find(f => f.message === fault.message);
+  check('the same fault met four times is one line of the list, counted four times',
+        r.status === 200 && body.kept === true && body.faults.length === 2 && !!first && first.count === 4, JSON.stringify(body).slice(0, 300));
+  check('and it holds what the newest report of it said, and when it was first and last met',
+        !!first && first.version === fault.version && first.stack === 'reached another way' && !!first.first && first.last >= first.first, JSON.stringify(first));
+  r = await owners(reader, '/faults');
+  check('a reader cannot read the list', r.status === 403, r.status);
+  r = await svc.fetch(new Request(SVC + '/faults', {headers: {Origin: SITE}}), KENV);
+  check('nor can anyone not signed in', r.status === 401, r.status);
+  r = await owners(reader, '/faults/clear', {method: 'POST', body: JSON.stringify({all: true})});
+  check('nor clear it', r.status === 403 && kv.size === 2, r.status);
+  r = await owners(s, '/faults/clear', {method: 'POST', body: JSON.stringify({key: first.key})});
+  body = await r.json();
+  check('the owner takes one fault off the list', r.status === 200 && body.cleared === 1 && kv.size === 1, JSON.stringify(body));
+  r = await owners(s, '/faults/clear', {method: 'POST', body: JSON.stringify({key: '../../anything'})});
+  check('and only by a name a fault can have', r.status === 400 && kv.size === 1, r.status);
+  r = await owners(s, '/faults/clear', {method: 'POST', body: JSON.stringify({all: true})});
+  check('or all of them', r.status === 200 && kv.size === 0);
+  r = await call('/faults', auth(s));
+  body = await r.json();
+  check('a service with no namespace says it keeps none, and lists none', r.status === 200 && body.kept === false && body.faults.length === 0,
+        JSON.stringify(body));
+
+  /* An editor: someone the owner writes the chart with. */
+  const EENV = {...ENV, EDITORS: 'someone, TheOwner'};
+  const asEditor = (p, init) => svc.fetch(new Request(SVC + p, init), EENV);
+  const ed = await session('someone');
+  r = await asEditor('/me', auth(ed));
+  body = await r.json();
+  check('an editor is told so, and is not an owner', r.status === 200 && body.editor === true && body.owner === false && !!body.sha,
+        JSON.stringify(body));
+  r = await asEditor('/me', auth(s));
+  body = await r.json();
+  check('an owner listed among the editors is still the owner', body.owner === true && !body.editor, JSON.stringify(body));
+  const edReader = await w.seal(ENV, 'session', {login: 'someone', as: 'reader', gh: 'tok-other', exp: Date.now() + 60000});
+  r = await asEditor('/me', auth(edReader));
+  body = await r.json();
+  check('a reader\'s session of a login in EDITORS is an editor\'s', body.editor === true, JSON.stringify(body));
+  r = await call('/me', auth(edReader));
+  body = await r.json();
+  check('and a reader\'s again once the login is taken out', r.status === 200 && !body.editor && body.owner === false, JSON.stringify(body));
+  const edHead = gh.dataAt(gh.head);
+  const edPost = (tok, payload) => asEditor('/save', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
+                                             'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+  r = await edPost(ed, {base: gitSha(edHead), chart: edit(edHead, c => c.refs.push({key: 'by-editor', title: 'Added by an editor'}))});
+  body = await r.json();
+  check('an editor\'s edit becomes a commit', r.status === 200 && gh.dataAt(gh.head).includes('Added by an editor') && !body.settingsKept,
+        r.status + ' ' + JSON.stringify(body).slice(0, 200));
+  const before = gh.dataAt(gh.head);
+  r = await edPost(ed, {base: gitSha(before), chart: edit(before, c => {
+    c.refs.push({key: 'by-editor-2', title: 'And another'});
+    c.settings = Object.assign({}, c.settings, {refColor: '#000000'});
+  })});
+  body = await r.json();
+  const saved = gh.dataAt(gh.head);
+  check('an editor\'s save keeps the repository\'s settings, and the rest of the edit',
+        r.status === 200 && saved.includes('And another') && JSON.stringify(JSON.parse(saved).settings) === JSON.stringify(JSON.parse(before).settings),
+        r.status + ' ' + JSON.stringify(body).slice(0, 200));
+  check('and says so, with the chart as saved, so the page shows the settings that stand',
+        body.settingsKept === true && body.merged === true && body.chart === saved, JSON.stringify(body).slice(0, 200));
+  const reordered = edit(saved, c => { c.settings = Object.fromEntries(Object.entries(c.settings || {}).reverse()); c.refs.push({key: 'by-editor-3', title: 'Third'}); });
+  r = await edPost(ed, {base: gitSha(saved), chart: reordered});
+  body = await r.json();
+  check('the same settings written in another order are not a change', r.status === 200 && !body.settingsKept, JSON.stringify(body).slice(0, 200));
+  r = await edPost(await session('a-stranger'), {base: gitSha(gh.dataAt(gh.head)), chart: gh.dataAt(gh.head)});
+  check('a login in neither list still cannot save', r.status === 403);
+  r = await asEditor('/resolve', {method: 'POST', headers: {Authorization: 'Bearer ' + ed, Origin: SITE, 'Content-Type': 'application/json'},
+                                  body: JSON.stringify({number: 2})});
+  check('an editor cannot close a suggestion', r.status === 403, r.status);
+  r = await asEditor('/faults', auth(ed));
+  check('nor read the faults', r.status === 403, r.status);
+  r = await asEditor('/login?origin=' + encodeURIComponent(SITE));
+  const st2 = new URL(r.headers.get('Location')).searchParams.get('state');
+  r = await asEditor(`/callback?code=code-other&state=${st2}`);
+  const edHtml = await r.text();
+  const edHanded = /"rhizomeSession":"([^"]+)"/.exec(edHtml);
+  const edSealed = edHanded ? await w.unseal(ENV, 'session', edHanded[1]) : null;
+  check('an editor signing in gets a session, sealed as a reader\'s so that it is only ever as much as the lists say',
+        r.status === 200 && !!edSealed && edSealed.login === 'someone' && edSealed.as === 'reader', r.status + ' ' + edHtml.slice(0, 200));
+
   /* The configuration. The three secrets live in Cloudflare; written into
      wrangler.toml they would be public, and would collide with the real
      ones. It happened once, with placeholder values. */
