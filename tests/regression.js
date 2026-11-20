@@ -15,7 +15,7 @@
    a CI runner installs the npm package and lets Playwright find its own
    browser. Neither should have to know the other exists, so the suite asks
    for each in turn and takes the first that answers. */
-const { chromium } = (() => {
+const { chromium, webkit } = (() => {
   const tried = ['/opt/node-tools/node_modules/playwright-core',
                  'playwright', 'playwright-core'];
   for(const where of tried){
@@ -145,7 +145,19 @@ const argOf = (flag) => {
   const hit = ARGS.find(a => a.startsWith(flag + '='));
   return hit ? hit.slice(flag.length + 1) : null;
 };
+/* --only takes alternatives too, `a|b`: a scenario runs when its name holds
+   any of them. No scenario's name has a bar in it. */
 const ONLY = (argOf('--only') || '').toLowerCase();
+const ONLY_ANY = ONLY ? ONLY.split('|').filter(Boolean) : [];
+/* Which engine draws the page. Chromium unless told otherwise; WebKit is
+   the engine of every browser on an iPhone, and CI runs a few scenarios in
+   it (the "Regression in WebKit" job), because the suite's Chromium cannot
+   say what a reader there sees. */
+const ENGINE = argOf('--browser') || 'chromium';
+if(ENGINE !== 'chromium' && ENGINE !== 'webkit'){
+  console.error(`--browser is chromium or webkit, not ${ENGINE}`);
+  process.exit(2);
+}
 const LIST = ARGS.includes('--list');
 const SHARD = (() => {
   const v = argOf('--shard');
@@ -163,7 +175,7 @@ const sceneTimes = [];
 async function scenario(name, body){
   const index = sceneNo++;
   if(LIST){ console.log(`  ${String(index).padStart(3)}  ${name}`); return; }
-  if(ONLY && !name.toLowerCase().includes(ONLY)){ sceneSkipped++; return; }
+  if(ONLY && !ONLY_ANY.some(o => name.toLowerCase().includes(o))){ sceneSkipped++; return; }
   if(SHARD && index % SHARD.of !== SHARD.i){ sceneSkipped++; return; }
   sceneRan++;
   const t0 = Date.now();
@@ -190,8 +202,8 @@ async function main(){
   /* The pinned browser if this machine has one, otherwise whatever
      Playwright installed for itself. */
   const PINNED = '/opt/pw-browsers/chromium';
-  const browser = await chromium.launch(
-    fs.existsSync(PINNED) ? {executablePath: PINNED} : {});
+  const browser = ENGINE === 'webkit' ? await webkit.launch()
+    : await chromium.launch(fs.existsSync(PINNED) ? {executablePath: PINNED} : {});
 
   const errors = [];
   const ctx = await browser.newContext({viewport:{width:1500, height:950}});
@@ -230,7 +242,7 @@ async function main(){
   page.on('console', m => { if(m.type() === 'error' && !NOISE.test(m.text())) errors.push('console: ' + m.text()); });
   page.on('requestfailed', () => {});
 
-  console.log(`\nRhizome Project regression — ${MODE}/${PAGE}\n`);
+  console.log(`\nRhizome Project regression — ${MODE}/${PAGE}${ENGINE === 'chromium' ? '' : ', in ' + ENGINE}\n`);
 
   await page.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
   await page.evaluate(WAVE_HELPERS);
@@ -341,16 +353,36 @@ async function main(){
      a font, the first time a Cyrillic letter is drawn — used to leave
      every width measured while it was on its way as the fallback's. */
   const late = await page.evaluate(async () => {
-    measureCache.set('__LATE_PROBE__', 1);
+    /* A width the faces now on the page would not give: as if it were
+       measured in the fallback before the real face came. */
+    measureText('Late probe', {});
+    const probeKey = [...measureCache.keys()].find(k => k.startsWith('Late probe\u0000'));
+    measureCache.set(probeKey, measureCache.get(probeKey) + 7);
     blockCache.set('__LATE_PROBE__', {width:1, height:1});
     document.fonts.dispatchEvent(new Event('loadingdone'));
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    return {measure: measureCache.has('__LATE_PROBE__'), block: blockCache.has('__LATE_PROBE__'),
+    return {measure: measureCache.has(probeKey), block: blockCache.has('__LATE_PROBE__'),
             drawn: !!document.querySelector('#nodeLayer .node, .node')};
   });
   check('a late font empties the width cache', !late.measure);
   check('…and the block cache with it', !late.block);
   check('…and the chart is drawn again, not left empty', late.drawn);
+
+  /* But a face arriving that changes no width the chart has measured —
+     the interface's own, every load — is not a reason to draw it all
+     again: on a phone that second drawing was two of the five and a half
+     seconds a 400-entry chart took to start (tools/bench-boot.js). */
+  const idle = await page.evaluate(async () => {
+    measureText('Steady probe', {});
+    const keep = document.querySelector('#nodeLayer .node');
+    blockCache.set('__STEADY_PROBE__', {width:1, height:1});
+    document.fonts.dispatchEvent(new Event('loadingdone'));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const kept = blockCache.has('__STEADY_PROBE__');
+    blockCache.delete('__STEADY_PROBE__');
+    return {kept, same: document.querySelector('#nodeLayer .node') === keep};
+  });
+  check('a face that changes no measured width redraws nothing', idle.kept && idle.same, JSON.stringify(idle));
 
   /* Nothing waits for the faces. The interface's arrive as a print-only
      stylesheet switched on when it lands, so the first draw does not wait
@@ -10479,11 +10511,28 @@ async function main(){
       // The service renewing a session whose GitHub token ran out.
       const renewed = api.renewNext ? {session: 'renewed-session'} : {};
       api.renewNext = false;
-      return reply(200, {owner: true, login: 'the-owner', sha: api.sha, media: !api.noMedia, ...renewed});
+      return reply(200, api.editor ? {owner: false, editor: true, login: 'an-editor', sha: api.sha, media: true}
+                                   : {owner: true, login: 'the-owner', sha: api.sha, media: !api.noMedia, ...renewed});
+    }
+    /* The faults the service has counted, and taking them off. */
+    if(u.pathname === '/faults') return api.editor ? reply(403, {error: 'this account may not edit the chart.'})
+                                                   : reply(200, {kept: true, faults: api.faults || []});
+    if(u.pathname === '/faults/clear'){
+      const b = JSON.parse(q.postData());
+      (api.cleared = api.cleared || []).push(b);
+      api.faults = b.all ? [] : (api.faults || []).filter(f => f.key !== b.key);
+      return reply(200, {cleared: 1});
     }
     if(u.pathname === '/save'){
       const b = JSON.parse(q.postData());
       api.saves.push(b);
+      /* An editor's save: the service keeps the repository's settings and
+         answers with the chart as it saved it. */
+      if(api.editor && b.base === api.sha){
+        const chart = chartEdited(b.chart, ch => { ch.settings = JSON.parse(dataRaw.toString('utf8')).settings; });
+        api.sha = 'sha-after-editor-save';
+        return reply(200, {sha: api.sha, merged: true, settingsKept: true, chart});
+      }
       if(b.base !== api.sha){
         // What the service answers when both saves changed one thing…
         if(api.conflicts) return reply(409, {error: 'the repository has a newer chart, and it changed something this save changed too.', conflicts: api.conflicts});
@@ -10931,6 +10980,63 @@ async function main(){
   await phone.evaluate(() => dropOutbox());
   await phone.close();
   api.sha = dataSha;
+
+  /* What broke in readers' browsers, counted by the service: the owner
+     reads it in About, as text, and takes off what is dealt with. */
+  api.faults = [
+    {key: 'fault:aaaaaaaaaaaaaaaaaaaa', kind: 'error', message: '<img src=x onerror=alert(1)> is not a function', count: 14,
+     last: '2026-11-19T10:00:00Z', version: '0.26.0', file: SITE_ORIGIN + '/app.0123.js', line: 3, col: 9,
+     ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+     stack: 'at drawThing (app.0123.js:3:9)'},
+    {key: 'fault:bbbbbbbbbbbbbbbbbbbb', kind: 'rejection', message: 'a second fault', count: 1, last: '2026-11-18T10:00:00Z', ua: 'Firefox/140.0 (X11; Linux)'}
+  ];
+  await site.evaluate(() => document.getElementById('aboutToggle').click());
+  await site.waitForFunction(() => !document.getElementById('aboutFaults').hidden, null, {timeout: 3000}).catch(() => {});
+  const fl = await site.evaluate(() => {
+    const box = document.getElementById('aboutFaults');
+    return {shown: !box.hidden, items: box.querySelectorAll('.fault-item').length, html: box.innerHTML,
+            meta: [...box.querySelectorAll('.fault-meta')].map(m => m.textContent),
+            msg: box.querySelector('.fault-msg') && box.querySelector('.fault-msg').textContent};
+  });
+  check('the owner sees in About what broke in readers\' browsers, newest first, and how often',
+        fl.shown && fl.items === 2 && /^14 times · last 2026-11-19 · Safari on iOS · version 0\.26\.0 · app\.0123\.js:3:9$/.test(fl.meta[0]) && /^once/.test(fl.meta[1]),
+        JSON.stringify(fl.meta));
+  check('and what a reader\'s browser sent is shown as text, never as markup',
+        fl.msg && fl.msg.startsWith('<img') && !/<img/.test(fl.html), fl.html.slice(0, 200));
+  await site.evaluate(() => document.querySelector('#aboutFaults .fault-drop').click());
+  await site.waitForFunction(() => document.querySelectorAll('#aboutFaults .fault-item').length === 1, null, {timeout: 3000}).catch(() => {});
+  const fl2 = await site.evaluate(() => document.querySelectorAll('#aboutFaults .fault-item').length);
+  check('one dealt with is taken off the list, by its name',
+        fl2 === 1 && !!api.cleared && api.cleared.length === 1 && api.cleared[0].key === 'fault:aaaaaaaaaaaaaaaaaaaa', JSON.stringify(api.cleared));
+  await site.evaluate(() => document.getElementById('aboutClose').click());
+
+  /* An editor: the chart is theirs to write, its settings and the readers'
+     faults are not. */
+  api.editor = true;
+  api.sha = await site.evaluate(() => siteBase);
+  const ed = await site.evaluate(async () => {
+    const ok = await checkSiteOwner();
+    document.getElementById('aboutToggle').click();
+    await new Promise(res => setTimeout(res, 300));
+    const out = {ok, editor: siteEditor, readOnly: readOnlyView, title: document.getElementById('ownerBtn').title,
+                 faults: !document.getElementById('aboutFaults').hidden};
+    document.getElementById('aboutClose').click();
+    const was = SETTINGS.refColor;
+    applyEdit(() => { SETTINGS.refColor = '#000000'; workingNodes[0][1] = 'AN EDITOR WROTE THIS'; });
+    await saveNow();
+    out.said = document.getElementById('saveStateText').textContent;
+    out.refColor = SETTINGS.refColor; out.was = was; out.first = workingNodes[0][1]; out.dirty = isDirty();
+    return out;
+  });
+  check('an editor gets the editor, and is told who they are',
+        ed.ok && ed.editor && !ed.readOnly && /edits the chart with its owner/.test(ed.title), JSON.stringify(ed));
+  check('but not the readers\' faults', !ed.faults, JSON.stringify(ed));
+  check('an editor\'s save keeps the owner\'s settings, says so, and shows them again',
+        /settings are the owner\u2019s/.test(ed.said) && ed.refColor === ed.was && ed.first === 'AN EDITOR WROTE THIS' && !ed.dirty,
+        JSON.stringify(ed));
+  api.editor = false;
+  api.sha = dataSha;
+  await site.evaluate(() => checkSiteOwner());
 
   await site.evaluate(() => document.getElementById('ownerBtn').click());
   const out = await site.evaluate(() => ({readOnly: readOnlyView, stored: localStorage.getItem('rhizome.site.session')}));

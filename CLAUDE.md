@@ -101,7 +101,17 @@ python3 tools/lint.py            # ~seconds, and tools/tdz.js with it
 node tests/worker.js             # ~instant, the write service
 node tests/regression.js         # ~6 minutes, against dist
 node tests/regression.js src     # ~6 minutes, against src
+node tests/snapshots.js          # ~10s, the look, by the pixel
 ```
+
+`tests/snapshots.js` draws `tests/snapshots/reference.json` with its text
+hidden and every entry sized by hand, and compares eight scenes with the
+pictures beside it; a T moved by one unit fails it. A change meant to
+change the look runs it with `--update` and commits the pictures, so the
+pull request shows both. They are drawn by the headless shell
+package-lock.json's Playwright names, which is what CI compares with; a
+picture from another system would only ever disagree. CI also runs a few
+scenarios in WebKit (`--browser=webkit`, and `--only=a|b` for several).
 
 `dist` and `src` load the same program by different paths. A green run on one
 says nothing about the other; run both.
@@ -167,7 +177,8 @@ site") and `build_guard`:
 
 - **The hidden controls are not the security.** Every reader gets the
   editor's code. The write service (`worker/index.js`) is what refuses:
-  session sealed with `SESSION_SECRET`, login in `OWNERS`, session handed
+  session sealed with `SESSION_SECRET`, login in `OWNERS` (or `EDITORS`,
+  whose saves keep the repository's settings), session handed
   only to `ALLOWED_ORIGINS`, and the commit made with the owner's own GitHub
   App user token so GitHub checks it again. `tests/worker.js` is mostly
   about what it refuses.
@@ -219,7 +230,8 @@ site") and `build_guard`:
   variable), outside the markers so no export carries it; and faults a
   reader's browser meets go to `POST /report` (`reportFault`,
   `01-store.js`), at most five a load, never with the session, which the
-  service writes to its log and nowhere else.
+  service writes to its log and counts in a KV namespace (`FAULTS`, made
+  by wrangler on deploy), listed for the owner at the top of About.
 - **Where the site lives is said once**, in `src/app/00-config.js`
   (`SITE_CONFIG`: `site`, `api`, `repo`, one quoted string to a line, so
   `build.py` and the suite read it as text). `SITE_ORIGINS`, `SITE_API` and
@@ -511,6 +523,26 @@ Two things were measured here and are not worth doing:
 - **Batching `inkBoxOf`'s reads** on the owner's chart (twelve forced
   layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
   what an edge note measures by a sub-pixel.
+
+### What a phone waits for on a chart of hundreds
+
+`tools/bench-boot.js` opens a synthetic chart of lineages that merge, with
+tags and notes, as a phone does: 390×844, CPU ×4, median of three.
+
+| entries | first entry on screen | start-up done, before | after |
+| ---: | ---: | ---: | ---: |
+| 41 | ~1.2 s | 1.6 s | 1.3 s |
+| 400 | ~3.4 s | 5.5 s | 3.8 s |
+
+Start-up drew the chart twice: once itself, and again when
+`document.fonts.ready` settled — every load, for the interface's own faces,
+to the same widths. `fontsLanded` now asks each remembered width again
+(`widthsMoved`) and redraws only when one comes out different.
+
+What is left before the first entry is `renderNodes` (~1.8 s at 400), and
+three quarters of that is measuring text with the cache cold. The side
+tabs (~75 ms) and the text view (~30 ms) also run at start-up; putting them
+off would save a thirtieth, so they are left where they are.
 
 ### What one edit costs, and the routes it no longer recomputes
 

@@ -295,6 +295,7 @@ function measureSpace(opts){
    once, so the cache is emptied and the chart redrawn — otherwise entries
    would keep their first-paint sizes for the rest of the session. */
 function fontsLanded(){
+  if(!widthsMoved()) return;
   measureCache.clear();
   inkReachCache.clear();
   /* And the block cache with it. It is declared further down — the two
@@ -303,6 +304,31 @@ function fontsLanded(){
      registered, or removed, independently of this one. */
   blockCache.clear();
   if(nodes && nodes.size) rebuildChart();
+}
+/* Whether any width remembered so far would now come out differently.
+
+   `ready` settles on every load, and `loadingdone` fires for faces the
+   chart never measures with (the interface's own) — and on a phone a
+   400-entry chart spent two of its five and a half seconds of start-up
+   drawing itself a second time for them, to the same widths
+   (tools/bench-boot.js). So each remembered width is asked again, and only
+   a difference empties the caches and redraws. Asking again is one small
+   layout per distinct string, a few hundred at most, against a rebuild
+   that lays out the whole drawing; the first difference ends the asking.
+   A face that changes how a string is inked changes its width too, so the
+   ink cache needs no probe of its own. */
+function widthsMoved(){
+  for(const [key, w] of measureCache){
+    const b = key.lastIndexOf('\u0000'), a = key.lastIndexOf('\u0000', b - 1);
+    const text = key.slice(0, a), style = key.slice(a + 1, b), face = key.slice(b + 1);
+    measureEl.setAttribute('font-size', style.slice(2));
+    measureEl.setAttribute('font-weight', style[0] === '1' ? '700' : '500');
+    measureEl.setAttribute('font-style', style[1] === '1' ? 'italic' : 'normal');
+    measureEl.setAttribute('font-family', face);
+    measureEl.textContent = text;
+    if((measureEl.getComputedTextLength() || text.length*6.5) !== w) return true;
+  }
+  return false;
 }
 /* `ready` settles once, for the faces the first paint asked for. A face
    can still arrive later — a family only one entry uses, or the Cyrillic

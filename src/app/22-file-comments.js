@@ -990,7 +990,8 @@ function renderSuggestions(empty){
     /* Done is a green round tick, Decline a red square cross (the
        owner's ask, 23.10): two words of the same weight were read as two
        of a kind, and the one the owner presses most was no easier to find. */
-    if(siteOwner){
+    // Closing one is the owner's; an editor writes the chart, not its replies.
+    if(siteOwner && !siteEditor){
       const done = document.createElement('button');
       done.type = 'button'; done.className = 'suggest-done';
       done.innerHTML = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3.4 8.4l3 3 6.2-6.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';

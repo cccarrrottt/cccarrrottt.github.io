@@ -182,7 +182,7 @@ receives the editor's code. It is that a static page cannot be written to,
 and the one place a write can go is the write service in `worker/`, which:
 
 - signs people in through a GitHub App and hands out a session only to a
-  login listed in `OWNERS`, and only to the site's own address;
+  login listed in `OWNERS` or `EDITORS`, and only to the site's own address;
 - commits with that person's own GitHub token, so GitHub refuses the write
   unless the account can push to the repository *and* the app is installed on
   it with Contents write — nothing on the page can change either answer;
@@ -258,7 +258,25 @@ another account or repository is a matter of changing those two files.
    them, and nobody else needs to see them.
 
 `worker/wrangler.toml` holds the rest: the repository, the branch, the owner
-logins and the site's address.
+logins, the editors' and the site's address.
+
+### Editors
+
+Someone the owner writes the chart with goes in `EDITORS` in
+`worker/wrangler.toml` — a GitHub login, or several, comma-separated — and,
+because the commit is made with their own GitHub token, the repository has
+to let them push: *Settings → Collaborators*, with *Write*. They press the
+same **Sign in**, and the page becomes the editor for them as it does for
+the owner. What stays the owner's:
+
+- **the chart's settings** — the legend, tag colours, media templates,
+  figures, the colour of references. An editor's Save keeps whatever
+  settings the repository holds and saves the rest of the edit; the page
+  then shows the settings that stand and says why;
+- **closing suggestions**, and the list of faults below.
+
+Taking a login out of `EDITORS` takes effect at the next request; their
+session is a reader's again.
 
 ### What the site counts, and what it is told
 
@@ -282,6 +300,16 @@ the browser; never the session. A page sends at most five, each once. The
 program on the site is minified, so a place reads as line and column of
 `app.<hash>.js`; its source map is beside it, `app.<hash>.map`, and the
 stack still names the functions, which minification leaves as they are.
+
+The log is kept three days on Cloudflare's free plan, so the service also
+counts each fault in a KV namespace, one line a fault however many readers
+met it: how many times, when last, in which browser and version. The owner
+reads that list at the top of **About**, signed in on the site, and takes a
+line off once it is dealt with; a fault nobody has met for ninety days goes
+on its own. The namespace is `FAULTS` in `worker/wrangler.toml`, written
+without an id: wrangler makes it on the first deploy and keeps it, so there
+is nothing to create by hand. Without it the service still logs, and About
+shows no list.
 
 ## Where the chart's contents actually live
 
@@ -755,6 +783,24 @@ waited through:
 
 An `--only` that matches nothing exits 2, not 0: a mistyped scenario name
 used to look exactly like a run that passed.
+
+    node tests/snapshots.js              the look, compared by the pixel
+    node tests/snapshots.js --update     draw the pictures again, to commit
+
+The suite asks the drawing questions in numbers. `tests/snapshots.js` looks:
+it draws `tests/snapshots/reference.json` — merges of every kind, a fork,
+bends, every end a line can have — with the text hidden and every entry
+sized by hand, so nothing in it depends on the fonts a machine has, and
+compares eight scenes with the pictures kept beside it. A T moved by a
+single unit fails it. A change meant to change the look commits the new
+pictures with it (`--update`), so the pull request shows the old drawing
+and the new one; a run that differs leaves what it drew, and where it
+differs, in `tests/snapshots/out/`, which CI keeps with the run.
+
+    node tests/regression.js --browser=webkit --only=…   the same in Safari's engine
+
+CI also runs a few scenarios in WebKit — the engine of every browser on an
+iPhone — where the suite's Chromium cannot say what a reader there sees.
 
 A plain run takes about six minutes and wants port 8830; `tools/shards.js`
 gives each shard a port of its own, so nothing collides. They pick up Playwright from `node_modules` and let it choose its own
