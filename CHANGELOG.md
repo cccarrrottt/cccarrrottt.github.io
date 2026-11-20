@@ -11,7 +11,7 @@ Releases before 0.9.0 were not numbered.
 The owner's list of 20.11.
 
 - Notes in the margin: a pencil and an eraser on the top bar. The pencil writes by hand over everything on the field, and the entry under it is left alone. The eraser takes away whole strokes as it passes over them. Each stroke, and each run of the eraser, is one edit that can be undone. Escape or the tool's button puts the tool down. The strokes are saved with the chart and every reader sees them; only the author holds the tools.
-- Tags are drawn with a ring where the eyelet was. A tag that does something hangs by a hollow five-pointed star instead, in the same ink as the ring, and the blue asterisk after its name is gone. The star before Special is blue and as tall as the capitals of its name.
+- Tags are drawn with a ring where the eyelet was. A tag that does something hangs by a hollow five-pointed star instead, in the same ink as the ring, and the blue asterisk after its name is gone. The star before Special is blue and larger than the capitals of its name.
 - The × on a template that an entry is drawn with can be pressed again. It says why the template stays, takes the view to the nearest entry drawn with it, and lights that entry for a moment.
 - Three dashes and Enter make a divider on the first line of a note too, including a note that was emptied by hand.
 - The field is laid in pages of 2000 by 2000.

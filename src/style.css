@@ -1413,8 +1413,9 @@
   /* The blue that marks a tag that does something to the entries
      carrying it, not merely names them (SPECIAL_TAGS): its star eyelet,
      and the star in front of the group that holds such tags. */
-  /* As tall as the capitals of the name beside it (20.11). */
-  .legend-group-name .special-mark{color:#2f6fb5;font-size:1.5em;line-height:0;vertical-align:-0.06em;}
+  /* Taller than the capitals of the name beside it, a mark rather than a
+     letter (the owner's drawing of 20.11). */
+  .legend-group-name .special-mark{color:#2f6fb5;font-size:2.3em;line-height:0;vertical-align:-0.2em;margin-right:-0.1em;}
   .legend-item .count{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;color:var(--ink-faint);}
 
   /* Categories. The heading carries the group's own show/hide dot; the
