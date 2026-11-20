@@ -106,11 +106,11 @@ function rgbToHex(v){
    family string keeps text pasted from an older copy working. */
 function fontKeyOfEl(el){
   const k = el.dataset && el.dataset.font;
-  if(k && FONT_OPTIONS.some(f=> f.key === k)) return k;
+  if(k && fontOptions().some(f=> f.key === k)) return k;
   const fam = el.style && el.style.fontFamily;
   if(!fam) return null;
   const norm = fam.replace(/["']/g, '').toLowerCase();
-  const hit = FONT_OPTIONS.find(f=> f.family.replace(/["']/g, '').toLowerCase() === norm);
+  const hit = fontOptions().find(f=> f.family.replace(/["']/g, '').toLowerCase() === norm);
   return hit ? hit.key : null;
 }
 /* The size a run is set at, in px, if it carries one of its own. Read from

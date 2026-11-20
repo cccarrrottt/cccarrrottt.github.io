@@ -78,10 +78,11 @@ const DATA_PATH = 'src/chart.json';
    localStorage. Drawn as an <img> or an <image> it runs nothing, which is
    all the chart ever does with one; so the page keeps an SVG embedded as a
    data: URI, which has no address on the site to be opened at, and this
-   refuses a file that would give it one. */
+   refuses a file that would give it one. A font is among them: opened at
+   its address it is a font, and runs nothing. */
 const MEDIA_DIR = 'src/media';
-const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)$/;
-const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)/g;
+const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)$/;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)/g;
 // A session with nothing to renew itself with lasts as long as its token.
 const SESSION_HOURS = 8;
 // A renewable one lasts this long from its last renewal, so a phone left in

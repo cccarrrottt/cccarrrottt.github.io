@@ -101,14 +101,99 @@ const FONT_OPTIONS = [
     web:'Orbitron:wght@500;700;800' },
   { key:'hand',      label:'Caveat (handwritten)',      family:"'Caveat', cursive",
     web:'Caveat:wght@500;600;700' },
-  // Embedded as a data: URI in the @font-face block up top, not fetched
-  // from a font host — see the note there.
-  { key:'autobot',   label:'Autobot Characters',        family:"'Autobot Characters', 'IBM Plex Sans', sans-serif" },
 ];
+/* …and after them, the chart's own faces (the owner's word of 20.11):
+ * fonts somebody brought in, kept in SETTINGS.fonts as {key, name, src}
+ * and listed in My files under a heading of their own. Autobot Characters
+ * was one of these, written into the stylesheet as a data: URI; it is the
+ * owner's chart's first own face now, a file in media/ like a picture.
+ *
+ * The list above is the program's, the rest is the chart's, so the rest
+ * is made again from SETTINGS whenever SETTINGS.fonts is another array
+ * than the one it was made from — every edit, undo and import puts a new
+ * one there — and every list of faces on the page asks fontOptions()
+ * rather than reading the array. */
+const BUILT_IN_FONTS = FONT_OPTIONS.length;
+const BUILT_IN_FONT_KEYS = new Set(FONT_OPTIONS.map(f=> f.key));
+const FONT_EXT = {'font/ttf':'ttf', 'font/otf':'otf', 'font/woff':'woff', 'font/woff2':'woff2'};
+var userFontsFrom = FONT_EXT;   // anything SETTINGS.fonts can never be
+const userFaces = new Map();    // family -> the FontFace given the page for it
+/* A file of a face, by its name — the type a browser gives a font file is
+   anything from font/ttf to application/x-font-ttf to nothing at all. */
+function fontTypeOfName(name){
+  const m = /\.(ttf|otf|woff2?)$/i.exec(String(name || ''));
+  return m ? 'font/' + m[1].toLowerCase() : null;
+}
+/* Carried in the file as a font, or one of the chart's files that is one —
+   never fetched from anywhere else, for the reason a picture is not. */
+function fontSrcOk(src){
+  if(typeof src !== 'string' || !src) return false;
+  if(mediaRefKind(src) === 'font') return true;
+  return /^data:font\/(ttf|otf|woff2?);base64,[A-Za-z0-9+/]+=*$/.test(src);
+}
+function cleanFonts(v){
+  if(!Array.isArray(v)) return [];
+  const seen = new Set(), out = [];
+  v.forEach(f=>{
+    if(!f || typeof f !== 'object') return;
+    const key = typeof f.key === 'string' ? f.key.trim() : '';
+    if(!/^[A-Za-z0-9_-]{1,40}$/.test(key) || seen.has(key) || BUILT_IN_FONT_KEYS.has(key)) return;
+    const src = typeof f.src === 'string' ? f.src.trim() : '';
+    if(!fontSrcOk(src)) return;
+    const name = (typeof f.name === 'string' && f.name.trim() ? f.name.trim() : key).slice(0, 60);
+    seen.add(key);
+    out.push({key, name, src});
+  });
+  return out;
+}
+/* The family a face is given on the page: its name, with nothing in it a
+   stylesheet would read as anything but a name, and its key beside it
+   when two faces of the chart share a name. */
+function ownFontFamily(f, taken){
+  let fam = f.name.replace(/['"\\;{}<>()]/g, '').trim() || ('Face ' + f.key);
+  if(taken.has(fam.toLowerCase())) fam += ' ' + f.key;
+  taken.add(fam.toLowerCase());
+  return fam;
+}
+function syncUserFonts(){
+  const raw = typeof SETTINGS !== 'undefined' ? SETTINGS.fonts : undefined;
+  userFontsFrom = raw;
+  const taken = new Set(FONT_OPTIONS.slice(0, BUILT_IN_FONTS).map(f=> f.label.toLowerCase()));
+  const own = cleanFonts(raw).map(f=>{
+    const fam = ownFontFamily(f, taken);
+    return {key: f.key, label: f.name, own: true, src: f.src, face: fam,
+            family: `'${fam}', 'IBM Plex Sans', sans-serif`};
+  });
+  FONT_OPTIONS.splice(BUILT_IN_FONTS, FONT_OPTIONS.length - BUILT_IN_FONTS, ...own);
+}
+function fontOptions(){
+  if(typeof SETTINGS !== 'undefined' && SETTINGS.fonts !== userFontsFrom) syncUserFonts();
+  return FONT_OPTIONS;
+}
 function fontFamilyFor(key){
-  const opt = FONT_OPTIONS.find(f=>f.key===key);
+  const opt = fontOptions().find(f=>f.key===key);
   if(opt && opt.web && !opt.asked) askForFace(opt);
+  if(opt && opt.own) giveOwnFace(opt);
   return opt ? opt.family : FONT_OPTIONS[0].family;
+}
+/* An own face is handed to the page the first time something is set in
+   it, as a web face is asked for (askForFace) — a chart may carry a face
+   no entry wears any more — and whatever was measured before its bytes
+   land is measured again when they do. Given again when its file is. */
+function giveOwnFace(opt){
+  const had = userFaces.get(opt.face);
+  if(had && had.src === opt.src) return;
+  if(!document.fonts || typeof FontFace === 'undefined') return;
+  if(had) try{ document.fonts.delete(had.face); }catch(e){}
+  let face;
+  try{ face = new FontFace(opt.face, `url("${opt.src}")`, {display: 'swap'}); }
+  catch(e){ return; }
+  userFaces.set(opt.face, {src: opt.src, face});
+  document.fonts.add(face);
+  face.load().then(()=>{
+    if(fontsLandedFrame) return;
+    fontsLandedFrame = requestAnimationFrame(()=>{ fontsLandedFrame = 0; fontsLanded(); });
+  }).catch(()=>{});
 }
 /* Once per face and page. Whatever was measured before it lands is
    measured again when it does (fontsLanded), as for any late face. */

@@ -193,7 +193,13 @@
                 "items": {"type": "object", "required": ["pts"], "additionalProperties": false,
                           "properties": {"pts": {"type": "array", "items": {"type": "number"}, "minItems": 4},
                                          "w": {"type": "number", "exclusiveMinimum": 0, "maximum": 40}}},
-                "description": "Notes pencilled by hand over the field (0.26.1): each stroke the world points it passes through, x and y in turn, and its width when it is not the pencil's own 2."}
+                "description": "Notes pencilled by hand over the field (0.26.1): each stroke the world points it passes through, x and y in turn, and its width when it is not the pencil's own 2."},
+        "fonts": {"type": "array",
+                  "items": {"type": "object", "required": ["key", "src"], "additionalProperties": false,
+                            "properties": {"key": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$"},
+                                           "name": {"type": "string", "maxLength": 60},
+                                           "src": {"type": "string", "pattern": "^(media/[0-9a-f]{64}\\.(ttf|otf|woff2?)|data:font/(ttf|otf|woff2?);base64,[A-Za-z0-9+/]+=*)$"}}},
+                  "description": "The chart's own faces (0.26.2): a font brought in, its file, and the name it is listed and picked by. An entry or a run set in one names its key."}
       }
     },
     "mediaType": {

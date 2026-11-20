@@ -24443,6 +24443,87 @@ async function main(){
   }
   });
 
+  await scenario("the chart's own fonts: in My files under a heading of their own, brought in by its +, offered wherever a face is chosen, kept while worn", async () => {
+  const f = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const keep = {nodes: workingNodes.map(e=> e.slice()), settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const r = {};
+    try{
+      /* Autobot Characters is the owner's chart's own face now, a file in
+         media/ rather than a data: URI in the stylesheet. */
+      const auto = fontOptions().find(x=> x.key === 'autobot');
+      r.autobot = !!auto && auto.own && /^media\/[0-9a-f]{64}\.ttf$/.test(auto.src);
+      r.cssClean = ![...document.styleSheets].some(sh=>{ try{ return [...sh.cssRules].some(x=> /Autobot/.test(x.cssText)); }catch(e){ return false; } });
+      const bytes = await (await fetch(auto.src)).arrayBuffer();
+      applyEdit(()=>{ delete SETTINGS.fonts; });
+      r.gone = !fontOptions().some(x=> x.own);
+      applyEdit(()=>{ workingNodes.push(['q20f_n', 'Faced', null, null, null, null, {pos: {x: 240000, y: 240000}}]); });
+      document.getElementById('filesToggle').click(); await wait(200);
+      r.heading = [...document.querySelectorAll('#stickerOverlay .files-section .files-head > span:first-child')].map(e=> e.textContent).join();
+      r.accept = document.getElementById('stickerFile').accept;
+      await addOwnFonts([new File([bytes], 'My Face.ttf'), new File([new Uint8Array([1, 2, 3, 4])], 'Broken.otf')]);
+      await wait(200);
+      const mine = fontOptions().find(x=> x.key === 'my-face');
+      r.added = !!mine && mine.label === 'My Face' && /^data:font\/ttf;base64,/.test(mine.src);
+      r.refusedBad = /Broken\.otf/.test(document.getElementById('fontStatus').textContent) && fontOptions().filter(x=> x.own).length === 1;
+      r.cell = !!document.querySelector('#fontGrid .font-cell[data-font="my-face"] .font-sample') &&
+               getComputedStyle(document.querySelector('#fontGrid .font-cell[data-font="my-face"] .font-sample')).fontFamily.includes('My Face');
+      /* Offered by a toolbar's face list, and drawn when chosen. */
+      const sel = document.querySelector('#nodeEditorBar .tb-font:not(.tb-size)');
+      fillFaceSelect(sel);
+      r.offered = [...sel.options].some(o=> o.value === 'my-face' && o.textContent === 'My Face');
+      applyEdit(()=>{ workingNodes.find(e=> e[0] === 'q20f_n')[1] = '{{f:my-face|Faced}}'; });
+      await document.fonts.ready; await wait(300);
+      r.drawn = [...document.querySelectorAll('.node[data-id="q20f_n"] .node-label-text tspan')]
+        .some(t=> /My Face/.test(t.getAttribute('style') || ''));
+      r.loaded = [...document.fonts].some(x=> x.family.replace(/["']/g, '') === 'My Face' && x.status === 'loaded');
+      /* Kept while anything is set in it; taken out once nothing is. */
+      renderStickerLibrary(); await wait(50);
+      document.querySelector('#fontGrid .font-cell[data-font="my-face"] .sticker-del').click();
+      r.kept = /can.t be taken out/.test(document.getElementById('fontStatus').textContent) && fontOptions().some(x=> x.key === 'my-face');
+      r.picture = /@font-face\{font-family:'My Face';src:url\(data:font\/ttf/.test(await pictureFontCss(chartPictureSvg().copy));
+      r.saved = /"fonts":\[\{"key":"my-face","name":"My Face","src":"data:font\/ttf;base64,/.test(chartFileText());
+      applyEdit(()=>{ workingNodes.find(e=> e[0] === 'q20f_n')[1] = 'Faced'; });
+      renderStickerLibrary(); await wait(50);
+      document.querySelector('#fontGrid .font-cell[data-font="my-face"] .sticker-del').click();
+      await wait(50);
+      r.removed = !fontOptions().some(x=> x.own) && !('fonts' in SETTINGS);
+      undoLastEdit(); await wait(50);
+      r.undone = fontOptions().some(x=> x.key === 'my-face');
+      /* A file of the chart's that is a font is no picture. */
+      r.notPicture = !mediaSrcOk(auto.src) && fontSrcOk(auto.src) && mediaRefKind(auto.src) === 'font';
+      r.reader = await (async ()=>{
+        setReaderPreview(true); await wait(150);
+        renderStickerLibrary();
+        const x = {cells: document.querySelectorAll('#fontGrid .font-cell').length,
+                   del: document.querySelectorAll('#fontGrid .sticker-del').length};
+        setReaderPreview(false); await wait(150);
+        return x;
+      })();
+    } finally {
+      document.getElementById('stickerOverlay').classList.remove('open');
+      workingNodes = keep.nodes;
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  });
+  check('Autobot Characters is the chart\'s own face, a file in media/, and the stylesheet no longer carries it',
+        f.autobot && f.cssClean, JSON.stringify([f.autobot, f.cssClean]));
+  check('My files has a Fonts heading, and its + takes font files beside pictures',
+        /Fonts/.test(f.heading) && /\.ttf/.test(f.accept) && /\.woff2/.test(f.accept), JSON.stringify([f.heading, f.accept]));
+  check('a font brought in is listed set in itself, and a file that is no font is refused with its name',
+        f.gone && f.added && f.cell && f.refusedBad, JSON.stringify(f));
+  check('…it is offered in a field\'s face list, and words set in it are drawn in it',
+        f.offered && f.drawn && f.loaded, JSON.stringify([f.offered, f.drawn, f.loaded]));
+  check('…it stays while anything is set in it, and goes once nothing is, undone as one edit',
+        f.kept && f.removed && f.undone, JSON.stringify([f.kept, f.removed, f.undone]));
+  check('…it is saved with the chart and carried into a picture of it, and a font file is never taken for a picture',
+        f.saved && f.picture && f.notPicture, JSON.stringify([f.saved, f.picture, f.notPicture]));
+  check('…and a reader sees the fonts but cannot take one out',
+        f.reader.cells >= 1 && f.reader.del === 0, JSON.stringify(f.reader));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

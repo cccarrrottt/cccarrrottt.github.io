@@ -358,6 +358,17 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     r = await post(s, {base: gitSha(after), chart: withSvg, media: {[svgRef]: svg.toString('base64')}});
     check('an SVG is refused as a file, even named for exactly what its bytes are', r.status === 400 && gh.head === picHead);
   }
+  /* A face of the chart's own is a file like a picture (0.26.2): opened at
+     its address a font runs nothing. */
+  {
+    const font = Buffer.from('bytes of a font');
+    const fontRef = 'media/' + nodeCrypto.createHash('sha256').update(font).digest('hex') + '.woff2';
+    const took = await w.checkMedia({[fontRef]: font.toString('base64')}, `{"fonts":[{"src":"${fontRef}"}]}`, '{}', new Set());
+    check('a font is taken as a file of the chart, named for its bytes', took.length === 1 && took[0].ref === fontRef);
+    let named = null;
+    try{ await w.checkMedia({}, `{"fonts":[{"src":"${fontRef}"}]}`, '{}', new Set()); }catch(e){ named = e.message; }
+    check('…and a chart naming one nobody sent is refused, as for a picture', /does not have/.test(named || ''), named);
+  }
   r = await post(s, {base: gitSha(after), chart: withPic});
   body = await r.json();
   check('a chart naming a picture the repository does not have, and not sending it, is refused',
