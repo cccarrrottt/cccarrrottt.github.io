@@ -4157,11 +4157,26 @@ async function main(){
     rebuildChart(); buildSideTabs();
     setSideTab(document.getElementById('tagsPanel'), true);
     await new Promise(r=> setTimeout(r, 350));
-    const specialRow = document.querySelector(`.legend-item[data-tag="${FANFIC_TAG}"] .tag-special`);
-    const plainRow = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-special');
+    const specialRow = document.querySelector(`.legend-item[data-tag="${FANFIC_TAG}"] .tag-eye-star polygon`);
+    const plainRow = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-eye-star');
+    const plainEye = document.querySelector('.legend-item[data-tag="plain-probe"] .tag-eye');
     out.starOnSpecial = !!specialRow;
     out.noStarOnPlain = !plainRow;
-    out.starIsBlue = specialRow ? getComputedStyle(specialRow).color : null;
+    out.starIsBlue = specialRow ? getComputedStyle(specialRow).stroke : null;
+    out.starHollow = specialRow ? getComputedStyle(specialRow).fill : null;
+    out.ringOnPlain = plainEye ? {bw:getComputedStyle(plainEye).borderTopWidth,
+                                  bg:getComputedStyle(plainEye).backgroundColor} : null;
+    out.noAsterisk = ![...document.querySelectorAll('.legend-item .name')].some(e=> /\*/.test(e.textContent));
+    const specialHead = [...document.querySelectorAll('.legend-group-special .special-mark')][0];
+    out.specialHeadBlue = specialHead ? getComputedStyle(specialHead).fill : null;
+    out.specialHeadTall = specialHead ? specialHead.getBoundingClientRect().height / parseFloat(getComputedStyle(specialHead.parentNode).fontSize) : 0;
+    if(specialHead){
+      // Its middle level with the middle of the capitals beside it.
+      const t = [...specialHead.parentNode.childNodes].find(n=> n.nodeType === 3);
+      const rg = document.createRange(); rg.selectNodeContents(t);
+      const tb = rg.getBoundingClientRect(), sb = specialHead.getBoundingClientRect();
+      out.specialHeadOff = +(sb.top + sb.height / 2 - (tb.top + tb.height / 2)).toFixed(2);
+    }
 
     /* A control that cannot act does not answer the pointer either. */
     const dead = document.createElement('button');
@@ -4206,9 +4221,15 @@ async function main(){
         JSON.stringify({open:r18.blankNoteWhileOpen, kept:r18.blankLeaderKept}));
   check('while a plate nobody wrote is dropped when the popover closes',
         r18.blankPlateDropped, JSON.stringify({dropped:r18.blankPlateDropped}));
-  check('a tag that changes what carries it wears a star',
-        r18.starOnSpecial && r18.noStarOnPlain && /47, 111, 181|2f6fb5/.test(r18.starIsBlue || ''),
-        JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue}));
+  check('a tag that changes what carries it hangs by a hollow star in the ring\'s ink, not an asterisk',
+        r18.starOnSpecial && r18.noStarOnPlain && !/47, 111, 181|2f6fb5/.test(r18.starIsBlue || '') && !!r18.starIsBlue &&
+        r18.starHollow === 'none' && r18.noAsterisk,
+        JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue,
+                        fill:r18.starHollow, asterisk:!r18.noAsterisk}));
+  check('an ordinary tag hangs by a ring, and the Special group’s star is blue, as tall as its capitals and level with them',
+        !!r18.ringOnPlain && r18.ringOnPlain.bw === '1px' && r18.ringOnPlain.bg === 'rgba(0, 0, 0, 0)' &&
+        /47, 111, 181/.test(r18.specialHeadBlue || '') && r18.specialHeadTall >= 0.75 && r18.specialHeadTall <= 0.9 && Math.abs(r18.specialHeadOff) <= 1,
+        JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue, tall:r18.specialHeadTall, off:r18.specialHeadOff}));
   check('a control that cannot act is faded and takes no pointer',
         r18.disabledOpacity < 0.6 && r18.disabledCursor === 'default',
         JSON.stringify({o:r18.disabledOpacity, c:r18.disabledCursor}));
@@ -4908,8 +4929,8 @@ async function main(){
         lines.every(l=> l.getAttribute('clip-path') === want);
     }
 
-    /* Enter settles a text field and hands the keyboard back; Shift+Enter
-       is the line break. */
+    /* Ctrl+Enter settles the in-node field and hands the keyboard back;
+       Enter and Shift+Enter are the line break, as in a note (20.11). */
     selectedId = 'w1';
     document.getElementById('detailEditToggle').click();
     // The entry's words are typed ON the entry now, so the field that
@@ -4925,7 +4946,7 @@ async function main(){
     await wait(120);
     out.shiftEnterStays = document.activeElement === surf;
     surf.dispatchEvent(new KeyboardEvent('keydown',
-      {key:'Enter', bubbles:true, cancelable:true}));
+      {key:'Enter', bubbles:true, cancelable:true, ctrlKey:true}));
     await wait(320);
     out.enterLeavesField = document.activeElement !== surf;
     out.enterSaved = /typed/.test((nodes.get('w1')||{}).label || '');
@@ -4963,7 +4984,7 @@ async function main(){
                         short:r22.shortNotClipped}));
   check('and an underline under clipped words is cut at the same border',
         r22.ruleClippedWithText);
-  check('Enter settles a field and hands the keyboard back',
+  check('Ctrl+Enter settles the in-node field and hands the keyboard back',
         r22.enterLeavesField && r22.enterSaved,
         JSON.stringify({left:r22.enterLeavesField, saved:r22.enterSaved}));
   check('while Shift+Enter stays in it', r22.shiftEnterStays);
@@ -6253,6 +6274,7 @@ async function main(){
     setSideTab(document.getElementById('tagsPanel'), true);
     await wait(450);
     out.groupNames = [...document.querySelectorAll('.legend-group-name')].map(e=> e.textContent);
+    out.specialStar = !!document.querySelector('.legend-group-special .legend-group-name > svg.special-mark');
     out.specialItalic = !!document.querySelector('.legend-group-head.legend-group-special');
     out.everyRowIsATag = [...document.querySelectorAll('.legend-item')]
       .filter(r=> r.dataset.tag !== '__untagged__')
@@ -6338,7 +6360,7 @@ async function main(){
   check('\u2026and Untagged, which is not a tag, is not drawn as one',
         r30.bucketPlain === true);
   check('the last bucket is SPECIAL, in italic',
-        r30.groupNames.indexOf('★ Special') >= 0 && r30.groupNames.indexOf('Ungrouped') < 0 &&
+        r30.groupNames.indexOf('Special') >= 0 && r30.specialStar && r30.groupNames.indexOf('Ungrouped') < 0 &&
         r30.specialItalic, JSON.stringify(r30.groupNames));
   check('and it holds the acting tags however they were filed',
         !!r30.specialHolds && r30.specialHolds.indexOf('fan-fiction') >= 0 &&
@@ -8884,9 +8906,9 @@ async function main(){
       document.querySelector('#nodeEditorBar button[data-wrap="bold"]').click();
       await wait(260);
       out.boldApplied = /^\*\*/.test(richFields.get('nodeEditorText').textarea.value);
-      // Enter settles it, and the entry keeps what was typed
+      // Ctrl+Enter settles it, and the entry keeps what was typed
       rec.surface.dispatchEvent(new KeyboardEvent('keydown',
-        {key:'Enter', bubbles:true, cancelable:true}));
+        {key:'Enter', bubbles:true, cancelable:true, ctrlKey:true}));
       await wait(420);
       const stored = (workingNodes.find(t=> t[0] === 'neA') || [])[1] || '';
       out.settled = document.getElementById('nodeEditor').hidden && !nodeEditorTarget;
@@ -9218,7 +9240,7 @@ async function main(){
         document.execCommand('insertText', false, ' more');
         await wait(200);
         rec.surface.dispatchEvent(new KeyboardEvent('keydown',
-          {key:'Enter', bubbles:true, cancelable:true}));
+          {key:'Enter', bubbles:true, cancelable:true, ctrlKey:true}));
         await wait(420);
         out.noteWritten = (edgeStyleFor('w1','w2').note || '') === 'a note more';
       }
@@ -15010,23 +15032,18 @@ async function main(){
       for(const id of ['heA', 'heB', 'heC', 'htR']){
         openNodeEditor(id);
         await wait(60);
-        /* The FRAME, which is what is seen: the words may hang over it
-           above and below, as they hang over an entry closed on its ink. */
+        /* No frame: what is seen of the field is its words, and the
+           words drawn under it are out of sight while it is open and
+           back once it is let go of (the owner's word of 20.11). */
+        const drawn = ()=> [...document.querySelectorAll(`.node[data-id="${id}"] .node-label-text`)];
         const surf = richFields.get('nodeEditorText').surface;
-        const hg = parseFloat(surf.style.getPropertyValue('--hang')) || 0;
-        const r0 = surf.getBoundingClientRect();
-        /* A turned field hangs sideways, since its own up is the page's
-           left. */
-        const side = /rotate\((90|270)deg\)/.test(surf.style.transform || '');
-        /* …and drawn back by however far the words were moved onto the
-           drawn ones (see alignEditorOnInk), which a turned field is not. */
-        const ax = parseFloat(surf.style.getPropertyValue('--ax')) || 0;
-        const ay = parseFloat(surf.style.getPropertyValue('--ay')) || 0;
-        const f = side ? {width: r0.width - 2*hg, height: r0.height, left: r0.left + hg, top: r0.top}
-                       : {width: r0.width, height: r0.height - 2*hg, left: r0.left - ax, top: r0.top + hg - ay};
-        const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
-        if(f.width > b.width + 0.6 || f.height > b.height + 0.6 ||
-           f.left < b.left - 0.6 || f.top < b.top - 0.6) sizes.push([z, id, f.width, f.height, b.width, b.height].join(' '));
+        const frame = getComputedStyle(surf, '::before').content;
+        const veiled = drawn().every(e=> getComputedStyle(e).opacity === '0');
+        closeNodeEditor(true);
+        await wait(30);
+        const back = drawn().every(e=> getComputedStyle(e).opacity !== '0');
+        if((frame !== 'none' && frame !== 'normal') || !veiled || !back) sizes.push([z, id, frame, veiled, back].join(' '));
+        continue;
         closeNodeEditor(true);
       }
     }
@@ -15080,7 +15097,7 @@ async function main(){
         JSON.stringify({behind: rW.picBehind, front: rW.picFront}));
   check('a picture turns to any angle by its handle, and keeps its sides',
         rW.pictureTurned, 'turned to ' + rW.pictureAngle);
-  check('the inline field opens no bigger than its entry, at any zoom and turned or not',
+  check('the inline field has no frame, and the words drawn under it are out of sight until it closes, at any zoom and turned or not',
         !rW.editorTooBig.length, rW.editorTooBig.slice(0, 4).join(' | '));
   });
 
@@ -16601,7 +16618,12 @@ async function main(){
                        /legendOwn:/.test(serializeSettings(SETTINGS));
     setSideTab(document.getElementById('keyPanel'), false);
     markReadOnly(); await wait(200);
-    out.legendHiddenForReader = getComputedStyle(document.getElementById('keyPanel')).display === 'none';
+    // Since 20.11 the reader reads the legend too, and only reads it.
+    setSideTab(document.getElementById('keyPanel'), true); await wait(150);
+    out.legendHiddenForReader = getComputedStyle(document.getElementById('keyPanel')).display !== 'none' &&
+      !keyList.querySelector('input, textarea, .plus-mini, .key-sample-btn') &&
+      [...keyList.querySelectorAll('.key-name')].some(x=> x.textContent === 'Entity');
+    setSideTab(document.getElementById('keyPanel'), false);
     markEditable(); await wait(200);
 
     /* 2 and 3. A merge: the arrow out of it is a connector with a look of
@@ -16720,15 +16742,11 @@ async function main(){
     openEdgeNoteEditor('mbC', 'mbM', {focus: false});
     await wait(150);
     {
-      const plate = document.querySelector('.edge-note[data-from="mbC"][data-to="mbM"] .edge-note-plate').getBoundingClientRect();
-      const surf = richFields.get('nodeEditorText').surface;
-      const f = surf.getBoundingClientRect(), b = getComputedStyle(surf, '::before');
-      const bw = parseFloat(getComputedStyle(surf).borderTopWidth) || 0;
-      const top = f.top + bw + parseFloat(b.top), bottom = f.bottom - bw - parseFloat(b.bottom);
-      out.noteFrame = JSON.stringify({plate:[+plate.top.toFixed(2), +plate.bottom.toFixed(2)],
-                                      frame:[+top.toFixed(2), +bottom.toFixed(2)]});
-      out.noteFrameOnPlate = Math.abs((top + bottom)/2 - (plate.top + plate.bottom)/2) < 1 &&
-                             Math.abs(top - plate.top) < 1.5 && Math.abs(bottom - plate.bottom) < 1.5;
+      const g = document.querySelector('.edge-note[data-from="mbC"][data-to="mbM"]');
+      const words = [...g.querySelectorAll('.edge-note-text')].map(e=> getComputedStyle(e).opacity);
+      const plate = getComputedStyle(g.querySelector('.edge-note-plate')).opacity;
+      out.noteFrame = JSON.stringify({words, plate});
+      out.noteFrameOnPlate = words.length > 0 && words.every(o=> o === '0') && plate !== '0';
     }
     closeNodeEditor(true);
     /* A side set by hand on one lineage does not take the bar away from
@@ -16791,7 +16809,7 @@ async function main(){
   check('the form shows the tag colour and stores none of it', r.formShowsTagColour && r.formStoresNothing);
   check('border and background colours sit side by side', r.hexPair);
   check('a callout is added from a mark beside the path', r.calloutMark);
-  check('the legend takes rows of the author\'s own, and readers do not see it',
+  check('the legend takes rows of the author\'s own, and readers read it with nothing to edit (20.11)',
         r.legendOwnRow && r.legendHiddenForReader, JSON.stringify({own:r.legendOwnRow, hidden:r.legendHiddenForReader}));
   check('an amalgam may ripple', r.amalgamRipples);
   check('the merged arrow can be pointed at, styled, repainted and lit, but not deleted',
@@ -16803,7 +16821,7 @@ async function main(){
   check('the entry carried beside and past its bar never moves it', r.barHeldUnderEntry, r.barSeen);
   check('a double click on a stretch of the bar opens that lineage', r.stretchOpens);
   check('a double click on the stretch of a lineage already picked opens its note', r.pickedStretchWrites, r.pickedStretchNote);
-  check('the field on a connector\'s note keeps its frame on the plate', r.noteFrameOnPlate, r.noteFrame);
+  check('the field on a connector\'s note stands on the plate itself: the plate is seen, its drawn words are not', r.noteFrameOnPlate, r.noteFrame);
   check('a lineage given its side by hand still leaves the bar something to be carried from',
         r.handCarried, JSON.stringify({rest:r.handRest, at:r.handBarAt}));
   check('every lineage straight still makes a merge with a junction', r.straightKeepsBar, String(r.straightJoints));
@@ -22358,8 +22376,9 @@ async function main(){
       await wait(120);
       {
         const rec = richFields.get('nodeEditorText');
-        r.editorOnFigure = nodeEditor.classList.contains('on-figure') && !!rec &&
-                           /url\(/.test(rec.surface.style.getPropertyValue('--figure-frame'));
+        const c = rec && getComputedStyle(rec.surface, '::before').content;
+        const fig = document.querySelector('.node[data-id="o2b_dbl"] .figure-shape, .node[data-id="o2b_dbl"] path');
+        r.editorOnFigure = !!rec && (c === 'none' || c === 'normal') && !!fig && getComputedStyle(fig).opacity !== '0';
       }
       closeNodeEditor(true);
       await wait(60);
@@ -22439,7 +22458,7 @@ async function main(){
       r.asReader = readOnlyView && document.body.classList.contains('reader-preview') &&
                    getComputedStyle(toggle).display !== 'none' &&
                    getComputedStyle(document.getElementById('mediaPanel')).display !== 'none' &&
-                   getComputedStyle(document.getElementById('keyPanel')).display === 'none';
+                   getComputedStyle(document.getElementById('keyPanel')).display !== 'none';
       toggle.click();
       await wait(200);
       r.back = !readOnlyView && !document.body.classList.contains('reader-preview') &&
@@ -22465,7 +22484,7 @@ async function main(){
         !out.picks.includes('process') && out.processKept, JSON.stringify([out.picks, out.processKept]));
   check('a figure read from an SVG keeps its drawing\'s proportion, and an entry wearing it does too',
         out.readAspect === 3 && Math.abs(out.wideAspect - 3) < 0.05, JSON.stringify([out.readAspect, out.wideAspect]));
-  check('the field a figure\'s words are typed into is the figure\'s outline', out.editorOnFigure, String(out.editorOnFigure));
+  check('the field a figure\'s words are typed into draws no outline of its own: the figure under it is seen', out.editorOnFigure, String(out.editorOnFigure));
   check('the figures open from a gear on Default\'s corner', out.gear, String(out.gear));
   check('a card cut to its picture is framed round it and set on no blurred copy; one not cut still is',
         out.cutRun >= 6 && !out.cutBlur && out.otherBlur && out.cutSaved,
@@ -22686,14 +22705,15 @@ async function main(){
       }
 
       /* 6. A reader's edge is the drawers they have, with no gaps: three
-            then, four since the Media drawer is theirs (15.11). */
+            then, four since the Media drawer is theirs (15.11), all five
+            since the legend is too (20.11). */
       setReaderPreview(true);
       await wait(150);
       {
         const box = id=> document.getElementById(id).getBoundingClientRect();
-        const t = box('tagsPanel'), f = box('refsPanel'), d = box('mediaPanel'), m = box('minimapPanel');
-        r.reader = [t.height, f.height, d.height, m.height].map(v=> +v.toFixed(1))
-          .concat([+(f.top - t.bottom).toFixed(1), +(d.top - f.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
+        const t = box('tagsPanel'), f = box('refsPanel'), k = box('keyPanel'), d = box('mediaPanel'), m = box('minimapPanel');
+        r.reader = [t.height, f.height, k.height, d.height, m.height].map(v=> +v.toFixed(1))
+          .concat([+(f.top - t.bottom).toFixed(1), +(k.top - f.bottom).toFixed(1), +(d.top - k.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
       }
       setReaderPreview(false);
       await wait(150);
@@ -22732,9 +22752,9 @@ async function main(){
         JSON.stringify([out.cutBefore, out.cropTurnsCutOff, out.cutTurnsCropOff, out.bothIsCrop]));
   check('the entry\'s panel carries no help under the picture or the colours, no medium preview, and its facts stepped in and smaller',
         out.helpGone && out.noPreview && out.factIn, JSON.stringify([out.helpGone, out.noPreview, out.factIn]));
-  check('a reader\'s edge is shared by the four drawers they have',
-        out.reader[0] > 100 && [1, 2, 3].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
-        out.reader[4] < 20 && out.reader[4] >= 0 && [5, 6].every(i=> Math.abs(out.reader[i] - out.reader[4]) < 1), JSON.stringify(out.reader));
+  check('a reader\'s edge is shared by the five drawers they have',
+        out.reader[0] > 100 && [1, 2, 3, 4].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
+        out.reader[5] < 20 && out.reader[5] >= 0 && [6, 7, 8].every(i=> Math.abs(out.reader[i] - out.reader[5]) < 1), JSON.stringify(out.reader));
   });
 
   await scenario("the owner's list of 7.11: a figure on card layout, a card's things kept, faded lines, a ruled space, one tick, a lit reader's eye, a link that darkens, a line round a box", async () => {
@@ -23140,8 +23160,9 @@ async function main(){
       await wait(200);
       {
         const surf = richFields.get('nodeEditorText').surface;
-        const frame = decodeURIComponent(surf.style.getPropertyValue('--figure-frame') || '');
-        r.figField = [nodeEditor.classList.contains('on-figure'), /clipPath/.test(frame)];
+        const c = getComputedStyle(surf, '::before').content;
+        const drawn = [...document.querySelectorAll('.node[data-id="o911_f"] .node-label-text')];
+        r.figField = [c === 'none' || c === 'normal', drawn.length > 0 && drawn.every(e=> getComputedStyle(e).opacity === '0')];
       }
       closeNodeEditor(false);
       deselect();
@@ -23252,7 +23273,7 @@ async function main(){
   check('a selected card glows outward only: its outline over the bands carries no glow, its ground does',
         out.cardGlow[0] === 'none' && out.cardGlow[1] && out.cardGlow[1] !== 'none', JSON.stringify(out.cardGlow));
   check('…and a link node\'s arrow carries none inside its ring', out.linkGlow[0] === 'none' && out.linkGlow[1] !== 'none', JSON.stringify(out.linkGlow));
-  check('the field on a figure\'s card is the band of the figure', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
+  check('the field on a figure\'s card has no frame, and its heading drawn under it is out of sight', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
   check('a citation in the field is set as the chart sets it: the run\'s face, a little over half its size, no box',
         out.chip && Math.abs(out.chip[0] - 0.56) < 0.03 && /rgba\(0, 0, 0, 0\)|transparent/.test(out.chip[1]) && out.chip[2] && Math.abs(+out.chip[3] - 0.55) < 0.01,
         JSON.stringify(out.chip));
@@ -23613,38 +23634,39 @@ async function main(){
   const picked = await page.evaluate(()=>{ const s = String(window.getSelection()); closeNodeEditor(false); vs = 1; applyTransform(); return s; });
   check('a double click on a reading picks that reading\'s word alone', picked === 'Оптимус', JSON.stringify([rtAt, picked]));
 
-  /* The editor's frame is the entry's box: its line as thick as the
-     border at this zoom, its corners as round as the entry's, square when
-     the entry is. */
-  const frame = await page.evaluate(async ([X, Y])=>{
-    const res = [];
-    for(const z of [0.7, 2.2]){
-      vs = z; vx = -X * z + 300; vy = -Y * z + 200; applyTransform();
-      applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; });
-      openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150));
-      const surf = document.querySelector('#nodeEditor .rich-surface');
-      const cs = getComputedStyle(surf);
-      const px = v=> parseFloat(cs.getPropertyValue(v)) || 0;
-      const sr = surf.getBoundingClientRect();
-      /* The frame is placed against the field's padding box, which is
-         inside the field's own border: its outer edge is the field's edge
-         less the half border it moves out by. */
-      const bw = px('--bw'), bo = px('--bo'), ax = px('--ax'), ay = px('--ay'), hang = px('--hang');
-      const outer = {l: sr.left - bo - ax, r: sr.right + bo - ax, t: sr.top + hang - bo - ay, b: sr.bottom - hang + bo - ay};
-      const shape = qNode('.node[data-id="p1111_a"] > rect:not(.node-hover-pad)');
-      const nb = shape.getBoundingClientRect();
-      const half = NODE_BORDER_W / 2 * z;
-      const rx = parseFloat(shape.getAttribute('rx')) || 0;
-      res.push({z, bw: Math.abs(bw - Math.max(0.6, 1.6 * z)) < 0.02,
-                edges: [outer.l - (nb.left - half), outer.r - (nb.right + half), outer.t - (nb.top - half), outer.b - (nb.bottom + half)].map(v=> Math.round(v * 100) / 100),
-                fr: px('--fr'), wantFr: rx > 0 ? (rx + NODE_BORDER_W / 2) * z : 0});
-      closeNodeEditor(false);
-    }
-    vs = 1; applyTransform();
-    return res;
+  /* The field is written in as a note is (the owner's word of 20.11):
+     Enter is a new line, Ctrl+Enter and Escape keep what is written and
+     let it go, and the ✓ is on its toolbar on a desk as on a phone. */
+  await page.evaluate(async ([X, Y])=>{
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; });
+    openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150));
   }, [X, Y]);
-  check('the in-node editor\'s frame lies on the entry\'s box at any zoom, as thick as its border, its corners the entry\'s',
-        frame.every(f=> f.bw && f.edges.every(e=> Math.abs(e) < 0.6) && Math.abs(f.fr - f.wantFr) < 0.05), JSON.stringify(frame));
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Beta');
+  await page.waitForTimeout(80);
+  const seam = await page.evaluate(()=>{
+    const done = document.getElementById('nodeEditorDone');
+    return {open: !!nodeEditorTarget, value: document.getElementById('nodeEditorText').value,
+            tick: !!done && getComputedStyle(done).display !== 'none' && done.getBoundingClientRect().width > 0};
+  });
+  await page.keyboard.press('Control+Enter');
+  await page.waitForTimeout(150);
+  seam.ctrl = await page.evaluate(()=> ({open: !!nodeEditorTarget, label: nodes.get('p1111_a').label}));
+  await page.evaluate(async ()=>{ openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150)); });
+  await page.keyboard.press('End');
+  await page.keyboard.type('!');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  seam.esc = await page.evaluate(()=> ({open: !!nodeEditorTarget, label: nodes.get('p1111_a').label,
+    veil: (document.getElementById('nodeEditorVeil') || {}).textContent || ''}));
+  await page.evaluate(()=>{ applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; }); });
+  check('in the in-node field Enter starts a new line, as in a note, and its ✓ is on the toolbar on a desk too',
+        seam.open && /Alpha\nBeta$/.test(seam.value) && seam.tick, JSON.stringify(seam));
+  check('…Ctrl+Enter keeps what is written and lets the field go, and so does Escape, and the drawn words come back',
+        !seam.ctrl.open && /Alpha\nBeta$/.test(seam.ctrl.label) && !seam.esc.open && /Beta!$/.test(seam.esc.label) && seam.esc.veil === '',
+        JSON.stringify([seam.ctrl, seam.esc]));
 
   /* The picture's player keeps working: carried, it goes rather than
      standing over where the picture was; redrawn, it follows; a finger
@@ -24185,6 +24207,11 @@ async function main(){
     r.unfolds = !imgSec.classList.contains('collapsed');
     const plusBefore = document.querySelector('#stickerOverlay .files-section[data-kind="stickers"]').classList.contains('collapsed');
     r.plusNoFold = plusBefore === false;
+    /* 20.11: the + is the window's, beside its ✕, on no kind's heading. */
+    const plus = document.getElementById('stickerUpload');
+    r.plusByClose = plus.parentElement.classList.contains('edge-popover-head') &&
+                    plus.nextElementSibling === document.getElementById('stickerClose') &&
+                    !plus.closest('.files-head');
     MEDIA.splice(MEDIA.findIndex(m=> m.key === 'q19vid'), 1);
     document.getElementById('stickerClose').click();
 
@@ -24265,9 +24292,9 @@ async function main(){
   });
   check('an array\'s hatching stops under the border and tabs of an entry in it, and comes back under one faded (19.11, evening)',
         hatchHoles.box && hatchHoles.tab && hatchHoles.gives, JSON.stringify(hatchHoles));
-  check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note)',
-        out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold,
-        JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds]));
+  check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note), with its + beside the ✕ (20.11)',
+        out.heads === 'Stickers|Images|Video|Fonts' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold && out.plusByClose,
+        JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds, out.plusByClose]));
   check('a legend row’s mark can be a picture of the author’s own, kept with the chart, shown to a reader as a picture, and taken off again',
         out.icon && out.iconKept && out.readerIcon && out.iconOff, JSON.stringify([out.icon, out.iconKept, out.readerIcon, out.iconOff]));
   check('…and every mark stands level with the middle of its words', out.level.length > 0 && out.level.every(d=> d <= 1.5), JSON.stringify(out.level));
@@ -24385,6 +24412,359 @@ async function main(){
     check('…a pan stops with the middle of the view on the field', Math.abs(pan.mid - pan.x0) < 0.5, JSON.stringify(pan));
     check('…and the page goes again with the entry', back === r.f.x1, JSON.stringify([back, r.f.x1]));
   });
+  await scenario("the owner's list of 20.11: a divider on the first line, a worn template that shows who wears it, a field of 2000 square, a parent's bead in the hand, a pencil and an eraser", async () => {
+  const X = 230000, Y = 230000;
+  await page.evaluate(([X, Y])=>{
+    window.__k2011 = {nodes: workingNodes.map(x=> x.slice()), settings: JSON.parse(JSON.stringify(SETTINGS))};
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{
+      workingNodes.push(['q20_n', 'Noted', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['q20_a', 'One', null, null, null, null, {pos:[X, Y + 300]}]);
+      workingNodes.push(['q20_b', 'Two', null, null, null, null, {pos:[X + 260, Y + 300]}]);
+      workingNodes.push(['q20_c', 'Three', null, null, null, null, {pos:[X + 520, Y + 300]}]);
+      workingNodes.push(['q20_m', 'Merge', ['q20_a', 'q20_b', 'q20_c'], null, null, null, {merge:true, pos:[X + 160, Y + 500]}]);
+      workingNodes.push(['q20_f', 'Shaped', null, null, null, null, {pos:[X + 900, Y], figure:{name:'Q20 blob', d:'M0,0 L10,0 L10,10 Z'}}]);
+      workingNodes.push(['q20_g', 'Shaped far', null, null, null, null, {pos:[X + 9000, Y], figure:{name:'Q20 blob', d:'M0,0 L10,0 L10,10 Z'}}]);
+    });
+    rebuildChart();
+    selectNode('q20_n');
+    return true;
+  }, [X, Y]);
+  await page.waitForTimeout(300);
+  try{
+  /* 1. Three dashes and Enter on the first line of a field emptied by
+     hand make a divider, as on any other line. */
+  await page.click('#detailNoteEdit'); await page.waitForTimeout(150);
+  await page.keyboard.type('x');
+  await page.keyboard.press('Control+a'); await page.keyboard.press('Backspace');
+  await page.keyboard.type('---'); await page.keyboard.press('Enter');
+  await page.keyboard.type('below');
+  await page.waitForTimeout(650);
+  const firstRule = await page.evaluate(()=> (nodes.get('q20_n') || {}).note);
+  await page.evaluate(()=>{ deselect(); document.activeElement && document.activeElement.blur && document.activeElement.blur(); });
+  await page.waitForTimeout(150);
+
+  /* 2. The × of a template worn by an entry answers: it says why, and
+     the view goes to the nearest entry drawn with it, lit a moment. */
+  const worn = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    openFigureMenu(true); await wait(100);
+    const b = [...document.querySelectorAll('.figure-template')].find(x=> /Q20 blob/.test(x.textContent));
+    const x = b && b.querySelector('.figure-template-drop');
+    const clickable = !!x && x.getAttribute('aria-disabled') !== 'true' && getComputedStyle(x).cursor !== 'default';
+    if(x) x.click();
+    await wait(80);
+    const msg = document.getElementById('saveState') ? document.getElementById('saveState').textContent : '';
+    const lit = !!document.querySelector('.node.beacon[data-id="q20_f"]') && !document.querySelector('.node.beacon[data-id="q20_g"]');
+    const sr = svg.getBoundingClientRect(), n = nodes.get('q20_f');
+    const mid = {x: (sr.width / 2 - vx) / vs, y: (sr.height / 2 - vy) / vs};
+    const centred = Math.abs(mid.x - (n.x + n.w / 2)) < 1 && Math.abs(mid.y - (n.y + n.h / 2)) < 1;
+    const kept = cleanFigureTemplates(SETTINGS.figures).some(t=> t.d === 'M0,0 L10,0 L10,10 Z') ||
+                 workingNodes.some(e=> e[6] && e[6].figure && e[6].figure.name === 'Q20 blob');
+    await wait(1900);
+    const goes = !document.querySelector('.node.beacon');
+    return {clickable, msg, lit, centred, kept, goes};
+  });
+
+  /* 3. The field is pages of 2000 by 2000. */
+  const page2000 = await page.evaluate(()=> FIELD_PAGE_W === 2000 && FIELD_PAGE_H === 2000 &&
+    (chartField.x1 - chartField.x0) % 2000 === 0 && (chartField.y1 - chartField.y0) % 2000 === 0);
+
+  /* 4. A parent carried: the bead where its line meets the bar swells,
+     and only while it is in the hand. */
+  await page.evaluate(([X, Y])=>{ vs = 1; vx = -X + 200; vy = -Y + 100; applyTransform(); }, [X, Y]);
+  await page.waitForTimeout(150);
+  const pb = await page.evaluate(()=>{ const r = document.querySelector('.node[data-id="q20_b"] rect').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+  const beadBefore = await page.evaluate(()=> document.querySelectorAll('.amalgam-joint.bead-carried').length);
+  await page.mouse.move(pb[0], pb[1]); await page.mouse.down();
+  await page.mouse.move(pb[0] + 10, pb[1], {steps:3}); await page.mouse.move(pb[0] + 24, pb[1], {steps:3});
+  await page.waitForTimeout(80);
+  const beadIn = await page.evaluate(()=>{
+    const c = document.querySelector('.amalgam-joint.bead-carried');
+    return c ? {lands: c.dataset.lands, scale: getComputedStyle(c).transform} : null;
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const beadAfter = await page.evaluate(()=> document.querySelectorAll('.bead-carried').length);
+  await page.evaluate(()=> undoLastEdit());
+  await page.waitForTimeout(150);
+
+  /* 5. The pencil writes over everything, the entry under it untouched;
+     the eraser takes the stroke it passes; each is one edit; the strokes
+     are saved with the chart, and a reader sees them and holds neither. */
+  await page.click('#inkPen');
+  const nb = await page.evaluate(()=>{ const r = document.querySelector('.node[data-id="q20_n"] rect').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
+  await page.mouse.move(nb[0] - 20, nb[1] + nb[3] / 2); await page.mouse.down();
+  for(let i = 1; i <= 12; i++) await page.mouse.move(nb[0] - 20 + i * 12, nb[1] + nb[3] / 2 + (i % 2 ? 6 : -6));
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  const pen = await page.evaluate(()=>({
+    n: (SETTINGS.ink || []).length, drawn: document.querySelectorAll('#inkLayer .ink-stroke').length,
+    entryStays: !selectedId && Math.abs(nodes.get('q20_n').x - 230000) < 1,
+    onTop: [nodeLayer, frontLayer, edgeLayer].every(l=> [...viewport.children].indexOf(document.getElementById('inkLayer')) > [...viewport.children].indexOf(l)),
+    saved: /"ink":\[\{"pts":\[/.test(chartFileText()),
+    onField: (SETTINGS.ink || []).every(s=> s.pts.every((v, i)=> i % 2 ? v >= chartField.y0 && v <= chartField.y1 : v >= chartField.x0 && v <= chartField.x1))
+  }));
+  await page.click('#inkEraser');
+  await page.mouse.move(nb[0] + 40, nb[1] - 30); await page.mouse.down();
+  await page.mouse.move(nb[0] + 40, nb[1] + nb[3] + 30, {steps:12}); await page.mouse.up();
+  await page.waitForTimeout(100);
+  const erased = await page.evaluate(()=> (SETTINGS.ink || []).length);
+  await page.evaluate(()=> undoLastEdit()); await page.waitForTimeout(100);
+  const undone = await page.evaluate(()=>({n: (SETTINGS.ink || []).length, drawn: document.querySelectorAll('#inkLayer .ink-stroke').length}));
+  await page.keyboard.press('Escape');
+  const reader = await page.evaluate(async ()=>{
+    setReaderPreview(true); await new Promise(ok=> setTimeout(ok, 150));
+    const r = {sees: document.querySelectorAll('#inkLayer .ink-stroke').length,
+               noTools: getComputedStyle(document.getElementById('inkPen')).display === 'none' &&
+                        getComputedStyle(document.getElementById('inkEraser')).display === 'none',
+               down: !inkTool};
+    setReaderPreview(false); await new Promise(ok=> setTimeout(ok, 150));
+    return r;
+  });
+
+  check('three dashes and Enter make a divider on the very first line too, a field emptied by hand included (20.11)',
+        firstRule === '{{hr:solid}}\nbelow', JSON.stringify(firstRule));
+  check('a worn template\'s × still answers: it says why it stays, and shows the nearest entry drawn with it, lit a moment (20.11)',
+        worn.clickable && /can.t be taken out/.test(worn.msg) && worn.lit && worn.centred && worn.kept && worn.goes, JSON.stringify(worn));
+  check('the field is laid in pages of 2000 by 2000 (20.11)', page2000);
+  check('a parent carried swells the bead where its line meets the bar, and only while it is in the hand (20.11)',
+        beadBefore === 0 && !!beadIn && beadIn.lands === 'q20_b' && /matrix\(1\.6/.test(beadIn.scale) && beadAfter === 0,
+        JSON.stringify({beadBefore, beadIn, beadAfter}));
+  check('the pencil writes over the chart, leaving the entry under it be, and the stroke is saved with the chart (20.11)',
+        pen.n === 1 && pen.drawn === 1 && pen.entryStays && pen.onTop && pen.saved && pen.onField, JSON.stringify(pen));
+  check('…the eraser takes the stroke it passes over, and either is undone as one edit',
+        erased === 0 && undone.n === 1 && undone.drawn === 1, JSON.stringify({erased, undone}));
+  check('…and a reader sees the strokes, holding neither tool', reader.sees === 1 && reader.noTools && reader.down, JSON.stringify(reader));
+  } finally {
+    await page.evaluate(()=>{
+      if(inkTool) setInkTool(null);
+      const k = window.__k2011;
+      workingNodes = k.nodes;
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, k.settings);
+      rebuildChart();
+      delete window.__k2011;
+      return true;
+    });
+  }
+  });
+
+  await scenario("the chart's own fonts: in My files under a heading of their own, brought in by its +, offered wherever a face is chosen, kept while worn", async () => {
+  const f = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const keep = {nodes: workingNodes.map(e=> e.slice()), settings: JSON.parse(JSON.stringify(SETTINGS))};
+    const r = {};
+    try{
+      /* Autobot Characters is the owner's chart's own face now, a file in
+         media/ rather than a data: URI in the stylesheet. */
+      const auto = fontOptions().find(x=> x.key === 'autobot');
+      r.autobot = !!auto && auto.own && /^media\/[0-9a-f]{64}\.ttf$/.test(auto.src);
+      r.cssClean = ![...document.styleSheets].some(sh=>{ try{ return [...sh.cssRules].some(x=> /Autobot/.test(x.cssText)); }catch(e){ return false; } });
+      const bytes = await (await fetch(auto.src)).arrayBuffer();
+      applyEdit(()=>{ delete SETTINGS.fonts; });
+      r.gone = !fontOptions().some(x=> x.own);
+      applyEdit(()=>{ workingNodes.push(['q20f_n', 'Faced', null, null, null, null, {pos: {x: 240000, y: 240000}}]); });
+      document.getElementById('filesToggle').click(); await wait(200);
+      r.heading = [...document.querySelectorAll('#stickerOverlay .files-section .files-head > span:first-child')].map(e=> e.textContent).join();
+      r.accept = document.getElementById('stickerFile').accept;
+      await addOwnFonts([new File([bytes], 'My Face.ttf'), new File([new Uint8Array([1, 2, 3, 4])], 'Broken.otf')]);
+      await wait(200);
+      const mine = fontOptions().find(x=> x.key === 'my-face');
+      r.added = !!mine && mine.label === 'My Face' && /^data:font\/ttf;base64,/.test(mine.src);
+      r.refusedBad = /Broken\.otf/.test(document.getElementById('fontStatus').textContent) && fontOptions().filter(x=> x.own).length === 1;
+      r.cell = !!document.querySelector('#fontGrid .font-cell[data-font="my-face"] .font-sample') &&
+               getComputedStyle(document.querySelector('#fontGrid .font-cell[data-font="my-face"] .font-sample')).fontFamily.includes('My Face');
+      /* Offered by a toolbar's face list, and drawn when chosen. */
+      const sel = document.querySelector('#nodeEditorBar .tb-font:not(.tb-size)');
+      fillFaceSelect(sel);
+      r.offered = [...sel.options].some(o=> o.value === 'my-face' && o.textContent === 'My Face');
+      applyEdit(()=>{ workingNodes.find(e=> e[0] === 'q20f_n')[1] = '{{f:my-face|Faced}}'; });
+      await document.fonts.ready; await wait(300);
+      r.drawn = [...document.querySelectorAll('.node[data-id="q20f_n"] .node-label-text tspan')]
+        .some(t=> /My Face/.test(t.getAttribute('style') || ''));
+      r.loaded = [...document.fonts].some(x=> x.family.replace(/["']/g, '') === 'My Face' && x.status === 'loaded');
+      /* Kept while anything is set in it; taken out once nothing is. */
+      renderStickerLibrary(); await wait(50);
+      document.querySelector('#fontGrid .font-cell[data-font="my-face"] .sticker-del').click();
+      r.kept = /can.t be taken out/.test(document.getElementById('fontStatus').textContent) && fontOptions().some(x=> x.key === 'my-face');
+      r.picture = /@font-face\{font-family:'My Face';src:url\(data:font\/ttf/.test(await pictureFontCss(chartPictureSvg().copy));
+      r.saved = /"fonts":\[\{"key":"my-face","name":"My Face","src":"data:font\/ttf;base64,/.test(chartFileText());
+      applyEdit(()=>{ workingNodes.find(e=> e[0] === 'q20f_n')[1] = 'Faced'; });
+      renderStickerLibrary(); await wait(50);
+      document.querySelector('#fontGrid .font-cell[data-font="my-face"] .sticker-del').click();
+      await wait(50);
+      r.removed = !fontOptions().some(x=> x.own) && !('fonts' in SETTINGS);
+      undoLastEdit(); await wait(50);
+      r.undone = fontOptions().some(x=> x.key === 'my-face');
+      /* A file of the chart's that is a font is no picture. */
+      r.notPicture = !mediaSrcOk(auto.src) && fontSrcOk(auto.src) && mediaRefKind(auto.src) === 'font';
+      r.reader = await (async ()=>{
+        setReaderPreview(true); await wait(150);
+        renderStickerLibrary();
+        const x = {cells: document.querySelectorAll('#fontGrid .font-cell').length,
+                   del: document.querySelectorAll('#fontGrid .sticker-del').length};
+        setReaderPreview(false); await wait(150);
+        return x;
+      })();
+    } finally {
+      document.getElementById('stickerOverlay').classList.remove('open');
+      workingNodes = keep.nodes;
+      Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]); Object.assign(SETTINGS, keep.settings);
+      rebuildChart();
+    }
+    return r;
+  });
+  check('Autobot Characters is the chart\'s own face, a file in media/, and the stylesheet no longer carries it',
+        f.autobot && f.cssClean, JSON.stringify([f.autobot, f.cssClean]));
+  check('My files has a Fonts heading, and its + takes font files beside pictures',
+        /Fonts/.test(f.heading) && /\.ttf/.test(f.accept) && /\.woff2/.test(f.accept), JSON.stringify([f.heading, f.accept]));
+  check('a font brought in is listed set in itself, and a file that is no font is refused with its name',
+        f.gone && f.added && f.cell && f.refusedBad, JSON.stringify(f));
+  check('…it is offered in a field\'s face list, and words set in it are drawn in it',
+        f.offered && f.drawn && f.loaded, JSON.stringify([f.offered, f.drawn, f.loaded]));
+  check('…it stays while anything is set in it, and goes once nothing is, undone as one edit',
+        f.kept && f.removed && f.undone, JSON.stringify([f.kept, f.removed, f.undone]));
+  check('…it is saved with the chart and carried into a picture of it, and a font file is never taken for a picture',
+        f.saved && f.picture && f.notPicture, JSON.stringify([f.saved, f.picture, f.notPicture]));
+  check('…and a reader sees the fonts but cannot take one out',
+        f.reader.cells >= 1 && f.reader.del === 0, JSON.stringify(f.reader));
+  });
+
+  /* The owner's cloud drives on the site (0.26.2): connected from My files,
+     looked through in a window of their own, a picture picked from one
+     kept in My files with the drive's mark, at the write service's
+     address. The service is answered from here; its own half is in
+     tests/worker.js. */
+  await scenario("the owner's cloud drives on the published site", async () => {
+  if(MODE === 'src'){
+    check('the site serves the built file, so there is nothing to check from src', true);
+    return;
+  }
+  const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
+  const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
+  const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1].replace(/\/+$/, '');
+  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
+  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const dataSha = require('crypto').createHash('sha1')
+    .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
+  const api = {connected: [], asked: [], fileAsked: 0};
+  const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
+  await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'application/json', body: '[]'}));
+  await c.route(SITE_ORIGIN + '/**', r => {
+    const u = new URL(r.request().url());
+    const m = /^\/(media\/[0-9a-f]{64}\.[a-z0-9]+)$/.exec(u.pathname);
+    if(m && fs.existsSync(path.join(DIR, m[1]))) return r.fulfill({status: 200, body: fs.readFileSync(path.join(DIR, m[1]))});
+    return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
+  });
+  await c.route(SITE_API + '/**', async r => {
+    const q = r.request(), u = new URL(q.url());
+    const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN, 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
+    const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
+    if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
+    if(u.pathname === '/cloud/gdrive/file/pic1'){ api.fileAsked++; return r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'image/png', body: TINY_PNG}); }
+    if(u.pathname === '/cloud/gdrive/connect'){
+      api.asked.push('connect ' + u.searchParams.get('ticket'));
+      return r.fulfill({status: 200, contentType: 'text/html', body:
+        `<script>opener.postMessage({rhizomeCloud:{cloud:'gdrive', grant:'the-grant'}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
+    }
+    if(q.headers()['authorization'] !== 'Bearer good-session') return reply(401, {error: 'not signed in.'});
+    api.asked.push(u.pathname + ' ' + (q.postData() || ''));
+    if(u.pathname === '/me') return reply(200, {owner: true, login: 'the-owner', sha: dataSha, media: true,
+                                                clouds: {ready: ['gdrive', 'yadisk'], connected: api.connected}});
+    if(u.pathname === '/cloud/gdrive/ticket') return reply(200, {ticket: 'tkt'});
+    if(u.pathname === '/cloud/gdrive/attach'){
+      if(JSON.parse(q.postData()).grant !== 'the-grant') return reply(400, {error: 'no'});
+      api.connected = ['gdrive'];
+      return reply(200, {connected: api.connected});
+    }
+    if(u.pathname === '/cloud/gdrive/list'){
+      const folder = JSON.parse(q.postData()).folder;
+      return reply(200, {items: folder === 'fold1'
+        ? [{id: 'pic1', name: 'Optimus.png', kind: 'image', mime: 'image/png', thumb: null}]
+        : [{id: 'fold1', name: 'Pictures', kind: 'folder'}, {id: 'vid1', name: 'Clip.mp4', kind: 'video', mime: 'video/mp4'}]});
+    }
+    if(u.pathname === '/cloud/gdrive/pick') return reply(200, {src: SITE_API + '/cloud/gdrive/file/pic1', name: 'Optimus.png', kind: 'image'});
+    if(u.pathname === '/cloud/gdrive/forget'){ api.connected = []; return reply(200, {connected: []}); }
+    return reply(404, {error: 'not found'});
+  });
+  await c.addInitScript(([origin]) => {
+    if(location.origin === origin) try{ localStorage.setItem('rhizome.site.session', 'good-session'); }catch(e){}
+  }, [SITE_ORIGIN]);
+  const errs = [];
+  const site = await c.newPage();
+  site.on('pageerror', e => errs.push(e.message));
+  site.on('console', m => { if(/Content Security Policy/i.test(m.text())) errs.push(m.text()); });
+  try{
+    await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+    await site.waitForFunction(() => typeof rebuildChart === 'function' && !readOnlyView, null, {timeout: 8000});
+    await site.click('#filesToggle');
+    await wait(200);
+    const before = await site.evaluate(() => ({
+      buttons: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join(),
+      marks: document.querySelectorAll('#filesClouds .cloud-btn svg').length
+    }));
+    await site.click('#filesClouds .cloud-btn[data-cloud="gdrive"]');
+    await site.waitForFunction(() => document.getElementById('cloudOverlay').classList.contains('open') &&
+                                      document.querySelectorAll('#cloudGrid .cloud-item').length === 2, null, {timeout: 8000});
+    const browsing = await site.evaluate(() => ({
+      items: [...document.querySelectorAll('#cloudGrid .cloud-item')].map(c => c.dataset.kind + ':' + c.textContent.trim()).join(),
+      title: document.getElementById('cloudTitle').textContent, up: document.getElementById('cloudUp').disabled,
+      row: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join()
+    }));
+    await site.click('#cloudGrid .cloud-item[data-kind="folder"]');
+    await site.waitForFunction(() => document.querySelector('#cloudGrid .cloud-item[data-id="pic1"]'), null, {timeout: 8000});
+    const inFolder = await site.evaluate(() => ({path: document.getElementById('cloudPath').textContent, up: document.getElementById('cloudUp').disabled}));
+    await site.click('#cloudGrid .cloud-item[data-id="pic1"]');
+    await site.waitForFunction(() => MEDIA.some(m => /\/cloud\/gdrive\/file\/pic1$/.test(m.src)), null, {timeout: 8000});
+    await site.click('#cloudGrid .cloud-item[data-id="pic1"]');
+    await wait(300);
+    const picked = await site.evaluate(api => {
+      const m = MEDIA.filter(x => /\/cloud\/gdrive\/file\/pic1$/.test(x.src));
+      document.getElementById('cloudBack').click();
+      const cell = [...document.querySelectorAll('#filesGrid .file-cell')].find(x => x.querySelector('img') && /pic1$/.test(x.querySelector('img').src));
+      return {n: m.length, src: m[0] && m[0].src, kind: m[0] && m[0].kind, name: m[0] && m[0].name,
+              status: document.getElementById('cloudStatus').textContent,
+              mark: !!cell && !!cell.querySelector('.file-cloud[data-cloud="gdrive"] svg'),
+              open: document.getElementById('stickerOverlay').classList.contains('open'),
+              dirty: isDirty()};
+    });
+    await site.click('#filesClouds .cloud-off[data-cloud="gdrive"]');
+    await wait(300);
+    const after = await site.evaluate(() => ({
+      row: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join(),
+      kept: MEDIA.some(m => /\/cloud\/gdrive\/file\/pic1$/.test(m.src))
+    }));
+    const reader = await site.evaluate(async () => {
+      setReaderPreview(true); await new Promise(ok => setTimeout(ok, 150));
+      openStickerLibrary();
+      const r = {hidden: document.getElementById('filesClouds').hidden};
+      setReaderPreview(false); await new Promise(ok => setTimeout(ok, 150));
+      return r;
+    });
+    check('on the site, the owner\'s My files offers each drive the service is set up for, with its mark, to connect',
+          before.buttons === 'gdrive-,yadisk-' && before.marks === 2, JSON.stringify(before));
+    check('…connecting one is a popup on a ticket, its grant attached to the session, and the drive opens to its top',
+          api.asked.includes('connect tkt') && api.asked.some(a => /^\/cloud\/gdrive\/attach \{"grant":"the-grant"\}/.test(a)) &&
+          browsing.items === 'folder:Pictures,video:Clip.mp4' && /Google Drive/.test(browsing.title) && browsing.up && browsing.row === 'gdrive+,yadisk-',
+          JSON.stringify({asked: api.asked, browsing}));
+    check('…a folder opens in the same window, and the way back up with it', inFolder.path === 'Pictures' && !inFolder.up, JSON.stringify(inFolder));
+    check('…a picture picked is in My files once, at the service\'s address, with the drive\'s mark, waiting for Save',
+          picked.n === 1 && picked.src === SITE_API + '/cloud/gdrive/file/pic1' && picked.kind === 'image' && picked.name === 'Optimus' &&
+          picked.mark && picked.open && picked.dirty && /already/.test(picked.status), JSON.stringify(picked));
+    check('…a drive let go is offered to connect again, and what came from it stays',
+          after.row === 'gdrive-,yadisk-' && after.kept, JSON.stringify(after));
+    check('…and a reader is offered no drive', reader.hidden, JSON.stringify(reader));
+    check('nothing the cloud drives do is refused by the site\'s own policy, or throws', errs.length === 0, errs.slice(0, 3).join(' | '));
+  } finally {
+    await c.close();
+  }
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

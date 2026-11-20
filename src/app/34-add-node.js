@@ -1194,10 +1194,12 @@ function buildFigureMenu(){
     x.title = t.worn
       ? `${t.worn} ${t.worn === 1 ? 'entry is' : 'entries are'} drawn with it — it stays while any is`
       : 'Take this template out of the menu';
-    x.setAttribute('aria-disabled', t.worn ? 'true' : 'false');
     x.addEventListener('click', ev=>{
       ev.stopPropagation();
-      if(t.worn) return;
+      /* Worn, it still answers (the owner's list of 20.11): it says why it
+         cannot go, and takes the author to the nearest entry drawn with
+         it, lit for a moment, so what is holding it is in plain sight. */
+      if(t.worn){ showTemplateWearer(t); return; }
       applyEdit(()=>{
         const next = cleanFigureTemplates(SETTINGS.figures).filter(k=> k.d !== t.d);
         if(next.length) SETTINGS.figures = next; else delete SETTINGS.figures;
@@ -1214,6 +1216,31 @@ function buildFigureMenu(){
   up.innerHTML = '<span class="figure-upload-plus">+</span><span class="node-style-cap">Upload SVG</span>';
   up.addEventListener('click', ev=>{ ev.stopPropagation(); figureFileInput.click(); });
   g2.appendChild(up);
+}
+/* The entry drawn with this template nearest the middle of the view:
+   the menu shuts, the view goes to it, and it glows for a moment. */
+function showTemplateWearer(t){
+  const rect = svg.getBoundingClientRect();
+  const mid = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
+  let best = null, bestD = Infinity;
+  nodes.forEach(n=>{
+    const f = n.figure;
+    if(!f || typeof f !== 'object' || f.d !== t.d) return;
+    const d = Math.hypot(n.x + n.w/2 - mid.x, n.y + n.h/2 - mid.y);
+    if(d < bestD){ bestD = d; best = n; }
+  });
+  setSaveState('err', `“${t.name}” can’t be taken out: ${t.worn} ${t.worn === 1 ? 'entry is' : 'entries are'} drawn with it`);
+  setTimeout(refreshSaveUI, 2600);
+  if(!best) return;
+  closeAddFab();
+  flyToNode(best.id);
+  const g = qNode(`.node[data-id="${CSS.escape(best.id)}"]`);
+  if(!g) return;
+  g.classList.remove('beacon');
+  void g.getBoundingClientRect();
+  g.classList.add('beacon');
+  clearTimeout(g.beaconTimer);
+  g.beaconTimer = setTimeout(()=> g.classList.remove('beacon'), 1700);
 }
 function openFigureMenu(on){
   const open = on === undefined ? !addFab.classList.contains('figures') : on;

@@ -61,6 +61,14 @@
     <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5M12 3.5C9.6 5.9 8.4 8.7 8.4 12s1.2 6.1 3.6 8.5"/></svg><span class="lang-code" translate="no">EN</span>
     </button>
+    <!-- A pencil and an eraser for notes in the margin of the chart (the
+         owner's list of 20.11, 44-ink.js). The author's only. -->
+    <button class="icon-btn ink-tool" id="inkPen" title="Pencil: write on the chart by hand — press again or Escape to put it down" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 20l1.2-4.6L15.8 4.8a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.2 6.4l3.4 3.4M4 20l4.6-1.2"/></svg>
+    </button>
+    <button class="icon-btn ink-tool" id="inkEraser" title="Eraser: take pencilled strokes off the chart — press again or Escape to put it down" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M8.5 19.5L3.8 14.8a1.8 1.8 0 0 1 0-2.6l8.4-8.4a1.8 1.8 0 0 1 2.6 0l5.4 5.4a1.8 1.8 0 0 1 0 2.6l-8.2 8.2"/><path d="M8.5 19.5H20M8.6 9.4l6 6"/></svg>
+    </button>
     <!-- The owner looking at the chart as a reader sees it, without signing
          out (the owner's list of 2.11). Shown only to whoever may edit. -->
     <button class="icon-btn" id="readerToggle" title="See the chart as a reader sees it" aria-pressed="false">
@@ -529,15 +537,20 @@
     <div class="file-popover sticker-pop" id="stickerOverlay">
       <div class="edge-popover-head">
         <span>My files</span>
+        <!-- Adding is the window's, beside its ✕, not one kind's heading
+             (the owner's list of 20.11). -->
+        <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers or fonts" title="Add stickers or fonts. A sticker is a square picture or an animated GIF: a still picture is shrunk to fit, a GIF is kept as it is, so it keeps moving. A font is a .ttf, .otf, .woff or .woff2 file, and is offered wherever a face is chosen.">+</button>
         <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
       </div>
+      <!-- The owner's cloud drives, on the site, where the write service
+           is set up for them (45-clouds.js). -->
+      <div class="files-clouds" id="filesClouds" hidden></div>
       <div class="files-body">
         <!-- Each kind of file folds away under its heading, as a category
              of tags does (the owner's note of 19.11). -->
         <div class="files-section" data-kind="stickers">
           <div class="files-head" title="Fold this kind away">
             <span>Stickers</span><span class="legend-group-fold">▸</span><span class="files-count" id="stickerCount"></span>
-            <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers" title="Add stickers: square pictures or animated GIFs. A still picture is shrunk to fit; a GIF is kept as it is, so it keeps moving.">+</button>
           </div>
           <div class="files-fold">
             <div class="sticker-status editor-status" id="stickerStatus"></div>
@@ -552,9 +565,30 @@
           <div class="files-head" title="Fold this kind away"><span>Video</span><span class="legend-group-fold">▸</span><span class="files-count" id="videoCount"></span></div>
           <div class="files-fold"><div class="files-grid" id="videoGrid"></div></div>
         </div>
+        <!-- The chart's own faces, brought in by the same + (the owner's
+             word of 20.11). -->
+        <div class="files-section" data-kind="fonts">
+          <div class="files-head" title="Fold this kind away"><span>Fonts</span><span class="legend-group-fold">▸</span><span class="files-count" id="fontCount"></span></div>
+          <div class="files-fold">
+            <div class="sticker-status editor-status" id="fontStatus"></div>
+            <div class="files-grid" id="fontGrid"></div>
+          </div>
+        </div>
       </div>
     </div>
-    <input type="file" id="stickerFile" accept="image/*" multiple style="display:none;">
+    <!-- A folder of a cloud drive, looked through to pick from (45-clouds.js). -->
+    <div class="file-popover sticker-pop cloud-pop" id="cloudOverlay">
+      <div class="edge-popover-head">
+        <button type="button" class="cloud-nav" id="cloudBack" title="Back to My files" aria-label="Back to My files">←</button>
+        <span class="cloud-title" id="cloudTitle" translate="no"></span>
+        <button type="button" class="cloud-nav" id="cloudUp" title="Up one folder" aria-label="Up one folder">↑</button>
+        <button class="detail-close" aria-label="Close" id="cloudClose">✕</button>
+      </div>
+      <div class="cloud-path" id="cloudPath" translate="no"></div>
+      <div class="sticker-status editor-status" id="cloudStatus"></div>
+      <div class="files-body"><div class="files-grid cloud-grid" id="cloudGrid"></div></div>
+    </div>
+    <input type="file" id="stickerFile" accept="image/*,.ttf,.otf,.woff,.woff2" multiple style="display:none;">
 
     <!-- The miniature list that drops out of a text field's ☺ button. -->
     <div class="sticker-picker" id="stickerPicker">
@@ -783,6 +817,8 @@
     '41-text-view.js',
     '42-media-types.js',
     '43-i18n.js',
+    '44-ink.js',
+    '45-clouds.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){

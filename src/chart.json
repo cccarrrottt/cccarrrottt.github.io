@@ -91,5 +91,5 @@
     {"key":"zxczcxczx","title":"","detail":"zxczcxczx"},
     {"key":"12132","title":"","detail":"12132"}
   ],
-  "settings": {"refColor":"#c23b22","mediaTypes":[{"id":"kind","name":"Film","fields":[{"id":"f1","label":"director"},{"id":"f2","label":"company"},{"id":"f3","label":"year"}]}]}
+  "settings": {"refColor":"#c23b22","mediaTypes":[{"id":"kind","name":"Film","fields":[{"id":"f1","label":"director"},{"id":"f2","label":"company"},{"id":"f3","label":"year"}]}],"fonts":[{"key":"autobot","name":"Autobot Characters","src":"media/e0a4f12e99bd28944b6e8826de6fffae1e0be81bdb306cc60e84fea39719cb7d.ttf"}]}
 }

@@ -454,7 +454,7 @@ function updateAddFabPosition(){
    time because they are created all over this file. The tabs at the left
    edge are not among them: they cover none of these, and each keeps its
    own state until it is pressed again. */
-const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'aboutOverlay', 'textViewOverlay', 'langMenu'];
+const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'cloudOverlay', 'aboutOverlay', 'textViewOverlay', 'langMenu'];
 function closeToolbarMenus(keep){
   TOOLBAR_SURFACES.forEach(id=>{
     if(id === keep) return;
@@ -976,11 +976,13 @@ updateStats();
    ------------------------------------------------------------------ */
 function rebuildChart(){
   const keepSelected = selectedId;
+  fontOptions();
   applyGroundColors();
   buildModel();
   renderNodes();
   syncField();
   redrawEdges();
+  drawInk();
   buildSideTabs();
   updateStats();
   applyVisibility();

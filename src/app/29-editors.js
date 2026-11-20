@@ -381,6 +381,12 @@ function serializeSettings(o){
   // The kinds of medium a card can be of (42-media-types.js).
   const mediaTypes = cleanMediaTypes(o.mediaTypes);
   if(mediaTypes.length) extra.mediaTypes = mediaTypes;
+  // Notes pencilled in the margin (44-ink.js).
+  const ink = cleanInk(o.ink);
+  if(ink.length) extra.ink = ink;
+  // The chart's own faces (fontOptions, 05-render-text.js).
+  const fonts = cleanFonts(o.fonts);
+  if(fonts.length) extra.fonts = fonts;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;

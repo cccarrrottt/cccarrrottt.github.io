@@ -95,16 +95,26 @@ function tagShapeHtml(text, opts){
      either; a tag shape around it said there was a tag called "Untagged"
      and invited the reader to look for it. */
   if(opts && opts.reserved) return `<span class="tag-bucket">${escapeHtml(text)}</span>`;
-  /* The star rides INSIDE the label. Set beside it, it was a separate word
-     as far as the line was concerned, and on a narrow panel it wrapped to
-     a line of its own — a lone asterisk under the tag it was supposed to
-     be marking. */
-  const star = (opts && opts.special)
-    ? `<span class="tag-special" title="${escapeHtml(opts.why || '')}">*</span>` : '';
+  /* A tag that acts says so with the eyelet itself: a hollow star where
+     an ordinary tag has a ring. It used to say it with an asterisk after
+     the name, which the owner asked to drop (20.11) — the hole a label
+     hangs by is the one place on it that is not the words. The reason
+     stays the label's tooltip. */
+  const special = !!(opts && opts.special);
+  const why = special && opts.why ? ` title="${escapeHtml(opts.why)}"` : '';
   /* The words in a span of their own, so a list too narrow for a long
      name can cut it short with an ellipsis rather than push the row's
      count and buttons off the panel. */
-  return `<span class="tag-shape"><i class="tag-eye"></i><span class="tag-text">${escapeHtml(text)}</span>${star}</span>`;
+  return `<span class="tag-shape${special ? ' tag-shape-special' : ''}"${why}>${tagEyeHtml(special)}` +
+         `<span class="tag-text">${escapeHtml(text)}</span></span>`;
+}
+/* The eyelet of a tag: a ring, or for a tag that acts a five-pointed
+   star, hollow, in the same faint ink as the ring. One string
+   for every place that draws a tag, so they cannot drift apart. */
+function tagEyeHtml(special){
+  if(!special) return '<i class="tag-eye"></i>';
+  return '<i class="tag-eye tag-eye-star"><svg viewBox="0 0 10 10" aria-hidden="true">' +
+         '<polygon points="5,0.8 6.12,3.86 9.37,3.98 6.81,5.99 7.7,9.12 5,7.3 2.3,9.12 3.19,5.99 0.63,3.98 3.88,3.86"/></svg></i>';
 }
 /* How far past the box the weave reaches. It has to clear the box by a
    good margin: the entry's own fill covers the middle of the patch, so
@@ -238,7 +248,7 @@ function syncAlignGrid(){
  * The grid is ruled on the field and nowhere else, and a pan or a zoom
  * keeps the middle of the view on it (keepFieldInView), so the chart
  * cannot be lost in the empty space round it. */
-const FIELD_PAGE_W = 1200, FIELD_PAGE_H = 800, FIELD_MARGIN = 40;
+const FIELD_PAGE_W = 2000, FIELD_PAGE_H = 2000, FIELD_MARGIN = 40;
 var chartField = null;
 var fieldReady = false;
 function fieldOf(carried){
@@ -253,6 +263,16 @@ function fieldOf(carried){
     if(!Number.isFinite(n.x) || !Number.isFinite(n.y)) return;
     x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y);
     x1 = Math.max(x1, n.x + (n.w || 0)); y1 = Math.max(y1, n.y + (n.h || 0));
+  });
+  /* A note pencilled in the margin is on the field too (44-ink.js). */
+  const ink = Array.isArray(SETTINGS.ink) ? SETTINGS.ink : [];
+  ink.forEach(s=>{
+    const p = s && Array.isArray(s.pts) ? s.pts : [];
+    for(let i = 0; i + 1 < p.length; i += 2){
+      if(!Number.isFinite(p[i]) || !Number.isFinite(p[i + 1])) continue;
+      x0 = Math.min(x0, p[i]); x1 = Math.max(x1, p[i]);
+      y0 = Math.min(y0, p[i + 1]); y1 = Math.max(y1, p[i + 1]);
+    }
   });
   if(!Number.isFinite(x0)){ x0 = x1 = 0; y0 = y1 = 0; }
   const W = FIELD_PAGE_W, H = FIELD_PAGE_H, m = FIELD_MARGIN;

@@ -85,6 +85,7 @@ function forgetSiteSession(){
   siteOwner = null;
   siteEditor = false;
   siteReader = null;
+  setCloudsFromService(null);
   updateOwnerBtn();
 }
 function siteApiOrigin(){
@@ -244,6 +245,7 @@ async function checkSiteOwner(){
   }
   siteReader = null;
   siteTakesMedia = me.media === true;
+  setCloudsFromService(me.clouds);
   siteOwner = me.login || 'owner';
   siteEditor = !!me.editor;
   rememberOwner(siteOwner);

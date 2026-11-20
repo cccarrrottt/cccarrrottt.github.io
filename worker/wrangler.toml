@@ -31,6 +31,10 @@ workers_dev = true
 # under [vars] collides with the secret of the same name — the deploy either
 # fails or the service runs with what stands here instead of the real thing.
 # They are set once in the Cloudflare dashboard, as Secrets.
+# So are the cloud drives' (see CLOUDS in index.js), each optional — a
+# drive whose two or three are not set is simply not offered:
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY
+#   YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET
 # tests/worker.js refuses this file if any of them appears in it.
 [vars]
 REPO = "cccarrrottt/cccarrrottt.github.io"

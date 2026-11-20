@@ -40,7 +40,7 @@ const BROWSER = {
   HTMLCanvasElement: 'readonly', MediaRecorder: 'readonly',
   getComputedStyle: 'readonly', matchMedia: 'readonly', alert: 'readonly',
   performance: 'readonly', crypto: 'readonly', btoa: 'readonly', atob: 'readonly',
-  MutationObserver: 'readonly', ResizeObserver: 'readonly',
+  MutationObserver: 'readonly', ResizeObserver: 'readonly', FontFace: 'readonly',
   /* Not everywhere yet: the custom-highlight API is feature-detected before
      use, which is exactly why it has to be declared — an undeclared name in
      a `typeof` guard reads to the linter like the typo it is guarding against. */

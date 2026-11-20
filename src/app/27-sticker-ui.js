@@ -97,10 +97,14 @@ function stickerDataFromFile(file, crop, moving){
 
 let stickerReplaceKey = null;   // set when the picker is replacing one
 stickerFile.addEventListener('change', async ()=>{
-  const files = Array.from(stickerFile.files || []);
+  const chosen = Array.from(stickerFile.files || []);
   stickerFile.value = '';
   const replacing = stickerReplaceKey;
   stickerReplaceKey = null;
+  /* The window's one + brings in fonts too, told apart by their names. */
+  const faces = chosen.filter(f=> fontTypeOfName(f.name));
+  const files = chosen.filter(f=> !fontTypeOfName(f.name));
+  if(faces.length) addOwnFonts(faces);
   if(!files.length) return;
   clearStickerStatus();
   const added = [], failed = [];
@@ -141,6 +145,7 @@ stickerFile.addEventListener('change', async ()=>{
 
 function renderStickerLibrary(){
   renderChartFiles();
+  renderOwnFonts();
   stickerGrid.innerHTML = '';
   if(!STICKERS.length){
     const p = document.createElement('div');
@@ -262,6 +267,9 @@ function chartFileCell(f){
   name.className = 'file-name';
   name.textContent = f.name || '';
   cell.append(pic, name);
+  // From one of the owner's drives: its mark (45-clouds.js).
+  const cloud = cloudOfSrc(f.src);
+  if(cloud) cell.appendChild(cloudMarkEl(cloud));
   // Video has a section of its own now; a GIF is an image, and says it moves.
   if(f.kind !== 'video' && pictureMoves(f.src)){
     const k = document.createElement('span');
@@ -302,8 +310,171 @@ function renderChartFiles(){
     list.forEach(f=> g.appendChild(chartFileCell(f)));
   });
 }
+/* ---- The chart's own faces (the owner's word of 20.11) --------------
+ *
+ * A font brought in by the window's + is the chart's from then on: kept
+ * in SETTINGS.fonts, a file in media/ once saved on the site, and offered
+ * wherever a face is chosen, after the program's own. Here each is shown
+ * set in itself, named, and how many entries are set in it; pressed it
+ * takes you to the first of them, as a picture does. It goes only once
+ * nothing is set in it — a face taken out from under its words would
+ * leave them in some other face nobody chose. */
+const OWN_FONT_LIMIT = 4 * 1024 * 1024;
+const fontStatusEl = document.getElementById('fontStatus');
+function setFontStatus(kind, msg){
+  if(!fontStatusEl) return;
+  fontStatusEl.className = 'sticker-status editor-status' + (msg ? ' show ' + kind : '');
+  fontStatusEl.textContent = msg || '';
+}
+/* Every entry with words set in the face, or set in it whole — and a
+   connector whose note is. */
+function fontWearers(key){
+  const run = '{{f:' + key + '|';
+  const ids = [];
+  workingNodes.forEach(e=>{
+    const o = e[6] || {};
+    if(o.font === key || JSON.stringify(e).indexOf(run) >= 0) ids.push(e[0]);
+  });
+  const notes = EDGE_STYLES.filter(s=> typeof s.note === 'string' && s.note.indexOf(run) >= 0).length;
+  return {ids, notes};
+}
+function uniqueFontKey(base){
+  let k = (base || 'font').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'font';
+  const taken = new Set(fontOptions().map(f=> f.key));
+  if(!taken.has(k)) return k;
+  let i = 2;
+  while(taken.has(k + '-' + i)) i++;
+  return k + '-' + i;
+}
+function readFontFile(file){
+  const type = fontTypeOfName(file.name);
+  if(file.size > OWN_FONT_LIMIT){
+    return Promise.reject(new Error(`"${file.name}" is ${Math.round(file.size/1024)} KB — a font has to stay under ${Math.round(OWN_FONT_LIMIT/1024/1024)} MB, because the chart carries it.`));
+  }
+  return file.arrayBuffer().then(async buf=>{
+    /* Read as a face before it is kept: a file called .ttf that is not
+       one would otherwise sit in the list and draw nothing. */
+    try{ await new FontFace('rhizome-probe', buf).load(); }
+    catch(e){ throw new Error(`"${file.name}" is not a font this browser can read.`); }
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for(let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return 'data:' + type + ';base64,' + btoa(bin);
+  });
+}
+async function addOwnFonts(files){
+  if(readOnlyView) return;
+  setFontStatus('', '');
+  filesFolded.delete('fonts');
+  const added = [], failed = [];
+  for(const f of files){
+    try{ added.push({name: f.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Font', src: await readFontFile(f)}); }
+    catch(err){ failed.push(err.message); }
+  }
+  if(added.length){
+    applyStickerEdit(()=>{
+      const list = cleanFonts(SETTINGS.fonts);
+      added.forEach(a=>{
+        const same = list.find(x=> x.src === a.src);
+        if(!same) list.push({key: uniqueFontKey(a.name), name: a.name, src: a.src});
+      });
+      SETTINGS.fonts = list;
+    });
+  }
+  if(failed.length) setFontStatus('err', failed.join('\n'));
+  else if(added.length) setFontStatus('ok', added.length === 1 ? 'Font added.' : `${added.length} fonts added.`);
+}
+function removeOwnFont(f){
+  const worn = fontWearers(f.key);
+  const n = worn.ids.length + worn.notes;
+  if(n){
+    setFontStatus('err', `“${f.label}” can’t be taken out: ${n} ${n === 1 ? 'text is' : 'texts are'} set in it`);
+    return;
+  }
+  setFontStatus('', '');
+  applyStickerEdit(()=>{
+    const list = cleanFonts(SETTINGS.fonts).filter(x=> x.key !== f.key);
+    if(list.length) SETTINGS.fonts = list; else delete SETTINGS.fonts;
+  });
+}
+/* Renamed where its name is written, as a kind of medium is: a double
+   click, Enter keeps it, Escape or an empty name puts it back. */
+function renameOwnFont(nameEl, f){
+  if(readOnlyView) return;
+  nameEl.contentEditable = 'true';
+  nameEl.focus();
+  try{ const r = document.createRange(); r.selectNodeContents(nameEl);
+       const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); }catch(e){}
+  let done = false;
+  const finish = (keep)=>{
+    if(done) return;
+    done = true;
+    nameEl.contentEditable = 'false';
+    const v = nameEl.textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    if(!keep || !v || v === f.label){ nameEl.textContent = f.label; return; }
+    applyStickerEdit(()=>{
+      SETTINGS.fonts = cleanFonts(SETTINGS.fonts).map(x=> x.key === f.key ? Object.assign({}, x, {name: v}) : x);
+    });
+  };
+  nameEl.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  nameEl.addEventListener('blur', ()=> finish(true), {once: true});
+}
+function ownFontCell(f){
+  const cell = document.createElement('div');
+  cell.className = 'file-cell font-cell';
+  cell.dataset.font = f.key;
+  cell.tabIndex = 0;
+  const sample = document.createElement('div');
+  sample.className = 'font-sample';
+  sample.style.fontFamily = fontFamilyFor(f.key);
+  sample.textContent = 'Aa Бб';
+  const name = document.createElement('div');
+  name.className = 'file-name';
+  name.textContent = f.label;
+  name.setAttribute('translate', 'no');
+  const worn = fontWearers(f.key);
+  cell.title = f.label + (worn.ids.length ? ' — on ' + worn.ids.map(id=>{
+    const n = nodes.get(id); return n ? (stripMarkup(n.label || '').trim() || id) : id; }).join(', ') : '');
+  cell.append(sample, name);
+  if(!readOnlyView){
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'sticker-del'; del.textContent = '\u2715';
+    del.title = 'Take this font out of the chart — only once nothing is set in it';
+    del.addEventListener('click', ev=>{ ev.stopPropagation(); removeOwnFont(f); });
+    cell.appendChild(del);
+    name.addEventListener('dblclick', ev=>{ ev.stopPropagation(); renameOwnFont(name, f); });
+  }
+  cell.addEventListener('click', ev=>{
+    if(ev.target.isContentEditable) return;
+    const id = worn.ids.find(i=> nodes.get(i));
+    if(!id) return;
+    stickerOverlay.classList.remove('open');
+    selectNode(id); flyToNode(id);
+  });
+  return cell;
+}
+function renderOwnFonts(){
+  const grid = document.getElementById('fontGrid');
+  if(!grid) return;
+  const own = fontOptions().filter(f=> f.own);
+  document.getElementById('fontCount').textContent = own.length ? String(own.length) : '';
+  grid.textContent = '';
+  if(!own.length){
+    const p = document.createElement('div');
+    p.className = 'sticker-empty';
+    p.textContent = readOnlyView ? 'No fonts of its own in this chart.' : 'No fonts of its own yet — add a .ttf, .otf or .woff with the +.';
+    grid.appendChild(p);
+    return;
+  }
+  own.forEach(f=> grid.appendChild(ownFontCell(f)));
+}
 function openStickerLibrary(){
   clearStickerStatus();
+  renderCloudRow();
   renderStickerLibrary();
   stickerOverlay.classList.add('open');
   placeUnderButton(stickerOverlay, document.getElementById('filesToggle'));
@@ -557,6 +728,22 @@ document.addEventListener('mousedown', ev=>{
 /* The sizes the toolbar offers. A hand-typed value is still accepted by
    the command underneath; this is just the list worth pointing at. */
 const TB_SIZES = [7, 8, 9, 10, 11.5, 13, 15, 17, 20, 24, 28, 34];
+/* The faces a toolbar offers are the program's and the chart's own, and
+   the chart's change as fonts are brought in and taken out — so the list
+   is made again whenever it is about to be read and is not what it was. */
+function fillFaceSelect(sel){
+  const opts = fontOptions();
+  const sig = opts.map(f=> f.key + ':' + f.label).join('|');
+  if(sel.dataset.faces === sig) return;
+  const was = sel.value;
+  sel.innerHTML = '<option value="">Face…</option>' +
+    '<option value="__mixed__" class="tb-custom" hidden>custom</option>' +
+    opts.map(f=> `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`).join('') +
+    '<option value="__clear__">— clear —</option>';
+  sel.dataset.faces = sig;
+  sel.value = was;
+  if(sel.value !== was) sel.value = '';
+}
 function addFontButton(bar){
   if(bar.querySelector('.tb-font')) return;
   const target = bar.querySelector('[data-wrap-target]');
@@ -567,12 +754,10 @@ function addFontButton(bar){
   /* "custom" is something the picker SAYS, never something you can pick:
      hidden keeps it out of the list that drops down, while a select still
      shows a hidden option's label when that option is the selected one. */
-  sel.innerHTML = '<option value="">Face…</option>' +
-    '<option value="__mixed__" class="tb-custom" hidden>custom</option>' +
-    FONT_OPTIONS.map(f=> `<option value="${f.key}">${escapeHtml(f.label)}</option>`).join('') +
-    '<option value="__clear__">— clear —</option>';
+  fillFaceSelect(sel);
   // Choosing must not first collapse the selection the choice is for.
-  sel.addEventListener('mousedown', ()=> rememberToolbarSelection(bar));
+  sel.addEventListener('mousedown', ()=>{ fillFaceSelect(sel); rememberToolbarSelection(bar); });
+  sel.addEventListener('focus', ()=> fillFaceSelect(sel));
   sel.addEventListener('change', ev=>{
     ev.stopPropagation();
     const key = sel.value;
@@ -701,6 +886,7 @@ function syncToolbarFace(bar){
   const surface = surfaceForToolbar(bar);
   const face = bar.querySelector('.tb-font:not(.tb-size)');
   const size = bar.querySelector('.tb-size');
+  if(face) fillFaceSelect(face);
   if(!surface){ if(face) face.value = ''; if(size) size.value = ''; return; }
   const base = baseTypeFor(surface);
   // A run with nothing of its own is set in the field's own face and size,

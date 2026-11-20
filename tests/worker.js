@@ -358,6 +358,17 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     r = await post(s, {base: gitSha(after), chart: withSvg, media: {[svgRef]: svg.toString('base64')}});
     check('an SVG is refused as a file, even named for exactly what its bytes are', r.status === 400 && gh.head === picHead);
   }
+  /* A face of the chart's own is a file like a picture (0.26.2): opened at
+     its address a font runs nothing. */
+  {
+    const font = Buffer.from('bytes of a font');
+    const fontRef = 'media/' + nodeCrypto.createHash('sha256').update(font).digest('hex') + '.woff2';
+    const took = await w.checkMedia({[fontRef]: font.toString('base64')}, `{"fonts":[{"src":"${fontRef}"}]}`, '{}', new Set());
+    check('a font is taken as a file of the chart, named for its bytes', took.length === 1 && took[0].ref === fontRef);
+    let named = null;
+    try{ await w.checkMedia({}, `{"fonts":[{"src":"${fontRef}"}]}`, '{}', new Set()); }catch(e){ named = e.message; }
+    check('…and a chart naming one nobody sent is refused, as for a picture', /does not have/.test(named || ''), named);
+  }
   r = await post(s, {base: gitSha(after), chart: withPic});
   body = await r.json();
   check('a chart naming a picture the repository does not have, and not sending it, is refused',
@@ -677,6 +688,188 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
   check('and what is written is cut to length, and a line that is not a number is none',
         r.status === 204 && !!cut && cut.message.length === 500 && cut.line === 0, logged.join('\n'));
 
+  /* The owner's cloud drives (0.26.2). Google and Yandex, in memory:
+     what they answer to the calls the service makes, and what was asked. */
+  {
+    const CENV = {...ENV, GOOGLE_CLIENT_ID: 'g-id', GOOGLE_CLIENT_SECRET: 'g-secret', GOOGLE_API_KEY: 'g-key',
+                  YANDEX_CLIENT_ID: 'y-id', YANDEX_CLIENT_SECRET: 'y-secret'};
+    const ccall = (p, init) => svc.fetch(new Request(SVC + p, init), CENV);
+    const asked = [];
+    const drive = {
+      root: [{id: 'fold1', name: 'Pictures', mimeType: 'application/vnd.google-apps.folder'},
+             {id: 'pic1', name: 'Optimus.png', mimeType: 'image/png', thumbnailLink: 'https://lh3.example/t'},
+             {id: 'doc1', name: 'Notes.pdf', mimeType: 'application/pdf'},
+             {id: 'vid1', name: 'Clip.mp4', mimeType: 'video/mp4'}],
+      shared: new Set()
+    };
+    const disk = {items: [{type: 'file', name: 'b.jpg', path: 'disk:/b.jpg', mime_type: 'image/jpeg'},
+                          {type: 'dir', name: 'Folder', path: 'disk:/Folder'},
+                          {type: 'file', name: 'a.txt', path: 'disk:/a.txt', mime_type: 'text/plain'}],
+                  published: new Map()};
+    let grants = 0;
+    const jsonRes = (b, st) => new Response(JSON.stringify(b), {status: st || 200, headers: {'Content-Type': 'application/json'}});
+    const ghFetch = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const u = new URL(typeof input === 'string' ? input : input.url);
+      const auth = (init && init.headers && (init.headers.Authorization || init.headers.authorization)) || '';
+      if(u.host === 'oauth2.googleapis.com' || u.host === 'oauth.yandex.ru'){
+        const f = new URLSearchParams(init.body);
+        asked.push(u.host + ' ' + f.get('grant_type'));
+        const pre = u.host === 'oauth.yandex.ru' ? 'y' : 'g';
+        if(f.get('grant_type') === 'authorization_code' && f.get('code') === 'good')
+          return jsonRes({access_token: pre + '-at-' + (++grants), expires_in: 3600, refresh_token: pre + '-rt'});
+        if(f.get('grant_type') === 'refresh_token' && f.get('refresh_token') === pre + '-rt')
+          return jsonRes({access_token: pre + '-at-' + (++grants), expires_in: 3600});
+        return jsonRes({error: 'invalid_grant'}, 400);
+      }
+      if(u.host === 'www.googleapis.com'){
+        if(u.searchParams.get('alt') === 'media'){
+          asked.push('media ' + u.pathname + ' ' + u.searchParams.get('key') + ' ' + ((init && init.headers && init.headers.Range) || ''));
+          const id = u.pathname.split('/').pop();
+          if(!drive.shared.has(id)) return new Response('no', {status: 404});
+          return new Response('PNGBYTES', {status: 200, headers: {'Content-Type': id === 'pic1' ? 'image/png' : 'text/html', 'Content-Length': '8'}});
+        }
+        if(!/^Bearer g-at-/.test(auth)) return jsonRes({}, 401);
+        if(/\/permissions$/.test(u.pathname)){ drive.shared.add(u.pathname.split('/')[4]); asked.push('share ' + init.body); return jsonRes({id: 'anyone'}); }
+        if(u.pathname === '/drive/v3/files'){ asked.push('list ' + u.searchParams.get('q')); return jsonRes({files: drive.root}); }
+        const f = drive.root.find(x => x.id === u.pathname.split('/').pop());
+        return f ? jsonRes(f) : jsonRes({}, 404);
+      }
+      if(u.host === 'cloud-api.yandex.net'){
+        if(u.pathname === '/v1/disk/public/resources/download'){
+          const key = u.searchParams.get('public_key');
+          return [...disk.published.values()].includes(key) ? jsonRes({href: 'https://downloader.disk.yandex.ru/x?k=' + key}) : jsonRes({}, 404);
+        }
+        if(!/^OAuth y-at-/.test(auth)) return jsonRes({}, 401);
+        const path = u.searchParams.get('path');
+        if(u.pathname === '/v1/disk/resources/publish'){ disk.published.set(path, 'pk-' + path); return jsonRes({href: 'x'}); }
+        if(path === 'disk:/') return jsonRes({_embedded: {items: disk.items}});
+        const f = disk.items.find(x => x.path === path);
+        return f ? jsonRes(Object.assign({}, f, disk.published.has(path) ? {public_key: disk.published.get(path)} : {})) : jsonRes({}, 404);
+      }
+      return ghFetch(input, init);
+    };
+    const own = await session('TheOwner');
+    const post = (p, tok, b) => ccall(p, {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE, 'Content-Type': 'application/json'},
+                                          body: JSON.stringify(b || {})});
+
+    r = await call('/me', auth(own));
+    body = await r.json();
+    check('a service with no drive set up offers none', body.clouds && body.clouds.ready.length === 0, JSON.stringify(body.clouds));
+    r = await ccall('/me', auth(own));
+    body = await r.json();
+    check('one set up for both offers both, connected to neither yet',
+          body.clouds && body.clouds.ready.join() === 'gdrive,yadisk' && body.clouds.connected.length === 0, JSON.stringify(body.clouds));
+    r = await call('/cloud/gdrive/ticket', {method: 'POST', headers: {Authorization: 'Bearer ' + own, Origin: SITE}});
+    check('a drive that is not set up cannot be connected', r.status === 503);
+    r = await ccall('/cloud/gdrive/ticket', {method: 'POST', headers: {Origin: SITE}});
+    check('connecting a drive needs the owner\'s session', r.status === 401);
+    r = await post('/cloud/gdrive/ticket', await session('someone'));
+    check('…and not anyone\'s', r.status === 403);
+
+    const connect = async (name, code) => {
+      const t = (await (await post('/cloud/' + name + '/ticket', own)).json()).ticket;
+      const go = await ccall('/cloud/' + name + '/connect?ticket=' + encodeURIComponent(t));
+      const to = go.status === 302 ? new URL(go.headers.get('Location')) : null;
+      const back = await ccall('/cloud/' + name + '/back?code=' + code + '&state=' + encodeURIComponent(to ? to.searchParams.get('state') : ''));
+      const html = await back.text();
+      const m = /"grant":"([^"]+)"/.exec(html);
+      return {to, back, html, grant: m && m[1]};
+    };
+    const g = await connect('gdrive', 'good');
+    check('the popup goes to Google\'s consent, asking for the drive, offline, and back to this service',
+          !!g.to && g.to.host === 'accounts.google.com' && g.to.searchParams.get('scope') === 'https://www.googleapis.com/auth/drive' &&
+          g.to.searchParams.get('access_type') === 'offline' && g.to.searchParams.get('redirect_uri') === SVC + '/cloud/gdrive/back',
+          g.to && g.to.toString());
+    check('…and comes back with a grant handed only to the site',
+          g.back.status === 200 && !!g.grant && g.html.includes(`, "${SITE}")`) && /frame-ancestors 'none'/.test(g.back.headers.get('Content-Security-Policy') || ''),
+          g.html.slice(0, 200));
+    const forged = await ccall('/cloud/gdrive/back?code=good&state=forged');
+    check('a forged return is refused', forged.status === 400);
+    r = await post('/cloud/gdrive/attach', await session('TheOwner'), {grant: 'nonsense'});
+    check('a grant that is not one is refused', r.status === 400);
+    r = await post('/cloud/gdrive/attach', own, {grant: g.grant});
+    body = await r.json();
+    const withDrive = body.session ? await w.unseal(ENV, 'session', body.session) : null;
+    check('attached, the grant goes into the owner\'s session, beside GitHub\'s',
+          r.status === 200 && !!withDrive && withDrive.gh === 'tok-owner' && /^g-at-/.test(withDrive.clouds.gdrive.at) && withDrive.clouds.gdrive.rt === 'g-rt',
+          JSON.stringify(body).slice(0, 200));
+    let tok = body.session;
+    r = await post('/cloud/gdrive/list', tok, {});
+    body = await r.json();
+    check('a folder of the drive lists its folders, pictures and clips, and nothing else',
+          r.status === 200 && body.items.map(i => i.kind + ':' + i.name).join() === 'folder:Pictures,image:Optimus.png,video:Clip.mp4',
+          JSON.stringify(body));
+    r = await post('/cloud/gdrive/list', tok, {folder: "x' or '1'='1"});
+    check('…and a folder that is not an id is the drive\'s top, not a question put to Google',
+          r.status === 200 && /^list 'root' in parents/.test(asked.filter(a => /^list/.test(a)).pop()), asked.slice(-1)[0]);
+    r = await ccall('/cloud/gdrive/file/pic1');
+    check('a file not shared by link is not shown by its address', r.status === 404);
+    r = await post('/cloud/gdrive/pick', tok, {id: 'doc1'});
+    check('a file that is no picture or clip cannot be picked', r.status === 400 && !drive.shared.has('doc1'));
+    r = await post('/cloud/gdrive/pick', tok, {id: 'pic1'});
+    body = await r.json();
+    check('a picture picked is shared by link, and named by its address on this service',
+          r.status === 200 && drive.shared.has('pic1') && body.src === SVC + '/cloud/gdrive/file/pic1' && body.kind === 'image' &&
+          asked.includes('share {"role":"reader","type":"anyone"}'), JSON.stringify(body));
+    r = await ccall('/cloud/gdrive/file/pic1', {headers: {Range: 'bytes=0-3'}});
+    check('…which anyone\'s browser is answered at, with the file, read with the service\'s key, the range passed on',
+          r.status === 200 && (await r.text()) === 'PNGBYTES' && r.headers.get('Content-Type') === 'image/png' &&
+          r.headers.get('Access-Control-Allow-Origin') === '*' && asked.includes('media /drive/v3/files/pic1 g-key bytes=0-3'),
+          asked.filter(a => /^media/.test(a)).join(' | '));
+    drive.shared.add('doc1');
+    r = await ccall('/cloud/gdrive/file/doc1');
+    check('…and only a picture or a clip: a page shared by link is not passed on', r.status === 404);
+    /* The drive's token runs out within the hour; the session carries what
+       renews it. */
+    const stale = await w.seal(ENV, 'session', Object.assign({}, withDrive, {clouds: {gdrive: {at: 'g-at-old', atExp: Date.now() - 1000, rt: 'g-rt'}}}));
+    r = await post('/cloud/gdrive/list', stale, {});
+    body = await r.json();
+    const fresh = body.session ? await w.unseal(ENV, 'session', body.session) : null;
+    check('a drive\'s token that ran out is renewed, and the session that holds the new one handed back',
+          r.status === 200 && !!fresh && /^g-at-\d/.test(fresh.clouds.gdrive.at) && fresh.clouds.gdrive.rt === 'g-rt', JSON.stringify(fresh && fresh.clouds));
+    const dead = await w.seal(ENV, 'session', Object.assign({}, withDrive, {clouds: {gdrive: {at: 'x', atExp: 0, rt: 'revoked'}}}));
+    r = await post('/cloud/gdrive/list', dead, {});
+    body = await r.json();
+    const dropped = body.session ? await w.unseal(ENV, 'session', body.session) : null;
+    check('…and one the drive will not renew is let go, and the owner asked to connect again',
+          r.status === 409 && /connect it again/.test(body.error) && !!dropped && !dropped.clouds.gdrive && dropped.gh === 'tok-owner', JSON.stringify(body).slice(0, 160));
+    /* GitHub's renewal keeps the drives. */
+    const both = await w.seal(ENV, 'session', {login: 'TheOwner', gh: 'tok-lapsed', ghExp: Date.now() - 1000, rt: [...gh.refresh][0],
+                                               exp: Date.now() + 86400000, clouds: withDrive.clouds});
+    r = await ccall('/me', auth(both));
+    body = await r.json();
+    const kept = body.session ? await w.unseal(ENV, 'session', body.session) : null;
+    check('a session renewed by GitHub keeps the drives connected to it',
+          r.status === 200 && !!kept && kept.clouds && !!kept.clouds.gdrive && body.clouds.connected.join() === 'gdrive', JSON.stringify(body.clouds));
+
+    const y = await connect('yadisk', 'good');
+    check('Yandex Disk connects the same way, through its own consent',
+          !!y.to && y.to.host === 'oauth.yandex.ru' && y.to.searchParams.get('redirect_uri') === SVC + '/cloud/yadisk/back' && !!y.grant);
+    r = await post('/cloud/yadisk/attach', tok, {grant: y.grant});
+    body = await r.json();
+    tok = body.session;
+    check('…and joins the drive already connected', r.status === 200 && body.connected.join() === 'gdrive,yadisk', JSON.stringify(body));
+    r = await post('/cloud/yadisk/list', tok, {});
+    body = await r.json();
+    check('a Yandex folder lists its folders first, then its pictures and clips',
+          r.status === 200 && body.items.map(i => i.kind + ':' + i.name).join() === 'folder:Folder,image:b.jpg', JSON.stringify(body));
+    r = await post('/cloud/yadisk/pick', tok, {id: 'disk:/b.jpg'});
+    body = await r.json();
+    check('a Yandex file picked is published, and named by its public key',
+          r.status === 200 && disk.published.get('disk:/b.jpg') === 'pk-disk:/b.jpg' &&
+          body.src === SVC + '/cloud/yadisk/file?key=' + encodeURIComponent('pk-disk:/b.jpg'), JSON.stringify(body));
+    r = await ccall('/cloud/yadisk/file?key=' + encodeURIComponent('pk-disk:/b.jpg'));
+    check('…and its address sends the browser on to Yandex\'s download', r.status === 302 && /^https:\/\/downloader\.disk\.yandex\.ru\//.test(r.headers.get('Location')));
+    r = await ccall('/cloud/yadisk/file?key=nothing-published');
+    check('…while a key Yandex does not know is nothing', r.status === 404);
+    r = await post('/cloud/yadisk/forget', tok);
+    body = await r.json();
+    check('a drive let go is out of the session', r.status === 200 && body.connected.join() === 'gdrive' &&
+          !(await w.unseal(ENV, 'session', body.session)).clouds.yadisk);
+    globalThis.fetch = ghFetch;
+  }
+
   /* Faults, counted. The log keeps them three days; the namespace keeps
      them until the owner has read them. */
   const kv = new Map();
@@ -785,7 +978,8 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
      wrangler.toml they would be public, and would collide with the real
      ones. It happened once, with placeholder values. */
   const toml = fs.readFileSync(path.join(ROOT, 'worker', 'wrangler.toml'), 'utf8');
-  const leaked = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET']
+  const leaked = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET',
+                  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_API_KEY', 'YANDEX_CLIENT_ID', 'YANDEX_CLIENT_SECRET']
     .filter(k => new RegExp('^\\s*' + k + '\\s*=', 'm').test(toml));
   check('wrangler.toml sets none of the service\'s secrets', leaked.length === 0, leaked.join(', '));
 

@@ -55,14 +55,17 @@ const MEDIA_KINDS = new Set(['image', 'video']);
 const MEDIA_EXT = {
   'image/png':'png', 'image/jpeg':'jpg', 'image/gif':'gif', 'image/webp':'webp', 'image/avif':'avif',
   'image/bmp':'bmp', 'image/x-icon':'ico', 'image/vnd.microsoft.icon':'ico',
-  'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov'
+  'video/webm':'webm', 'video/mp4':'mp4', 'video/ogg':'ogv', 'video/quicktime':'mov',
+  /* A face of the chart's own (05-render-text.js) is a file like a
+     picture. A font runs nothing opened at its address. */
+  'font/ttf':'ttf', 'font/otf':'otf', 'font/woff':'woff', 'font/woff2':'woff2'
 };
 /* Its patterns are written inside it rather than kept beside it: the model
    asks mediaSrcOk while it loads the chart, in part 02, before anything
    this part declares has been given a value. */
 function mediaRefKind(src){
-  const m = typeof src === 'string' && /^media\/[0-9a-f]{64}\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)$/.exec(src);
-  return m ? (/^(webm|mp4|ogv|mov)$/.test(m[1]) ? 'video' : 'image') : null;
+  const m = typeof src === 'string' && /^media\/[0-9a-f]{64}\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)$/.exec(src);
+  return m ? (/^(webm|mp4|ogv|mov)$/.test(m[1]) ? 'video' : /^(ttf|otf|woff2?)$/.test(m[1]) ? 'font' : 'image') : null;
 }
 /* Embedded pictures in a region's text, lifted out into the files they
    will be on the site: the text with each data: URI replaced by its path,
@@ -72,8 +75,8 @@ function mediaRefKind(src){
    mediaSrcOk reads it that way: a recorder's `;codecs=vp9,opus` holds a
    comma. A type with no extension to its name stays embedded. */
 const LIFT_MIN = 2048;
-const DATA_URI_IN_TEXT = /data:((?:image|video)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g;
-const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)/g;
+const DATA_URI_IN_TEXT = /data:((?:image|video|font)\/[A-Za-z0-9.+-]+)([^'"\\\s]*?);base64,([A-Za-z0-9+/]+=*)/g;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)/g;
 const liftedRefs = new Map();   // data: URI -> its path, once worked out
 const mediaSent = new Set();    // paths the service has taken in this page's life
 async function mediaRefOf(uri, mime, b64){
@@ -164,7 +167,8 @@ function sanitizeMedia(list){
    can arrive from someone else, and opening it must not run their code. */
 function mediaSrcOk(src){
   if(typeof src !== 'string' || !src) return false;
-  if(mediaRefKind(src)) return true;
+  // A face is not a figure: see fontSrcOk.
+  if(mediaRefKind(src)) return mediaRefKind(src) !== 'font';
   /* An embedded one, header and all. Split on the marker rather than
      matched in one pattern: a real media type can carry parameters, and a
      browser's own recorder writes `;codecs=vp9,opus` — a comma inside the

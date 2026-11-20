@@ -1083,6 +1083,9 @@ window.addEventListener('mousemove', e=>{
     /* Carried by its junction, the junction's bead swells in the hand;
        every redraw of the drag draws it so (see drawAmalgam). */
     if(st.alongBar) qEdges(`.amalgam-junction[data-to="${CSS.escape(st.node.id)}"]`).forEach(c=> c.classList.add('bead-carried'));
+    /* Carried as a parent, the bead where its line meets a merge's bar
+       swells the same way (20.11). */
+    else st.members.forEach(m=> qEdges(`.amalgam-joint[data-lands="${CSS.escape(m.id)}"]`).forEach(c=> c.classList.add('bead-carried')));
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and

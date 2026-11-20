@@ -447,17 +447,9 @@ function paintTagChips(chipsEl, input){
   currentTagsIn(input).forEach(tag=>{
     const chip = document.createElement('span');
     chip.className = 'tag-chip tag-shape';
-    const eye = document.createElement('i');
-    eye.className = 'tag-eye';
-    chip.appendChild(eye);
+    if(tagIsSpecial(tag)) chip.classList.add('tag-shape-special');
+    chip.insertAdjacentHTML('beforeend', tagEyeHtml(tagIsSpecial(tag)));
     chip.appendChild(document.createTextNode(tag));
-    if(tagIsSpecial(tag)){
-      const st = document.createElement('span');
-      st.className = 'tag-special';
-      st.textContent = '*';
-      st.title = SPECIAL_TAGS[tag];
-      chip.appendChild(st);
-    }
     chip.title = tagIsSpecial(tag) ? SPECIAL_TAGS[tag] : '';
     const x = document.createElement('button');
     x.type = 'button'; x.textContent = '\u00d7'; x.title = `Remove "${tag}"`;
@@ -508,14 +500,12 @@ function fillTagMenu(menu, input, chipsEl){
     opts.forEach(t=>{
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = t;
+      /* A tag that acts wears its star in front, as on its label. */
       if(tagIsSpecial(t)){
-        const st = document.createElement('span');
-        st.className = 'tag-special';
-        st.textContent = '*';
-        st.title = SPECIAL_TAGS[t];
-        b.appendChild(st);
+        b.insertAdjacentHTML('beforeend', tagEyeHtml(true));
+        b.title = SPECIAL_TAGS[t];
       }
+      b.appendChild(document.createTextNode(t));
       b.addEventListener('click', ev=>{
         ev.stopPropagation();
         const list = currentTagsIn(input);

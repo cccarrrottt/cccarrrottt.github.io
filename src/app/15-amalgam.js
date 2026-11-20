@@ -1378,6 +1378,17 @@ function drawBarBeads(m, colors){
   /* The grip on the bar goes in before the beads, which stay the last
      thing painted — they cover the seams — and take no pointer. */
   drawBarGrip(b.id, barPoint(m, landings[0]), barPoint(m, landings[n-1]), ux);
+  /* Where a parent's line meets the bar swells while that parent is
+     carried, as the junction does when the merge is carried by it (the
+     owner's list of 20.11): the bead standing where its lineage lands,
+     or at the end of the bar it runs to. Each bead says whose landing it
+     is, so the carry can find it without drawing anything again. */
+  const carriedHere = (nodeDragState && nodeDragState.moved && !nodeDragState.alongBar)
+    ? new Set(nodeDragState.members.map(c=> c.id)) : null;
+  const landsAt = jAt=>{
+    const k = landings.findIndex(o=> Math.abs(o - jAt) < 0.75);
+    return k >= 0 ? members[k].from : '';
+  };
   m.joints.forEach(({at: jAt, pair, i})=>{
     const jp = barPoint(m, jAt);
     const r = AMALGAM_JOINT_R;
@@ -1395,8 +1406,10 @@ function drawBarBeads(m, colors){
       {x: jp.x + ux*r, y: jp.y + uy*r}
     ]);
     beadGround(jp, r);
-    el('circle', {class:'amalgam-bead amalgam-joint', cx:jp.x.toFixed(2), cy:jp.y.toFixed(2),
-                  r, fill:jointPaint, 'data-from':'', 'data-to':b.id,
+    const lands = landsAt(jAt);
+    el('circle', {class:'amalgam-bead amalgam-joint' + (lands && carriedHere && carriedHere.has(lands) ? ' bead-carried' : ''),
+                  cx:jp.x.toFixed(2), cy:jp.y.toFixed(2),
+                  r, fill:jointPaint, 'data-from':'', 'data-to':b.id, 'data-lands':lands,
                   'data-pair': members[i].from + '\u0000' + members[i+1].from,
                   'data-via': viaOf(jAt).join('\u0000')}, edgeLayer);
   });
@@ -1409,8 +1422,9 @@ function drawBarBeads(m, colors){
     const r = AMALGAM_JOINT_R;
     const paint = makeEdgeGradient(pair, [{x: at.x - ux*r, y: at.y - uy*r}, {x: at.x + ux*r, y: at.y + uy*r}]);
     beadGround(at, r);
-    el('circle', {class:'amalgam-bead amalgam-joint', cx:at.x.toFixed(2), cy:at.y.toFixed(2),
-                  r, fill:paint, 'data-from':'', 'data-to':b.id, 'data-pair': from + '\u0000' + to}, edgeLayer);
+    el('circle', {class:'amalgam-bead amalgam-joint' + (carriedHere && carriedHere.has(from) ? ' bead-carried' : ''),
+                  cx:at.x.toFixed(2), cy:at.y.toFixed(2),
+                  r, fill:paint, 'data-from':'', 'data-to':b.id, 'data-lands':from, 'data-pair': from + '\u0000' + to}, edgeLayer);
   });
 
   drawJunctionGrip(b.id, dimple, ux);

@@ -363,7 +363,7 @@ editMultiLangCheck.addEventListener('change', ()=>{
 // same curated font list.
 function populateFontOptions(selectEl){
   selectEl.innerHTML = '';
-  FONT_OPTIONS.forEach(f=>{
+  fontOptions().forEach(f=>{
     const opt = document.createElement('option');
     opt.value = f.key; opt.textContent = f.label;
     selectEl.appendChild(opt);

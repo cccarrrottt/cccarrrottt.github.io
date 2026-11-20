@@ -18,6 +18,9 @@
                         and counted in the list below
      GET  /faults       that list, for the owner: what broke, how often
      POST /faults/clear takes one off it, or all of them, as the owner
+     /cloud/…           the owner's cloud drives, Google Drive and Yandex
+                        Disk: connecting one, looking through it, and
+                        showing what was picked from it (see CLOUDS below)
 
    The commit is the publish: CI builds the page from it and puts it on the
    site, the same as for any other change to the repository.
@@ -91,10 +94,11 @@ const DATA_PATH = 'src/chart.json';
    localStorage. Drawn as an <img> or an <image> it runs nothing, which is
    all the chart ever does with one; so the page keeps an SVG embedded as a
    data: URI, which has no address on the site to be opened at, and this
-   refuses a file that would give it one. */
+   refuses a file that would give it one. A font is among them: opened at
+   its address it is a font, and runs nothing. */
 const MEDIA_DIR = 'src/media';
-const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)$/;
-const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov)/g;
+const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)$/;
+const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)/g;
 // A session with nothing to renew itself with lasts as long as its token.
 const SESSION_HOURS = 8;
 // A renewable one lasts this long from its last renewal, so a phone left in
@@ -583,6 +587,8 @@ async function renew(env, s, ctx){
   const got = res.ok ? await res.json() : null;
   if(!got || !got.access_token) throw httpError(401, 'the sign-in has run out.');
   const next = sessionValue(s.login, got, s.as);
+  // The cloud drives connected to it go on with it (see CLOUDS).
+  if(s.clouds) next.clouds = s.clouds;
   ctx.session = await seal(env, 'session', next);
   return next;
 }
@@ -682,7 +688,11 @@ async function me(env, request, ctx){
   if(!s.owner && !s.editor) return {owner: false, login: s.login};
   const now = await currentData(env, s.gh);
   // `media`: this service takes pictures as files beside the chart.
-  return Object.assign({owner: s.owner, login: s.login, sha: now.sha, media: true}, s.editor ? {editor: true} : {});
+  /* `clouds`: the drives this service is set up for, and which of them
+     this session is connected to — the owner's alone, as the drives are. */
+  return Object.assign({owner: s.owner, login: s.login, sha: now.sha, media: true},
+                       s.editor ? {editor: true} : {},
+                       s.owner ? {clouds: {ready: cloudsReady(env), connected: Object.keys(s.clouds || {}).filter(k => CLOUDS[k])}} : {});
 }
 
 async function save(env, request, ctx){
@@ -911,6 +921,282 @@ export async function report(env, request){
   return entry;
 }
 
+/* ---- CLOUDS: the owner's Google Drive and Yandex Disk ----------------
+ *
+ * A picture or a clip can be kept in the owner's own cloud drive rather
+ * than in the repository (the owner's choice of 20.11). The owner connects
+ * a drive once, looks through it from My files and picks a file; the file
+ * is made viewable by anyone with its link — a reader has to be able to
+ * see it, and has no account of the owner's to see it with — and the chart
+ * names it by an address on this service, which every reader's browser
+ * asks and is answered from the drive:
+ *
+ *   GET /cloud/gdrive/file/<id>       the file, from Google Drive's API
+ *                                     with GOOGLE_API_KEY, which reads a
+ *                                     file shared by link and no other
+ *   GET /cloud/yadisk/file?key=<k>    sent on to Yandex's download address
+ *                                     for the published file <k>
+ *
+ * Neither needs the owner's account, so nothing of the owner's is kept to
+ * answer readers: there is still no store. What a drive answers is the
+ * file shared by link, which is all these two addresses can reach.
+ *
+ * The owner's own grant to the drive lives in the owner's SESSION, beside
+ * the GitHub token and sealed the same way: `clouds: {gdrive: {at, atExp,
+ * rt}, yadisk: {…}}`. Connecting is a popup like the sign-in, opened on a
+ * ticket the page gets with its session, so nobody else can start one:
+ *
+ *   POST /cloud/<p>/ticket   (owner) a ticket for the popup, ten minutes
+ *   GET  /cloud/<p>/connect  the popup: off to the provider's consent
+ *   GET  /cloud/<p>/back     where it comes back; hands the page a grant
+ *   POST /cloud/<p>/attach   (owner) the grant goes into the session
+ *   POST /cloud/<p>/forget   (owner) and out of it again
+ *   POST /cloud/<p>/list     (owner) one folder: its folders, pictures, clips
+ *   POST /cloud/<p>/pick     (owner) share one file by link; its address
+ *
+ * A provider whose app is not set up here (no client id or secret) is
+ * simply not offered: /me lists the ones that are.
+ *
+ *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY   secrets
+ *   YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET                   secrets
+ */
+const CLOUDS = {
+  gdrive: {
+    name: 'Google Drive',
+    ready: env => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_API_KEY),
+    authorize: (env, back, state) => {
+      const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      u.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
+      u.searchParams.set('redirect_uri', back);
+      u.searchParams.set('response_type', 'code');
+      /* The whole drive: a file is looked through and then shared by
+         link, and only this scope may change who can see a file the app
+         did not make. */
+      u.searchParams.set('scope', 'https://www.googleapis.com/auth/drive');
+      u.searchParams.set('access_type', 'offline');
+      u.searchParams.set('prompt', 'consent');
+      u.searchParams.set('state', state);
+      return u.toString();
+    },
+    token: (env, params) => cloudToken('https://oauth2.googleapis.com/token',
+      Object.assign({client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET}, params))
+  },
+  yadisk: {
+    name: 'Yandex Disk',
+    ready: env => !!(env.YANDEX_CLIENT_ID && env.YANDEX_CLIENT_SECRET),
+    authorize: (env, back, state) => {
+      const u = new URL('https://oauth.yandex.ru/authorize');
+      u.searchParams.set('response_type', 'code');
+      u.searchParams.set('client_id', env.YANDEX_CLIENT_ID);
+      u.searchParams.set('redirect_uri', back);
+      u.searchParams.set('force_confirm', 'yes');
+      u.searchParams.set('state', state);
+      return u.toString();
+    },
+    token: (env, params) => cloudToken('https://oauth.yandex.ru/token',
+      Object.assign({client_id: env.YANDEX_CLIENT_ID, client_secret: env.YANDEX_CLIENT_SECRET}, params))
+  }
+};
+const CLOUD_LIST_MAX = 200;
+export function cloudsReady(env){ return Object.keys(CLOUDS).filter(k => CLOUDS[k].ready(env)); }
+function cloudOf(env, name){
+  const c = CLOUDS[name];
+  if(!c) throw httpError(404, 'not found');
+  if(!c.ready(env)) throw httpError(503, `${c.name} is not set up on the write service.`);
+  return c;
+}
+async function cloudToken(url, params){
+  const res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
+                                body: new URLSearchParams(params).toString()});
+  const got = res.ok ? await res.json() : null;
+  if(!got || !got.access_token) return null;
+  return got;
+}
+function cloudGrant(got, old){
+  return {at: got.access_token, atExp: Date.now() + (Number(got.expires_in) || 3600) * 1000,
+          rt: got.refresh_token || (old && old.rt) || null};
+}
+/* The session sealed again with other drives in it. `owner` and `editor`
+   are what session() worked out for this request, never kept: a session
+   says who signed in, and the role is read from OWNERS each time. */
+function sealClouds(env, s, clouds){
+  const next = Object.assign({}, s, {clouds});
+  delete next.owner; delete next.editor;
+  return seal(env, 'session', next);
+}
+/* The owner's grant to a drive, renewed when it is about to run out; a
+   renewal goes into the session the answer carries. */
+async function cloudAccess(env, s, name, ctx){
+  const g = s.clouds && s.clouds[name];
+  if(!g) throw httpError(409, `${CLOUDS[name].name} is not connected.`);
+  if(g.atExp - RENEW_MARGIN > Date.now()) return g.at;
+  const got = g.rt ? await CLOUDS[name].token(env, {grant_type: 'refresh_token', refresh_token: g.rt}) : null;
+  if(!got){
+    const clouds = Object.assign({}, s.clouds); delete clouds[name];
+    ctx.session = await sealClouds(env, s, clouds);
+    throw httpError(409, `${CLOUDS[name].name} no longer accepts this connection; connect it again.`);
+  }
+  ctx.session = await sealClouds(env, s, Object.assign({}, s.clouds, {[name]: cloudGrant(got, g)}));
+  return got.access_token;
+}
+async function cloudApi(url, token, init, scheme){
+  const res = await fetch(url, Object.assign({}, init, {headers: Object.assign({'Authorization': (scheme || 'Bearer') + ' ' + token,
+    'Accept': 'application/json'}, (init && init.headers) || {})}));
+  if(res.status === 401) throw httpError(409, 'the drive no longer accepts this connection; connect it again.');
+  if(!res.ok) throw httpError(502, `the drive answered ${res.status}.`);
+  return res.status === 204 || res.status === 201 && !(res.headers.get('Content-Type') || '').includes('json') ? null : res.json();
+}
+const kindOfMime = m => /^image\//.test(m || '') ? 'image' : /^video\//.test(m || '') ? 'video' : null;
+
+async function cloudTicket(env, request, ctx, name){
+  cloudOf(env, name);
+  const s = await session(env, request, ctx, 'owner');
+  const origin = request.headers.get('Origin') || '';
+  if(list(env.ALLOWED_ORIGINS).indexOf(origin) < 0) throw httpError(403, 'only the chart\'s own site may connect a drive.');
+  return {ticket: await seal(env, 'cloud-state', {cloud: name, login: s.login, origin, exp: Date.now() + STATE_MINUTES * 60000})};
+}
+async function cloudConnect(env, url, name){
+  const c = cloudOf(env, name);
+  const t = await unseal(env, 'cloud-state', url.searchParams.get('ticket') || '');
+  if(!t || t.cloud !== name) return page('<p>This link has expired. Close this window and press Connect again.</p>', 400);
+  return Response.redirect(c.authorize(env, url.origin + '/cloud/' + name + '/back', url.searchParams.get('ticket')), 302);
+}
+async function cloudBack(env, url, name){
+  const c = cloudOf(env, name);
+  const t = await unseal(env, 'cloud-state', url.searchParams.get('state') || '');
+  const code = url.searchParams.get('code');
+  if(!t || t.cloud !== name || !code) return page(`<p>${esc(c.name)} was not connected. Close this window and try again.</p>`, 400);
+  const got = await c.token(env, {grant_type: 'authorization_code', code, redirect_uri: url.origin + '/cloud/' + name + '/back'});
+  if(!got) return page(`<p>${esc(c.name)} did not complete the connection. Close this window and try again.</p>`, 502);
+  /* Sealed for the session it will join: only the page of the owner
+     whose ticket this was can attach it. */
+  const grant = await seal(env, 'cloud-grant', {cloud: name, login: t.login, g: cloudGrant(got), exp: Date.now() + STATE_MINUTES * 60000});
+  const payload = JSON.stringify({rhizomeCloud: {cloud: name, grant}}).replace(/</g, '\\u003c');
+  const target = JSON.stringify(t.origin).replace(/</g, '\\u003c');
+  return page(`<p>${esc(c.name)} is connected. You can close this window.</p><script>
+    if(window.opener){ window.opener.postMessage(${payload}, ${target}); window.close(); }
+  </script>`);
+}
+async function cloudAttach(env, request, ctx, name){
+  cloudOf(env, name);
+  const s = await session(env, request, ctx, 'owner');
+  const body = await readJson(request, MAX_SMALL_BODY, 'the connection');
+  const g = await unseal(env, 'cloud-grant', body && body.grant || '');
+  if(!g || g.cloud !== name || g.login !== s.login) throw httpError(400, 'that connection has expired; connect again.');
+  const clouds = Object.assign({}, s.clouds || {}, {[name]: g.g});
+  ctx.session = await sealClouds(env, s, clouds);
+  return {connected: Object.keys(clouds)};
+}
+async function cloudForget(env, request, ctx, name){
+  if(!CLOUDS[name]) throw httpError(404, 'not found');
+  const s = await session(env, request, ctx, 'owner');
+  const clouds = Object.assign({}, s.clouds || {});
+  delete clouds[name];
+  ctx.session = await sealClouds(env, s, clouds);
+  return {connected: Object.keys(clouds)};
+}
+/* One folder of the drive: its folders, then its pictures and clips, by
+   name. Anything else in it is not shown — it could not be picked. */
+async function cloudList(env, request, ctx, name){
+  cloudOf(env, name);
+  const s = await session(env, request, ctx, 'owner');
+  const body = await readJson(request, MAX_SMALL_BODY, 'the folder');
+  const at = await cloudAccess(env, s, name, ctx);
+  const folder = typeof body.folder === 'string' && body.folder ? body.folder : null;
+  const items = [];
+  if(name === 'gdrive'){
+    const parent = folder && /^[A-Za-z0-9_-]{1,200}$/.test(folder) ? folder : 'root';
+    const q = `'${parent}' in parents and trashed = false and (mimeType = 'application/vnd.google-apps.folder' or mimeType contains 'image/' or mimeType contains 'video/')`;
+    const u = new URL('https://www.googleapis.com/drive/v3/files');
+    u.searchParams.set('q', q);
+    u.searchParams.set('fields', 'files(id,name,mimeType,thumbnailLink)');
+    u.searchParams.set('pageSize', String(CLOUD_LIST_MAX));
+    u.searchParams.set('orderBy', 'folder,name');
+    const got = await cloudApi(u.toString(), at);
+    for(const f of (got && got.files) || []){
+      const kind = f.mimeType === 'application/vnd.google-apps.folder' ? 'folder' : kindOfMime(f.mimeType);
+      if(kind) items.push({id: f.id, name: String(f.name || ''), kind, mime: f.mimeType, thumb: f.thumbnailLink || null});
+    }
+  } else {
+    const path = folder && /^disk:\//.test(folder) ? folder : 'disk:/';
+    const u = new URL('https://cloud-api.yandex.net/v1/disk/resources');
+    u.searchParams.set('path', path);
+    u.searchParams.set('limit', String(CLOUD_LIST_MAX));
+    u.searchParams.set('sort', 'name');
+    u.searchParams.set('fields', '_embedded.items.name,_embedded.items.path,_embedded.items.type,_embedded.items.mime_type');
+    const got = await cloudApi(u.toString(), at, null, 'OAuth');
+    const all = ((got && got._embedded && got._embedded.items) || []).map(f => {
+      const kind = f.type === 'dir' ? 'folder' : kindOfMime(f.mime_type);
+      return kind ? {id: f.path, name: String(f.name || ''), kind, mime: f.mime_type || null, thumb: null} : null;
+    }).filter(Boolean);
+    items.push(...all.filter(i => i.kind === 'folder'), ...all.filter(i => i.kind !== 'folder'));
+  }
+  return {items};
+}
+/* Picked: shared by link, and named by its address on this service. */
+async function cloudPick(env, request, ctx, name){
+  cloudOf(env, name);
+  const s = await session(env, request, ctx, 'owner');
+  const body = await readJson(request, MAX_SMALL_BODY, 'the file');
+  const at = await cloudAccess(env, s, name, ctx);
+  const id = body && typeof body.id === 'string' ? body.id : '';
+  const self = new URL(request.url).origin;
+  if(name === 'gdrive'){
+    if(!/^[A-Za-z0-9_-]{1,200}$/.test(id)) throw httpError(400, 'that is not a file of the drive.');
+    const f = await cloudApi(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType`, at);
+    const kind = kindOfMime(f && f.mimeType);
+    if(!kind) throw httpError(400, 'only a picture or a clip can be put on the chart.');
+    await cloudApi(`https://www.googleapis.com/drive/v3/files/${id}/permissions`, at,
+      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: 'reader', type: 'anyone'})});
+    return {src: `${self}/cloud/gdrive/file/${id}`, name: String(f.name || id), kind};
+  }
+  if(!/^disk:\//.test(id)) throw httpError(400, 'that is not a file of the drive.');
+  const meta = u => cloudApi(u, at, null, 'OAuth');
+  const q = encodeURIComponent(id);
+  let f = await meta(`https://cloud-api.yandex.net/v1/disk/resources?path=${q}&fields=name,mime_type,public_key`);
+  const kind = kindOfMime(f && f.mime_type);
+  if(!kind) throw httpError(400, 'only a picture or a clip can be put on the chart.');
+  if(!f.public_key){
+    await cloudApi(`https://cloud-api.yandex.net/v1/disk/resources/publish?path=${q}`, at, {method: 'PUT'}, 'OAuth');
+    f = await meta(`https://cloud-api.yandex.net/v1/disk/resources?path=${q}&fields=name,mime_type,public_key`);
+  }
+  if(!f || !f.public_key) throw httpError(502, 'Yandex Disk did not share the file.');
+  return {src: `${self}/cloud/yadisk/file?key=${encodeURIComponent(f.public_key)}`, name: String(f.name || ''), kind};
+}
+/* What a reader's browser asks for. Anyone may: it reaches only files
+   shared by link. The range a video asks for is passed on, and so is
+   what the drive answers it with. */
+async function cloudFile(env, request, url, name){
+  const c = CLOUDS[name];
+  if(!c || !c.ready(env)) return new Response('not found', {status: 404});
+  const open = {'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff'};
+  if(name === 'gdrive'){
+    const id = url.pathname.slice('/cloud/gdrive/file/'.length);
+    if(!/^[A-Za-z0-9_-]{1,200}$/.test(id)) return new Response('not found', {status: 404});
+    const headers = {};
+    const range = request.headers.get('Range');
+    if(range) headers.Range = range;
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${encodeURIComponent(env.GOOGLE_API_KEY)}`, {headers});
+    if(!res.ok && res.status !== 206) return new Response('not found', {status: res.status === 416 ? 416 : 404, headers: open});
+    const type = res.headers.get('Content-Type') || '';
+    // Only what the chart can show is passed on: nothing that would run.
+    if(!kindOfMime(type)) return new Response('not found', {status: 404, headers: open});
+    const out = Object.assign({}, open, {'Content-Type': type});
+    for(const k of ['Content-Length', 'Content-Range', 'Accept-Ranges', 'ETag', 'Last-Modified']){
+      const v = res.headers.get(k);
+      if(v) out[k] = v;
+    }
+    return new Response(res.body, {status: res.status, headers: out});
+  }
+  const key = url.searchParams.get('key') || '';
+  if(!key || key.length > 500) return new Response('not found', {status: 404});
+  const res = await fetch('https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=' + encodeURIComponent(key));
+  const got = res.ok ? await res.json() : null;
+  if(!got || typeof got.href !== 'string' || !/^https:\/\//.test(got.href)) return new Response('not found', {status: 404, headers: open});
+  // Yandex's download address is good for a while, not for ever.
+  return new Response(null, {status: 302, headers: Object.assign({}, open, {'Location': got.href, 'Cache-Control': 'public, max-age=600'})});
+}
+
 const FAULT_DAYS = 90;
 // The most the owner's list holds; the newest come first.
 const MAX_FAULTS = 100;
@@ -980,6 +1266,15 @@ export default {
       if(request.method === 'POST' && url.pathname === '/resolve') return json(withSession(await resolve(env, request, ctx)), 200, h);
       if(request.method === 'GET' && url.pathname === '/faults') return json(withSession(await faults(env, request, ctx)), 200, h);
       if(request.method === 'POST' && url.pathname === '/faults/clear') return json(withSession(await clearFaults(env, request, ctx)), 200, h);
+      const cl = /^\/cloud\/(gdrive|yadisk)\/(ticket|connect|back|attach|forget|list|pick|file)(?:\/|$)/.exec(url.pathname);
+      if(cl){
+        const [, name, what] = cl;
+        if(request.method === 'GET' && what === 'file') return await cloudFile(env, request, url, name);
+        if(request.method === 'GET' && what === 'connect') return await cloudConnect(env, url, name);
+        if(request.method === 'GET' && what === 'back') return await cloudBack(env, url, name);
+        const act = {ticket: cloudTicket, attach: cloudAttach, forget: cloudForget, list: cloudList, pick: cloudPick}[what];
+        if(request.method === 'POST' && act) return json(withSession(await act(env, request, ctx, name)), 200, h);
+      }
       return json({error: 'not found'}, 404, h);
     }catch(e){
       const status = e.status || 500;

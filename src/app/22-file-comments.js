@@ -337,6 +337,10 @@ function importChartFromText(text){
     if(figuresIn.length) SETTINGS.figures = figuresIn; else delete SETTINGS.figures;
     const mediaTypesIn = cleanMediaTypes(settingsIn && settingsIn.mediaTypes);
     if(mediaTypesIn.length) SETTINGS.mediaTypes = mediaTypesIn; else delete SETTINGS.mediaTypes;
+    const inkIn = cleanInk(settingsIn && settingsIn.ink);
+    if(inkIn.length) SETTINGS.ink = inkIn; else delete SETTINGS.ink;
+    const fontsIn = cleanFonts(settingsIn && settingsIn.fonts);
+    if(fontsIn.length) SETTINGS.fonts = fontsIn; else delete SETTINGS.fonts;
     ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn', 'legendIcons'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
     });
@@ -554,9 +558,17 @@ async function pictureFontCss(copy){
   /* Every stylesheet the faces came from: the interface's, and one more
      for each face an entry asked for (askForFace). */
   const links = [...document.querySelectorAll('link[rel="stylesheet"][href*="fonts.googleapis.com"]')];
-  if(!links.length) return '';
   const used = pictureFaces(copy);
   if(!used.size) return '';
+  /* The chart's own faces go in whole, from their own bytes: there is
+     no host to ask for a part of one. */
+  const own = [];
+  for(const f of fontOptions()){
+    if(!f.own || !used.has(f.face)) continue;
+    const src = /^data:/.test(f.src) ? f.src : await mediaRefData(f.src);
+    if(src) own.push(`@font-face{font-family:'${f.face}';src:url(${src});}`);
+  }
+  if(!links.length) return own.join('\n');
   let css = '';
   for(const link of links){
     try{
@@ -564,7 +576,7 @@ async function pictureFontCss(copy){
       if(r.ok) css += await r.text() + '\n';
     }catch(e){}
   }
-  if(!css) return '';
+  if(!css) return own.join('\n');
   const blocks = css.match(/@font-face\s*{[^}]*}/g) || [];
   const keep = [];
   for(const block of blocks){
@@ -581,7 +593,7 @@ async function pictureFontCss(copy){
       keep.push(block.replace(/url\([^)]+\)/, 'url(' + data + ')'));
     }catch(e){}
   }
-  return keep.join('\n');
+  return keep.concat(own).join('\n');
 }
 async function chartPictureText(){
   const {copy, bounds} = chartPictureSvg();
@@ -670,6 +682,7 @@ function markReadOnly(){
   if(readOnlyView) return;
   readOnlyView = true;
   document.body.classList.add('read-only');
+  if(inkTool) setInkTool(null);   // a reader holds no pencil
   setSaveState(null);
   // This can run during load, before the panels it tidies up have been
   // declared — nothing is open that early anyway, so each one is attempted
