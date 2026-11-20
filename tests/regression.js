@@ -24187,7 +24187,7 @@ async function main(){
   check('an array\'s hatching stops under the border and tabs of an entry in it, and comes back under one faded (19.11, evening)',
         hatchHoles.box && hatchHoles.tab && hatchHoles.gives, JSON.stringify(hatchHoles));
   check('…My files names images Images, keeps video in a section of its own, and folds each kind away under its heading (19.11, the owner\'s note), with its + beside the ✕ (20.11)',
-        out.heads === 'Stickers|Images|Video' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold && out.plusByClose,
+        out.heads === 'Stickers|Images|Video|Fonts' && out.videoOwn && out.folds && out.foldStays && out.unfolds && out.plusNoFold && out.plusByClose,
         JSON.stringify([out.heads, out.videoOwn, out.folds, out.foldStays, out.unfolds, out.plusByClose]));
   check('a legend row’s mark can be a picture of the author’s own, kept with the chart, shown to a reader as a picture, and taken off again',
         out.icon && out.iconKept && out.readerIcon && out.iconOff, JSON.stringify([out.icon, out.iconKept, out.readerIcon, out.iconOff]));
