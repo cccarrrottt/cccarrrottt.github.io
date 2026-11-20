@@ -524,6 +524,26 @@ Two things were measured here and are not worth doing:
   layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
   what an edge note measures by a sub-pixel.
 
+### What a phone waits for on a chart of hundreds
+
+`tools/bench-boot.js` opens a synthetic chart of lineages that merge, with
+tags and notes, as a phone does: 390×844, CPU ×4, median of three.
+
+| entries | first entry on screen | start-up done, before | after |
+| ---: | ---: | ---: | ---: |
+| 41 | ~1.2 s | 1.6 s | 1.3 s |
+| 400 | ~3.4 s | 5.5 s | 3.8 s |
+
+Start-up drew the chart twice: once itself, and again when
+`document.fonts.ready` settled — every load, for the interface's own faces,
+to the same widths. `fontsLanded` now asks each remembered width again
+(`widthsMoved`) and redraws only when one comes out different.
+
+What is left before the first entry is `renderNodes` (~1.8 s at 400), and
+three quarters of that is measuring text with the cache cold. The side
+tabs (~75 ms) and the text view (~30 ms) also run at start-up; putting them
+off would save a thirtieth, so they are left where they are.
+
 ### What one edit costs, and the routes it no longer recomputes
 
 `tools/bench-edit.js` times the edits a person makes all day through

@@ -353,16 +353,36 @@ async function main(){
      a font, the first time a Cyrillic letter is drawn — used to leave
      every width measured while it was on its way as the fallback's. */
   const late = await page.evaluate(async () => {
-    measureCache.set('__LATE_PROBE__', 1);
+    /* A width the faces now on the page would not give: as if it were
+       measured in the fallback before the real face came. */
+    measureText('Late probe', {});
+    const probeKey = [...measureCache.keys()].find(k => k.startsWith('Late probe\u0000'));
+    measureCache.set(probeKey, measureCache.get(probeKey) + 7);
     blockCache.set('__LATE_PROBE__', {width:1, height:1});
     document.fonts.dispatchEvent(new Event('loadingdone'));
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    return {measure: measureCache.has('__LATE_PROBE__'), block: blockCache.has('__LATE_PROBE__'),
+    return {measure: measureCache.has(probeKey), block: blockCache.has('__LATE_PROBE__'),
             drawn: !!document.querySelector('#nodeLayer .node, .node')};
   });
   check('a late font empties the width cache', !late.measure);
   check('…and the block cache with it', !late.block);
   check('…and the chart is drawn again, not left empty', late.drawn);
+
+  /* But a face arriving that changes no width the chart has measured —
+     the interface's own, every load — is not a reason to draw it all
+     again: on a phone that second drawing was two of the five and a half
+     seconds a 400-entry chart took to start (tools/bench-boot.js). */
+  const idle = await page.evaluate(async () => {
+    measureText('Steady probe', {});
+    const keep = document.querySelector('#nodeLayer .node');
+    blockCache.set('__STEADY_PROBE__', {width:1, height:1});
+    document.fonts.dispatchEvent(new Event('loadingdone'));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const kept = blockCache.has('__STEADY_PROBE__');
+    blockCache.delete('__STEADY_PROBE__');
+    return {kept, same: document.querySelector('#nodeLayer .node') === keep};
+  });
+  check('a face that changes no measured width redraws nothing', idle.kept && idle.same, JSON.stringify(idle));
 
   /* Nothing waits for the faces. The interface's arrive as a print-only
      stylesheet switched on when it lands, so the first draw does not wait
