@@ -440,7 +440,13 @@ function keysAreOnScreen(){
          !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 }
 const richEnterActions = new Map();
-function setRichEnter(id, fn){ richEnterActions.set(id, fn); }
+/* A field whose Enter is a new line wherever it is typed — the in-node
+   field, written as a note is — settles on Ctrl+Enter instead. */
+const richEnterBreaks = new Set();
+function setRichEnter(id, fn, opts){
+  richEnterActions.set(id, fn);
+  if(opts && opts.breaks) richEnterBreaks.add(id); else richEnterBreaks.delete(id);
+}
 function setRichValue(textarea, markup){
   textarea.value = markup;
   const rec = richFields.get(textarea.id);
@@ -598,7 +604,8 @@ function makeRichField(textarea){
        an item, out of a list from an empty one. See makeRichDocument. */
     if(richDocFields.has(textarea.id) && !ev.shiftKey) return;
     ev.preventDefault();
-    if(ev.shiftKey || keysAreOnScreen()){ document.execCommand('insertLineBreak'); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
+    const settles = (ev.ctrlKey || ev.metaKey) && richEnterBreaks.has(textarea.id);
+    if(!settles && (ev.shiftKey || keysAreOnScreen() || richEnterBreaks.has(textarea.id))){ document.execCommand('insertLineBreak'); surface.dispatchEvent(new Event('input', {bubbles:true})); return; }
     // Whatever is in the surface reaches the textarea BEFORE the field is
     // asked to settle (the input listener above writes it, first of all the
     // field's listeners), so a field that settles from `.value` never loses

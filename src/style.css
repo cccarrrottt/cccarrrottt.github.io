@@ -1933,15 +1933,16 @@
   .mini-toolbar .tb-sep{
     width:1px;align-self:stretch;background:var(--line);margin:0 3px;flex:0 0 auto;
   }
-  /* The field's ✓, for a phone, whose Enter makes a new line: last in
-     the row, whatever the toolbar's wiring adds after it, and only once
-     the page has been touched. */
+  /* The field's ✓, for a field whose Enter makes a new line: last in
+     the row, whatever the toolbar's wiring adds after it. */
   .mini-toolbar .tb-done{display:none;order:99;margin-left:auto;}
   /* Small and in the accent, as the toolbar's other buttons are; the
      tick inside it is a suggestion's Done's (.suggest-done), drawn rather
      than typed, so the two read as one mark (the owner's list of 7.11,
      and the morning after: "not green — the same tick"). */
-  body.touch-input .mini-toolbar .tb-done{display:inline-flex;align-items:center;justify-content:center;
+  /* The in-node field shows it everywhere: its Enter is a new line on
+     any keyboard, as a note's is (the owner's word of 20.11). */
+  body.touch-input .mini-toolbar .tb-done, #nodeEditorBar .tb-done{display:inline-flex;align-items:center;justify-content:center;
     color:#fff;background:var(--accent);border-color:var(--accent);padding:3px 12px;line-height:0;}
   /* These two carry an extra .editor-field so they outrank the generic
      .editor-field select / input[type=number] rules further down, which
@@ -2428,15 +2429,10 @@
      element by syncNodeEditorLook, since they are the entry's and not the
      stylesheet's to know. What is fixed here is that it looks like a field
      you can type in and not like a second entry. */
-  /* The frame is drawn by a layer of its own, not by the field's border.
-   *
-   * The field holds the words at the drawing's own line height, and a box
-   * closed on its ink is shorter than that line — so the field is a little
-   * taller than the entry, and either its frame was bigger than the entry
-   * or its lines were pressed together to fit, which showed the words
-   * squeezed. The frame stands at the entry's size (`--hang` in from the
-   * top and bottom, set by positionNodeEditor) and the words hang over it
-   * as they hang over the entry. */
+  /* No frame (the owner's word of 20.11). The field is the words alone,
+     standing where the drawing writes them; the box, card, figure or
+     plate under it is the entry's own, and the words drawn there are put
+     out of sight while it is open (veilDrawnWords). */
   .node-editor .rich-surface{
     position:relative;
     isolation:isolate;
@@ -2477,29 +2473,6 @@
     word-break:normal;
     overflow-wrap:break-word;
     width:max-content;
-  }
-  .node-editor .rich-surface::before{
-    content:'';
-    position:absolute;
-    z-index:-1;
-    /* --ax and --ay: how far the field was moved to put its words on the
-       drawn ones (see alignEditorOnInk) — taken back off the frame, which
-       stays on the box. */
-    left:calc(0px - var(--bw, 1.6px) - var(--bo, 0px) - var(--ax, 0px)); right:calc(0px - var(--bw, 1.6px) - var(--bo, 0px) + var(--ax, 0px));
-    top:calc(var(--hang, 0px) - var(--bw, 1.6px) - var(--bo, 0px) - var(--ay, 0px));
-    bottom:calc(var(--hang, 0px) - var(--bw, 1.6px) - var(--bo, 0px) + var(--ay, 0px));
-    background:var(--panel);
-    border:var(--bw, 1.6px) solid var(--accent);
-    border-radius:var(--fr, 5px);
-    box-shadow:0 2px 10px rgba(20,28,43,0.16);
-    pointer-events:none;
-  }
-  /* On a figure the frame is the figure: its outline is the picture,
-     set by positionNodeEditor, and there is no box round it. */
-  .node-editor.on-figure .rich-surface::before{
-    border-color:transparent;border-radius:0;box-shadow:none;
-    background:var(--figure-frame) center / 100% 100% no-repeat;
-    filter:drop-shadow(0 2px 5px rgba(20,28,43,0.16));
   }
   .node-editor .rich-surface:focus{outline:none;}
   .node-editor textarea{display:none;}

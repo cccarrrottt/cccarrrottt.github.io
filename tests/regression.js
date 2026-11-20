@@ -4897,8 +4897,8 @@ async function main(){
         lines.every(l=> l.getAttribute('clip-path') === want);
     }
 
-    /* Enter settles a text field and hands the keyboard back; Shift+Enter
-       is the line break. */
+    /* Ctrl+Enter settles the in-node field and hands the keyboard back;
+       Enter and Shift+Enter are the line break, as in a note (20.11). */
     selectedId = 'w1';
     document.getElementById('detailEditToggle').click();
     // The entry's words are typed ON the entry now, so the field that
@@ -4914,7 +4914,7 @@ async function main(){
     await wait(120);
     out.shiftEnterStays = document.activeElement === surf;
     surf.dispatchEvent(new KeyboardEvent('keydown',
-      {key:'Enter', bubbles:true, cancelable:true}));
+      {key:'Enter', bubbles:true, cancelable:true, ctrlKey:true}));
     await wait(320);
     out.enterLeavesField = document.activeElement !== surf;
     out.enterSaved = /typed/.test((nodes.get('w1')||{}).label || '');
@@ -4952,7 +4952,7 @@ async function main(){
                         short:r22.shortNotClipped}));
   check('and an underline under clipped words is cut at the same border',
         r22.ruleClippedWithText);
-  check('Enter settles a field and hands the keyboard back',
+  check('Ctrl+Enter settles the in-node field and hands the keyboard back',
         r22.enterLeavesField && r22.enterSaved,
         JSON.stringify({left:r22.enterLeavesField, saved:r22.enterSaved}));
   check('while Shift+Enter stays in it', r22.shiftEnterStays);
@@ -8874,9 +8874,9 @@ async function main(){
       document.querySelector('#nodeEditorBar button[data-wrap="bold"]').click();
       await wait(260);
       out.boldApplied = /^\*\*/.test(richFields.get('nodeEditorText').textarea.value);
-      // Enter settles it, and the entry keeps what was typed
+      // Ctrl+Enter settles it, and the entry keeps what was typed
       rec.surface.dispatchEvent(new KeyboardEvent('keydown',
-        {key:'Enter', bubbles:true, cancelable:true}));
+        {key:'Enter', bubbles:true, cancelable:true, ctrlKey:true}));
       await wait(420);
       const stored = (workingNodes.find(t=> t[0] === 'neA') || [])[1] || '';
       out.settled = document.getElementById('nodeEditor').hidden && !nodeEditorTarget;
@@ -9208,7 +9208,7 @@ async function main(){
         document.execCommand('insertText', false, ' more');
         await wait(200);
         rec.surface.dispatchEvent(new KeyboardEvent('keydown',
-          {key:'Enter', bubbles:true, cancelable:true}));
+          {key:'Enter', bubbles:true, cancelable:true, ctrlKey:true}));
         await wait(420);
         out.noteWritten = (edgeStyleFor('w1','w2').note || '') === 'a note more';
       }
@@ -14926,23 +14926,18 @@ async function main(){
       for(const id of ['heA', 'heB', 'heC', 'htR']){
         openNodeEditor(id);
         await wait(60);
-        /* The FRAME, which is what is seen: the words may hang over it
-           above and below, as they hang over an entry closed on its ink. */
+        /* No frame: what is seen of the field is its words, and the
+           words drawn under it are out of sight while it is open and
+           back once it is let go of (the owner's word of 20.11). */
+        const drawn = ()=> [...document.querySelectorAll(`.node[data-id="${id}"] .node-label-text`)];
         const surf = richFields.get('nodeEditorText').surface;
-        const hg = parseFloat(surf.style.getPropertyValue('--hang')) || 0;
-        const r0 = surf.getBoundingClientRect();
-        /* A turned field hangs sideways, since its own up is the page's
-           left. */
-        const side = /rotate\((90|270)deg\)/.test(surf.style.transform || '');
-        /* …and drawn back by however far the words were moved onto the
-           drawn ones (see alignEditorOnInk), which a turned field is not. */
-        const ax = parseFloat(surf.style.getPropertyValue('--ax')) || 0;
-        const ay = parseFloat(surf.style.getPropertyValue('--ay')) || 0;
-        const f = side ? {width: r0.width - 2*hg, height: r0.height, left: r0.left + hg, top: r0.top}
-                       : {width: r0.width, height: r0.height - 2*hg, left: r0.left - ax, top: r0.top + hg - ay};
-        const b = document.querySelector(`.node[data-id="${id}"] rect`).getBoundingClientRect();
-        if(f.width > b.width + 0.6 || f.height > b.height + 0.6 ||
-           f.left < b.left - 0.6 || f.top < b.top - 0.6) sizes.push([z, id, f.width, f.height, b.width, b.height].join(' '));
+        const frame = getComputedStyle(surf, '::before').content;
+        const veiled = drawn().every(e=> getComputedStyle(e).opacity === '0');
+        closeNodeEditor(true);
+        await wait(30);
+        const back = drawn().every(e=> getComputedStyle(e).opacity !== '0');
+        if((frame !== 'none' && frame !== 'normal') || !veiled || !back) sizes.push([z, id, frame, veiled, back].join(' '));
+        continue;
         closeNodeEditor(true);
       }
     }
@@ -14996,7 +14991,7 @@ async function main(){
         JSON.stringify({behind: rW.picBehind, front: rW.picFront}));
   check('a picture turns to any angle by its handle, and keeps its sides',
         rW.pictureTurned, 'turned to ' + rW.pictureAngle);
-  check('the inline field opens no bigger than its entry, at any zoom and turned or not',
+  check('the inline field has no frame, and the words drawn under it are out of sight until it closes, at any zoom and turned or not',
         !rW.editorTooBig.length, rW.editorTooBig.slice(0, 4).join(' | '));
   });
 
@@ -16641,15 +16636,11 @@ async function main(){
     openEdgeNoteEditor('mbC', 'mbM', {focus: false});
     await wait(150);
     {
-      const plate = document.querySelector('.edge-note[data-from="mbC"][data-to="mbM"] .edge-note-plate').getBoundingClientRect();
-      const surf = richFields.get('nodeEditorText').surface;
-      const f = surf.getBoundingClientRect(), b = getComputedStyle(surf, '::before');
-      const bw = parseFloat(getComputedStyle(surf).borderTopWidth) || 0;
-      const top = f.top + bw + parseFloat(b.top), bottom = f.bottom - bw - parseFloat(b.bottom);
-      out.noteFrame = JSON.stringify({plate:[+plate.top.toFixed(2), +plate.bottom.toFixed(2)],
-                                      frame:[+top.toFixed(2), +bottom.toFixed(2)]});
-      out.noteFrameOnPlate = Math.abs((top + bottom)/2 - (plate.top + plate.bottom)/2) < 1 &&
-                             Math.abs(top - plate.top) < 1.5 && Math.abs(bottom - plate.bottom) < 1.5;
+      const g = document.querySelector('.edge-note[data-from="mbC"][data-to="mbM"]');
+      const words = [...g.querySelectorAll('.edge-note-text')].map(e=> getComputedStyle(e).opacity);
+      const plate = getComputedStyle(g.querySelector('.edge-note-plate')).opacity;
+      out.noteFrame = JSON.stringify({words, plate});
+      out.noteFrameOnPlate = words.length > 0 && words.every(o=> o === '0') && plate !== '0';
     }
     closeNodeEditor(true);
     /* A side set by hand on one lineage does not take the bar away from
@@ -16724,7 +16715,7 @@ async function main(){
   check('the entry carried beside and past its bar never moves it', r.barHeldUnderEntry, r.barSeen);
   check('a double click on a stretch of the bar opens that lineage', r.stretchOpens);
   check('a double click on the stretch of a lineage already picked opens its note', r.pickedStretchWrites, r.pickedStretchNote);
-  check('the field on a connector\'s note keeps its frame on the plate', r.noteFrameOnPlate, r.noteFrame);
+  check('the field on a connector\'s note stands on the plate itself: the plate is seen, its drawn words are not', r.noteFrameOnPlate, r.noteFrame);
   check('a lineage given its side by hand still leaves the bar something to be carried from',
         r.handCarried, JSON.stringify({rest:r.handRest, at:r.handBarAt}));
   check('every lineage straight still makes a merge with a junction', r.straightKeepsBar, String(r.straightJoints));
@@ -22279,8 +22270,9 @@ async function main(){
       await wait(120);
       {
         const rec = richFields.get('nodeEditorText');
-        r.editorOnFigure = nodeEditor.classList.contains('on-figure') && !!rec &&
-                           /url\(/.test(rec.surface.style.getPropertyValue('--figure-frame'));
+        const c = rec && getComputedStyle(rec.surface, '::before').content;
+        const fig = document.querySelector('.node[data-id="o2b_dbl"] .figure-shape, .node[data-id="o2b_dbl"] path');
+        r.editorOnFigure = !!rec && (c === 'none' || c === 'normal') && !!fig && getComputedStyle(fig).opacity !== '0';
       }
       closeNodeEditor(true);
       await wait(60);
@@ -22386,7 +22378,7 @@ async function main(){
         !out.picks.includes('process') && out.processKept, JSON.stringify([out.picks, out.processKept]));
   check('a figure read from an SVG keeps its drawing\'s proportion, and an entry wearing it does too',
         out.readAspect === 3 && Math.abs(out.wideAspect - 3) < 0.05, JSON.stringify([out.readAspect, out.wideAspect]));
-  check('the field a figure\'s words are typed into is the figure\'s outline', out.editorOnFigure, String(out.editorOnFigure));
+  check('the field a figure\'s words are typed into draws no outline of its own: the figure under it is seen', out.editorOnFigure, String(out.editorOnFigure));
   check('the figures open from a gear on Default\'s corner', out.gear, String(out.gear));
   check('a card cut to its picture is framed round it and set on no blurred copy; one not cut still is',
         out.cutRun >= 6 && !out.cutBlur && out.otherBlur && out.cutSaved,
@@ -23062,8 +23054,9 @@ async function main(){
       await wait(200);
       {
         const surf = richFields.get('nodeEditorText').surface;
-        const frame = decodeURIComponent(surf.style.getPropertyValue('--figure-frame') || '');
-        r.figField = [nodeEditor.classList.contains('on-figure'), /clipPath/.test(frame)];
+        const c = getComputedStyle(surf, '::before').content;
+        const drawn = [...document.querySelectorAll('.node[data-id="o911_f"] .node-label-text')];
+        r.figField = [c === 'none' || c === 'normal', drawn.length > 0 && drawn.every(e=> getComputedStyle(e).opacity === '0')];
       }
       closeNodeEditor(false);
       deselect();
@@ -23174,7 +23167,7 @@ async function main(){
   check('a selected card glows outward only: its outline over the bands carries no glow, its ground does',
         out.cardGlow[0] === 'none' && out.cardGlow[1] && out.cardGlow[1] !== 'none', JSON.stringify(out.cardGlow));
   check('…and a link node\'s arrow carries none inside its ring', out.linkGlow[0] === 'none' && out.linkGlow[1] !== 'none', JSON.stringify(out.linkGlow));
-  check('the field on a figure\'s card is the band of the figure', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
+  check('the field on a figure\'s card has no frame, and its heading drawn under it is out of sight', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
   check('a citation in the field is set as the chart sets it: the run\'s face, a little over half its size, no box',
         out.chip && Math.abs(out.chip[0] - 0.56) < 0.03 && /rgba\(0, 0, 0, 0\)|transparent/.test(out.chip[1]) && out.chip[2] && Math.abs(+out.chip[3] - 0.55) < 0.01,
         JSON.stringify(out.chip));
@@ -23535,38 +23528,39 @@ async function main(){
   const picked = await page.evaluate(()=>{ const s = String(window.getSelection()); closeNodeEditor(false); vs = 1; applyTransform(); return s; });
   check('a double click on a reading picks that reading\'s word alone', picked === 'Оптимус', JSON.stringify([rtAt, picked]));
 
-  /* The editor's frame is the entry's box: its line as thick as the
-     border at this zoom, its corners as round as the entry's, square when
-     the entry is. */
-  const frame = await page.evaluate(async ([X, Y])=>{
-    const res = [];
-    for(const z of [0.7, 2.2]){
-      vs = z; vx = -X * z + 300; vy = -Y * z + 200; applyTransform();
-      applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; });
-      openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150));
-      const surf = document.querySelector('#nodeEditor .rich-surface');
-      const cs = getComputedStyle(surf);
-      const px = v=> parseFloat(cs.getPropertyValue(v)) || 0;
-      const sr = surf.getBoundingClientRect();
-      /* The frame is placed against the field's padding box, which is
-         inside the field's own border: its outer edge is the field's edge
-         less the half border it moves out by. */
-      const bw = px('--bw'), bo = px('--bo'), ax = px('--ax'), ay = px('--ay'), hang = px('--hang');
-      const outer = {l: sr.left - bo - ax, r: sr.right + bo - ax, t: sr.top + hang - bo - ay, b: sr.bottom - hang + bo - ay};
-      const shape = qNode('.node[data-id="p1111_a"] > rect:not(.node-hover-pad)');
-      const nb = shape.getBoundingClientRect();
-      const half = NODE_BORDER_W / 2 * z;
-      const rx = parseFloat(shape.getAttribute('rx')) || 0;
-      res.push({z, bw: Math.abs(bw - Math.max(0.6, 1.6 * z)) < 0.02,
-                edges: [outer.l - (nb.left - half), outer.r - (nb.right + half), outer.t - (nb.top - half), outer.b - (nb.bottom + half)].map(v=> Math.round(v * 100) / 100),
-                fr: px('--fr'), wantFr: rx > 0 ? (rx + NODE_BORDER_W / 2) * z : 0});
-      closeNodeEditor(false);
-    }
-    vs = 1; applyTransform();
-    return res;
+  /* The field is written in as a note is (the owner's word of 20.11):
+     Enter is a new line, Ctrl+Enter and Escape keep what is written and
+     let it go, and the ✓ is on its toolbar on a desk as on a phone. */
+  await page.evaluate(async ([X, Y])=>{
+    vs = 1; vx = -X + 300; vy = -Y + 200; applyTransform();
+    applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; });
+    openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150));
   }, [X, Y]);
-  check('the in-node editor\'s frame lies on the entry\'s box at any zoom, as thick as its border, its corners the entry\'s',
-        frame.every(f=> f.bw && f.edges.every(e=> Math.abs(e) < 0.6) && Math.abs(f.fr - f.wantFr) < 0.05), JSON.stringify(frame));
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Beta');
+  await page.waitForTimeout(80);
+  const seam = await page.evaluate(()=>{
+    const done = document.getElementById('nodeEditorDone');
+    return {open: !!nodeEditorTarget, value: document.getElementById('nodeEditorText').value,
+            tick: !!done && getComputedStyle(done).display !== 'none' && done.getBoundingClientRect().width > 0};
+  });
+  await page.keyboard.press('Control+Enter');
+  await page.waitForTimeout(150);
+  seam.ctrl = await page.evaluate(()=> ({open: !!nodeEditorTarget, label: nodes.get('p1111_a').label}));
+  await page.evaluate(async ()=>{ openNodeEditor('p1111_a'); await new Promise(ok=> setTimeout(ok, 150)); });
+  await page.keyboard.press('End');
+  await page.keyboard.type('!');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  seam.esc = await page.evaluate(()=> ({open: !!nodeEditorTarget, label: nodes.get('p1111_a').label,
+    veil: (document.getElementById('nodeEditorVeil') || {}).textContent || ''}));
+  await page.evaluate(()=>{ applyEdit(()=>{ workingNodes.find(x=> x[0] === 'p1111_a')[1] = 'Alpha'; }); });
+  check('in the in-node field Enter starts a new line, as in a note, and its ✓ is on the toolbar on a desk too',
+        seam.open && /Alpha\nBeta$/.test(seam.value) && seam.tick, JSON.stringify(seam));
+  check('…Ctrl+Enter keeps what is written and lets the field go, and so does Escape, and the drawn words come back',
+        !seam.ctrl.open && /Alpha\nBeta$/.test(seam.ctrl.label) && !seam.esc.open && /Beta!$/.test(seam.esc.label) && seam.esc.veil === '',
+        JSON.stringify([seam.ctrl, seam.esc]));
 
   /* The picture's player keeps working: carried, it goes rather than
      standing over where the picture was; redrawn, it follows; a finger

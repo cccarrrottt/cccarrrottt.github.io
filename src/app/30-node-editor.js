@@ -9,8 +9,10 @@
 
    They are one place now. A double click puts a field on the entry
    ITSELF, at the entry's own width, in the entry's own face and size and
-   ink, with the toolbar floating just above it. Enter settles it; so does
-   a click anywhere else, which is what a reader does next anyway. The
+   ink, with the toolbar floating just above it. It is written as a note
+   is (the owner's word of 20.11): Enter starts a new line, and the field
+   is let go of with a click anywhere else, which is what a reader does
+   next anyway, with Escape, Ctrl+Enter or the ✓ on its toolbar. The
    drawer still holds everything an entry has that is not its words, and
    its Label field still works exactly as it did — this is a second way in,
    not a replacement for the form.
@@ -185,25 +187,9 @@ function positionNodeEditor(){
    * what the entry itself does. */
   const w = box.w*vs, hBox = box.h*vs;
   const surf = rec.surface.style;
-  /* On a figure the field's frame is the figure (the owner's list of
-     2.11): a diamond opened as a rounded box was a different shape from
-     the one the words would land in. The frame is the stylesheet's
-     ::before; on a figure it wears the outline as its picture instead of
-     a border, drawn at the field's own scale. */
-  const figOn = tn && !box.turn ? nodeFigure(tn) : null;
-  /* …and on a figure's card it is the piece of the figure the heading's
-     band cuts out of it (the owner's list of 9.11): a triangle's heading
-     opened as a box standing across the triangle's slopes. */
-  const band = figOn && tn.card ? (tn.cardHead && tn.cardHead.h > 0 ? tn.cardHead : null) : undefined;
-  nodeEditor.classList.toggle('on-figure', !!figOn && band !== null);
-  if(figOn && band) surf.setProperty('--figure-frame', figureFrameUrl(figOn, tn.w, tn.h || 0, band));
-  else if(figOn && band === undefined) surf.setProperty('--figure-frame', figureFrameUrl(figOn, box.w, box.h));
-  else surf.removeProperty('--figure-frame');
   const lineH = parseFloat(rec.surface.dataset.lineH) || 0;
   // Measured upright; turned to match a turned entry only at the end.
   surf.transform = '';
-  surf.setProperty('--ax', '0px');
-  surf.setProperty('--ay', '0px');
   surf.minHeight = '0px';
   surf.height = '';
   surf.padding = '0px';
@@ -230,10 +216,8 @@ function positionNodeEditor(){
   if(remark) surf.maxWidth = (fitW * vs + edgePx + 2 * padX).toFixed(2) + 'px';
   /* The browser sets a line a hair wider than the drawing measured it.
      That hair is let hang over the field's edge rather than make the field
-     bigger than the box; so is a line taller than a box closed on its ink,
-     which the frame (see the stylesheet) is drawn inside of. */
+     bigger than the box; so is a line taller than a box closed on its ink. */
   const hang = Math.max(0, (fitted.height - hBox) / 2);
-  surf.setProperty('--hang', hang.toFixed(2) + 'px');
   if(!wraps){
     surf.minWidth = w + 'px';
     if(!remark && fitted.width > w && fitted.width - w < 4*vs) surf.width = w + 'px';
@@ -295,14 +279,9 @@ function positionNodeEditor(){
   const roomUnder = fieldTop + fieldH + handles + gap + barH <= viewBottom - 6;
   const under = above < 6 || (touch && roomUnder);
   nodeEditor.classList.toggle('bar-under', under);
-  /* The toolbar keeps its gap from the FRAME, which stands `hang` inside
-     the field; so the field runs on under the toolbar's gap by that much.
-     The editor used to be placed by the frame and then laid out by the
-     field, which put the field `hang` lower than the box it was centred
-     on — on a connector's note, closed on its ink, a few pixels. The
-     words were caught by alignEditorOnInk, which moved the field up to
-     them; the frame, which is held to the box against that move, stayed
-     those pixels low, off the plate it stood for. */
+  /* The toolbar keeps its gap from the BOX, which stands `hang` inside
+     the field; so the field runs on under the toolbar's gap by that much,
+     and the field stays centred on the box it stands on. */
   const sep = (gap + lift - hang).toFixed(2) + 'px';
   if(bar){
     bar.style.marginBottom = under ? '' : sep;
@@ -314,32 +293,6 @@ function positionNodeEditor(){
   nodeEditor.style.left = x + 'px';
   nodeEditor.style.top  = y + 'px';
   alignEditorOnInk();
-}
-/* The figure's outline as a picture for the field's frame: the panel's
-   ground, the accent's line, 1.6 screen pixels wide as the box's frame is,
-   with room round it for the half of the line that stands outside. The
-   colours are read off the page, since a picture cannot ask the
-   stylesheet for them. */
-/* With `band` ({top, h} from the card's top) the picture is only that
-   band of the figure: the figure's outline where it runs through the band,
-   and the band's own edges inside the figure. */
-function figureFrameUrl(fig, W, H, band){
-  const p = 1.6 / vs;
-  const css = getComputedStyle(document.body);
-  const ink = (css.getPropertyValue('--accent') || '').trim() || '#c23b22';
-  const ground = (css.getPropertyValue('--panel') || '').trim() || '#ffffff';
-  const d = figurePolyD(figureLayout(fig, W, H).outline, 0, 0, true);
-  const y0 = band ? band.top : 0, bh = band ? band.h : H;
-  const sw = p.toFixed(3);
-  const body = band
-    ? `<clipPath id="f"><path d="${d}"/></clipPath>` +
-      `<rect x="${(-p).toFixed(3)}" y="${y0.toFixed(3)}" width="${(W + 2*p).toFixed(3)}" height="${bh.toFixed(3)}" ` +
-      `fill="${ground}" stroke="${ink}" stroke-width="${(2*p).toFixed(3)}" clip-path="url(#f)"/>` +
-      `<path d="${d}" fill="none" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`
-    : `<path d="${d}" fill="${ground}" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`;
-  const svgText = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${(-p).toFixed(3)} ${(y0 - p).toFixed(3)} ` +
-    `${(W + 2*p).toFixed(3)} ${(bh + 2*p).toFixed(3)}" preserveAspectRatio="none">` + body + `</svg>`;
-  return 'url("data:image/svg+xml,' + encodeURIComponent(svgText) + '")';
 }
 /* The last word on where the field stands: on the words it is covering.
  *
@@ -408,12 +361,6 @@ function alignEditorOnInk(){
   if(Math.abs(dx) > (r - l)/2 || Math.abs(dy) > (b - tp)/2) return;
   nodeEditor.style.left = (parseFloat(nodeEditor.style.left) + dx).toFixed(2) + 'px';
   nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(2) + 'px';
-  /* The words move; the frame drawn round them does not. It stands for
-     the box, and the box has not moved — so it is drawn back by the same
-     amount (see the stylesheet). */
-  const surf = rec.surface.style;
-  surf.setProperty('--ax', dx.toFixed(2) + 'px');
-  surf.setProperty('--ay', dy.toFixed(2) + 'px');
 }
 const NODE_EDITOR_MINH = 22;
 /* A phone's browser zooms the whole PAGE in on a field whose type is
@@ -491,6 +438,7 @@ function openTextEditorOn(target, opts){
     setRichValue(nodeEditorText, edgeStyleFor(target.from, target.to).note || '');
   }
   nodeEditor.hidden = false;
+  veilDrawnWords(target);
   syncNodeEditorLook();
   /* An entry's box grows under the field as the words are typed; a note's
      plate is redrawn by the connector instead, so only the entry needs the
@@ -665,28 +613,9 @@ function finishNodeEditorLook(rec){
   rec.surface.style.textAlign = nodeEditorAlign();
   // Once the field is in its face and size: see seatFieldReadings.
   seatFieldReadings(rec.surface);
-  /* The border scales with the drawing, as the type does; the padding is
-     whatever is left of the box round the words (see positionNodeEditor). */
-  const bw = Math.max(0.6, 1.6*vs);
-  rec.surface.style.borderWidth = bw.toFixed(2) + 'px';
-  rec.surface.style.borderRadius = (5*vs).toFixed(2) + 'px';
-  /* …and so does the frame drawn for it, which is the entry's outline: as
-     thick as the box's border at this zoom, and as round as its corners —
-     a square entry opened a field with rounded ones, and at any zoom but
-     100% the frame's 1.6 screen pixels stood a pixel or two inside or
-     outside the border it covers (the owner's list of 11.11). */
-  rec.surface.style.setProperty('--bw', bw.toFixed(2) + 'px');
-  const t = nodeEditorTarget;
-  const drawn = !t ? null : t.kind === 'note'
-    ? arrowLayer.querySelector(`.edge-note[data-from="${cssEscape(t.from)}"][data-to="${cssEscape(t.to)}"] .edge-note-plate`)
-    : qNode(`.node[data-id="${cssEscape(t.id)}"] > rect:not(.node-hover-pad):not(.array-hit)`);
-  const rx = drawn ? parseFloat(drawn.getAttribute('rx')) || 0 : 5;
-  const half = t && t.kind === 'note' ? EDGE_NOTE_FRAME_W / 2 : NODE_BORDER_W / 2;
-  rec.surface.style.setProperty('--fr', (rx > 0 ? (rx + half) * vs : 0).toFixed(2) + 'px');
-  /* The drawn border stands half outside the box's edge and half inside
-     it, and the frame is laid over the whole of it: it starts that half
-     further out than the field's own edge. */
-  rec.surface.style.setProperty('--bo', (t && t.kind === 'note' ? 0 : half * vs).toFixed(2) + 'px');
+  /* The border, which is never seen, scales with the drawing as the type
+     does, so the words stand where they did when it was drawn. */
+  rec.surface.style.borderWidth = Math.max(0.6, 1.6*vs).toFixed(2) + 'px';
 }
 /* How the words are set in the field: the way the thing being edited sets
    them. A connector's note is centred on the drawing; an entry's label,
@@ -772,6 +701,7 @@ function closeNodeEditor(keep){
   if(keep !== false) commitNodeEditorText();
   endLabelPreview(keep !== false);
   nodeEditor.hidden = true;
+  veilDrawnWords(null);
   holdPageZoom(false);
   nodeEditorTarget = null;
   nodeEditorUndoPushed = false;
@@ -782,9 +712,36 @@ function closeNodeEditor(keep){
   // A note left as a single space while it was being typed is not a note.
   if(wasNote){ redrawEdges(); applyVisibility(); }
 }
-setRichEnter('nodeEditorText', ()=> closeNodeEditor(true));
-/* The ✓ on the field's toolbar, for a phone, whose Enter is a line break
-   (see keysAreOnScreen). Pressed without taking the focus, so the field
+/* Enter is a new line here, as in a note; Ctrl+Enter still settles it. */
+setRichEnter('nodeEditorText', ()=> closeNodeEditor(true), {breaks: true});
+/* No frame (the owner's word of 20.11): the field is the words and
+ * nothing else, standing on the entry, the card's band, the figure or
+ * the note's plate as they are drawn. It used to be a panel with an
+ * accent frame laid over the box, so writing in an entry was writing in
+ * a box laid on it; now the box under the field is the entry's own.
+ *
+ * So the words DRAWN under the field are put out of sight while it is
+ * open — the field's own are where they stand, and both at once were the
+ * same words twice, a hair apart. By a sheet of their own, keyed on what
+ * is being written in, so it holds through every redraw the typing
+ * makes; the drawing itself is not touched, and what an edit keeps or
+ * redraws (drawOrKeep) is as it was. */
+var nodeEditorVeil = null;
+function veilDrawnWords(t){
+  if(!nodeEditorVeil){
+    if(!t) return;
+    nodeEditorVeil = document.createElement('style');
+    nodeEditorVeil.id = 'nodeEditorVeil';
+    document.head.appendChild(nodeEditorVeil);
+  }
+  if(!t){ nodeEditorVeil.textContent = ''; return; }
+  const words = ' :is(.node-label-text, .edge-note-text, .sticker-glyph, .sticker-missing, .text-underline)';
+  const on = t.kind === 'note'
+    ? [`.edge-note[data-from="${cssEscape(t.from)}"][data-to="${cssEscape(t.to)}"]`]
+    : [`.node[data-id="${cssEscape(t.id)}"]`, `.bio-card-g[data-id="${cssEscape(t.id)}"]`];
+  nodeEditorVeil.textContent = on.map(s=> s + words).join(',\n') + '{opacity:0 !important;}';
+}
+/* The ✓ on the field's toolbar, since Enter is a line break. Pressed without taking the focus, so the field
    is still the one being settled when the click arrives. */
 {
   const done = document.getElementById('nodeEditorDone');
