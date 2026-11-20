@@ -1145,7 +1145,8 @@ function buildCategoryBlock(group){
   const shut = collapsedCats.has(group.name) && !tagFilterText;
   wrap.classList.toggle('collapsed', shut);
   head.innerHTML =
-    (isLoose ? `<span class="legend-group-name"><span class="special-mark">\u2605</span> Special</span>`
+    (isLoose ? `<span class="legend-group-name"><svg class="special-mark" viewBox="0 0 10 10" aria-hidden="true">` +
+              `<polygon points="5,0.3 6.4,3.6 9.9,3.8 7.2,6.1 8.1,9.6 5,7.7 1.9,9.6 2.8,6.1 0.1,3.8 3.6,3.6"/></svg>Special</span>`
             : `<span class="legend-group-name">${escapeHtml(group.name)}</span>`) +
     `<span class="legend-group-fold">\u25b8</span>` +
     `<span class="legend-group-count">${group.tags.length}</span>`;

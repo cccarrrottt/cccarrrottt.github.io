@@ -4136,8 +4136,15 @@ async function main(){
                                   bg:getComputedStyle(plainEye).backgroundColor} : null;
     out.noAsterisk = ![...document.querySelectorAll('.legend-item .name')].some(e=> /\*/.test(e.textContent));
     const specialHead = [...document.querySelectorAll('.legend-group-special .special-mark')][0];
-    out.specialHeadBlue = specialHead ? getComputedStyle(specialHead).color : null;
-    out.specialHeadTall = specialHead ? parseFloat(getComputedStyle(specialHead).fontSize) / parseFloat(getComputedStyle(specialHead.parentNode).fontSize) : 0;
+    out.specialHeadBlue = specialHead ? getComputedStyle(specialHead).fill : null;
+    out.specialHeadTall = specialHead ? specialHead.getBoundingClientRect().height / parseFloat(getComputedStyle(specialHead.parentNode).fontSize) : 0;
+    if(specialHead){
+      // Its middle level with the middle of the capitals beside it.
+      const t = [...specialHead.parentNode.childNodes].find(n=> n.nodeType === 3);
+      const rg = document.createRange(); rg.selectNodeContents(t);
+      const tb = rg.getBoundingClientRect(), sb = specialHead.getBoundingClientRect();
+      out.specialHeadOff = +(sb.top + sb.height / 2 - (tb.top + tb.height / 2)).toFixed(2);
+    }
 
     /* A control that cannot act does not answer the pointer either. */
     const dead = document.createElement('button');
@@ -4187,10 +4194,10 @@ async function main(){
         r18.starHollow === 'none' && r18.noAsterisk,
         JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue,
                         fill:r18.starHollow, asterisk:!r18.noAsterisk}));
-  check('an ordinary tag hangs by a ring, and the Special group’s star is blue and taller than its capitals',
+  check('an ordinary tag hangs by a ring, and the Special group’s star is blue, taller than its capitals and level with their middle',
         !!r18.ringOnPlain && r18.ringOnPlain.bw === '1px' && r18.ringOnPlain.bg === 'rgba(0, 0, 0, 0)' &&
-        /47, 111, 181/.test(r18.specialHeadBlue || '') && r18.specialHeadTall >= 2,
-        JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue, tall:r18.specialHeadTall}));
+        /47, 111, 181/.test(r18.specialHeadBlue || '') && r18.specialHeadTall >= 1.3 && Math.abs(r18.specialHeadOff) <= 1.5,
+        JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue, tall:r18.specialHeadTall, off:r18.specialHeadOff}));
   check('a control that cannot act is faded and takes no pointer',
         r18.disabledOpacity < 0.6 && r18.disabledCursor === 'default',
         JSON.stringify({o:r18.disabledOpacity, c:r18.disabledCursor}));
@@ -6235,6 +6242,7 @@ async function main(){
     setSideTab(document.getElementById('tagsPanel'), true);
     await wait(450);
     out.groupNames = [...document.querySelectorAll('.legend-group-name')].map(e=> e.textContent);
+    out.specialStar = !!document.querySelector('.legend-group-special .legend-group-name > svg.special-mark');
     out.specialItalic = !!document.querySelector('.legend-group-head.legend-group-special');
     out.everyRowIsATag = [...document.querySelectorAll('.legend-item')]
       .filter(r=> r.dataset.tag !== '__untagged__')
@@ -6320,7 +6328,7 @@ async function main(){
   check('\u2026and Untagged, which is not a tag, is not drawn as one',
         r30.bucketPlain === true);
   check('the last bucket is SPECIAL, in italic',
-        r30.groupNames.indexOf('★ Special') >= 0 && r30.groupNames.indexOf('Ungrouped') < 0 &&
+        r30.groupNames.indexOf('Special') >= 0 && r30.specialStar && r30.groupNames.indexOf('Ungrouped') < 0 &&
         r30.specialItalic, JSON.stringify(r30.groupNames));
   check('and it holds the acting tags however they were filed',
         !!r30.specialHolds && r30.specialHolds.indexOf('fan-fiction') >= 0 &&

@@ -1414,8 +1414,12 @@
      carrying it, not merely names them (SPECIAL_TAGS): its star eyelet,
      and the star in front of the group that holds such tags. */
   /* Taller than the capitals of the name beside it, a mark rather than a
-     letter (the owner's drawing of 20.11). */
-  .legend-group-name .special-mark{color:#2f6fb5;font-size:2.3em;line-height:0;vertical-align:-0.2em;margin-right:-0.1em;}
+     letter (the owner's drawing of 20.11), and drawn rather than typed: a
+     ★ comes from whichever font a device has it in, and stood higher or
+     lower beside the name from one to the next. Its middle is the middle
+     of the capitals. */
+  .legend-group-name:has(> .special-mark){display:inline-flex;align-items:center;gap:0.4em;}
+  .legend-group-name .special-mark{width:1.35em;height:1.35em;flex:0 0 auto;fill:#2f6fb5;position:relative;top:-0.04em;}
   .legend-item .count{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;color:var(--ink-faint);}
 
   /* Categories. The heading carries the group's own show/hide dot; the
