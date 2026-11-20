@@ -4137,6 +4137,7 @@ async function main(){
     out.noAsterisk = ![...document.querySelectorAll('.legend-item .name')].some(e=> /\*/.test(e.textContent));
     const specialHead = [...document.querySelectorAll('.legend-group-special .special-mark')][0];
     out.specialHeadBlue = specialHead ? getComputedStyle(specialHead).color : null;
+    out.specialHeadTall = specialHead ? parseFloat(getComputedStyle(specialHead).fontSize) / parseFloat(getComputedStyle(specialHead.parentNode).fontSize) : 0;
 
     /* A control that cannot act does not answer the pointer either. */
     const dead = document.createElement('button');
@@ -4181,15 +4182,15 @@ async function main(){
         JSON.stringify({open:r18.blankNoteWhileOpen, kept:r18.blankLeaderKept}));
   check('while a plate nobody wrote is dropped when the popover closes',
         r18.blankPlateDropped, JSON.stringify({dropped:r18.blankPlateDropped}));
-  check('a tag that changes what carries it hangs by a hollow blue star, not an asterisk',
-        r18.starOnSpecial && r18.noStarOnPlain && /47, 111, 181|2f6fb5/.test(r18.starIsBlue || '') &&
+  check('a tag that changes what carries it hangs by a hollow star in the ring\'s ink, not an asterisk',
+        r18.starOnSpecial && r18.noStarOnPlain && !/47, 111, 181|2f6fb5/.test(r18.starIsBlue || '') && !!r18.starIsBlue &&
         r18.starHollow === 'none' && r18.noAsterisk,
         JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue,
                         fill:r18.starHollow, asterisk:!r18.noAsterisk}));
-  check('an ordinary tag hangs by a ring, and the Special group’s star is blue',
+  check('an ordinary tag hangs by a ring, and the Special group’s star is blue and as tall as its capitals',
         !!r18.ringOnPlain && r18.ringOnPlain.bw === '1px' && r18.ringOnPlain.bg === 'rgba(0, 0, 0, 0)' &&
-        /47, 111, 181/.test(r18.specialHeadBlue || ''),
-        JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue}));
+        /47, 111, 181/.test(r18.specialHeadBlue || '') && r18.specialHeadTall >= 1.4,
+        JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue, tall:r18.specialHeadTall}));
   check('a control that cannot act is faded and takes no pointer',
         r18.disabledOpacity < 0.6 && r18.disabledCursor === 'default',
         JSON.stringify({o:r18.disabledOpacity, c:r18.disabledCursor}));

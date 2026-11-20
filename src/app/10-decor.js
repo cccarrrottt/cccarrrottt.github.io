@@ -109,7 +109,7 @@ function tagShapeHtml(text, opts){
          `<span class="tag-text">${escapeHtml(text)}</span></span>`;
 }
 /* The eyelet of a tag: a ring, or for a tag that acts a five-pointed
-   star, hollow, in the blue that marks such tags everywhere. One string
+   star, hollow, in the same faint ink as the ring. One string
    for every place that draws a tag, so they cannot drift apart. */
 function tagEyeHtml(special){
   if(!special) return '<i class="tag-eye"></i>';
