@@ -7,7 +7,11 @@
 #   tools/lint.py         does the program, assembled and read as one scope,
 #                         still have no undefined, unused or twice-declared name
 #   tests/regression.js   does the page still DO what it did, in a real browser
+#   tests/snapshots.js    does it still LOOK as it did, by the pixel
 #   tests/worker.js       does the write service still refuse what it must
+#
+# and a few of the suite's scenarios again in WebKit, the engine of every
+# browser on an iPhone, which the rest of the suite's Chromium cannot speak for.
 #
 # The regression suite runs twice, against two different things: `dist` drives
 # the built single file, `src` drives the same program served as separate
@@ -194,6 +198,91 @@ jobs:
       - name: Run the suite
         run: node tests/regression.js ${{ matrix.target == 'src' && 'src' || '' }} --shard=${{ matrix.shard }}/4
 
+  # The look, compared by the pixel with tests/snapshots/*.png. Those
+  # pictures are drawn by the browser package-lock.json's Playwright names,
+  # on Linux, and only that browser on Linux draws them alike; so they are
+  # compared here and nowhere else that matters. A run that differs keeps
+  # what it drew, and where it differs, with the run.
+  snapshots:
+    name: Snapshots
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # As for the suite, and for the same reason.
+      - name: Install Playwright
+        timeout-minutes: 20
+        run: |
+          npm ci --no-audit --no-fund
+          for i in 1 2 3; do
+            timeout 300 npx playwright install --with-deps chromium && exit 0
+            echo "Installing Chromium with its system packages failed (attempt $i)"; sleep $((i * 15))
+          done
+          echo "::warning::Ubuntu's package mirrors were unreachable; Chromium installed without its system packages"
+          npx playwright install chromium
+
+      - name: Build
+        run: python3 build.py
+
+      - name: Compare the pictures
+        run: node tests/snapshots.js
+
+      - name: Keep what was drawn
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshots
+          path: tests/snapshots/out/
+          retention-days: 14
+
+  # A few of the suite's scenarios in WebKit: the page opening and drawing,
+  # undo, the panels, search, adding entries, export and import, a merge,
+  # and panning about the field. The rest of the suite drives Chromium,
+  # which is not what any reader on an iPhone has.
+  webkit:
+    name: Regression in WebKit
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # WebKit needs more of the system than Chromium does, so there is no
+      # falling back to installing it without its packages.
+      - name: Install Playwright
+        timeout-minutes: 20
+        run: |
+          npm ci --no-audit --no-fund
+          for i in 1 2 3; do
+            timeout 300 npx playwright install --with-deps webkit && exit 0
+            echo "Installing WebKit with its system packages failed (attempt $i)"; sleep $((i * 15))
+          done
+          exit 1
+
+      - name: Build
+        run: python3 build.py
+
+      - name: Run the scenarios
+        run: >-
+          node tests/regression.js --browser=webkit
+          "--only=boot|undo / redo|panels open|search|node creation, every archetype|export / import round-trip|the amalgam junction bead|the field: whole pages"
+
   pages:
     name: Publish to Pages
     # After the checks when they ran and passed, or at once when the push was
@@ -202,9 +291,10 @@ jobs:
       always() && github.ref == 'refs/heads/main'
       && needs.changes.result == 'success'
       && (needs.changes.outputs.data_only == 'true'
-          || (needs.build.result == 'success' && needs.test.result == 'success'))
+          || (needs.build.result == 'success' && needs.test.result == 'success'
+              && needs.snapshots.result == 'success' && needs.webkit.result == 'success'))
     runs-on: ubuntu-latest
-    needs: [changes, build, test]
+    needs: [changes, build, test, snapshots, webkit]
     permissions:
       pages: write
       id-token: write
@@ -302,7 +392,7 @@ jobs:
     # did not change.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [build, test]
+    needs: [build, test, snapshots, webkit]
     steps:
       - uses: actions/checkout@v4
 

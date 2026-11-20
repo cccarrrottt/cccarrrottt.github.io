@@ -15,7 +15,7 @@
    a CI runner installs the npm package and lets Playwright find its own
    browser. Neither should have to know the other exists, so the suite asks
    for each in turn and takes the first that answers. */
-const { chromium } = (() => {
+const { chromium, webkit } = (() => {
   const tried = ['/opt/node-tools/node_modules/playwright-core',
                  'playwright', 'playwright-core'];
   for(const where of tried){
@@ -145,7 +145,19 @@ const argOf = (flag) => {
   const hit = ARGS.find(a => a.startsWith(flag + '='));
   return hit ? hit.slice(flag.length + 1) : null;
 };
+/* --only takes alternatives too, `a|b`: a scenario runs when its name holds
+   any of them. No scenario's name has a bar in it. */
 const ONLY = (argOf('--only') || '').toLowerCase();
+const ONLY_ANY = ONLY ? ONLY.split('|').filter(Boolean) : [];
+/* Which engine draws the page. Chromium unless told otherwise; WebKit is
+   the engine of every browser on an iPhone, and CI runs a few scenarios in
+   it (the "Regression in WebKit" job), because the suite's Chromium cannot
+   say what a reader there sees. */
+const ENGINE = argOf('--browser') || 'chromium';
+if(ENGINE !== 'chromium' && ENGINE !== 'webkit'){
+  console.error(`--browser is chromium or webkit, not ${ENGINE}`);
+  process.exit(2);
+}
 const LIST = ARGS.includes('--list');
 const SHARD = (() => {
   const v = argOf('--shard');
@@ -163,7 +175,7 @@ const sceneTimes = [];
 async function scenario(name, body){
   const index = sceneNo++;
   if(LIST){ console.log(`  ${String(index).padStart(3)}  ${name}`); return; }
-  if(ONLY && !name.toLowerCase().includes(ONLY)){ sceneSkipped++; return; }
+  if(ONLY && !ONLY_ANY.some(o => name.toLowerCase().includes(o))){ sceneSkipped++; return; }
   if(SHARD && index % SHARD.of !== SHARD.i){ sceneSkipped++; return; }
   sceneRan++;
   const t0 = Date.now();
@@ -190,8 +202,8 @@ async function main(){
   /* The pinned browser if this machine has one, otherwise whatever
      Playwright installed for itself. */
   const PINNED = '/opt/pw-browsers/chromium';
-  const browser = await chromium.launch(
-    fs.existsSync(PINNED) ? {executablePath: PINNED} : {});
+  const browser = ENGINE === 'webkit' ? await webkit.launch()
+    : await chromium.launch(fs.existsSync(PINNED) ? {executablePath: PINNED} : {});
 
   const errors = [];
   const ctx = await browser.newContext({viewport:{width:1500, height:950}});
@@ -230,7 +242,7 @@ async function main(){
   page.on('console', m => { if(m.type() === 'error' && !NOISE.test(m.text())) errors.push('console: ' + m.text()); });
   page.on('requestfailed', () => {});
 
-  console.log(`\nRhizome Project regression — ${MODE}/${PAGE}\n`);
+  console.log(`\nRhizome Project regression — ${MODE}/${PAGE}${ENGINE === 'chromium' ? '' : ', in ' + ENGINE}\n`);
 
   await page.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
   await page.evaluate(WAVE_HELPERS);
