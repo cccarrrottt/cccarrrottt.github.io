@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.26.1** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.26.2** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -259,6 +259,37 @@ another account or repository is a matter of changing those two files.
 
 `worker/wrangler.toml` holds the rest: the repository, the branch, the owner
 logins and the site's address.
+
+### The owner's cloud drives
+
+Optional, and one drive at a time. A drive is offered in My files once its
+keys are among the service's Secrets; until then nothing about it shows.
+A picture picked from a drive is shared by link (a reader has to be able to
+see it), and the chart names it by the service's address,
+`/cloud/gdrive/file/<id>` or `/cloud/yadisk/file?key=<public key>`, which
+answers every reader from the drive. The owner's own grant to the drive is
+kept inside the owner's session, as the GitHub token is; the service still
+stores nothing.
+
+- **Google Drive.** In the Google Cloud console, make a project and enable
+  the *Google Drive API*. On the *OAuth consent screen* (Google Auth
+  Platform), make it *External*, add the owner's Google account as a test
+  user, then publish it to *In production*: an app left in testing loses its
+  grant after seven days. Google will warn that the app is unverified, which
+  is expected for an app only its owner uses. Under *Credentials*, make an
+  *OAuth client ID* of type *Web application* with the redirect URI
+  `https://rhizome-api.wowwodptr2.workers.dev/cloud/gdrive/back`, and an
+  *API key* restricted to the Drive API. The Secrets are
+  `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_API_KEY`.
+- **Yandex Disk.** At <https://oauth.yandex.ru/client/new>, make an app
+  for the web with the redirect URI
+  `https://rhizome-api.wowwodptr2.workers.dev/cloud/yadisk/back` and the
+  Yandex Disk REST API permissions to read the whole disk and to write
+  anywhere on it (writing is what publishing a file needs). The Secrets are
+  `YANDEX_CLIENT_ID` and `YANDEX_CLIENT_SECRET`.
+
+Mega is not offered: its files are encrypted in the browser, and showing one
+on the chart would mean decrypting it in every reader's browser.
 
 ### What the site counts, and what it is told
 
@@ -743,7 +774,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 154 named scenarios, and they are independent of one
+The browser suite is 155 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

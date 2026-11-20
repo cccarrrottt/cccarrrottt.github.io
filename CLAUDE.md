@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 45 files. **They are not modules.** The page is a single
+`src/app/` holds 46 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -108,7 +108,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 154 named scenarios, and they do not depend on one another —
+The suite is 155 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -297,6 +297,28 @@ The pencil and the eraser on the top bar (`44-ink.js`) write by hand over
 the field. A stroke is world points in `SETTINGS.ink`, saved with the
 chart and part of the field's extent; while a tool is in the hand the
 chart takes no other gesture, and a reader holds neither.
+
+## A chart's own fonts
+
+`SETTINGS.fonts` is `{key, name, src}`, the file a font in `media/` like a
+picture (`MEDIA_EXT` knows ttf, otf, woff and woff2; `mediaSrcOk` still
+refuses a font as a picture). `FONT_OPTIONS` is the program's faces and
+then the chart's, remade from SETTINGS whenever `SETTINGS.fonts` is
+another array — so anything that lists faces asks `fontOptions()`, and
+anything that changes the fonts assigns a new array. A face is handed to
+the page (`FontFace`) the first time something is set in it.
+
+## The owner's cloud drives
+
+Google Drive and Yandex Disk, through the write service (`CLOUDS` in
+`worker/index.js`, `45-clouds.js`). The owner's grant to a drive lives in
+the owner's session beside the GitHub token, and a GitHub renewal carries
+it on. A picked file is shared by link and named by the service's address
+(`/cloud/<drive>/file…`), which answers readers without the owner's
+grant: Google with `GOOGLE_API_KEY`, Yandex by its public key. The service
+still stores nothing. A drive whose Secrets are missing is not offered
+(`/me` says which are ready), and the page shows drives only to the owner
+on the site.
 
 ## The page in other languages
 

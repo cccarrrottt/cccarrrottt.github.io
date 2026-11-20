@@ -24524,6 +24524,141 @@ async function main(){
         f.reader.cells >= 1 && f.reader.del === 0, JSON.stringify(f.reader));
   });
 
+  /* The owner's cloud drives on the site (0.26.2): connected from My files,
+     looked through in a window of their own, a picture picked from one
+     kept in My files with the drive's mark, at the write service's
+     address. The service is answered from here; its own half is in
+     tests/worker.js. */
+  await scenario("the owner's cloud drives on the published site", async () => {
+  if(MODE === 'src'){
+    check('the site serves the built file, so there is nothing to check from src', true);
+    return;
+  }
+  const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
+  const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
+  const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1].replace(/\/+$/, '');
+  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
+  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const dataSha = require('crypto').createHash('sha1')
+    .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
+  const api = {connected: [], asked: [], fileAsked: 0};
+  const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
+  await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'application/json', body: '[]'}));
+  await c.route(SITE_ORIGIN + '/**', r => {
+    const u = new URL(r.request().url());
+    const m = /^\/(media\/[0-9a-f]{64}\.[a-z0-9]+)$/.exec(u.pathname);
+    if(m && fs.existsSync(path.join(DIR, m[1]))) return r.fulfill({status: 200, body: fs.readFileSync(path.join(DIR, m[1]))});
+    return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
+  });
+  await c.route(SITE_API + '/**', async r => {
+    const q = r.request(), u = new URL(q.url());
+    const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN, 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
+    const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
+    if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
+    if(u.pathname === '/cloud/gdrive/file/pic1'){ api.fileAsked++; return r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'image/png', body: TINY_PNG}); }
+    if(u.pathname === '/cloud/gdrive/connect'){
+      api.asked.push('connect ' + u.searchParams.get('ticket'));
+      return r.fulfill({status: 200, contentType: 'text/html', body:
+        `<script>opener.postMessage({rhizomeCloud:{cloud:'gdrive', grant:'the-grant'}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
+    }
+    if(q.headers()['authorization'] !== 'Bearer good-session') return reply(401, {error: 'not signed in.'});
+    api.asked.push(u.pathname + ' ' + (q.postData() || ''));
+    if(u.pathname === '/me') return reply(200, {owner: true, login: 'the-owner', sha: dataSha, media: true,
+                                                clouds: {ready: ['gdrive', 'yadisk'], connected: api.connected}});
+    if(u.pathname === '/cloud/gdrive/ticket') return reply(200, {ticket: 'tkt'});
+    if(u.pathname === '/cloud/gdrive/attach'){
+      if(JSON.parse(q.postData()).grant !== 'the-grant') return reply(400, {error: 'no'});
+      api.connected = ['gdrive'];
+      return reply(200, {connected: api.connected});
+    }
+    if(u.pathname === '/cloud/gdrive/list'){
+      const folder = JSON.parse(q.postData()).folder;
+      return reply(200, {items: folder === 'fold1'
+        ? [{id: 'pic1', name: 'Optimus.png', kind: 'image', mime: 'image/png', thumb: null}]
+        : [{id: 'fold1', name: 'Pictures', kind: 'folder'}, {id: 'vid1', name: 'Clip.mp4', kind: 'video', mime: 'video/mp4'}]});
+    }
+    if(u.pathname === '/cloud/gdrive/pick') return reply(200, {src: SITE_API + '/cloud/gdrive/file/pic1', name: 'Optimus.png', kind: 'image'});
+    if(u.pathname === '/cloud/gdrive/forget'){ api.connected = []; return reply(200, {connected: []}); }
+    return reply(404, {error: 'not found'});
+  });
+  await c.addInitScript(([origin]) => {
+    if(location.origin === origin) try{ localStorage.setItem('rhizome.site.session', 'good-session'); }catch(e){}
+  }, [SITE_ORIGIN]);
+  const errs = [];
+  const site = await c.newPage();
+  site.on('pageerror', e => errs.push(e.message));
+  site.on('console', m => { if(/Content Security Policy/i.test(m.text())) errs.push(m.text()); });
+  try{
+    await site.goto(SITE_ORIGIN + '/', {waitUntil: 'load'});
+    await site.waitForFunction(() => typeof rebuildChart === 'function' && !readOnlyView, null, {timeout: 8000});
+    await site.click('#filesToggle');
+    await wait(200);
+    const before = await site.evaluate(() => ({
+      buttons: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join(),
+      marks: document.querySelectorAll('#filesClouds .cloud-btn svg').length
+    }));
+    await site.click('#filesClouds .cloud-btn[data-cloud="gdrive"]');
+    await site.waitForFunction(() => document.getElementById('cloudOverlay').classList.contains('open') &&
+                                      document.querySelectorAll('#cloudGrid .cloud-item').length === 2, null, {timeout: 8000});
+    const browsing = await site.evaluate(() => ({
+      items: [...document.querySelectorAll('#cloudGrid .cloud-item')].map(c => c.dataset.kind + ':' + c.textContent.trim()).join(),
+      title: document.getElementById('cloudTitle').textContent, up: document.getElementById('cloudUp').disabled,
+      row: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join()
+    }));
+    await site.click('#cloudGrid .cloud-item[data-kind="folder"]');
+    await site.waitForFunction(() => document.querySelector('#cloudGrid .cloud-item[data-id="pic1"]'), null, {timeout: 8000});
+    const inFolder = await site.evaluate(() => ({path: document.getElementById('cloudPath').textContent, up: document.getElementById('cloudUp').disabled}));
+    await site.click('#cloudGrid .cloud-item[data-id="pic1"]');
+    await site.waitForFunction(() => MEDIA.some(m => /\/cloud\/gdrive\/file\/pic1$/.test(m.src)), null, {timeout: 8000});
+    await site.click('#cloudGrid .cloud-item[data-id="pic1"]');
+    await wait(300);
+    const picked = await site.evaluate(api => {
+      const m = MEDIA.filter(x => /\/cloud\/gdrive\/file\/pic1$/.test(x.src));
+      document.getElementById('cloudBack').click();
+      const cell = [...document.querySelectorAll('#filesGrid .file-cell')].find(x => x.querySelector('img') && /pic1$/.test(x.querySelector('img').src));
+      return {n: m.length, src: m[0] && m[0].src, kind: m[0] && m[0].kind, name: m[0] && m[0].name,
+              status: document.getElementById('cloudStatus').textContent,
+              mark: !!cell && !!cell.querySelector('.file-cloud[data-cloud="gdrive"] svg'),
+              open: document.getElementById('stickerOverlay').classList.contains('open'),
+              dirty: isDirty()};
+    });
+    await site.click('#filesClouds .cloud-off[data-cloud="gdrive"]');
+    await wait(300);
+    const after = await site.evaluate(() => ({
+      row: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join(),
+      kept: MEDIA.some(m => /\/cloud\/gdrive\/file\/pic1$/.test(m.src))
+    }));
+    const reader = await site.evaluate(async () => {
+      setReaderPreview(true); await new Promise(ok => setTimeout(ok, 150));
+      openStickerLibrary();
+      const r = {hidden: document.getElementById('filesClouds').hidden};
+      setReaderPreview(false); await new Promise(ok => setTimeout(ok, 150));
+      return r;
+    });
+    check('on the site, the owner\'s My files offers each drive the service is set up for, with its mark, to connect',
+          before.buttons === 'gdrive-,yadisk-' && before.marks === 2, JSON.stringify(before));
+    check('…connecting one is a popup on a ticket, its grant attached to the session, and the drive opens to its top',
+          api.asked.includes('connect tkt') && api.asked.some(a => /^\/cloud\/gdrive\/attach \{"grant":"the-grant"\}/.test(a)) &&
+          browsing.items === 'folder:Pictures,video:Clip.mp4' && /Google Drive/.test(browsing.title) && browsing.up && browsing.row === 'gdrive+,yadisk-',
+          JSON.stringify({asked: api.asked, browsing}));
+    check('…a folder opens in the same window, and the way back up with it', inFolder.path === 'Pictures' && !inFolder.up, JSON.stringify(inFolder));
+    check('…a picture picked is in My files once, at the service\'s address, with the drive\'s mark, waiting for Save',
+          picked.n === 1 && picked.src === SITE_API + '/cloud/gdrive/file/pic1' && picked.kind === 'image' && picked.name === 'Optimus' &&
+          picked.mark && picked.open && picked.dirty && /already/.test(picked.status), JSON.stringify(picked));
+    check('…a drive let go is offered to connect again, and what came from it stays',
+          after.row === 'gdrive-,yadisk-' && after.kept, JSON.stringify(after));
+    check('…and a reader is offered no drive', reader.hidden, JSON.stringify(reader));
+    check('nothing the cloud drives do is refused by the site\'s own policy, or throws', errs.length === 0, errs.slice(0, 3).join(' | '));
+  } finally {
+    await c.close();
+  }
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

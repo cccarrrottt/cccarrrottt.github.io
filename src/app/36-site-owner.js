@@ -80,6 +80,7 @@ function forgetSiteSession(){
   rememberOwner(null);
   siteOwner = null;
   siteReader = null;
+  setCloudsFromService(null);
   updateOwnerBtn();
 }
 function siteApiOrigin(){
@@ -237,6 +238,7 @@ async function checkSiteOwner(){
   }
   siteReader = null;
   siteTakesMedia = me.media === true;
+  setCloudsFromService(me.clouds);
   siteOwner = me.login || 'owner';
   rememberOwner(siteOwner);
   updateOwnerBtn();

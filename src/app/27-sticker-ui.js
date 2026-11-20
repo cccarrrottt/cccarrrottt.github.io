@@ -267,6 +267,9 @@ function chartFileCell(f){
   name.className = 'file-name';
   name.textContent = f.name || '';
   cell.append(pic, name);
+  // From one of the owner's drives: its mark (45-clouds.js).
+  const cloud = cloudOfSrc(f.src);
+  if(cloud) cell.appendChild(cloudMarkEl(cloud));
   // Video has a section of its own now; a GIF is an image, and says it moves.
   if(f.kind !== 'video' && pictureMoves(f.src)){
     const k = document.createElement('span');
@@ -471,6 +474,7 @@ function renderOwnFonts(){
 }
 function openStickerLibrary(){
   clearStickerStatus();
+  renderCloudRow();
   renderStickerLibrary();
   stickerOverlay.classList.add('open');
   placeUnderButton(stickerOverlay, document.getElementById('filesToggle'));

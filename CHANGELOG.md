@@ -6,6 +6,14 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.26.2 — "From the drives" (2026-11-20)
+
+The owner's word of 20.11, afternoon.
+
+- An entry's words are written the way a note's are: Enter starts a new line, and the field is let go of with a click anywhere else, with Escape, with Ctrl+Enter or with the ✓ on its toolbar, which a desk now has too. The field has no frame and no ground of its own: the words are typed straight onto the entry, its card, its figure or the note's plate, and the words drawn there step aside while they are being written.
+- A chart can bring its own fonts. The + in My files takes a .ttf, .otf, .woff or .woff2 file beside pictures. Each font is listed under a Fonts heading, set in itself, and offered wherever a face is chosen. It is saved with the chart, as a file in media/ on the site, and carried into a picture of the chart. A font stays while anything is set in it. It is renamed with a double click on its name. Autobot Characters is now the owner's chart's first own font, no longer part of the page's stylesheet.
+- The owner's Google Drive and Yandex Disk, on the site. In My files the owner connects a drive once, through the drive's own sign-in, and then looks through its folders in a window of their own. A picture or a clip picked there is shared by link, so readers can see it, and kept in My files with the drive's mark. It is shown from the drive through the write service, and never copied into the repository. A drive is offered once its app's keys are set on the write service. Letting a drive go leaves what came from it on the chart.
+
 ## 0.26.1 — "Notes in the margin" (2026-11-20)
 
 The owner's list of 20.11.

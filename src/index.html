@@ -538,6 +538,9 @@
         <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers or fonts" title="Add stickers or fonts. A sticker is a square picture or an animated GIF: a still picture is shrunk to fit, a GIF is kept as it is, so it keeps moving. A font is a .ttf, .otf, .woff or .woff2 file, and is offered wherever a face is chosen.">+</button>
         <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
       </div>
+      <!-- The owner's cloud drives, on the site, where the write service
+           is set up for them (45-clouds.js). -->
+      <div class="files-clouds" id="filesClouds" hidden></div>
       <div class="files-body">
         <!-- Each kind of file folds away under its heading, as a category
              of tags does (the owner's note of 19.11). -->
@@ -568,6 +571,18 @@
           </div>
         </div>
       </div>
+    </div>
+    <!-- A folder of a cloud drive, looked through to pick from (45-clouds.js). -->
+    <div class="file-popover sticker-pop cloud-pop" id="cloudOverlay">
+      <div class="edge-popover-head">
+        <button type="button" class="cloud-nav" id="cloudBack" title="Back to My files" aria-label="Back to My files">←</button>
+        <span class="cloud-title" id="cloudTitle" translate="no"></span>
+        <button type="button" class="cloud-nav" id="cloudUp" title="Up one folder" aria-label="Up one folder">↑</button>
+        <button class="detail-close" aria-label="Close" id="cloudClose">✕</button>
+      </div>
+      <div class="cloud-path" id="cloudPath" translate="no"></div>
+      <div class="sticker-status editor-status" id="cloudStatus"></div>
+      <div class="files-body"><div class="files-grid cloud-grid" id="cloudGrid"></div></div>
     </div>
     <input type="file" id="stickerFile" accept="image/*,.ttf,.otf,.woff,.woff2" multiple style="display:none;">
 
@@ -799,6 +814,7 @@
     '42-media-types.js',
     '43-i18n.js',
     '44-ink.js',
+    '45-clouds.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){
