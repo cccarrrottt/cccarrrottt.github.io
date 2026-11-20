@@ -4194,9 +4194,9 @@ async function main(){
         r18.starHollow === 'none' && r18.noAsterisk,
         JSON.stringify({star:r18.starOnSpecial, plain:r18.noStarOnPlain, colour:r18.starIsBlue,
                         fill:r18.starHollow, asterisk:!r18.noAsterisk}));
-  check('an ordinary tag hangs by a ring, and the Special group’s star is blue, taller than its capitals and level with their middle',
+  check('an ordinary tag hangs by a ring, and the Special group’s star is blue, as tall as its capitals and level with them',
         !!r18.ringOnPlain && r18.ringOnPlain.bw === '1px' && r18.ringOnPlain.bg === 'rgba(0, 0, 0, 0)' &&
-        /47, 111, 181/.test(r18.specialHeadBlue || '') && r18.specialHeadTall >= 1.3 && Math.abs(r18.specialHeadOff) <= 1.5,
+        /47, 111, 181/.test(r18.specialHeadBlue || '') && r18.specialHeadTall >= 0.75 && r18.specialHeadTall <= 0.9 && Math.abs(r18.specialHeadOff) <= 1,
         JSON.stringify({ring:r18.ringOnPlain, head:r18.specialHeadBlue, tall:r18.specialHeadTall, off:r18.specialHeadOff}));
   check('a control that cannot act is faded and takes no pointer',
         r18.disabledOpacity < 0.6 && r18.disabledCursor === 'default',
