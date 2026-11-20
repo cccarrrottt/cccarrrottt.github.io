@@ -393,6 +393,7 @@ async function saveNow(){
        again happens in a popup, so the edit is still here to save. */
     else if(code === 'signed_out'){
       siteOwner = null;
+      siteEditor = false;
       updateOwnerBtn();
       setSaveState('err', 'Your sign-in has expired — press Sign in, then Save again');
     }

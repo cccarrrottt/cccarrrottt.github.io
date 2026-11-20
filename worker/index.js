@@ -15,6 +15,9 @@
      POST /suggest      opens an issue, as the reader who signed in
      POST /resolve      closes one, as the owner
      POST /report       a fault a reader's browser met, written to the log
+                        and counted in the list below
+     GET  /faults       that list, for the owner: what broke, how often
+     POST /faults/clear takes one off it, or all of them, as the owner
 
    The commit is the publish: CI builds the page from it and puts it on the
    site, the same as for any other change to the repository.
@@ -35,6 +38,14 @@
    service signs in through — so GitHub itself refuses it unless the account
    can push to the repository AND the app is installed on it with Contents
    write. Nothing the page does or says can change either answer.
+
+   An EDITOR is a login in EDITORS: someone the owner writes the chart
+   with. An editor saves the chart as the owner does — the commit made with
+   their own token, so GitHub refuses it unless they can push to the
+   repository — but the chart's settings (its legend, tag colours, media
+   templates, figures) stay the owner's: a save of theirs keeps whatever
+   settings the repository holds, and says so. Closing a suggestion is the
+   owner's too. Like OWNERS, the list is read on every request.
 
    A READER who signs in to suggest gets a session too, marked as a
    reader's. It opens /me, /suggestions and /suggest and nothing else:
@@ -63,6 +74,8 @@
      REPO                                     owner/name
      BRANCH                                   the branch the site is built from
      OWNERS                                   GitHub logins, comma-separated
+     EDITORS                                  GitHub logins, comma-separated;
+                                              may be empty
      ALLOWED_ORIGINS                          the site's origin(s), comma-separated
 */
 
@@ -574,25 +587,32 @@ async function renew(env, s, ctx){
   return next;
 }
 
-function isOwner(env, login){
-  return list(env.OWNERS).map(x => x.toLowerCase()).indexOf(String(login).toLowerCase()) >= 0;
+function listed(names, login){
+  return list(names).map(x => x.toLowerCase()).indexOf(String(login).toLowerCase()) >= 0;
+}
+function isOwner(env, login){ return listed(env.OWNERS, login); }
+/* An owner listed among the editors as well is an owner. */
+export function roleOf(env, login){
+  return isOwner(env, login) ? 'owner' : listed(env.EDITORS, login) ? 'editor' : null;
 }
 
-/* `who` is what the request needs: 'owner', or 'reader' for the three
-   things a reader may do. The answer carries `owner`, worked out here and
+/* `who` is what the request needs: 'owner'; 'editor' for a save, which an
+   owner or an editor may make; or 'reader' for the three things a reader
+   may do. The answer carries `owner` and `editor`, worked out here and
    never taken from the session — the session only says it was a reader's. */
 async function session(env, request, ctx, who){
   const m = /^Bearer\s+(.+)$/.exec(request.headers.get('Authorization') || '');
   const s = m && await unseal(env, 'session', m[1]);
   if(!s) throw httpError(401, 'not signed in.');
-  // Checked again on every request, so taking a login out of OWNERS takes
-  // effect at once rather than when its sessions run out.
-  const owner = isOwner(env, s.login);
-  if(!owner && !(who === 'reader' && s.as === 'reader')){
-    throw httpError(403, 'this account may not edit the chart.');
-  }
+  // Checked again on every request, so taking a login out of OWNERS or
+  // EDITORS takes effect at once rather than when its sessions run out.
+  const role = roleOf(env, s.login);
+  const may = role === 'owner'
+    || (who === 'editor' && role === 'editor')
+    || (who === 'reader' && (role === 'editor' || s.as === 'reader'));
+  if(!may) throw httpError(403, 'this account may not edit the chart.');
   const live = (s.rt && typeof s.ghExp === 'number' && s.ghExp - RENEW_MARGIN < Date.now()) ? await renew(env, s, ctx) : s;
-  return Object.assign({}, live, {owner});
+  return Object.assign({}, live, {owner: role === 'owner', editor: role === 'editor'});
 }
 
 async function login(env, url){
@@ -636,13 +656,15 @@ async function callback(env, url){
   let user;
   try{ user = await gh(got.access_token, '/user'); }
   catch(e){ return page('<p>GitHub would not say who signed in. Close this window and try again.</p>', 502); }
-  const owner = isOwner(env, user.login);
-  if(!owner && state.as !== 'reader'){
+  const role = roleOf(env, user.login);
+  if(!role && state.as !== 'reader'){
     return page(`<p>Signed in as ${esc(user.login)}, who is not this chart's owner. Nothing was changed; you can close this window.</p>`, 403);
   }
   // An owner who signs in to suggest is signed in as the owner: there is
-  // nothing a reader's session could do that theirs cannot.
-  const token = await seal(env, 'session', sessionValue(user.login, got, owner ? undefined : 'reader'));
+  // nothing a reader's session could do that theirs cannot. An editor's is
+  // a reader's session, which session() makes an editor's for as long as
+  // the login is in EDITORS — and a reader's again once it is not.
+  const token = await seal(env, 'session', sessionValue(user.login, got, role === 'owner' ? undefined : 'reader'));
   // Opened as a popup: hand the session to the page that opened it, and
   // only if that page is the site. Opened as a redirect: go back to the
   // site with the session in the fragment, which never reaches a server.
@@ -657,14 +679,14 @@ async function callback(env, url){
 
 async function me(env, request, ctx){
   const s = await session(env, request, ctx, 'reader');
-  if(!s.owner) return {owner: false, login: s.login};
+  if(!s.owner && !s.editor) return {owner: false, login: s.login};
   const now = await currentData(env, s.gh);
   // `media`: this service takes pictures as files beside the chart.
-  return {owner: true, login: s.login, sha: now.sha, media: true};
+  return Object.assign({owner: s.owner, login: s.login, sha: now.sha, media: true}, s.editor ? {editor: true} : {});
 }
 
 async function save(env, request, ctx){
-  const s = await session(env, request, ctx, 'owner');
+  const s = await session(env, request, ctx, 'editor');
   const body = await readJson(request, MAX_BODY, 'the save');
   /* A page from before 0.23 sends the chart as data.js's regions. It is
      behind the repository by definition — its data.js is not there any
@@ -680,6 +702,13 @@ async function save(env, request, ctx){
   catch(e){ throw httpError(400, `the save is not the chart: ${e.message}.`); }
   const now = await currentData(env, s.gh);
   const file = await readBlob(env, s.gh, now.sha);
+  /* An editor's save takes the settings the repository has, whatever it
+     sent: they are the owner's. Taken from the repository's chart rather
+     than refused, so the rest of the edit is saved, and the answer carries
+     the chart as saved, so the editor's page shows the settings that
+     stand — with a word saying why (`settingsKept`). */
+  const kept = s.editor ? keepSettings(mine, file) : false;
+  const say = done => kept ? Object.assign(done, {settingsKept: true, merged: true, chart: done.chart || chartText(mine)}) : done;
   let next = chartText(mine);
   let media = await checkMedia(body.media, next, file, now.media);
   // A save of exactly what is there changes nothing, whatever it was made
@@ -687,7 +716,7 @@ async function save(env, request, ctx){
   // signal can be committed and its answer lost on the way back, and the
   // phone sends it again on an older base. Calling that a conflict would
   // tell the owner their work collides with itself.
-  if(next === file && !media.length) return {sha: now.sha, unchanged: true};
+  if(next === file && !media.length) return say({sha: now.sha, unchanged: true});
   /* A save made on an older chart — a second device, or a phone's kept
      Save sent days later — is put together with what the repository got
      in between, and refused only where the two changed the same thing.
@@ -716,10 +745,26 @@ async function save(env, request, ctx){
     next = chartText(together);
     merged = next;
     media = await checkMedia(body.media, next, file, now.media);
-    if(next === file && !media.length) return {sha: now.sha, unchanged: true, merged: true, chart: merged};
+    if(next === file && !media.length) return say({sha: now.sha, unchanged: true, merged: true, chart: merged});
   }
   const done = await commitData(env, s.gh, now, next, s.login, media);
-  return merged ? Object.assign(done, {merged: true, chart: merged}) : done;
+  return say(merged ? Object.assign(done, {merged: true, chart: merged}) : done);
+}
+
+/* The repository's settings put into an editor's chart, in place of its
+   own. True when that changed anything. A repository chart that does not
+   read leaves the save as it was sent: the merge below refuses it anyway. */
+export function keepSettings(mine, file){
+  let theirs;
+  try{ theirs = readChart(file); }catch(e){ return false; }
+  // Compared as values, so the same settings written in another order are
+  // the same settings, and an editor is not told theirs were left out.
+  const canon = v => Array.isArray(v) ? v.map(canon)
+    : isRecord(v) ? Object.keys(v).sort().reduce((o, k)=> (o[k] = canon(v[k]), o), {}) : v;
+  if(same(canon(mine.settings), canon(theirs.settings))) return false;
+  if(theirs.settings === undefined) delete mine.settings;
+  else mine.settings = theirs.settings;
+  return true;
 }
 
 /* ---- suggestions ----------------------------------------------------- */
@@ -826,8 +871,24 @@ async function resolve(env, request, ctx){
 
    The site tells the service about a fault a reader's browser met
    (reportFault, src/app/01-store.js), and the service writes it to its
-   log, which is where the owner reads it: Cloudflare, the Worker, Logs.
-   Nothing is kept here, and nothing is answered but that it arrived.
+   log: Cloudflare, the Worker, Logs. Nothing is answered but that it
+   arrived.
+
+   The log alone was not enough: on the free plan Cloudflare keeps it three
+   days, so a fault nobody went to look for in time was a fault that never
+   happened. So the service also COUNTS what it is told, in a KV namespace
+   (FAULTS): one record a fault, named by what it is — its message and
+   where it was thrown — holding how many times it came, when first and
+   last, and the newest browser and version that met it. The owner reads
+   the list in About and takes off what has been dealt with; a record no
+   reader has met for FAULT_DAYS goes on its own. Without the namespace
+   (a fork, or the service before it was deployed with one) the log is all
+   there is, as before.
+
+   KV's free plan takes a thousand writes a day, and a fault met by every
+   reader would spend them by noon; past that a write fails, the count
+   stops there for the day, and the log line is still written. A count
+   that stops at a thousand has already said what it needed to.
 
    Only from the site's own origin — a browser always says which page sent
    a POST — and only a few kilobytes. What is written is the report's own
@@ -844,7 +905,59 @@ export async function report(env, request){
     file: text(b.file, 300), line: whole(b.line), col: whole(b.col), stack: text(b.stack, 2000),
     version: text(b.version, 20), ua: text(b.ua, 300)};
   console.error(JSON.stringify(entry));
+  if(env.FAULTS){
+    try{ await countFault(env.FAULTS, entry); }catch(e){ console.error(JSON.stringify({report: 'fault not counted', why: String(e && e.message || e)})); }
+  }
   return entry;
+}
+
+const FAULT_DAYS = 90;
+// The most the owner's list holds; the newest come first.
+const MAX_FAULTS = 100;
+/* One fault, however many readers met it: the same message thrown from
+   the same place. The stack is not part of the name — the same fault
+   reached two ways is still one fault — and nor is the version, which is
+   kept as the newest that met it. */
+export async function faultKey(entry){
+  const name = [entry.kind, entry.message, entry.file, entry.line, entry.col].join('\u0000');
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(name)));
+  return 'fault:' + Array.from(d.subarray(0, 10), b => b.toString(16).padStart(2, '0')).join('');
+}
+export async function countFault(kv, entry){
+  const key = await faultKey(entry);
+  const now = new Date().toISOString();
+  let had = null;
+  try{ had = JSON.parse(await kv.get(key) || 'null'); }catch(e){}
+  const rec = Object.assign({}, entry, {count: (had && had.count || 0) + 1, first: had && had.first || now, last: now});
+  delete rec.report;
+  await kv.put(key, JSON.stringify(rec), {expirationTtl: FAULT_DAYS * 86400});
+  return rec;
+}
+
+async function faults(env, request, ctx){
+  await session(env, request, ctx, 'owner');
+  if(!env.FAULTS) return {kept: false, faults: []};
+  const listed = await env.FAULTS.list({prefix: 'fault:', limit: 1000});
+  const out = [];
+  for(const k of listed.keys){
+    let rec = null;
+    try{ rec = JSON.parse(await env.FAULTS.get(k.name) || 'null'); }catch(e){}
+    if(rec) out.push(Object.assign(rec, {key: k.name}));
+  }
+  out.sort((a, b) => String(b.last).localeCompare(String(a.last)));
+  return {kept: true, faults: out.slice(0, MAX_FAULTS)};
+}
+
+async function clearFaults(env, request, ctx){
+  await session(env, request, ctx, 'owner');
+  const body = await readJson(request, MAX_SMALL_BODY, 'the request');
+  if(!env.FAULTS) return {cleared: 0};
+  let keys;
+  if(body && body.all === true) keys = (await env.FAULTS.list({prefix: 'fault:', limit: 1000})).keys.map(k => k.name);
+  else if(body && typeof body.key === 'string' && /^fault:[0-9a-f]{20}$/.test(body.key)) keys = [body.key];
+  else throw httpError(400, 'which fault?');
+  for(const k of keys) await env.FAULTS.delete(k);
+  return {cleared: keys.length};
 }
 
 export default {
@@ -865,6 +978,8 @@ export default {
       if(request.method === 'POST' && url.pathname === '/suggest') return json(withSession(await suggest(env, request, ctx)), 200, h);
       if(request.method === 'POST' && url.pathname === '/report'){ await report(env, request); return new Response(null, {status: 204, headers: h}); }
       if(request.method === 'POST' && url.pathname === '/resolve') return json(withSession(await resolve(env, request, ctx)), 200, h);
+      if(request.method === 'GET' && url.pathname === '/faults') return json(withSession(await faults(env, request, ctx)), 200, h);
+      if(request.method === 'POST' && url.pathname === '/faults/clear') return json(withSession(await clearFaults(env, request, ctx)), 200, h);
       return json({error: 'not found'}, 404, h);
     }catch(e){
       const status = e.status || 500;

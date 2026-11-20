@@ -53,6 +53,10 @@ const siteSavedOver = new Set();
    and the chart would name pictures nobody has. */
 let siteTakesMedia = false;
 let siteOwner = null;
+/* Whether whoever signed in edits as one of EDITORS rather than as the
+   owner (worker/index.js): the chart is theirs to edit, its settings and
+   the suggestions are not. */
+let siteEditor = false;
 /* A reader signed in to make suggestions (22-file-comments). A reader's
    session opens nothing else; see worker/index.js. */
 let siteReader = null;
@@ -79,6 +83,7 @@ function forgetSiteSession(){
   setSiteSession(null);
   rememberOwner(null);
   siteOwner = null;
+  siteEditor = false;
   siteReader = null;
   updateOwnerBtn();
 }
@@ -191,7 +196,9 @@ function updateOwnerBtn(){
     ownerAvatar.hidden = ownerBtn.hidden || !src;
     ownerAvatar.title = who ? `Signed in as ${who}` : '';
   }
-  ownerBtn.title = siteOwner
+  ownerBtn.title = siteOwner && siteEditor
+    ? `Signed in as ${siteOwner}, who edits the chart with its owner. Sign out to see the chart as readers do.`
+    : siteOwner
     ? `Signed in as ${siteOwner}. Sign out to see the chart as readers do.`
     : siteReader
     ? `Signed in as ${siteReader}, to make suggestions. Sign out to leave.`
@@ -222,12 +229,12 @@ async function checkSiteOwner(){
     if(sitePending) setSaveState('err', SITE_SIGN_IN_TO_SEND);
     return false;
   }
-  if(res.ok && me && me.owner === false && me.login){
+  if(res.ok && me && me.owner === false && !me.editor && me.login){
     siteReader = me.login;
     updateOwnerBtn();
     return false;
   }
-  if(!res.ok || !me || !me.owner){
+  if(!res.ok || !me || !(me.owner || me.editor)){
     /* Signed in, and the service could not say who that is: the owner
        otherwise sees the button turn and nothing else happen. 0.23.0 was
        published against a service still reading data.js, and this is all
@@ -238,6 +245,7 @@ async function checkSiteOwner(){
   siteReader = null;
   siteTakesMedia = me.media === true;
   siteOwner = me.login || 'owner';
+  siteEditor = !!me.editor;
   rememberOwner(siteOwner);
   updateOwnerBtn();
   /* A kept Save made on an older chart is sent before anything is decided
@@ -333,9 +341,14 @@ async function saveToSite(){
   if(sitePending){ await dropOutbox(); sitePending = false; }
   savedParts = snapshotParts();
   saveBtn.textContent = 'Saved';
-  setSaveState('ok', 'Saved — the site shows it in a few minutes');
+  /* An editor's save takes the chart's settings as the repository has
+     them (worker/index.js), and the chart it answered with is on screen
+     now, so what changed back has to be said, or it reads as lost. */
+  setSaveState('ok', body && body.settingsKept
+    ? 'Saved — but the chart’s settings are the owner’s, and stay as they were'
+    : 'Saved — the site shows it in a few minutes');
   clearTimeout(saveStateTimer);
-  saveStateTimer = setTimeout(refreshSaveUI, 4000);
+  saveStateTimer = setTimeout(refreshSaveUI, body && body.settingsKept ? 9000 : 4000);
 }
 
 /* The pictures go beside the chart, as files of their own (see MEDIA_REF):
@@ -512,3 +525,88 @@ if(ON_SITE){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
 }
+
+/* What broke in readers' browsers, for the owner, at the top of About.
+ *
+   The site reports a fault its readers meet (reportFault, 01-store.js) and
+   the write service counts it (worker/index.js), one line a fault however
+   many readers met it. Reading those counts used to mean the Cloudflare
+   dashboard within three days, which in practice meant never; here they
+   are wherever the owner already is. Asked each time About opens, so the
+   list is as of now; taken off a line at a time, or all at once, once
+   dealt with. A service that keeps no counts, an editor, a reader and a
+   page off the site show nothing at all. */
+const aboutFaults = document.getElementById('aboutFaults');
+async function loadFaults(){
+  if(!aboutFaults) return;
+  const hide = ()=>{ aboutFaults.hidden = true; aboutFaults.textContent = ''; };
+  if(!ON_SITE || !SITE_API || !siteOwner || siteEditor || siteOffline()) return hide();
+  let answer = null;
+  try{ answer = await siteRequest('/faults'); }catch(e){}
+  if(!answer || !answer.res.ok || !answer.body || answer.body.kept !== true) return hide();
+  paintFaults(Array.isArray(answer.body.faults) ? answer.body.faults : []);
+}
+/* The browser and the system, from what the browser says it is: enough to
+   tell "only on iPhones" from "everywhere", which is the question. */
+function browserOfUa(ua){
+  ua = String(ua || '');
+  const b = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox'
+    : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'a browser';
+  const o = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+    : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+  return o ? `${b} on ${o}` : b;
+}
+function paintFaults(list){
+  aboutFaults.hidden = false;
+  aboutFaults.textContent = '';
+  const head = document.createElement('h3');
+  head.textContent = list.length ? 'What broke in readers’ browsers' : 'Nothing has broken in readers’ browsers';
+  if(list.length > 1){
+    const all = document.createElement('button');
+    all.type = 'button'; all.className = 'editor-btn';
+    all.textContent = 'Clear all';
+    all.title = 'Take every fault off the list';
+    all.onclick = ()=> dropFaults({all: true});
+    head.appendChild(all);
+  }
+  aboutFaults.appendChild(head);
+  for(const f of list){
+    const item = document.createElement('div');
+    item.className = 'fault-item';
+    const msg = document.createElement('div');
+    msg.className = 'fault-msg';
+    msg.textContent = f.message || f.kind || 'A fault with no message';
+    const drop = document.createElement('button');
+    drop.type = 'button'; drop.className = 'fault-drop';
+    drop.textContent = '✕';
+    drop.title = 'Dealt with: take it off the list';
+    drop.setAttribute('aria-label', 'Take it off the list');
+    drop.onclick = ()=> dropFaults({key: f.key});
+    const meta = document.createElement('div');
+    meta.className = 'fault-meta';
+    const times = Number(f.count) || 1;
+    const where = f.file ? `${String(f.file).split('/').pop()}:${f.line || 0}:${f.col || 0}` : '';
+    meta.textContent = [times === 1 ? 'once' : `${times} times`,
+      'last ' + String(f.last || '').slice(0, 10), browserOfUa(f.ua),
+      f.version ? 'version ' + f.version : '', where].filter(Boolean).join(' · ');
+    item.append(msg, drop, meta);
+    if(f.stack){
+      const more = document.createElement('details');
+      const sum = document.createElement('summary');
+      sum.textContent = 'Where it was thrown';
+      const pre = document.createElement('pre');
+      pre.textContent = f.stack;
+      more.append(sum, pre);
+      item.appendChild(more);
+    }
+    aboutFaults.appendChild(item);
+  }
+}
+async function dropFaults(what){
+  try{
+    await siteRequest('/faults/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(what)});
+  }catch(e){}
+  loadFaults();
+}
+document.getElementById('aboutToggle').addEventListener('click', loadFaults);
+
