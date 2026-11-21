@@ -1213,7 +1213,7 @@ function buildFigureMenu(){
   up.type = 'button';
   up.className = 'node-style-btn figure-upload';
   up.title = 'Bring in a template from an SVG file: its outline becomes a figure';
-  up.innerHTML = '<span class="figure-upload-plus">+</span><span class="node-style-cap">Upload SVG</span>';
+  up.innerHTML = '<span class="figure-upload-plus">' + PLUS_SVG + '</span><span class="node-style-cap">Upload SVG</span>';
   up.addEventListener('click', ev=>{ ev.stopPropagation(); figureFileInput.click(); });
   g2.appendChild(up);
 }

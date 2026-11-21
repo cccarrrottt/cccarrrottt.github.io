@@ -24960,6 +24960,29 @@ async function main(){
   check('words that only say what the commas say are not kept in the file', r.schema);
   });
 
+  /* The owner's list of 21.11: every + that adds something is the same
+     drawn cross in the middle of its square, never a typed "+". */
+  await scenario("one drawn + for every add button", async () => {
+  const r = await page.evaluate(async ()=>{
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await new Promise(ok=> setTimeout(ok, 200));
+    const typed = [...document.querySelectorAll('button')].filter(b=> b.textContent.trim() === '+' || b.textContent.trim() === '＋')
+      .map(b=> b.id || b.className);
+    const all = [...document.querySelectorAll('.add-plus')];
+    const off = all.filter(b=>{
+      const svg = b.querySelector('svg');
+      if(!svg) return true;
+      const q = b.getBoundingClientRect(), v = svg.getBoundingClientRect();
+      if(!q.width) return false;
+      return Math.abs((q.left + q.right)/2 - (v.left + v.right)/2) > 0.5 || Math.abs((q.top + q.bottom)/2 - (v.top + v.bottom)/2) > 0.5;
+    }).map(b=> b.id || b.title);
+    setSideTab(document.getElementById('tagsPanel'), false);
+    return {typed, n: all.length, off};
+  });
+  check('no add button is a typed "+"', r.typed.length === 0, JSON.stringify(r.typed));
+  check('…each wears the drawn cross, in the middle of its square', r.n >= 3 && r.off.length === 0, JSON.stringify(r));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

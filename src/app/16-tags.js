@@ -194,8 +194,17 @@ function sectionHead(title, count){
                    `<span class="legend-group-count">${count}</span>`;
   return head;
 }
-const PLUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+/* The one + every add button on the page wears (the owner's list of
+   21.11): drawn, not typed. A "+" in a face sits where that face puts it
+   — on the baseline, a little left or right of the middle, a different
+   weight in every face — so the pluses on the page were four sizes and
+   none of them in the middle of its square. Two strokes of equal length
+   crossing at the middle of the box are in the middle whatever the face. */
+const PLUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="butt" aria-hidden="true">' +
                  '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+/* The buttons the page is written with, rather than made by a script,
+   are given theirs here. */
+document.querySelectorAll('.add-plus:empty').forEach(b=>{ b.innerHTML = PLUS_SVG; });
 /* A tag with a + on it, and a folder with a + on it: the two things the
    Tags heading makes, told apart by what they make. */
 const TAG_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">' +
@@ -222,7 +231,7 @@ const MEDIA_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
   '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2"/></svg>';
 function makePlusButton(title, svg){
   const b = document.createElement('button');
-  b.type = 'button'; b.className = 'icon-action plus-mini'; b.title = title;
+  b.type = 'button'; b.className = 'icon-action plus-mini' + (svg ? '' : ' add-plus'); b.title = title;
   b.innerHTML = svg || PLUS_SVG;
   return b;
 }

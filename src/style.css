@@ -1492,6 +1492,12 @@
      scale of a row rather than of the panel's top bar. */
   .plus-mini{width:19px;height:17px;flex:0 0 auto;margin-left:4px;}
   .plus-mini svg{width:11px;height:11px;}
+  /* Every plain + on the page: one square, one drawn cross in its middle
+     (PLUS_SVG, the owner's list of 21.11). */
+  .icon-action.add-plus{width:18px;height:18px;flex:0 0 auto;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;line-height:0;}
+  .icon-action.add-plus svg{width:10px;height:10px;display:block;}
+  .icon-action.add-plus:hover{color:var(--accent);}
   /* The Tags heading's two: a tag and a category, drawn a size up so the
      small + on each still reads. */
   .plus-mini.add-tag svg, .plus-mini.add-cat svg, .plus-mini.add-ref svg{width:13px;height:13px;}
@@ -1637,12 +1643,6 @@
     content:'No tags';font-size:10px;color:var(--ink-faint);
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
   }
-  .tag-add-btn{
-    flex:0 0 auto;width:20px;height:20px;line-height:1;
-    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
-    border-radius:4px;cursor:pointer;font-size:12px;
-  }
-  .tag-add-btn:hover{color:var(--ink);border-color:var(--accent);}
   .tag-menu{
     position:absolute;top:100%;right:0;z-index:20;margin-top:3px;
     min-width:130px;max-height:180px;overflow-y:auto;
@@ -2159,7 +2159,8 @@
     0%, 55%{filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 2px var(--accent));}
     100%{filter:none;}
   }
-  .figure-upload-plus{font-size:20px;line-height:30px;height:30px;color:var(--ink-dim);}
+  .figure-upload-plus{height:30px;display:flex;align-items:center;justify-content:center;color:var(--ink-dim);}
+  .figure-upload-plus svg{width:16px;height:16px;display:block;}
 
   /* Undo, redo and the guides, small, under the counts at the end of the
      bar (the owner's list of 23.10): they stood as two big round buttons
@@ -2717,12 +2718,6 @@
   /* A menu now, dropped from its button: as wide as four tiles, and the
      tiles scroll inside it rather than the menu growing down the page. */
   .sticker-pop{width:min(420px, calc(100vw - 16px));}
-  .sticker-plus{
-    flex:0 0 auto;width:22px;height:22px;padding:0;
-    border:1px solid var(--line);border-radius:5px;background:var(--panel);
-    color:var(--ink-dim);font:400 16px/1 'IBM Plex Sans',sans-serif;cursor:pointer;
-  }
-  .sticker-plus:hover{border-color:var(--accent);color:var(--accent);}
   .sticker-status:not(.show){display:none;}
   .sticker-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
