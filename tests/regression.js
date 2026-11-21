@@ -25029,6 +25029,83 @@ async function main(){
   check('…each wears the drawn cross, in the middle of its square', r.n >= 3 && r.off.length === 0, JSON.stringify(r));
   });
 
+  await scenario("the arrow keys: a step of the grid, and a walk along the lines", async () => {
+  /* Code 2 of 21.11, item 3. An arrow carries what is picked one step of
+     the grid and Shift+arrow five, as a carry by hand does — one step of
+     undo, nothing else moved; Alt+arrow walks from the open entry along
+     its lines, through a split, for a reader too. */
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice());
+    const X = 9000, Y = 9000;
+    applyEdit(()=>{
+      workingNodes.push(['akP', 'Parent', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['akS', '', 'akP', null, null, 'split', {pos:[X + 40, Y + 120]}]);
+      workingNodes.push(['akA', 'Left child', 'akS', null, null, null, {pos:[X - 200, Y + 260]}]);
+      workingNodes.push(['akB', 'Middle child', 'akS', null, null, null, {pos:[X, Y + 260]}]);
+      workingNodes.push(['akC', 'Right child', 'akP', null, null, null, {pos:[X + 220, Y + 260]}]);
+      workingNodes.push(['akD', 'Grandchild', 'akB', null, null, null, {pos:[X, Y + 420]}]);
+    });
+    await wait(100);
+    const at = id=> { const n = nodes.get(id); return [n.x, n.y]; };
+    const key = (k, o={})=> document.dispatchEvent(new KeyboardEvent('keydown', Object.assign({key: k, bubbles: true, cancelable: true}, o)));
+    const out = {};
+    if(document.activeElement) document.activeElement.blur();
+    keyboardOnChart = true;
+    selectNode('akB'); await wait(50);
+    const b0 = at('akB'), d0 = at('akD'), undo0 = undoStack.length;
+    key('ArrowRight'); await wait(80);
+    const b1 = at('akB');
+    out.step = +(b1[0] - b0[0]).toFixed(2); out.stepY = +(b1[1] - b0[1]).toFixed(2);
+    out.oneUndo = undoStack.length === undo0 + 1;
+    out.othersStill = at('akD')[0] === d0[0] && at('akD')[1] === d0[1];
+    key('ArrowDown', {shiftKey: true}); await wait(80);
+    out.shiftStep = +(at('akB')[1] - b1[1]).toFixed(2);
+    undoLastEdit(); undoLastEdit(); await wait(80);
+    out.undone = at('akB')[0] === b0[0] && at('akB')[1] === b0[1];
+    out.stillPicked = selectedId === 'akB';
+    // The walk.
+    const walk = (k)=>{ key(k, {altKey: true}); return selectedId; };
+    out.up = walk('ArrowUp');          // through the split to the parent
+    out.down = walk('ArrowDown');      // the nearest of what came of it
+    selectNode('akB'); await wait(30);
+    out.right = walk('ArrowRight');    // beside it, of the same parent through the split
+    selectNode('akB'); await wait(30);
+    out.left = walk('ArrowLeft');
+    selectNode('akB'); await wait(30);
+    out.downB = walk('ArrowDown');
+    out.walkMovedNothing = at('akB')[0] === b0[0];
+    // In a field the arrows are the field's.
+    selectNode('akB'); await wait(30);
+    const box = document.createElement('textarea'); document.body.appendChild(box); box.focus();
+    keyboardOnChart = false;
+    box.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true}));
+    await wait(50);
+    out.fieldKept = at('akB')[0] === b0[0];
+    box.remove(); keyboardOnChart = true;
+    // A reader walks, but carries nothing.
+    markReadOnly(); await wait(150);
+    selectNode('akB'); await wait(30);
+    key('ArrowRight'); await wait(80);
+    out.readerStill = at('akB')[0] === b0[0];
+    out.readerWalks = walk('ArrowUp') === 'akP';
+    markEditable(); await wait(150);
+    deselect();
+    applyEdit(()=>{ workingNodes.length = 0; was.forEach(x=> workingNodes.push(x)); });
+    return Object.assign(out, {grid: GRID});
+  });
+  check('an arrow carries the picked entry one step of the grid', r.step === r.grid && r.stepY === 0, JSON.stringify(r));
+  check('…as one step of undo, and nothing else moves', r.oneUndo && r.othersStill, JSON.stringify(r));
+  check('Shift+arrow carries it five steps', r.shiftStep === +(5 * r.grid).toFixed(2), JSON.stringify(r));
+  check('undo puts it back, and it is still the one picked', r.undone && r.stillPicked, JSON.stringify(r));
+  check('Alt+up walks to where it came from, through a split', r.up === 'akP', JSON.stringify(r));
+  check('Alt+down walks to the nearest of what came of it', r.down === 'akB' && r.downB === 'akD', JSON.stringify(r));
+  check('Alt+left and right walk to the entries beside it, of the same parent', r.left === 'akA' && r.right === 'akC', JSON.stringify(r));
+  check('…and the walk moves nothing', r.walkMovedNothing, JSON.stringify(r));
+  check('in a field the arrows are the field\'s', r.fieldKept, JSON.stringify(r));
+  check('a reader walks the lines but carries nothing', r.readerStill && r.readerWalks, JSON.stringify(r));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
