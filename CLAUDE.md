@@ -237,7 +237,10 @@ site") and `build_guard`:
   reader's browser meets go to `POST /report` (`reportFault`,
   `01-store.js`), at most five a load, never with the session, which the
   service writes to its log and counts in a KV namespace (`FAULTS`, made
-  by wrangler on deploy), listed for the owner at the top of About.
+  by wrangler on deploy), listed for the owner at the top of About. At
+  most `MAX_FAULT_COUNTS_A_DAY` are counted a day (`withinFaultBudget`):
+  the Origin it checks is one a script can write, and a flood must not
+  bury the list or spend the namespace's writes.
 - **Where the site lives is said once**, in `src/app/00-config.js`
   (`SITE_CONFIG`: `site`, `api`, `repo`, one quoted string to a line, so
   `build.py` and the suite read it as text). `SITE_ORIGINS`, `SITE_API` and
@@ -344,8 +347,10 @@ Google Drive and Yandex Disk, through the write service (`CLOUDS` in
 the owner's session beside the GitHub token, and a GitHub renewal carries
 it on. A picked file is shared by link and named by the service's address
 (`/cloud/<drive>/file…`), which answers readers without the owner's
-grant: Google with `GOOGLE_API_KEY`, Yandex by its public key. The service
-still stores nothing. A drive whose Secrets are missing is not offered
+grant: Google with `GOOGLE_API_KEY`, Yandex by its public key — and only
+for an address carrying the service's mark of what it names (`fileMark`,
+from `SESSION_SECRET`, given out by pick), or the service would pass on
+any file anyone has shared by link. The service still stores nothing. A drive whose Secrets are missing is not offered
 (`/me` says which are ready), and the page shows drives only to the owner
 on the site.
 

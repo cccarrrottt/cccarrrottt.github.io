@@ -290,7 +290,12 @@ keys are among the service's Secrets; until then nothing about it shows.
 A picture picked from a drive is shared by link (a reader has to be able to
 see it), and the chart names it by the service's address,
 `/cloud/gdrive/file/<id>` or `/cloud/yadisk/file?key=<public key>`, which
-answers every reader from the drive. The owner's own grant to the drive is
+answers every reader from the drive. The address also carries a mark only
+the service can make (`&mark=…`, from `SESSION_SECRET`), so it answers for
+a file the owner picked and for no other file shared by link: the service
+is not a free way through to anyone's drive. Changing `SESSION_SECRET`
+therefore stops the drive pictures already on the chart, which are picked
+again to get a new mark. The owner's own grant to the drive is
 kept inside the owner's session, as the GitHub token is; the service still
 stores nothing.
 
