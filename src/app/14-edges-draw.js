@@ -601,9 +601,11 @@ function drawLineHops(line, hops, r){
     const attrs = {class: 'edge struct hop', d, stroke: line.paint, fill: 'none', 'data-from': line.from, 'data-to': line.to};
     if(line.dash) attrs['stroke-dasharray'] = line.dash;
     const arch = edgePath(attrs, line.style, edgeLayer);
-    [arch, line.inner && arch.nextElementSibling].filter(Boolean).forEach(a=>{
-      a.dataset.overFrom = overFrom; a.dataset.overTo = overTo;
-    });
+    const made = [arch, line.inner && arch.nextElementSibling].filter(Boolean);
+    made.forEach(a=>{ a.dataset.overFrom = overFrom; a.dataset.overTo = overTo; });
+    /* Beside its own line, not on top of the layer: what is painted over
+       the lines on purpose (a merge's junction bead) stays over them. */
+    (line.inner || line.el).after(...made);
   });
   line.el.setAttribute('mask', `url(#${id})`);
   if(line.inner) line.inner.setAttribute('mask', `url(#${id})`);

@@ -5064,6 +5064,7 @@ async function main(){
         if(st && st.routing === 'straight') return;      // a slant is the point of these
         if(st && st.routing === 'curve') return;         // and a curve is drawn as a fine polyline
         if(el.classList.contains('amalgam-out')) return; // and of a merge's own arrow
+        if(el.classList.contains('hop')) return;         // and a hop's arch over a crossing
         const toks = el.getAttribute('d').match(/[MLQ][^MLQZ]*/g) || [];
         const pts = [];
         toks.forEach(t=>{
@@ -25053,11 +25054,12 @@ async function main(){
     if(document.activeElement) document.activeElement.blur();
     keyboardOnChart = true;
     selectNode('akB'); await wait(50);
-    const b0 = at('akB'), d0 = at('akD'), undo0 = undoStack.length;
+    const b0 = at('akB'), d0 = at('akD'), top0 = undoStack[undoStack.length - 1];
     key('ArrowRight'); await wait(80);
     const b1 = at('akB');
     out.step = +(b1[0] - b0[0]).toFixed(2); out.stepY = +(b1[1] - b0[1]).toFixed(2);
-    out.oneUndo = undoStack.length === undo0 + 1;
+    // One step on top of what was there: counted by what is under it, as a full stack drops its oldest.
+    out.oneUndo = undoStack[undoStack.length - 1] !== top0 && undoStack[undoStack.length - 2] === top0;
     out.othersStill = at('akD')[0] === d0[0] && at('akD')[1] === d0[1];
     key('ArrowDown', {shiftKey: true}); await wait(80);
     out.shiftStep = +(at('akB')[1] - b1[1]).toFixed(2);

@@ -570,6 +570,24 @@ Two things were measured here and are not worth doing:
   layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
   what an edge note measures by a sub-pixel.
 
+### How much of the program a reader runs
+
+`tools/bench-reader-code.js` opens the site as a reader and reads it as
+one does (a pan, the wheel, an entry pointed at and picked, a search,
+every drawer, About, the text version), then takes V8's byte coverage.
+November 21: the site's program is 234 KB gzipped, and 38% of its bytes
+ran; 149 KB gzipped never did. That is the bound on lazy loading, not
+what it can take: the code a reader skips is spread through every part,
+untaken branches of functions that do run. What whole parts could go —
+the editing ones, 23–25, 27–33, 35, 45 — is 59 KB of 272 minified and
+gzipped, before the forty-odd functions and twenty declarations the
+reader's own paths call in them (a card closing on `deselect`, `defId`
+in every render, the hex squares in the legend) moved back out. About a
+fifth, for surgery across fifteen parts and a second script on the site
+that only the owner's page would run; parts 30, 35, 45 and 33, which a
+reader calls nothing of, are 15 KB. Not done; re-propose it with a
+reader path that this is the slow part of.
+
 ### What a phone waits for on a chart of hundreds
 
 `tools/bench-boot.js` opens a synthetic chart of lineages that merge, with
