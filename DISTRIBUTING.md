@@ -146,6 +146,12 @@ A Cloudflare Web Analytics token as the repository **variable**
 `CF_WEB_ANALYTICS_TOKEN` (README, "What the site counts"). Without it your
 site counts nothing.
 
+## The licence
+
+The platform is MIT (`LICENSE`): keep that file, with its copyright line,
+in your copy. `NOTICE` says what the licence does not cover, the original's
+chart and everything it names or carries; rewrite it for your own chart.
+
 ## Checklist
 
 - [ ] fork named `<you>.github.io`, Actions on, Pages from GitHub Actions

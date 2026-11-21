@@ -19,7 +19,8 @@ const VERSION_LOG = [
 'The languages are picked by their flags on the top bar: the American one for English, the Russian one for Russian.',
 'A kind of media shows its line as it will be written, under its fields. The words between the facts are written in place in that line, and a field is carried by its grip, in the list or in the line, to stand elsewhere; the line follows.',
 'Every + that adds something is the same drawn plus, centred in its square, rather than a typed character.',
-'The browser suite draws a chart of its own, tests/fixtures/chart.json, in place of the owner\'s, so a chart changed by Save, or a copy with a chart of its own, never turns a check red.'
+'The browser suite draws a chart of its own, tests/fixtures/chart.json, in place of the owner\'s, so a chart changed by Save, or a copy with a chart of its own, never turns a check red.',
+'The code of the page is under the MIT licence (LICENSE), and NOTICE says what it does not cover: the chart\'s own content, its franchises and brands, pictures, video and fonts, which belong to their owners. About says the same in a paragraph of its own.'
   ]},
   {v:'0.26.2', date:'2026-11-20', title:'From the drives', notes:[
 'An entry\'s words are written the way a note\'s are: Enter starts a new line, and the field is let go of with a click anywhere else, with Escape, with Ctrl+Enter or with the ✓ on its toolbar, which a desk now has too. The field has no frame and no ground of its own: the words are typed straight onto the entry, its card, its figure or the note\'s plate, and the words drawn there step aside while they are being written.',

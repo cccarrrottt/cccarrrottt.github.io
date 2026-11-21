@@ -13,6 +13,7 @@ Releases before 0.9.0 were not numbered.
 - A kind of media shows its line as it will be written, under its fields. The words between the facts are written in place in that line, and a field is carried by its grip, in the list or in the line, to stand elsewhere; the line follows.
 - Every + that adds something is the same drawn plus, centred in its square, rather than a typed character.
 - The browser suite draws a chart of its own, tests/fixtures/chart.json, in place of the owner's, so a chart changed by Save, or a copy with a chart of its own, never turns a check red.
+- The code of the page is under the MIT licence (LICENSE), and NOTICE says what it does not cover: the chart's own content, its franchises and brands, pictures, video and fonts, which belong to their owners. About says the same in a paragraph of its own.
 
 ## 0.26.2 — "From the drives" (2026-11-20)
 

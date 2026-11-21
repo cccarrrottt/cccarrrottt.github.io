@@ -853,3 +853,11 @@ the host runtime deleted, the semicircle geometry, tag categories, connector-not
 the crop chooser's clamping, stacking and round frame, the outward wave direction, the amalgam
 junction bead, leader-line notes, the reference system, and URL-scheme filtering. There are no unit tests, deliberately — nearly everything here is
 geometry, layout and event wiring, and a unit test cannot vouch for any of it.
+
+## Licence
+
+The platform, the code and design that draw, edit and publish a chart, is
+under the MIT licence (`LICENSE`). The chart it publishes here is not:
+`src/chart.json`, `src/media/` and `tests/fixtures/` hold content whose
+franchises, brands, pictures, video and fonts belong to their own authors.
+`NOTICE` says which is which.

@@ -720,10 +720,13 @@ and one scenario is twenty seconds.
 - A message containing **"код 1"** means: run a full review → critique →
   optimise cycle over the codebase.
 - Deliverable archives keep the split-source layout (`src/`, `dist/`, `tests/`,
-  `tools/`, `build.py`, `README.md`, `DISTRIBUTING.md`, `CHANGELOG.md`, `package.json`,
+  `tools/`, `build.py`, `README.md`, `DISTRIBUTING.md`, `CHANGELOG.md`, `LICENSE`, `NOTICE`, `package.json`,
   `eslint.config.mjs`).
 - Every version bump touches four places: `APP_VERSION` and `VERSION_LOG` in
   `src/app/20-about.js`, `CHANGELOG.md`, `README.md`, `package.json`. The
   About panel and the changelog are generated from the same `VERSION_LOG`, so
   they cannot disagree.
+- The code is MIT (`LICENSE`); the chart's content is not, and `NOTICE`
+  says so. The owner claims the platform only: what a chart names or
+  carries belongs to its own authors.
 - Replies to the repository owner are written in Russian.
