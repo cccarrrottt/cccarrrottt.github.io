@@ -2912,6 +2912,40 @@
   .rich-surface:not(.locked) .note-rule{cursor:pointer;border-radius:3px;}
   .rich-surface:not(.locked) .note-rule:hover{background:var(--panel-2);}
   .rich-surface .note-rule.picked{background:rgba(194,59,34,0.16);outline:1px solid var(--accent);}
+  /* On the chart itself a note's list and its dividers are text: an item
+     is its words after "• " or "1. ", a divider a row of box-drawing
+     strokes round its title (flattenNoteBlocks, 03-markup) — a label has
+     no room for a document's indents. The field standing on the drawing
+     sets them the same way, or every item stood an indent to the right of
+     where it would be drawn and a divider was a rule across the field the
+     drawing never shows. */
+  .node-editor .rich-surface ul, .node-editor .rich-surface ol{
+    list-style:none;margin:0;padding:0;counter-reset:rhz-item;
+  }
+  .node-editor .rich-surface li{padding:0;}
+  .node-editor .rich-surface li::before{content:'\2022  ';white-space:pre;}
+  .node-editor .rich-surface ol > li{counter-increment:rhz-item;}
+  .node-editor .rich-surface ol > li::before{content:counter(rhz-item) '. ';}
+  .node-editor .rich-surface .note-rule{
+    margin:0;padding:0;white-space:pre;border-radius:0;--bit:'\2500';
+  }
+  .node-editor .rich-surface .note-rule[data-line="dashed"]{--bit:'\254C';}
+  .node-editor .rich-surface .note-rule[data-line="dotted"]{--bit:'\2508';}
+  .node-editor .rich-surface .note-rule[data-line="double"]{--bit:'\2550';}
+  .node-editor .rich-surface .note-rule[data-line="wavy"]{--bit:'\223F';}
+  .node-editor .rich-surface .note-rule::before{content:var(--bit) var(--bit) ' ';}
+  .node-editor .rich-surface .note-rule::after,
+  .node-editor .rich-surface .note-rule[data-line="wavy"]::after{
+    content:' ' var(--bit) var(--bit);display:inline;border:none;height:auto;background:none;
+  }
+  .node-editor .rich-surface .note-rule:not(:has(.note-rule-title))::before{
+    content:var(--bit) var(--bit) var(--bit) var(--bit) var(--bit) var(--bit);
+  }
+  .node-editor .rich-surface .note-rule:not(:has(.note-rule-title))::after{content:none;}
+  .node-editor .rich-surface .note-rule-title{
+    display:inline;width:auto;max-width:none;font-weight:inherit;font-size:1em;
+    line-height:inherit;color:inherit;padding:0;overflow-wrap:normal;
+  }
   /* The panel a divider is set in: its kind of line. Its title is typed
      over it, on a double click. */
   .rule-panel{
@@ -2992,6 +3026,14 @@
      a fifth of itself below the line. */
   .node-editor .sticker-inline{width:0.78em;height:0.78em;margin:0;vertical-align:-0.156em;}
   .sticker-missing-inline{color:var(--ink-faint);opacity:0.6;}
+  /* A sticker that is gone is still a sticker's square on the chart
+     (layoutLine draws a dashed box of stickerBox's width), so in the field
+     it holds the same square rather than the width of a "▢" in the face,
+     which moved every word after it. */
+  .node-editor .sticker-missing-inline{
+    display:inline-block;width:0.78em;height:0.78em;vertical-align:-0.156em;
+    overflow:hidden;text-align:center;line-height:0.78em;
+  }
   .sticker-missing{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:2 2;}
   .sticker-glyph{pointer-events:none;}
   /* A link node's arrow — see isLinkNode. */
@@ -3597,6 +3639,36 @@
     font-size:0.652em;line-height:1;
     text-align:center;
     position:relative;
+  }
+  /* On the entry itself the field is the drawing, and the drawing does not
+     set a reading the way a browser does. The chart lays the word out at
+     its own width and centres the reading over it, hanging past both ends
+     when it is the longer (layoutLine, 05-render-text); a browser makes
+     the ruby as wide as the wider of the two and spreads the word's
+     letters across it. So a long reading pushed "Up" apart from "rising"
+     and the rest of the line past the box's edge while it was being
+     written, and closed up again the moment it was done (the owner's
+     video of 21.11). Here the reading is taken out of the line: it
+     stands over the middle of its word and makes no room for itself,
+     which is what the chart does. */
+  .node-editor .rich-surface ruby{display:inline;position:relative;white-space:nowrap;}
+  /* …and the line it stands on is as tall as the drawing's. The chart
+     gives every line the same slot, LINE_H at the entry's size, and a line
+     carrying a reading RUBY_EXTRA more (wrapAndMeasure); a run set larger
+     makes no line taller, it only reaches further into the next. A browser
+     grows the line box to whatever is in it, so the field's lines came
+     apart wherever a word was set larger, and — once the reading left the
+     line — not at all over a reading. A run in the field therefore makes
+     no line box of its own (line-height 0: the field's strut alone sets
+     the line), and a reading props its line up by an empty mark of
+     exactly the height the drawing adds, worked out in seatFieldReadings. */
+  .node-editor .rich-surface :is(span, b, i, strong, em, font, u, s, ruby, a):not(rt, rt *, .note-rule *){line-height:0;}
+  .node-editor .rich-surface ruby::before{
+    content:'';display:inline-block;width:0;height:var(--ruby-lift, 0px);vertical-align:baseline;
+  }
+  .node-editor .rich-surface ruby rt{
+    position:absolute;left:50%;top:0;transform:translateX(-50%);
+    white-space:pre;
   }
 
   /* ---- smart guides -------------------------------------------------

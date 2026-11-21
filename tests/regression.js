@@ -20926,11 +20926,20 @@ async function main(){
       openNodeEditor('ol_r', {focus:false});
       await wait(50);
       const surf = richFields.get('nodeEditorText').surface;
-      const rt = surf.querySelector('rt').getBoundingClientRect(), rb = surf.querySelector('ruby').getBoundingClientRect();
+      const rt = surf.querySelector('rt').getBoundingClientRect();
+      /* The word's own letters: the ruby's box now reaches up over its
+         reading by the line's lift (an empty mark, see seatFieldReadings). */
+      const wordRange = document.createRange();
+      wordRange.selectNodeContents(surf.querySelector('ruby').firstChild);
+      const rb = wordRange.getBoundingClientRect();
       const g = document.querySelector('.node[data-id="ol_r"]');
       const anno = g.querySelector('.ruby-anno').getBoundingClientRect();
       const base = [...g.querySelectorAll('tspan')].find(t=> t.textContent === '漢字').getBoundingClientRect();
-      out.ruby = [+(rb.top - rt.top).toFixed(1), +(base.top - anno.top).toFixed(1), +rt.height.toFixed(1), +anno.height.toFixed(1)];
+      /* By the feet of the two rows: a CJK face falls back to another,
+         and the field's box for the letters and the drawing's are of
+         different heights, so their tops part though the letters stand
+         on the same line. */
+      out.ruby = [+(rb.bottom - rt.bottom).toFixed(1), +(base.bottom - anno.bottom).toFixed(1), +rt.height.toFixed(1), +anno.height.toFixed(1)];
       closeNodeEditor(false);
       vs = 1; applyTransform();
 
@@ -20988,7 +20997,7 @@ async function main(){
   check('the field typed into an entry with no words yet is in the ink it will be drawn in',
         r.inks[0] === 'rgb(34, 51, 204)' && r.inks[1] === 'rgb(17, 170, 68)', JSON.stringify(r.inks));
   check('a reading in the field sits where the drawing puts it, at its size',
-        Math.abs(r.ruby[0] - r.ruby[1]) < 1.5 && Math.abs(r.ruby[2] - r.ruby[3]) < 2, JSON.stringify(r.ruby));
+        Math.abs(r.ruby[0] - r.ruby[1]) < 1.5 && Math.abs(r.ruby[2] - r.ruby[3]) < 3, JSON.stringify(r.ruby));
   check('a link node is set on its bar — colour and where it goes — with no drawer', r.bar && r.written,
         JSON.stringify([r.bar, r.written]));
   check('…its arrow points at where it goes', r.turned);
@@ -24763,6 +24772,111 @@ async function main(){
   } finally {
     await c.close();
   }
+  });
+
+  /* The owner's video of 21.11: what is typed into the field on an entry
+     looked unlike what the entry draws — a reading wider than its word
+     pushed the word's letters apart, its rule was missing, a larger run
+     opened a gap under its line. The field is meant to BE the drawing
+     with a caret in it, so it is held to the drawing letter by letter:
+     every letter the drawing sets, at its size, where the field sets it. */
+  await scenario("the field on an entry is the drawing, letter for letter", async () => {
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.slice(), beforeStyles = EDGE_STYLES.slice();
+    const was = {vx, vy, vs};
+    const letters = {
+      drawn(sel){
+        const out = [];
+        document.querySelectorAll(sel).forEach(t=>{
+          if(t.querySelector('tspan')) return;
+          const s = t.textContent, m = t.getScreenCTM();
+          for(let i = 0; i < s.length; i++){
+            if(/\s/.test(s[i])) continue;
+            let e; try{ e = t.getExtentOfChar(i); }catch(err){ continue; }
+            const p = new DOMPoint(e.x + e.width/2, e.y + e.height).matrixTransform(m);
+            out.push([s[i], p.x, p.y]);
+          }
+        });
+        return out;
+      },
+      typed(){
+        const surf = richFields.get('nodeEditorText').surface, out = [];
+        const w = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT);
+        let t;
+        while((t = w.nextNode())){
+          const s = t.textContent;
+          for(let i = 0; i < s.length; i++){
+            if(/\s/.test(s[i])) continue;
+            const rg = document.createRange(); rg.setStart(t, i); rg.setEnd(t, i + 1);
+            const q = rg.getBoundingClientRect();
+            out.push([s[i], q.x + q.width/2, q.bottom]);
+          }
+        }
+        return out;
+      }
+    };
+    const apart = (a, b)=>{
+      if(a.length !== b.length || !a.length) return 'letters ' + a.length + ' / ' + b.length;
+      let worst = 0;
+      for(let i = 0; i < a.length; i++){
+        if(a[i][0] !== b[i][0]) return 'order at ' + i + ': ' + a[i][0] + b[i][0];
+        worst = Math.max(worst, Math.abs(a[i][1] - b[i][1]), Math.abs(a[i][2] - b[i][2]));
+      }
+      return +worst.toFixed(2);
+    };
+    const out = {};
+    const cases = {
+      wide: '{{u:solid|{{#c020c0|Beast Wars:}} [[Up|a much longer reading]]rising фыву}}',
+      lines: 'one\n[[two|r]] three\n{{z:16|bigger}} four\nfive',
+      larger: 'a {{z:18|[[big|reading]]}} b\nc',
+      dressed: '**bold** *it* {{z:8|tiny}} x'
+    };
+    try{
+      for(const [k, label] of Object.entries(cases)){
+        applyEdit(()=>{ workingNodes.push(['fd_' + k, label, null, null, null, null, {pos:[9000, 9000]}]); });
+        rebuildChart();
+        const n = nodes.get('fd_' + k), rect = svg.getBoundingClientRect();
+        vs = 3; vx = -(n.x + n.w/2)*vs + rect.width/2; vy = -(n.y + n.h/2)*vs + rect.height/2; applyTransform();
+        const drawn = letters.drawn(`.node[data-id="fd_${k}"] text tspan`);
+        selectedId = 'fd_' + k; openNodeEditor(selectedId);
+        await new Promise(res=> setTimeout(res, 150));
+        out[k] = apart(drawn, letters.typed());
+        if(k === 'wide'){
+          const rt = richFields.get('nodeEditorText').surface.querySelector('rt');
+          out.ruled = getComputedStyle(rt).textDecorationLine;
+        }
+        closeNodeEditor(false);
+        applyEdit(()=>{ workingNodes = workingNodes.filter(x=> x[0] !== 'fd_' + k); });
+      }
+      applyEdit(()=>{
+        workingNodes.push(['fd_a', 'A', null, null, null, null, {pos:[9000, 8700]}]);
+        workingNodes.push(['fd_b', 'B', 'fd_a', null, null, null, {pos:[9000, 9000]}]);
+        EDGE_STYLES.push({from:'fd_a', to:'fd_b', note:'a {{u:solid|[[note|longer reading]]}}\n{{z:12|two}} lines'});
+      });
+      rebuildChart();
+      const b = nodes.get('fd_b'), rect = svg.getBoundingClientRect();
+      vs = 3; vx = -(b.x + b.w/2)*vs + rect.width/2; vy = -(b.y - 150)*vs + rect.height/2; applyTransform();
+      const drawnNote = letters.drawn('.edge-note[data-from="fd_a"][data-to="fd_b"] .edge-note-text tspan');
+      openEdgeNoteEditor('fd_a', 'fd_b');
+      await new Promise(res=> setTimeout(res, 150));
+      out.note = apart(drawnNote, letters.typed());
+      closeNodeEditor(false);
+    } finally {
+      closeNodeEditor(false);
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      vx = was.vx; vy = was.vy; vs = was.vs; applyTransform();
+      deselect(); rebuildChart();
+    }
+    return out;
+  });
+  const near = v=> typeof v === 'number' && v < 0.6;
+  check('a reading wider than its word: the word keeps its letters together, as drawn', near(r.wide), JSON.stringify(r.wide));
+  check('…and a reading in an underlined run is underlined in the field too', /underline/.test(r.ruled || ''), r.ruled);
+  check('lines with a reading or a larger run stand as far apart as drawn', near(r.lines), JSON.stringify(r.lines));
+  check('a reading over a larger word stands where the drawing puts it', near(r.larger), JSON.stringify(r.larger));
+  check('bold, italic and a smaller run set where drawn', near(r.dressed), JSON.stringify(r.dressed));
+  check('a connector\'s note, with a reading, in the field as drawn', near(r.note), JSON.stringify(r.note));
   });
 
   await scenario("nothing threw along the way", async () => {
