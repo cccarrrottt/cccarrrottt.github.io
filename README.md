@@ -179,7 +179,7 @@ commit, so a save is on the site a few minutes after it is made.
 
 What keeps everybody else out is not the hidden controls — the editor's
 code is a file beside the page (`editor.<hash>.js`, fetched only once the
-owner is signed in), and anyone can fetch it. It is that a static page cannot be written to,
+owner or an editor is signed in), and anyone can fetch it. It is that a static page cannot be written to,
 and the one place a write can go is the write service in `worker/`, which:
 
 - signs people in through a GitHub App and hands out a session only to a

@@ -175,7 +175,7 @@ page decides when it opens:
 
 | where it is opened | what it is |
 | --- | --- |
-| `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner |
+| `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner or an editor |
 | anywhere else (disk, other hosts, the test server) | its holder's own copy, saving into their browser |
 
 Things that follow, and are pinned in the suite ("the page on the published
@@ -583,7 +583,7 @@ untaken branches of functions that do run — but ten parts are editing
 from top to bottom, and the owner asked for them to go
 (`LAZY_PARTS`, `build.py`). On the site they are `editor.<hash>.js`,
 fetched by `loadEditorParts` (`36-site-owner.js`) once the service has
-said the owner is here, before anything is made editable, and kept by
+said the owner or an editor (`OWNERS`, `EDITORS`) is here, before anything is made editable, and kept by
 the service worker for editing with no signal. After: the reader's
 program is 194 KB gzipped, and the editor 42 KB beside it.
 

@@ -132,7 +132,7 @@ APP_PARTS = [
 # tools/bench-reader-code.js measured what a reader runs: 38% of the bytes.
 # Most of what is left is spread through every part, but these are editing
 # from top to bottom, and on the site they are a file of their own
-# (build_site), fetched once the write service has said the owner is here
+# (build_site), fetched once the write service has said the owner or an editor is here
 # (loadEditorParts, src/app/36-site-owner.js). Everywhere else — this page,
 # an export, src/index.html — they are where APP_PARTS puts them, so the
 # program is the one it always was and the suite drives it as it is.
