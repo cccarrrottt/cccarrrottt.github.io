@@ -25106,6 +25106,75 @@ async function main(){
   check('a reader walks the lines but carries nothing', r.readerStill && r.readerWalks, JSON.stringify(r));
   });
 
+  await scenario("hops: where two lines cross, the level one arches over", async () => {
+  /* Code 2 of 21.11, item 6, and the owner's word that the hops be
+     rational: only a straight leg of a line hops, at a fair angle, clear
+     of corners and ends; the level line goes over the upright; a double
+     line arches as two rails; and a line hidden by its tags takes its
+     arches with it. */
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const X = 9000, Y = 9000;
+    applyEdit(()=>{
+      workingNodes.push(['hpL', 'Level from', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['hpR', 'Level to', 'hpL', null, null, null, {pos:[X + 800, Y + 300]}]);
+      workingNodes.push(['hpT', 'Upright from', null, null, null, null, {pos:[X + 400, Y - 120], tags:['hop-probe']}]);
+      workingNodes.push(['hpB', 'Upright to', 'hpT', null, null, null, {pos:[X + 400, Y + 420]}]);
+    });
+    await wait(120);
+    const arches = ()=> [...edgeLayer.querySelectorAll('.edge.hop')];
+    const out = {};
+    const a0 = arches().filter(a=> a.dataset.overTo === 'hpB' || a.dataset.to === 'hpB');
+    out.count = a0.length;
+    out.levelHops = a0.length === 1 && a0[0].dataset.to === 'hpR' && a0[0].dataset.overTo === 'hpB';
+    const line = edgeLayer.querySelector('path.edge.struct:not(.hop)[data-to="hpR"]');
+    out.masked = !!(line && line.getAttribute('mask'));
+    out.uprightPlain = !edgeLayer.querySelector('path.edge.struct:not(.hop)[data-to="hpB"]').getAttribute('mask');
+    if(a0[0]){ const b = a0[0].getBBox(); out.above = b.height > 2 && b.width > 6; }
+    /* The rule itself, on lines laid by hand: a crossing a little way
+       past a turn is hopped, one on the turn is not. */
+    const keep = new Map(drawnRoutes), probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    edgeLayer.appendChild(probe);
+    const hopsFor = (turnX)=>{
+      drawnRoutes.clear();
+      drawnRoutes.set('crossed', {from: 'cA', to: 'cB', pts: [{x: 200, y: -200}, {x: 200, y: 200}]});
+      const before = edgeLayer.querySelectorAll('.hop').length;
+      drawHops([{from: 'jA', to: 'jB', style: Object.assign({}, DEFAULT_EDGE_STYLE, {arrow: false}), el: probe, inner: null, cornerR: 6, paint: '#000',
+                 pts: [{x: 0, y: -100}, {x: turnX, y: -100}, {x: turnX, y: 0}, {x: 400, y: 0}]}]);
+      return edgeLayer.querySelectorAll('.hop').length - before;
+    };
+    out.farFromTurn = hopsFor(150);
+    out.onTurn = hopsFor(196);
+    drawnRoutes.clear(); keep.forEach((v, k)=> drawnRoutes.set(k, v)); probe.remove();
+    // A double line: two rails, two arches.
+    applyEdit(()=>{ EDGE_STYLES.push({from: 'hpL', to: 'hpR', dash: 'double'}); });
+    await wait(120);
+    out.doubleArches = arches().filter(a=> a.dataset.to === 'hpR').length;
+    // The upright hidden by its tag: the arch goes, the hole closes.
+    hiddenTags.add('hop-probe'); applyVisibility(); await wait(60);
+    out.hiddenArch = arches().filter(a=> a.dataset.to === 'hpR').every(a=> a.style.display === 'none');
+    out.hiddenHole = [...edgeDefs.querySelectorAll('.hop-hole')].filter(h=> h.dataset.overTo === 'hpB').every(h=> h.style.display === 'none');
+    hiddenTags.delete('hop-probe'); applyVisibility(); await wait(60);
+    out.back = arches().filter(a=> a.dataset.to === 'hpR').every(a=> a.style.display === '');
+    // A wavy line does not hop.
+    applyEdit(()=>{ EDGE_STYLES.find(s=> s.from === 'hpL' && s.to === 'hpR').sinusoid = true; });
+    await wait(120);
+    out.wavyNone = arches().filter(a=> a.dataset.to === 'hpR').length;
+    applyEdit(()=>{
+      workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+      EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+    });
+    return out;
+  });
+  check('the level line arches over the upright where they cross', r.count === 1 && r.levelHops && r.above, JSON.stringify(r));
+  check('…the hole is cut in the level line, and the upright runs on whole', r.masked && r.uprightPlain, JSON.stringify(r));
+  check('a crossing on a line\'s turn is not hopped, one clear of it is', r.onTurn === 0 && r.farFromTurn === 1, JSON.stringify(r));
+  check('a double line arches as two rails', r.doubleArches === 2, JSON.stringify(r));
+  check('a line hidden by its tags takes its arches with it, and gives them back', r.hiddenArch && r.hiddenHole && r.back, JSON.stringify(r));
+  check('a wavy line does not hop', r.wavyNone === 0, JSON.stringify(r));
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 

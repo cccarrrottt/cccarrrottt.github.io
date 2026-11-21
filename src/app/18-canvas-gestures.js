@@ -206,6 +206,7 @@ function applyVisibility(opts){
     const hide = (a && nodeHidden(a)) || (b && nodeHidden(b)) || (c && nodeHidden(c));
     fadeForTags(g, !!hide);
   });
+  hopsFollowVisibility();
 }
 
 /* ---------------------------------------------------------------------

@@ -208,6 +208,7 @@ function redrawEdges(){
   invalidateObstacles();
   beginRoutePass();
   let ports = resolvePorts(structEdges);
+  const hopLines = [];
 
   /* Amalgamation. An amalgam reality is one made OF other realities, and
      its connectors are drawn to say so: where several lineages arrive at
@@ -319,7 +320,14 @@ function redrawEdges(){
          changes only where the line begins, never its rhythm. */
       if(cutIn) attrs['stroke-dashoffset'] = cutIn.toFixed(2);
     }
-    edgePath(attrs, style, edgeLayer);
+    const drawnLine = edgePath(attrs, style, edgeLayer);
+    /* A candidate to hop over the lines it crosses: a line drawn along its
+       route, not a ripple or a curve, whose straight stretches are what a
+       hop is cut into. See drawHops. */
+    if(!style.sinusoid && style.routing !== 'curve' && drawPts.length > 1)
+      hopLines.push({from: e.from, to: e.to, style, pts: drawPts, paint, dash, el: drawnLine,
+                     inner: isDoubleDash(style) ? drawnLine.nextElementSibling : null,
+                     cornerR: style.routing === 'straight' ? 0 : edgeCornerR(style)});
     const last = pts[pts.length-1], first = pts[0];
     /* A connector pulled from an inner border ring ends INSIDE the outer
        rings, which are drawn over the connector layer — so its last few
@@ -394,6 +402,8 @@ function redrawEdges(){
   });
 
   amalgamGroups.forEach(list=>{ if(list.length > 1) drawAmalgam(list, ports); });
+  // Every line is down, so every crossing is known.
+  drawHops(hopLines);
   endRoutePass();
   flushPendingCallouts();
   // The bend handles stand on the route that has just been drawn.
@@ -439,3 +449,181 @@ function flushPendingCallouts(){
    much of the chart as possible: the clearance floor only takes over when
    the entry has been dragged right up under them, and until then moving the
    entry changes nothing but the length of the merged arrow. */
+
+/* ---------------------------------------------------------------------
+   Hops: where two connectors cross, one goes over the other in a little
+   arch, as a drawing in Visio does, so it is plain which line goes where.
+
+   Not at every place two strokes meet — only where it says something:
+
+   - Only a real crossing: each line goes on through the other, at a fair
+     angle. Lines that touch, run along one another, or meet at a slant
+     shallower than HOP_MIN_ANGLE are left alone; an arch over a line it
+     barely leaves would only blur the two.
+   - Never at a bend, an end or a head: the crossing has to stand clear of
+     the corner's rounding and of both lines' ends by the arch's width, so
+     an arch never sits on a turn, on a port or under an arrowhead.
+   - The level line goes over the upright one (Visio's own rule), so every
+     arch on a chart faces the same way and none has to be read twice. A
+     line that cannot hop — a ripple, a curve, a slanted straight line —
+     is crossed, never crossing; where neither of the two can, nothing is
+     drawn.
+   - Crossings closer together than an arch and a breath share one, wider
+     arch rather than a run of bumps.
+   - A crossed line that is hidden by its tags takes its arches with it
+     (hopsFollowVisibility), so nothing hops over a line that is not
+     there.
+
+   The hop is a hole cut in the line by a mask, and an arch drawn in the
+   line's own paint, dashes and classes — so it dims, lights and hides with
+   the line it belongs to, and a double line arches as two rails.
+   ------------------------------------------------------------------ */
+const HOP_R = 4.5, HOP_R_DOUBLE = 6;
+const HOP_MIN_ANGLE = 35;          // degrees between the two lines
+const HOP_GAP_H = 8;               // how much of the line the hole is across: past a lit stroke
+let hopMaskSeq = 0;
+function hopSegments(line){
+  const out = [];
+  for(let i = 1; i < line.pts.length; i++){
+    const a = line.pts[i-1], b = line.pts[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if(len < 0.5) continue;
+    out.push({a, b, len, first: i === 1, last: i === line.pts.length - 1});
+  }
+  return out;
+}
+function segCross(a, b, c, d){
+  const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y;
+  const den = rx * sy - ry * sx;
+  if(Math.abs(den) < 1e-9) return null;
+  const t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / den;
+  const u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / den;
+  if(t <= 0 || t >= 1 || u <= 0 || u >= 1) return null;
+  return {t, u, x: a.x + rx * t, y: a.y + ry * t};
+}
+function drawHops(lines){
+  hopMaskSeq = 0;
+  if(!lines.length) return;
+  const own = new Set(lines.map(l=> calloutEdgeKey(l.from, l.to)));
+  /* What can be crossed: every line on the chart as drawn, the merges'
+     lineages and arrows as well as the ordinary ones. */
+  const crossed = [];
+  drawnRoutes.forEach((r, key)=>{
+    const L = r.line || r.pts;
+    if(!L || L.length < 2) return;
+    let run = 0, total = 0;
+    for(let i = 1; i < L.length; i++) total += Math.hypot(L[i].x - L[i-1].x, L[i].y - L[i-1].y);
+    for(let i = 1; i < L.length; i++){
+      const a = L[i-1], b = L[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+      if(len >= 0.5) crossed.push({key, from: r.from, to: r.to, a, b, len, at: run, total});
+      run += len;
+    }
+  });
+  // Filed by band, as the router files its segments, so a line asks only what is near it.
+  const BAND = 160, bands = new Map();
+  const bandsOf = (a, b)=>{
+    const out = [];
+    for(let x = Math.floor(Math.min(a.x, b.x) / BAND); x <= Math.floor(Math.max(a.x, b.x) / BAND); x++)
+      for(let y = Math.floor(Math.min(a.y, b.y) / BAND); y <= Math.floor(Math.max(a.y, b.y) / BAND); y++) out.push(x + ',' + y);
+    return out;
+  };
+  crossed.forEach(c=> bandsOf(c.a, c.b).forEach(k=>{ if(!bands.has(k)) bands.set(k, []); bands.get(k).push(c); }));
+  const cosMin = Math.cos((90 - HOP_MIN_ANGLE) * Math.PI / 180);
+  lines.forEach(line=>{
+    const key = calloutEdgeKey(line.from, line.to);
+    const r = isDoubleDash(line.style) ? HOP_R_DOUBLE : HOP_R;
+    const hops = [];
+    hopSegments(line).forEach(seg=>{
+      const level = Math.abs(seg.b.y - seg.a.y) < 0.01, upright = Math.abs(seg.b.x - seg.a.x) < 0.01;
+      if(!level && !upright) return;
+      // Clear of the turn at either end, and of the line's own ends.
+      const keepA = seg.first ? (line.style.arrowIn ? ARROW_LEN : 0) + r + 2 : line.cornerR + r + 1;
+      const keepB = seg.last ? (line.style.arrow ? ARROW_LEN : 0) + r + 2 : line.cornerR + r + 1;
+      if(seg.len <= keepA + keepB) return;
+      const seen = new Set(), here = [];
+      bandsOf(seg.a, seg.b).forEach(k=> (bands.get(k) || []).forEach(c=>{
+        if(seen.has(c) || c.key === key) return;
+        seen.add(c);
+        const x = segCross(seg.a, seg.b, c.a, c.b);
+        if(!x) return;
+        const along = x.t * seg.len;
+        if(along < keepA || seg.len - along < keepB) return;
+        // At a fair angle: |sin| between the two at least that of HOP_MIN_ANGLE.
+        const cos = Math.abs(((seg.b.x - seg.a.x) * (c.b.x - c.a.x) + (seg.b.y - seg.a.y) * (c.b.y - c.a.y)) / (seg.len * c.len));
+        if(cos > cosMin) return;
+        // Clear of the crossed line's ends and heads too.
+        const onC = c.at + x.u * c.len;
+        if(onC < ARROW_LEN + r || c.total - onC < ARROW_LEN + r) return;
+        /* Who goes over. Two lines that could both hop: the level one.
+           An upright line hops only over one that cannot. */
+        if(upright){
+          const other = own.has(c.key) && lines.find(l=> calloutEdgeKey(l.from, l.to) === c.key);
+          const otherLevel = Math.abs(c.b.y - c.a.y) < 0.01;
+          if(other && otherLevel) return;
+          if(!other && Math.abs(c.b.y - c.a.y) < Math.abs(c.b.x - c.a.x)) return;
+        }
+        here.push({s: along, x: x.x, y: x.y, over: c});
+      }));
+      if(!here.length) return;
+      // Crossings an arch apart share one.
+      here.sort((p, q)=> p.s - q.s);
+      let group = [here[0]];
+      const flush = ()=> hops.push({seg, level, from: group[0], to: group[group.length - 1], over: group.map(g=> g.over)});
+      for(let i = 1; i < here.length; i++){
+        if(here[i].s - group[group.length - 1].s < 2 * r + 3) group.push(here[i]);
+        else { flush(); group = [here[i]]; }
+      }
+      flush();
+    });
+    if(hops.length) drawLineHops(line, hops, r);
+  });
+}
+function drawLineHops(line, hops, r){
+  const id = 'hop-mask-' + (hopMaskSeq++);
+  const mask = el('mask', {id, maskUnits: 'userSpaceOnUse', x: -1e6, y: -1e6, width: 2e6, height: 2e6}, edgeDefs);
+  el('rect', {x: -1e6, y: -1e6, width: 2e6, height: 2e6, fill: 'white'}, mask);
+  hops.forEach(h=>{
+    const lo = Math.min(h.from.s, h.to.s) - r, hi = Math.max(h.from.s, h.to.s) + r;
+    const ux = (h.seg.b.x - h.seg.a.x) / h.seg.len, uy = (h.seg.b.y - h.seg.a.y) / h.seg.len;
+    const p = {x: h.seg.a.x + ux * lo, y: h.seg.a.y + uy * lo}, q = {x: h.seg.a.x + ux * hi, y: h.seg.a.y + uy * hi};
+    const overFrom = h.over.map(o=> o.from).join('\u0001'), overTo = h.over.map(o=> o.to).join('\u0001');
+    const hole = h.level
+      ? el('rect', {x: Math.min(p.x, q.x), y: p.y - HOP_GAP_H / 2, width: Math.abs(q.x - p.x), height: HOP_GAP_H, fill: 'black'}, mask)
+      : el('rect', {x: p.x - HOP_GAP_H / 2, y: Math.min(p.y, q.y), width: HOP_GAP_H, height: Math.abs(q.y - p.y), fill: 'black'}, mask);
+    hole.setAttribute('class', 'hop-hole');
+    hole.dataset.overFrom = overFrom; hole.dataset.overTo = overTo;
+    /* The arch: over the top for a level line, out to the right for an
+       upright one, always drawn the same way round so every arch on the
+       chart faces alike whichever way its line runs. */
+    const [s, t] = h.level ? (p.x < q.x ? [p, q] : [q, p]) : (p.y < q.y ? [p, q] : [q, p]);
+    const rx = (hi - lo) / 2;
+    const d = h.level ? `M${s.x},${s.y} A${rx},${r} 0 0 1 ${t.x},${t.y}` : `M${s.x},${s.y} A${r},${rx} 0 0 1 ${t.x},${t.y}`;
+    const attrs = {class: 'edge struct hop', d, stroke: line.paint, fill: 'none', 'data-from': line.from, 'data-to': line.to};
+    if(line.dash) attrs['stroke-dasharray'] = line.dash;
+    const arch = edgePath(attrs, line.style, edgeLayer);
+    [arch, line.inner && arch.nextElementSibling].filter(Boolean).forEach(a=>{
+      a.dataset.overFrom = overFrom; a.dataset.overTo = overTo;
+    });
+  });
+  line.el.setAttribute('mask', `url(#${id})`);
+  if(line.inner) line.inner.setAttribute('mask', `url(#${id})`);
+}
+/* A hop over a line its tags have hidden is a hop over nothing: its hole
+   closes and its arch goes, and the line runs straight through again. */
+function hopsFollowVisibility(){
+  const hidden = (froms, tos)=>{
+    const f = (froms || '').split('\u0001'), t = (tos || '').split('\u0001');
+    return f.every((x, i)=>{
+      const a = nodes.get(x), b = nodes.get(t[i]);
+      return (a && nodeHidden(a)) || (b && nodeHidden(b));
+    });
+  };
+  edgeDefs.querySelectorAll('mask .hop-hole').forEach(h=>{
+    const want = hidden(h.dataset.overFrom, h.dataset.overTo) ? 'none' : '';
+    if(h.style.display !== want) h.style.display = want;
+  });
+  edgeLayer.querySelectorAll('.hop').forEach(a=>{
+    const want = hidden(a.dataset.overFrom, a.dataset.overTo) ? 'none' : '';
+    if(a.style.display !== want) a.style.display = want;
+  });
+}

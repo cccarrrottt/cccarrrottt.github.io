@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 159 named scenarios, and they do not depend on one another —
+The suite is 160 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -308,6 +308,17 @@ the entries on every rebuild and every frame of a carry, never kept. A pan,
 the wheel and a pinch keep the middle of the view on it
 (`keepFieldInView`); a view set in so many words (a link, the overview, a
 test) is not held to it.
+
+## Where two lines cross
+
+The level line arches over the upright one (`drawHops`, `14-edges-draw.js`):
+a hole cut by a mask and an arch in the line's own paint, so it lights,
+dims and hides with its line. Only a straight leg of a line that is not
+wavy or a curve hops, at 35° or more, clear of its turns and arrowheads
+and of the crossed line's ends; crossings an arch apart share one arch;
+a line hidden by its tags takes its arches with it
+(`hopsFollowVisibility`). Computed every pass from `drawnRoutes`, never
+kept, so it changes no route.
 
 ## Notes in the margin
 
