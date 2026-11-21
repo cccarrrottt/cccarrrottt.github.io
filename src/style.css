@@ -1671,6 +1671,15 @@
      at full strength with only its arrowhead faded (the owner's list of
      7.11). A line drawn only while lit stays undrawn. */
   .tag-hidden{opacity:0.1 !important;pointer-events:none !important;}
+  /* The NSFW veil (NSFW_TAG). To the author a ghost, as faint as a hidden
+     entry and never in the way; to a reader the badge itself, over the
+     entry blurred, until a press lifts it (.nsfw-open). */
+  .nsfw-veil{opacity:0.1;pointer-events:none;}
+  .nsfw-disc{fill:#fff;stroke:#d0021b;}
+  .nsfw-mark{fill:#d0021b;font-family:'Big Shoulders Display',sans-serif;font-weight:800;}
+  body.read-only .nsfw-veil{opacity:1;pointer-events:auto;cursor:pointer;}
+  body.read-only .node.nsfw:not(.nsfw-open) > :not(.nsfw-veil){filter:url(#nsfw-blur);}
+  .node.nsfw-open .nsfw-veil{display:none;}
   .edge.struct.amalgam-through.tag-hidden:not(.lit){opacity:0 !important;}
   .tag-hidden *{pointer-events:none !important;}
 

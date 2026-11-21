@@ -25050,6 +25050,70 @@ async function main(){
   check('…each wears the drawn cross, in the middle of its square', r.n >= 3 && r.off.length === 0, JSON.stringify(r));
   });
 
+  await scenario("an entry tagged NSFW: veiled for a reader, a ghost for the author", async () => {
+  /* The owner's word of 21.11. A reader sees the entry blurred under a
+     round 18+ badge as tall as the entry; one press lifts it, and only
+     lifts it; out of sight it is veiled again. To the author the badge
+     is as faint as a hidden entry and stops nothing. */
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice());
+    const view = [vx, vy, vs];
+    const X = 9600, Y = 9600, out = {};
+    try {
+      applyEdit(()=>{
+        workingNodes.push(['nsA', 'Veiled', null, null, null, null, {pos:[X, Y], tags:['NSFW'], size:[200, 80]}]);
+        workingNodes.push(['nsB', 'Plain', null, null, null, null, {pos:[X + 320, Y]}]);
+      });
+      vs = 1; vx = -(X - 200); vy = -(Y - 200); applyTransform(); deselect();
+      await wait(100);
+      const g = ()=> document.querySelector('.node[data-id="nsA"]');
+      const look = ()=>{
+        const veil = g().querySelector('.nsfw-veil'), disc = g().querySelector('.nsfw-disc');
+        const d = disc.getBoundingClientRect(), b = g().querySelector('rect').getBoundingClientRect();
+        const sw = +disc.getAttribute('stroke-width');
+        return {op: +getComputedStyle(veil).opacity, shown: getComputedStyle(veil).display !== 'none',
+                hits: getComputedStyle(veil).pointerEvents !== 'none',
+                blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
+                tall: +(d.height + sw).toFixed(1), boxH: +nodes.get('nsA').h.toFixed(1),
+                mid: Math.abs((d.left + d.right)/2 - (b.left + b.right)/2) < 1 && Math.abs((d.top + d.bottom)/2 - (b.top + b.bottom)/2) < 1,
+                plain: !document.querySelector('.node[data-id="nsB"] .nsfw-veil')};
+      };
+      out.edit = look();
+      setReaderPreview(true);
+      await wait(150);
+      out.read = look();
+      const d = g().querySelector('.nsfw-disc').getBoundingClientRect();
+      const at = {clientX: d.left + d.width/2, clientY: d.top + d.height/2, bubbles: true};
+      g().querySelector('.nsfw-disc').dispatchEvent(new MouseEvent('click', at));
+      await wait(80);
+      out.lifted = {open: g().classList.contains('nsfw-open'), selected: selectedId,
+                    blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
+                    shown: getComputedStyle(g().querySelector('.nsfw-veil')).display !== 'none'};
+      g().dispatchEvent(new MouseEvent('click', at));
+      await wait(450);
+      out.second = selectedId;
+      vx -= 4000; applyTransform(); vx += 4000; applyTransform();
+      await wait(50);
+      out.back = {open: g().classList.contains('nsfw-open'), selected: selectedId, blur: look().blur};
+      setReaderPreview(false);
+      await wait(150);
+    } finally {
+      workingNodes = was; rebuildChart();
+      [vx, vy, vs] = view; applyTransform();
+    }
+    return out;
+  });
+  check('to the author the 18+ badge is as faint as a hidden entry, and in nobody\'s way',
+        r.edit.op === 0.1 && !r.edit.hits && !r.edit.blur && r.edit.plain, JSON.stringify(r.edit));
+  check('to a reader the badge is whole, as tall as the entry, over its middle, and the entry is blurred',
+        r.read.op === 1 && r.read.hits && r.read.blur && Math.abs(r.read.tall - r.read.boxH) < 1 && r.read.mid, JSON.stringify(r.read));
+  check('one press lifts the veil and does nothing else', r.lifted.open && !r.lifted.blur && !r.lifted.shown && r.lifted.selected == null,
+        JSON.stringify(r.lifted));
+  check('…and the entry is then picked as any other', r.second === 'nsA', String(r.second));
+  check('out of sight and back, it is veiled again and let go', !r.back.open && r.back.blur && r.back.selected == null, JSON.stringify(r.back));
+  });
+
   await scenario("the arrow keys: a step of the grid, and a walk along the lines", async () => {
   /* Code 2 of 21.11, item 3. An arrow carries what is picked one step of
      the grid and Shift+arrow five, as a carry by hand does — one step of

@@ -14,6 +14,7 @@ Releases before 0.9.0 were not numbered.
 - Every + that adds something is the same drawn plus, centred in its square, rather than a typed character.
 - The browser suite draws a chart of its own, tests/fixtures/chart.json, in place of the owner's, so a chart changed by Save, or a copy with a chart of its own, never turns a check red.
 - The code of the page is under the MIT licence (LICENSE), and NOTICE says what it does not cover: the chart's own content, its franchises and brands, pictures, video and fonts, which belong to their owners. About says the same in a paragraph of its own.
+- A special tag, NSFW, for an entry whose media are not for minors. A reader sees such an entry blurred under a round 18+ badge as tall as the entry; one press lifts the veil, and the entry can then be picked as any other. Once it is out of sight it is veiled again. To the author the badge is only as faint as a hidden entry.
 
 ## 0.26.2 — "From the drives" (2026-11-20)
 

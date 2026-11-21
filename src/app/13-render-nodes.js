@@ -2265,6 +2265,23 @@ const drawOne = (n)=>{
      instead. Raised to the top it is a button all the way round. */
   if(linkWrap && linkWrap.parentNode === g) g.appendChild(linkWrap);
 
+  /* The veil of an entry tagged NSFW (see NSFW_TAG): a round badge as
+     tall as the entry, over its middle, and — to a reader, while it is
+     not lifted — everything else of the entry blurred under it, by the
+     stylesheet (.node.nsfw). Drawn last and unturned, so it stands over
+     the whole drawing upright whichever way the entry is turned. */
+  if(!isFree && nodeHasTag(n, NSFW_TAG)){
+    g.classList.add('nsfw');
+    if(nsfwOpen.has(n.id)) g.classList.add('nsfw-open');
+    const r = h/2, cx = n.x + w/2, cy = n.y + h/2;
+    const veil = el('g', {class:'nsfw-veil'}, g);
+    el('circle', {class:'nsfw-disc', cx: cx.toFixed(2), cy: cy.toFixed(2),
+                  r: (r - r*0.06).toFixed(2), 'stroke-width': (r*0.12).toFixed(2)}, veil);
+    const t = el('text', {class:'nsfw-mark', x: cx.toFixed(2), y: (cy + r*0.27).toFixed(2),
+                          'font-size': (r*0.78).toFixed(2), 'text-anchor':'middle'}, veil);
+    t.textContent = '18+';
+  }
+
   /* A tag that DOES something to its entry says so when you look at the
      entry. The decorations are still, and still is right for a chart being
      read — a page of things quietly moving is a page nobody can read — but
@@ -2284,6 +2301,12 @@ const drawOne = (n)=>{
     // A drag that actually moved the node ends with a click event too —
     // swallow that one so letting go of a node doesn't also re-select it.
     if(suppressNodeClick){ suppressNodeClick = false; return; }
+    /* A reader's first press on a veiled entry lifts the veil and does
+       nothing else: the press was to see it, not yet to open it. */
+    if(readOnlyView && g.classList.contains('nsfw') && !nsfwOpen.has(n.id)){
+      liftNsfwVeil(n.id);
+      return;
+    }
     // Ctrl/Cmd-click adds to or removes from the selection instead of
     // replacing it.
     if(ev.ctrlKey || ev.metaKey){ toggleInSelection(n.id); return; }

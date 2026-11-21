@@ -233,8 +233,32 @@ function computeBounds(){
  * camera at empty space. Bounds are cheap — one pass over the entries —
  * and the only caller runs on a click, so there is nothing to cache. */
 
+/* A lifted veil lasts while its entry is in sight (see NSFW_TAG): an
+   entry no part of which is in the view any more is veiled again. Asked
+   on every move of the view, and only of the few entries lifted. */
+function liftNsfwVeil(id){
+  nsfwOpen.add(id);
+  qNodes('.node.nsfw').forEach(g=>{ if(g.dataset.id === id) g.classList.add('nsfw-open'); });
+}
+function veilWhatLeftView(){
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if(!W || !H) return;
+  const x0 = -vx/vs, y0 = -vy/vs, x1 = x0 + W/vs, y1 = y0 + H/vs;
+  [...nsfwOpen].forEach(id=>{
+    const n = nodes.get(id);
+    const seen = n && n.x < x1 && n.x + n.w > x0 && n.y < y1 && n.y + n.h > y0;
+    if(seen) return;
+    nsfwOpen.delete(id);
+    /* Veiled again, it is not left open in the panel either — after this
+       frame of the move rather than inside it, so a view moved at start-up
+       never reaches the panels before they exist. */
+    if(selectedId === id) setTimeout(()=>{ if(selectedId === id && !nsfwOpen.has(id)) deselect(); });
+    qNodes('.node.nsfw-open').forEach(g=>{ if(g.dataset.id === id) g.classList.remove('nsfw-open'); });
+  });
+}
 function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
+  if(nsfwOpen.size) veilWhatLeftView();
   markViewMoving();
   followWithPhoneBar();
   syncAlignGrid();
