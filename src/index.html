@@ -58,8 +58,8 @@
     </button>
     <!-- The language the page speaks (the owner's list of 19.11): its
          texts are translated by hand in src/i18n/, see 43-i18n.js. -->
-    <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5M12 3.5C9.6 5.9 8.4 8.7 8.4 12s1.2 6.1 3.6 8.5"/></svg><span class="lang-code" translate="no">EN</span>
+    <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu" data-lang="en">
+      <span class="lang-flag" aria-hidden="true"></span>
     </button>
     <!-- A pencil and an eraser for notes in the margin of the chart (the
          owner's list of 20.11, 44-ink.js). The author's only. -->
@@ -297,7 +297,7 @@
                  so it stays — hidden. -->
             <div class="tag-field-row">
               <div class="tag-chips" id="editTagsChips"></div>
-              <button type="button" class="tag-add-btn" id="editTagsAdd" title="Add a tag">+</button>
+              <button type="button" class="icon-action add-plus" id="editTagsAdd" title="Add a tag"></button>
               <input id="editTagsInput" type="text" hidden>
               <div class="tag-menu" id="editTagsMenu" hidden></div>
             </div>
@@ -336,7 +336,7 @@
                  something already being edited in the right place. -->
             <div class="tag-field-row">
               <div class="tag-chips lang-tab-chips" id="editLangTabList"></div>
-              <button type="button" class="tag-add-btn" id="editLangTabAdd" title="Add a language tab">+</button>
+              <button type="button" class="icon-action add-plus" id="editLangTabAdd" title="Add a language tab"></button>
             </div>
             <p class="editor-help">Name the tab here; write its text on the entry, with the tab chosen.</p>
           </div>
@@ -417,10 +417,11 @@
                36-site-owner.js). -->
           <div class="about-faults" id="aboutFaults" hidden></div>
           <p>A continuity map of the Transformers <em>OG&nbsp;World</em> — the main G1 line, from Beast Wars through the cartoon, comics and toy-era spin-offs — redrawn from a hand-drawn original. Arrows trace direct lineage: an adaptation, a sequel, a continuation.</p>
-          <p><b>Reading.</b> Drag to pan; scroll or pinch to zoom. Click an entry for its details. Tags and references are the two tabs at the left edge: a tag's dot hides or shows what wears it, and a small raised number in any text opens the reference it cites.</p>
-          <p><b>Editing.</b> The round <b>+</b> in the corner adds an entry — point at it and pick a style. Drag from one entry's edge to another to connect them, and double-click any text to write it where it stands. <b>Shift</b> while dragging lines things up, <b>Ctrl</b> takes them off the grid. <b>Del</b> deletes; <b>Ctrl+Z</b> and <b>Ctrl+Y</b> undo and redo; <b>Ctrl+C</b>, <b>X</b> and <b>V</b> copy, cut and paste.</p>
+          <p><b>Reading.</b> Drag to pan; scroll or pinch to zoom. Click an entry for its details; <b>Alt</b>+arrows walk its lines. Tags and references are tabs at the left edge: a tag's dot hides or shows what wears it, and a small raised number in any text opens the reference it cites.</p>
+          <p><b>Editing.</b> The round <b>+</b> in the corner adds an entry — point at it and pick a style. Drag from one entry's edge to another to connect them, and double-click any text to write it where it stands. <b>Shift</b> while dragging lines things up, <b>Ctrl</b> takes them off the grid. <b>Del</b> deletes; <b>Ctrl+Z</b> and <b>Ctrl+Y</b> undo and redo; <b>Ctrl+C</b>, <b>X</b> and <b>V</b> copy, cut and paste. Arrows nudge what is picked.</p>
           <p><b>Saving.</b> Nothing is kept until <b>Save</b> (or <b>Ctrl+S</b>). The <b>Export/Import</b> button exports a self-contained copy of the page with the chart inside it, its contents alone, or a picture of it.</p>
           <p>Only the owner can change the chart; everyone else gets a read-only view. This is a draft, and will have errors and omissions.</p>
+          <p><b>Rights.</b> The page's code is under MIT. What the chart names and shows belongs to its owners; Transformers is Hasbro's trademark.</p>
           <div class="version-log" id="versionLog"></div>
         </div>
       </div>
@@ -529,17 +530,19 @@
     <!-- The sticker library: a menu dropped from its button, like
          Export/Import, rather than a window in the middle of the chart. +
          adds; each tile's ✕ removes it, and Replace swaps its picture. -->
-    <!-- Each language named in its own words, so the menu is never translated. -->
+    <!-- Each language shown by its flag (the owner's list of 21.11: English
+         by the American one), and named in its own words for a screen
+         reader, so the menu is never translated. -->
     <div class="file-popover lang-menu" id="langMenu" role="menu" translate="no">
-      <button type="button" class="lang-option" role="menuitemradio" data-lang="en">English</button>
-      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru">Русский</button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="en" title="English" aria-label="English"><span class="lang-flag" aria-hidden="true"></span></button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru" title="Русский" aria-label="Русский"><span class="lang-flag" aria-hidden="true"></span></button>
     </div>
     <div class="file-popover sticker-pop" id="stickerOverlay">
       <div class="edge-popover-head">
         <span>My files</span>
         <!-- Adding is the window's, beside its ✕, not one kind's heading
              (the owner's list of 20.11). -->
-        <button type="button" class="sticker-plus" id="stickerUpload" aria-label="Add stickers or fonts" title="Add stickers or fonts. A sticker is a square picture or an animated GIF: a still picture is shrunk to fit, a GIF is kept as it is, so it keeps moving. A font is a .ttf, .otf, .woff or .woff2 file, and is offered wherever a face is chosen.">+</button>
+        <button type="button" class="sticker-plus icon-action add-plus" id="stickerUpload" aria-label="Add stickers or fonts" title="Add stickers or fonts. A sticker is a square picture or an animated GIF: a still picture is shrunk to fit, a GIF is kept as it is, so it keeps moving. A font is a .ttf, .otf, .woff or .woff2 file, and is offered wherever a face is chosen."></button>
         <button class="detail-close" aria-label="Close" id="stickerClose">✕</button>
       </div>
       <!-- The owner's cloud drives, on the site, where the write service

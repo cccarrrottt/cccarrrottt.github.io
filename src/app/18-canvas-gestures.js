@@ -206,6 +206,7 @@ function applyVisibility(opts){
     const hide = (a && nodeHidden(a)) || (b && nodeHidden(b)) || (c && nodeHidden(c));
     fadeForTags(g, !!hide);
   });
+  hopsFollowVisibility();
 }
 
 /* ---------------------------------------------------------------------
@@ -1819,3 +1820,85 @@ window.addEventListener('mouseup', e=>{
   });
 });
 
+
+/* ---------------------------------------------------------------------
+   The arrow keys.
+
+   With entries picked, an arrow carries them one step of the grid, and
+   Shift+arrow five; Alt+arrow walks from the entry that is open along its
+   lines instead — up to where it came from, down to what came of it, and
+   left or right to the entry beside it that came of the same one. The
+   walk is a reader's as much as the owner's: it moves the view, not the
+   chart.
+
+   A step is a carry, not a write of its own. Everything a carry does to
+   what it moves — the bends it brings along, a parent kept to its stretch
+   of a bar, a split kept to its line, an array refitted round what is in
+   it, the one step of undo — lives in the gesture, so a key that wrote
+   positions itself would do part of it and differ from a hand in the
+   rest. The key takes the entry by its middle, moves the hand the step's
+   width on screen and lets go.
+   ------------------------------------------------------------------ */
+const NUDGE_STEPS = 1, NUDGE_STEPS_SHIFT = 5;
+function nudgePicked(dx, dy){
+  if(readOnlyView || nodeDragState || !selectedId) return false;
+  const n = nodes.get(selectedId);
+  const g = n && qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
+  if(!g) return false;
+  const rect = svg.getBoundingClientRect();
+  const x = rect.left + vx + (n.x + n.w/2) * vs, y = rect.top + vy + (n.y + n.h/2) * vs;
+  const mouse = (type, cx, cy, target)=> target.dispatchEvent(new MouseEvent(type,
+    {bubbles: true, cancelable: true, button: 0, buttons: type === 'mouseup' ? 0 : 1, clientX: cx, clientY: cy}));
+  mouse('mousedown', x, y, g);
+  if(!nodeDragState) return false;
+  /* The carry snaps the distance the hand went to the grid, so the hand
+     goes exactly the step. A step that is shorter on screen than a press
+     is allowed to wander first goes out further and comes back to it. */
+  const sx = dx * GRID * vs, sy = dy * GRID * vs;
+  if(Math.hypot(sx, sy) < DRAG_THRESHOLD + 1) mouse('mousemove', x + Math.sign(sx) * 40, y + Math.sign(sy) * 40, window);
+  mouse('mousemove', x + sx, y + sy, window);
+  mouse('mouseup', x + sx, y + sy, window);
+  return true;
+}
+/* The next entry along the open one's lines, one way. A split and the
+   frame of an array are steps of a line, not places to stop, so the walk
+   goes through a split to the far side and never into a frame. */
+function lineageStep(id, way){
+  const n = nodes.get(id);
+  if(!n) return null;
+  const stopsAt = m=> m && !isArrayNode(m) && !isSplitNode(m);
+  const parentsOf = m=> (m.parents || []).map(p=> nodes.get(p)).filter(Boolean);
+  const childrenOf = m=> [...nodes.values()].filter(c=> (c.parents || []).includes(m.id));
+  const midX = m=> m.x + m.w/2, midY = m=> m.y + m.h/2;
+  // Through splits: what is on the far side of one, the way the walk goes.
+  const beyond = (list, next)=>{
+    const out = [], seen = new Set();
+    const go = m=>{ if(!m || seen.has(m.id)) return; seen.add(m.id); if(stopsAt(m)) out.push(m); else if(isSplitNode(m)) next(m).forEach(go); };
+    list.forEach(go);
+    return out;
+  };
+  const nearestTo = list=> list.sort((a, b)=> Math.hypot(midX(a) - midX(n), midY(a) - midY(n)) - Math.hypot(midX(b) - midX(n), midY(b) - midY(n)))[0] || null;
+  if(way === 'up') return nearestTo(beyond(parentsOf(n), parentsOf));
+  if(way === 'down') return nearestTo(beyond(childrenOf(n), childrenOf));
+  // Beside: what came of the same entries as this one, nearest on that side.
+  const fellows = beyond(beyond(parentsOf(n), parentsOf).flatMap(childrenOf), childrenOf).filter(m=> m.id !== n.id);
+  const sign = way === 'left' ? -1 : 1;
+  const onSide = fellows.filter(m=> (midX(m) - midX(n)) * sign > 0.5);
+  return onSide.sort((a, b)=> Math.abs(midX(a) - midX(n)) - Math.abs(midX(b) - midX(n)))[0] || null;
+}
+function walkLineage(way){
+  if(!selectedId) return false;
+  const m = lineageStep(selectedId, way);
+  if(!m) return false;
+  selectNode(m.id); flyToNode(m.id);
+  return true;
+}
+const ARROW_WAYS = {ArrowUp: ['up', 0, -1], ArrowDown: ['down', 0, 1], ArrowLeft: ['left', -1, 0], ArrowRight: ['right', 1, 0]};
+document.addEventListener('keydown', e=>{
+  const way = ARROW_WAYS[e.key];
+  if(!way || e.ctrlKey || e.metaKey || !selectedId || typingInField()) return;
+  if(askOverlay.classList.contains('open')) return;
+  const steps = e.shiftKey ? NUDGE_STEPS_SHIFT : NUDGE_STEPS;
+  const done = e.altKey ? walkLineage(way[0]) : nudgePicked(way[1] * steps, way[2] * steps);
+  if(done) e.preventDefault();
+});

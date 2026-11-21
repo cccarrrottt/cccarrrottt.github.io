@@ -113,12 +113,18 @@ package-lock.json's Playwright names, which is what CI compares with; a
 picture from another system would only ever disagree. CI also runs a few
 scenarios in WebKit (`--browser=webkit`, and `--only=a|b` for several).
 
+The suite draws `tests/fixtures/chart.json` (pictures in
+`tests/fixtures/media/`), put in place of the owner's chart in every page
+it serves, so a Save on the site, or a fork with a chart of its own, never
+turns a check red. A check that wants the real chart's contents reads the
+fixture; the fixture changes only in a commit that means it to.
+
 `dist` and `src` load the same program by different paths. A green run on one
 says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 155 named scenarios, and they do not depend on one another —
+The suite is 160 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -302,6 +308,17 @@ the entries on every rebuild and every frame of a carry, never kept. A pan,
 the wheel and a pinch keep the middle of the view on it
 (`keepFieldInView`); a view set in so many words (a link, the overview, a
 test) is not held to it.
+
+## Where two lines cross
+
+The level line arches over the upright one (`drawHops`, `14-edges-draw.js`):
+a hole cut by a mask and an arch in the line's own paint, so it lights,
+dims and hides with its line. Only a straight leg of a line that is not
+wavy or a curve hops, at 35° or more, clear of its turns and arrowheads
+and of the crossed line's ends; crossings an arch apart share one arch;
+a line hidden by its tags takes its arches with it
+(`hopsFollowVisibility`). Computed every pass from `drawnRoutes`, never
+kept, so it changes no route.
 
 ## Notes in the margin
 
@@ -553,6 +570,24 @@ Two things were measured here and are not worth doing:
   layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
   what an edge note measures by a sub-pixel.
 
+### How much of the program a reader runs
+
+`tools/bench-reader-code.js` opens the site as a reader and reads it as
+one does (a pan, the wheel, an entry pointed at and picked, a search,
+every drawer, About, the text version), then takes V8's byte coverage.
+November 21: the site's program is 234 KB gzipped, and 38% of its bytes
+ran; 149 KB gzipped never did. That is the bound on lazy loading, not
+what it can take: the code a reader skips is spread through every part,
+untaken branches of functions that do run. What whole parts could go —
+the editing ones, 23–25, 27–33, 35, 45 — is 59 KB of 272 minified and
+gzipped, before the forty-odd functions and twenty declarations the
+reader's own paths call in them (a card closing on `deselect`, `defId`
+in every render, the hex squares in the legend) moved back out. About a
+fifth, for surgery across fifteen parts and a second script on the site
+that only the owner's page would run; parts 30, 35, 45 and 33, which a
+reader calls nothing of, are 15 KB. Not done; re-propose it with a
+reader path that this is the slow part of.
+
 ### What a phone waits for on a chart of hundreds
 
 `tools/bench-boot.js` opens a synthetic chart of lineages that merge, with
@@ -714,10 +749,13 @@ and one scenario is twenty seconds.
 - A message containing **"код 1"** means: run a full review → critique →
   optimise cycle over the codebase.
 - Deliverable archives keep the split-source layout (`src/`, `dist/`, `tests/`,
-  `tools/`, `build.py`, `README.md`, `CHANGELOG.md`, `package.json`,
+  `tools/`, `build.py`, `README.md`, `DISTRIBUTING.md`, `CHANGELOG.md`, `LICENSE`, `NOTICE`, `package.json`,
   `eslint.config.mjs`).
 - Every version bump touches four places: `APP_VERSION` and `VERSION_LOG` in
   `src/app/20-about.js`, `CHANGELOG.md`, `README.md`, `package.json`. The
   About panel and the changelog are generated from the same `VERSION_LOG`, so
   they cannot disagree.
+- The code is MIT (`LICENSE`); the chart's content is not, and `NOTICE`
+  says so. The owner claims the platform only: what a chart names or
+  carries belongs to its own authors.
 - Replies to the repository owner are written in Russian.

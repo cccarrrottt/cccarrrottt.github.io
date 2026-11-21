@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.26.2** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.26.3** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -209,6 +209,10 @@ reload in their own browser. None of that can recur: there is one file, and
 on the site it is a reader unless the service says otherwise.
 
 ### Setting up the write service
+
+To run a copy of your own — your site, your chart, your keys — follow
+[DISTRIBUTING.md](DISTRIBUTING.md), which puts the steps below in order for
+a fork.
 
 Done once. Until it is, `api` in `src/app/00-config.js` points at nothing
 and the site is read-only for everybody, the owner included.
@@ -802,7 +806,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 155 named scenarios, and they are independent of one
+The browser suite is 160 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
@@ -849,3 +853,11 @@ the host runtime deleted, the semicircle geometry, tag categories, connector-not
 the crop chooser's clamping, stacking and round frame, the outward wave direction, the amalgam
 junction bead, leader-line notes, the reference system, and URL-scheme filtering. There are no unit tests, deliberately — nearly everything here is
 geometry, layout and event wiring, and a unit test cannot vouch for any of it.
+
+## Licence
+
+The platform, the code and design that draw, edit and publish a chart, is
+under the MIT licence (`LICENSE`). The chart it publishes here is not:
+`src/chart.json`, `src/media/` and `tests/fixtures/` hold content whose
+franchises, brands, pictures, video and fonts belong to their own authors.
+`NOTICE` says which is which.

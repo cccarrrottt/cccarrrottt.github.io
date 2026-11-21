@@ -194,8 +194,17 @@ function sectionHead(title, count){
                    `<span class="legend-group-count">${count}</span>`;
   return head;
 }
-const PLUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+/* The one + every add button on the page wears (the owner's list of
+   21.11): drawn, not typed. A "+" in a face sits where that face puts it
+   — on the baseline, a little left or right of the middle, a different
+   weight in every face — so the pluses on the page were four sizes and
+   none of them in the middle of its square. Two strokes of equal length
+   crossing at the middle of the box are in the middle whatever the face. */
+const PLUS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="butt" aria-hidden="true">' +
                  '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+/* The buttons the page is written with, rather than made by a script,
+   are given theirs here. */
+document.querySelectorAll('.add-plus:empty').forEach(b=>{ b.innerHTML = PLUS_SVG; });
 /* A tag with a + on it, and a folder with a + on it: the two things the
    Tags heading makes, told apart by what they make. */
 const TAG_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">' +
@@ -222,7 +231,7 @@ const MEDIA_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
   '<line x1="19" y1="16" x2="19" y2="23" stroke-width="2.2"/><line x1="15.5" y1="19.5" x2="22.5" y2="19.5" stroke-width="2.2"/></svg>';
 function makePlusButton(title, svg){
   const b = document.createElement('button');
-  b.type = 'button'; b.className = 'icon-action plus-mini'; b.title = title;
+  b.type = 'button'; b.className = 'icon-action plus-mini' + (svg ? '' : ' add-plus'); b.title = title;
   b.innerHTML = svg || PLUS_SVG;
   return b;
 }
@@ -1477,12 +1486,25 @@ function listDropUnder(x, y){
     if(grp.dataset.cat === UNGROUPED && !grp.classList.contains('legend-loose')) return null;
     return {el: grp, where: 'into'};
   }
+  if(listDrag.kind === 'mediaField'){
+    /* A field goes before or after another field of its own kind: on a
+       row of the list by its height, on a chip of the line by its width. */
+    const [kindId, fid] = listDrag.key.split('\u0000');
+    const at = under.closest('.media-field, .media-chip');
+    const box = at && at.closest('.media-kind');
+    if(!at || !box || box.dataset.kind !== kindId || at.dataset.field === fid) return null;
+    const r = at.getBoundingClientRect();
+    const across = at.classList.contains('media-chip');
+    return {el: at, where: (across ? x < r.left + r.width/2 : y < r.top + r.height/2) ? 'before' : 'after'};
+  }
   const row = under.closest('.ref-item');
   if(!row || row.dataset.key === listDrag.key) return null;
   const r = row.getBoundingClientRect();
   return {el: row, where: y < r.top + r.height/2 ? 'before' : 'after'};
 }
-window.addEventListener('mousemove', ev=>{
+/* Pointer events, so a row picked up by a finger (the grip of a field
+   in the Media drawer) is carried as one picked up by the mouse is. */
+window.addEventListener('pointermove', ev=>{
   if(!listDrag) return;
   if(!listDrag.moved){
     if(Math.hypot(ev.clientX - listDrag.startX, ev.clientY - listDrag.startY) < LIST_DRAG_THRESHOLD) return;
@@ -1497,7 +1519,7 @@ window.addEventListener('mousemove', ev=>{
   listDrag.where = hit ? hit.where : null;
   if(hit) hit.el.classList.add('drop-' + hit.where);
 });
-window.addEventListener('mouseup', ()=>{
+function endListDrag(){
   const st = listDrag;
   listDrag = null;
   if(!st) return;
@@ -1521,6 +1543,11 @@ window.addEventListener('mouseup', ()=>{
     setLegendStatus('ok', `“${st.key}” is now under ${cat}.`);
   } else if(st.kind === 'ref'){
     reorderRef(st.key, st.target.dataset.key, st.where);
+  } else if(st.kind === 'mediaField'){
+    const [kindId, fid] = st.key.split('\u0000');
+    moveMediaField(kindId, fid, st.target.dataset.field, st.where);
   }
-});
+}
+window.addEventListener('pointerup', endListDrag);
+window.addEventListener('pointercancel', endListDrag);
 

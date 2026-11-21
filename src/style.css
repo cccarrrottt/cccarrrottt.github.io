@@ -1492,6 +1492,12 @@
      scale of a row rather than of the panel's top bar. */
   .plus-mini{width:19px;height:17px;flex:0 0 auto;margin-left:4px;}
   .plus-mini svg{width:11px;height:11px;}
+  /* Every plain + on the page: one square, one drawn cross in its middle
+     (PLUS_SVG, the owner's list of 21.11). */
+  .icon-action.add-plus{width:18px;height:18px;flex:0 0 auto;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;line-height:0;}
+  .icon-action.add-plus svg{width:10px;height:10px;display:block;}
+  .icon-action.add-plus:hover{color:var(--accent);}
   /* The Tags heading's two: a tag and a category, drawn a size up so the
      small + on each still reads. */
   .plus-mini.add-tag svg, .plus-mini.add-cat svg, .plus-mini.add-ref svg{width:13px;height:13px;}
@@ -1637,12 +1643,6 @@
     content:'No tags';font-size:10px;color:var(--ink-faint);
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
   }
-  .tag-add-btn{
-    flex:0 0 auto;width:20px;height:20px;line-height:1;
-    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
-    border-radius:4px;cursor:pointer;font-size:12px;
-  }
-  .tag-add-btn:hover{color:var(--ink);border-color:var(--accent);}
   .tag-menu{
     position:absolute;top:100%;right:0;z-index:20;margin-top:3px;
     min-width:130px;max-height:180px;overflow-y:auto;
@@ -1688,7 +1688,7 @@
   .media-kind.shut .media-fold{transform:none;}
   .media-kind.shut > :not(.media-kind-top){display:none;}
   .media-kind.shut{padding-bottom:2px;margin:2px 0;}
-  .media-field{margin-top:2px;padding:0 6px 0 28px;}
+  .media-field{margin-top:2px;padding:0 6px 0 14px;cursor:grab;}
   /* Names, not fields (the owner's list of 11.11): a kind's in the type
      of a category's heading, a field's in the type of a tag row, so the
      drawer reads as the panels beside it do. */
@@ -1723,6 +1723,33 @@
   }
   .media-x:hover{color:var(--ink);border-color:var(--line);}
   .media-add-field{margin:4px 0 0 28px;}
+  /* The grip a field is carried by — the row itself is, with a mouse; a
+     finger takes the dots, since the row is where it scrolls. */
+  .media-grip{flex:0 0 auto;width:10px;height:14px;display:inline-flex;align-items:center;justify-content:center;
+    color:var(--ink-faint);opacity:0.6;cursor:grab;touch-action:none;}
+  .media-grip svg{width:6px;height:9px;}
+  .media-field:hover .media-grip{opacity:1;}
+  .media-field.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .media-field.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
+  /* The line the kind writes, under its fields: each fact a chip by its
+     field's name, the words between them typed where they stand (the
+     owner's list of 21.11). Italic, as the card's middle band is. */
+  .media-written{margin:7px 6px 2px 28px;}
+  .media-written-label{font-size:9px;letter-spacing:0.4px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:3px;}
+  .media-line{font-size:12px;line-height:1.9;font-style:italic;color:var(--ink-dim);
+    border:1px dashed var(--line);border-radius:4px;padding:2px 6px;}
+  .media-chip{display:inline-block;padding:0 6px;margin:0 1px;line-height:1.5;border-radius:9px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);font-style:normal;font-size:11px;
+    cursor:grab;user-select:none;touch-action:none;}
+  .media-chip.unnamed{color:var(--ink-faint);font-style:italic;}
+  .media-chip.drop-before{box-shadow:-2px 0 0 0 var(--accent);}
+  .media-chip.drop-after{box-shadow:2px 0 0 0 var(--accent);}
+  .media-join{white-space:pre;outline:none;border-radius:2px;padding:0 1px;}
+  /* An empty place still takes a caret: a hair of room, marked only when
+     the pointer is over it. */
+  .media-join:empty{display:inline-block;min-width:5px;height:1em;vertical-align:middle;}
+  .media-join[contenteditable]:hover, .media-join:focus{background:var(--panel-2);box-shadow:0 0 0 1px var(--line);cursor:var(--ibeam);}
+  .media-join:focus{box-shadow:0 0 0 1px var(--accent);}
   .editor-field select.media-kind-select{margin-bottom:6px;}
   .media-facts:empty{display:none;}
   .media-facts{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}
@@ -2132,7 +2159,8 @@
     0%, 55%{filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 2px var(--accent));}
     100%{filter:none;}
   }
-  .figure-upload-plus{font-size:20px;line-height:30px;height:30px;color:var(--ink-dim);}
+  .figure-upload-plus{height:30px;display:flex;align-items:center;justify-content:center;color:var(--ink-dim);}
+  .figure-upload-plus svg{width:16px;height:16px;display:block;}
 
   /* Undo, redo and the guides, small, under the counts at the end of the
      bar (the owner's list of 23.10): they stood as two big round buttons
@@ -2527,15 +2555,20 @@
     display:none;flex-direction:column;gap:8px;
   }
   .file-popover.open{display:flex;}
-  /* The language: a globe and the code of the one spoken, and a menu of
-     the languages each in its own words. */
-  .icon-btn.lang-toggle{width:auto;padding:0 7px;gap:3px;display:inline-flex;align-items:center;}
-  .lang-code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.4px;}
-  .lang-menu{gap:2px;padding:6px;}
-  .lang-option{font:inherit;font-size:13px;text-align:left;padding:5px 12px;border:0;border-radius:5px;
-    background:none;color:var(--ink);cursor:pointer;}
+  /* The language: the flag of the one spoken, and a menu of the others'
+     flags (the owner's list of 21.11), each named in its own words to a
+     screen reader. */
+  .icon-btn.lang-toggle{display:inline-flex;align-items:center;justify-content:center;}
+  /* A flag, 3:2, with a hairline round it so the white of either one is
+     not lost on a white bar. */
+  .lang-flag{display:inline-block;width:21px;height:14px;border-radius:2px;overflow:hidden;
+    box-shadow:0 0 0 1px var(--line);line-height:0;}
+  .lang-flag svg{width:100%;height:100%;display:block;}
+  .lang-menu{flex-direction:row;gap:4px;padding:6px;}
+  .lang-option{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;border:0;border-radius:5px;
+    background:none;cursor:pointer;}
   .lang-option:hover{background:var(--panel-2);}
-  .lang-option.active{color:var(--accent);font-weight:600;}
+  .lang-option.active{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .file-popover .editor-status{margin:0;}
   /* A little smaller than they were (the owner's ask, 22.10). Four now,
      spread across the width five of them took, so the buttons below keep
@@ -2685,12 +2718,6 @@
   /* A menu now, dropped from its button: as wide as four tiles, and the
      tiles scroll inside it rather than the menu growing down the page. */
   .sticker-pop{width:min(420px, calc(100vw - 16px));}
-  .sticker-plus{
-    flex:0 0 auto;width:22px;height:22px;padding:0;
-    border:1px solid var(--line);border-radius:5px;background:var(--panel);
-    color:var(--ink-dim);font:400 16px/1 'IBM Plex Sans',sans-serif;cursor:pointer;
-  }
-  .sticker-plus:hover{border-color:var(--accent);color:var(--accent);}
   .sticker-status:not(.show){display:none;}
   .sticker-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
@@ -2912,6 +2939,40 @@
   .rich-surface:not(.locked) .note-rule{cursor:pointer;border-radius:3px;}
   .rich-surface:not(.locked) .note-rule:hover{background:var(--panel-2);}
   .rich-surface .note-rule.picked{background:rgba(194,59,34,0.16);outline:1px solid var(--accent);}
+  /* On the chart itself a note's list and its dividers are text: an item
+     is its words after "• " or "1. ", a divider a row of box-drawing
+     strokes round its title (flattenNoteBlocks, 03-markup) — a label has
+     no room for a document's indents. The field standing on the drawing
+     sets them the same way, or every item stood an indent to the right of
+     where it would be drawn and a divider was a rule across the field the
+     drawing never shows. */
+  .node-editor .rich-surface ul, .node-editor .rich-surface ol{
+    list-style:none;margin:0;padding:0;counter-reset:rhz-item;
+  }
+  .node-editor .rich-surface li{padding:0;}
+  .node-editor .rich-surface li::before{content:'\2022  ';white-space:pre;}
+  .node-editor .rich-surface ol > li{counter-increment:rhz-item;}
+  .node-editor .rich-surface ol > li::before{content:counter(rhz-item) '. ';}
+  .node-editor .rich-surface .note-rule{
+    margin:0;padding:0;white-space:pre;border-radius:0;--bit:'\2500';
+  }
+  .node-editor .rich-surface .note-rule[data-line="dashed"]{--bit:'\254C';}
+  .node-editor .rich-surface .note-rule[data-line="dotted"]{--bit:'\2508';}
+  .node-editor .rich-surface .note-rule[data-line="double"]{--bit:'\2550';}
+  .node-editor .rich-surface .note-rule[data-line="wavy"]{--bit:'\223F';}
+  .node-editor .rich-surface .note-rule::before{content:var(--bit) var(--bit) ' ';}
+  .node-editor .rich-surface .note-rule::after,
+  .node-editor .rich-surface .note-rule[data-line="wavy"]::after{
+    content:' ' var(--bit) var(--bit);display:inline;border:none;height:auto;background:none;
+  }
+  .node-editor .rich-surface .note-rule:not(:has(.note-rule-title))::before{
+    content:var(--bit) var(--bit) var(--bit) var(--bit) var(--bit) var(--bit);
+  }
+  .node-editor .rich-surface .note-rule:not(:has(.note-rule-title))::after{content:none;}
+  .node-editor .rich-surface .note-rule-title{
+    display:inline;width:auto;max-width:none;font-weight:inherit;font-size:1em;
+    line-height:inherit;color:inherit;padding:0;overflow-wrap:normal;
+  }
   /* The panel a divider is set in: its kind of line. Its title is typed
      over it, on a double click. */
   .rule-panel{
@@ -2992,6 +3053,14 @@
      a fifth of itself below the line. */
   .node-editor .sticker-inline{width:0.78em;height:0.78em;margin:0;vertical-align:-0.156em;}
   .sticker-missing-inline{color:var(--ink-faint);opacity:0.6;}
+  /* A sticker that is gone is still a sticker's square on the chart
+     (layoutLine draws a dashed box of stickerBox's width), so in the field
+     it holds the same square rather than the width of a "▢" in the face,
+     which moved every word after it. */
+  .node-editor .sticker-missing-inline{
+    display:inline-block;width:0.78em;height:0.78em;vertical-align:-0.156em;
+    overflow:hidden;text-align:center;line-height:0.78em;
+  }
   .sticker-missing{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:2 2;}
   .sticker-glyph{pointer-events:none;}
   /* A link node's arrow — see isLinkNode. */
@@ -3597,6 +3666,36 @@
     font-size:0.652em;line-height:1;
     text-align:center;
     position:relative;
+  }
+  /* On the entry itself the field is the drawing, and the drawing does not
+     set a reading the way a browser does. The chart lays the word out at
+     its own width and centres the reading over it, hanging past both ends
+     when it is the longer (layoutLine, 05-render-text); a browser makes
+     the ruby as wide as the wider of the two and spreads the word's
+     letters across it. So a long reading pushed "Up" apart from "rising"
+     and the rest of the line past the box's edge while it was being
+     written, and closed up again the moment it was done (the owner's
+     video of 21.11). Here the reading is taken out of the line: it
+     stands over the middle of its word and makes no room for itself,
+     which is what the chart does. */
+  .node-editor .rich-surface ruby{display:inline;position:relative;white-space:nowrap;}
+  /* …and the line it stands on is as tall as the drawing's. The chart
+     gives every line the same slot, LINE_H at the entry's size, and a line
+     carrying a reading RUBY_EXTRA more (wrapAndMeasure); a run set larger
+     makes no line taller, it only reaches further into the next. A browser
+     grows the line box to whatever is in it, so the field's lines came
+     apart wherever a word was set larger, and — once the reading left the
+     line — not at all over a reading. A run in the field therefore makes
+     no line box of its own (line-height 0: the field's strut alone sets
+     the line), and a reading props its line up by an empty mark of
+     exactly the height the drawing adds, worked out in seatFieldReadings. */
+  .node-editor .rich-surface :is(span, b, i, strong, em, font, u, s, ruby, a):not(rt, rt *, .note-rule *){line-height:0;}
+  .node-editor .rich-surface ruby::before{
+    content:'';display:inline-block;width:0;height:var(--ruby-lift, 0px);vertical-align:baseline;
+  }
+  .node-editor .rich-surface ruby rt{
+    position:absolute;left:50%;top:0;transform:translateX(-50%);
+    white-space:pre;
   }
 
   /* ---- smart guides -------------------------------------------------
