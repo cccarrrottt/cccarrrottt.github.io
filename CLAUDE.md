@@ -113,12 +113,18 @@ package-lock.json's Playwright names, which is what CI compares with; a
 picture from another system would only ever disagree. CI also runs a few
 scenarios in WebKit (`--browser=webkit`, and `--only=a|b` for several).
 
+The suite draws `tests/fixtures/chart.json` (pictures in
+`tests/fixtures/media/`), put in place of the owner's chart in every page
+it serves, so a Save on the site, or a fork with a chart of its own, never
+turns a check red. A check that wants the real chart's contents reads the
+fixture; the fixture changes only in a commit that means it to.
+
 `dist` and `src` load the same program by different paths. A green run on one
 says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 155 named scenarios, and they do not depend on one another —
+The suite is 158 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.

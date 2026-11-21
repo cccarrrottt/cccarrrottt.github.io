@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.26.2** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.26.3** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -806,7 +806,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 155 named scenarios, and they are independent of one
+The browser suite is 158 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

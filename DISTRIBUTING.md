@@ -116,11 +116,11 @@ you are signed in: take out what you do not want (select, Delete), add your
 own, and press **Save**. That commit changes only `src/chart.json`, so it is
 published at once without waiting for the checks.
 
-Do it this way rather than by replacing `src/chart.json` in a commit of
-code. The browser suite still reads the original chart in a few places, so a
-code push with a different chart comes out red, and a red run does not
-publish. A chart changed by Save never meets that. The same holds when you
-later bring in the original's code: the suite then runs against your chart.
+You may also replace `src/chart.json` in a commit of code: the browser
+suite draws a chart of its own, `tests/fixtures/chart.json` with its
+pictures in `tests/fixtures/media/`, and never reads yours. That is why
+a code push comes out green whatever your chart holds, and why bringing
+in the original's code later does not depend on it either.
 
 The original's chart brings a font of its own (`settings.fonts`, Autobot
 Characters). Remove it under *My files → Fonts* once nothing is set in it,

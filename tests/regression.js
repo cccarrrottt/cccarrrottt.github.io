@@ -37,6 +37,45 @@ const PORT = Number(process.env.RHIZOME_TEST_PORT) || 8830;
 const MIME = {'.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8',
               '.js':'text/javascript; charset=utf-8'};
 
+/* The chart the suite draws is its own, not the repository's.
+ *
+ * Every page the suite opens is the page as built, with its chart swapped
+ * for tests/fixtures/chart.json — and its pictures, fonts and films served
+ * from tests/fixtures/media. The suite used to draw whatever src/chart.json
+ * held, which is the owner's chart and changes with every Save; eleven of
+ * its checks read entries of that chart, so a copy of the project with a
+ * chart of its own came out red on its first push of code (DISTRIBUTING.md,
+ * "Your own chart"). The fixture is a chart as the owner's stood on
+ * 21.11, kept still so the checks that lean on it have something that
+ * does not move. */
+const FIXTURE_DIR = path.join(__dirname, 'fixtures');
+const FIXTURE_RAW = fs.readFileSync(path.join(FIXTURE_DIR, 'chart.json'));
+const FIXTURE_SHA = require('crypto').createHash('sha1')
+  .update(Buffer.concat([Buffer.from(`blob ${FIXTURE_RAW.length}\0`), FIXTURE_RAW])).digest('hex');
+/* A built page with the fixture where its chart stood: the chart's script
+   element as build.py writes it (chart_script), and the id of the file it
+   was built from (rhizome-data-sha), which a Save is checked against. */
+function withFixture(html){
+  const text = String(html);
+  const open = '<script type="application/json" id="chart-data">\n';
+  const a = text.indexOf(open);
+  if(a < 0) return text;
+  const b = text.indexOf('\n</script>', a + open.length);
+  if(b < 0) return text;
+  const body = FIXTURE_RAW.toString('utf8').replace(/\n+$/, '').replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  return (text.slice(0, a + open.length) + body + text.slice(b))
+    .replace(/(<meta name="rhizome-data-sha" content=")[0-9a-f]*(")/, `$1${FIXTURE_SHA}$2`);
+}
+/* A picture, font or film the fixture names, from beside it; anything else
+   from where the page was built. */
+function mediaFile(rel){
+  const m = /^\/?(media\/[0-9a-f]{64}\.[a-z0-9]+)$/.exec(rel);
+  if(!m) return null;
+  const own = path.join(FIXTURE_DIR, m[1]);
+  return fs.existsSync(own) ? own : null;
+}
+
 let pass = 0, fail = 0;
 const results = [];
 const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGP4z8DwnwEIGP4zMDAwAAAj7AT8W4yTIQAAAABJRU5ErkJggg==', 'base64');
@@ -191,10 +230,11 @@ async function scenario(name, body){
 async function main(){
   const srv = http.createServer((q, r) => {
     const rel = decodeURIComponent(q.url.split('?')[0]);
-    const p = path.join(DIR, rel === '/' ? PAGE : rel);
+    const p = mediaFile(rel) || path.join(DIR, rel === '/' ? PAGE : rel);
     if(rel === '/favicon.ico'){ r.writeHead(204); r.end(); return; }
-    let body; try { body = fs.readFileSync(p); }
+    let body; try { body = rel === '/chart.json' ? FIXTURE_RAW : fs.readFileSync(p); }
     catch(e){ r.writeHead(404); r.end('not found'); return; }
+    if(path.extname(p) === '.html') body = withFixture(body);
     r.writeHead(200, {'Content-Type': MIME[path.extname(p)] || 'application/octet-stream'});
     r.end(body);
   });
@@ -10471,9 +10511,9 @@ async function main(){
   /* The site as CI stages it: dist/site/, whose page keeps its program and
      stylesheet beside it (build_site in build.py). */
   const SITE_BUILT = path.join(DIR, 'site');
-  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const html = withFixture(fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8'));
   const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const dataRaw = FIXTURE_RAW;
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   /* The service's own writer, so what the page sends can be held to what
@@ -11083,8 +11123,8 @@ async function main(){
   const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
   const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
-  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const html = withFixture(fs.readFileSync(path.join(DIR, PAGE), 'utf8'));
+  const dataRaw = FIXTURE_RAW;
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   const api = {asked: 0, loginAs: [], account: 'reader', posted: [], resolved: [], list: [], ghAsked: 0};
@@ -11351,7 +11391,7 @@ async function main(){
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
   const appVersion = /const APP_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'src', 'app', '20-about.js'), 'utf8'))[1];
   const SITE_BUILT = path.join(DIR, 'site');
-  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const html = withFixture(fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8'));
   const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
   const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
@@ -11428,7 +11468,7 @@ async function main(){
      worker, and what it keeps. */
   const SITE_DIR = path.join(DIR, 'site');
   const files = {};
-  for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = f === 'index.html' ? Buffer.from(withFixture(fs.readFileSync(path.join(SITE_DIR, f), 'utf8'))) : fs.readFileSync(path.join(SITE_DIR, f));
   files['/'] = files['/index.html'];
   delete files['/index.html'];
   // A picture beside the page, as a Save puts one in src/media.
@@ -17381,9 +17421,12 @@ async function main(){
      an export — carries it. */
   const {withSnapshot, drawingOf} = require(path.join(ROOT, 'tools', 'prerender.js'));
   const SITE_DIR = path.join(DIR, 'site');
-  const built = fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8');
+  const built = withFixture(fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8'));
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
-  const silence = async p => { await p.route('https://fonts.googleapis.com/**', quiet); await p.route('https://fonts.gstatic.com/**', quiet); };
+  const silence = async p => { await p.route('https://fonts.googleapis.com/**', quiet); await p.route('https://fonts.gstatic.com/**', quiet);
+    await p.route(/\/index\.html$/, r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: built}));
+    await p.route(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/, r => { const f = mediaFile(new URL(r.request().url()).pathname);
+      return f ? r.fulfill({status: 200, body: fs.readFileSync(f)}) : r.continue(); }); };
   const snap = await drawingOf(browser, SITE_DIR, {route: silence});
   const html = withSnapshot(built, snap);
   const TYPES = {'.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png'};
@@ -18695,7 +18738,7 @@ async function main(){
     document.getElementById('fileToggle').click();
     document.getElementById('filesToggle').click(); await pause(100);
     out.stick = {pop: rect('stickerOverlay'), btn: rect('filesToggle'),
-                 plus: document.getElementById('stickerUpload').textContent.trim(),
+                 plus: document.querySelector('#stickerUpload svg line') ? '+' : document.getElementById('stickerUpload').textContent.trim(),
                  overlay: document.getElementById('stickerOverlay').classList.contains('about-overlay')};
     document.getElementById('filesToggle').click(); await pause(50);
     out.stickShut = !document.getElementById('stickerOverlay').classList.contains('open');
@@ -23339,7 +23382,7 @@ async function main(){
           : c.classList.contains('media-kind-name') ? 'name' : c.classList.contains('media-fold') ? 'fold'
           : c.classList.contains('media-kind-count') ? 'count' : c.classList.contains('media-x') ? 'x' : (c.className || c.tagName));
         r.inputs = document.querySelectorAll('#mediaList input').length;
-        r.writtenAs = /Written as/i.test(document.getElementById('mediaList').textContent) || !!document.querySelector('.media-format');
+        r.writtenAs = !!document.querySelector('.media-written .media-line') && !document.querySelector('.media-format');
         const name = box.querySelector('.media-kind-name'), label = box.querySelector('.media-field-label');
         r.nameTag = name.tagName + ':' + label.tagName;
         const head = document.querySelector('#tagsList .legend-group[data-cat] .legend-group-head .legend-group-name'), row = document.querySelector('#tagsList .legend-item');
@@ -23470,8 +23513,11 @@ async function main(){
   }, [X, Y]);
   check('a kind of medium\'s heading reads eye, name, ▸, count, ✕ — the fold before the count, as a category\'s',
         JSON.stringify(out.order) === '["eye","name","fold","count","x"]', JSON.stringify(out.order));
-  check('the media drawer holds no fields: its names are text, in the type of a category\'s heading and a tag row, and no "Written as"',
-        out.inputs === 0 && !out.writtenAs && out.nameTag === 'SPAN:SPAN' && out.nameFont.every(Boolean) && out.labelFont.every(Boolean),
+  /* "Written as" came back on the owner's list of 21.11 — as the line
+     itself, its facts as chips and the words between typed in place, not
+     as a field of %Name% markup. */
+  check('the media drawer holds no fields: its names are text, in the type of a category\'s heading and a tag row, and "Written as" is the line, not a field',
+        out.inputs === 0 && out.writtenAs && out.nameTag === 'SPAN:SPAN' && out.nameFont.every(Boolean) && out.labelFont.every(Boolean),
         JSON.stringify([out.inputs, out.writtenAs, out.nameTag, out.nameFont, out.labelFont]));
   check('…a double click types over a kind\'s name where it stands and does not fold it; a single click on the heading folds',
         out.renaming && out.renamedKind === 'Picture|true' && out.headFolds, JSON.stringify([out.renaming, out.renamedKind, out.headFolds]));
@@ -24655,8 +24701,8 @@ async function main(){
   const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
   const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1].replace(/\/+$/, '');
-  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const html = withFixture(fs.readFileSync(path.join(DIR, PAGE), 'utf8'));
+  const dataRaw = FIXTURE_RAW;
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   const api = {connected: [], asked: [], fileAsked: 0};
@@ -24669,7 +24715,7 @@ async function main(){
   await c.route(SITE_ORIGIN + '/**', r => {
     const u = new URL(r.request().url());
     const m = /^\/(media\/[0-9a-f]{64}\.[a-z0-9]+)$/.exec(u.pathname);
-    if(m && fs.existsSync(path.join(DIR, m[1]))) return r.fulfill({status: 200, body: fs.readFileSync(path.join(DIR, m[1]))});
+    if(m && mediaFile(m[1])) return r.fulfill({status: 200, body: fs.readFileSync(mediaFile(m[1]))});
     return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
   });
   await c.route(SITE_API + '/**', async r => {
