@@ -651,3 +651,31 @@ function wireImagePicker(pickBtnId, clearBtnId, inputId){
 }
 wireImagePicker('editImagePick', 'editImageClear', 'editImageInput');
 
+
+/* ---------------------------------------------------------------------
+   What the editing parts keep that a reader's page reads too.
+
+   On the published site the editing parts (LAZY_PARTS in build.py) are a
+   file of their own, fetched once the write service has said the owner is
+   here; a reader never runs them. But the page a reader does run asks
+   after them all the time — Escape asks whether a connector's panel is
+   open, every redraw whether the entry it was writing on is still there —
+   and a name that was never declared is not "nothing open", it is a
+   ReferenceError. So the panels, the state that says what they are open
+   for, and the layers they draw in are declared here, before any of it,
+   and the parts that work them only work them. The layers in particular
+   stay in this place: they are stacked in the order they are made.
+   ------------------------------------------------------------------ */
+var nodeEditorTarget = null;   // what the field on the drawing is writing: an entry, or a connector's note
+let currentEdgeStyleTarget = null;   // {from,to} of the edge the popover is open for
+const edgePopover = document.getElementById('edgePopover');
+const detailEditForm = document.getElementById('detailEditForm');
+const freeMenu = document.getElementById('freeMenu');
+let freeMenuId = null;
+const edgeSelection = new Map();     // calloutEdgeKey -> {from, to}
+const stickerOverlay = document.getElementById('stickerOverlay');
+const STICKER_GIF_LIMIT = 512 * 1024; // bytes of source GIF
+let leaderJustPlaced = false;
+const bendLayer = el('g', {id:'bendLayer'}, viewport);
+const guideLayer = el('g', {id:'guideLayer', style:'pointer-events:none;'}, viewport);
+const leaderPickLayer = el('g', {id:'leaderPickLayer', style:'pointer-events:none;'}, viewport);

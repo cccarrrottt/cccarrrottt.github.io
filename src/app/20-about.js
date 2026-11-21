@@ -697,6 +697,13 @@ async function readOwnSource(){
 
    Only tags marked data-inline, and only names with no path in them: the
    build writes exactly that, and nothing else in a page is fetched here. */
+/* The marks build_site writes in the site's program where an editing part
+   stood, the region of stand-ins naming the editor's file, and the mark
+   before each part in that file. Spelled with escapes, so that this part,
+   written out in the program, holds none of them itself. */
+const EDITOR_REGION_RE = /\n?\/\*! @editor \*\/[\s\S]*?var RHIZOME_EDITOR = "(editor\.[0-9a-f]{16}\.js)";\n\/\*! @editor-end \*\/\n?/;
+const EDITOR_MARK_RE = /\/\*! @lazy ([\w.-]+) \*\//g;
+const EDITOR_PART_RE = /\/\*! @part ([\w.-]+) \*\//;
 const SITE_FILE_RE = /<script src="([\w.-]+\.js)" data-inline><\/script>|<link rel="stylesheet" href="([\w.-]+\.css)" data-inline>/g;
 /* The site's page also carries a drawing of the chart for the moment
    before the program arrives (tools/prerender.js). A copy is a program
@@ -729,6 +736,20 @@ async function inlineSiteFiles(src){
     if(!named) continue;
     const log = await versionLogText(named[1]);
     texts[i] = texts[i].slice(0, named.index) + '(' + log + ')' + texts[i].slice(named.index + named[0].length);
+  }
+  /* …and its editing parts, which on the site are a file of their own
+     (LAZY_PARTS, build.py): each goes back where its mark stands, and the
+     empty stand-ins the site declared for them go. */
+  for(let i = 0; i < found.length; i++){
+    const region = found[i][1] && texts[i].match(EDITOR_REGION_RE);
+    if(!region) continue;
+    const res = await fetch(new URL(region[1], location.href));
+    if(!res.ok) throw new Error('could not fetch ' + region[1] + ' (' + res.status + ').');
+    const pieces = (await res.text()).replace(/\n\/\/# sourceMappingURL=[^\n]*\n?$/, '').split(EDITOR_PART_RE);
+    const parts = new Map();
+    for(let k = 1; k < pieces.length; k += 2) parts.set(pieces[k], pieces[k + 1]);
+    const t = texts[i].slice(0, region.index) + '\n' + texts[i].slice(region.index + region[0].length);
+    texts[i] = t.replace(EDITOR_MARK_RE, (mark, name)=> parts.has(name) ? parts.get(name) : mark);
   }
   let out = '', at = 0;
   found.forEach((m, i)=>{

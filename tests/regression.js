@@ -10543,6 +10543,7 @@ async function main(){
                              : r.fulfill({status: 404, body: ''});
     }
     const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
+    if(beside && /^\/editor\.[0-9a-f]{16}\.js$/.test(u.pathname)) api.editorAsked = (api.editorAsked || 0) + 1;
     if(beside){
       api.programAsked = (api.programAsked || 0) + 1;
       return r.fulfill({status: 200, contentType: u.pathname.endsWith('.css') ? 'text/css' : 'text/javascript', body: beside});
@@ -10690,6 +10691,14 @@ async function main(){
   });
   check('a session offered by anyone but the write service is ignored',
         forged.readOnly && forged.stored === null, JSON.stringify(forged));
+  /* The editing parts are a file of their own on the site (LAZY_PARTS,
+     build.py), and a reader reading has no use for them. */
+  const readerStubs = await site.evaluate(() => ({named: !!window.RHIZOME_EDITOR,
+    stub: typeof openNodeEditor === 'function' && /^function openNodeEditor\(\)\s*\{\s*\}$/.test(String(openNodeEditor)),
+    editorHere: typeof NODE_EDITOR_MINH !== 'undefined'}));
+  check('a reader\'s page never asks for the editing parts, and runs without them',
+        !api.editorAsked && readerStubs.named && readerStubs.stub && !readerStubs.editorHere,
+        JSON.stringify({asked: api.editorAsked, readerStubs}));
 
   /* What the reader carries away is a copy of their own. Driven through the
      button, with the download plumbing stubbed, and opened the way a reader
@@ -10751,6 +10760,10 @@ async function main(){
   check('signing in in a popup makes the same tab an editor',
         !inn.readOnly && inn.saveShown && inn.stored === 'good-session', JSON.stringify(inn));
   check('and the button offers to sign out', inn.button === 'Sign out', inn.button);
+  const ownerParts = await site.evaluate(() => ({named: window.RHIZOME_EDITOR,
+    real: typeof NODE_EDITOR_MINH !== 'undefined' && !/^function openNodeEditor\(\)\s*\{\s*\}$/.test(String(openNodeEditor))}));
+  check('the owner\'s page has fetched the editing parts, and edits with them',
+        api.editorAsked >= 1 && ownerParts.real && !ownerParts.named, JSON.stringify({asked: api.editorAsked, ownerParts}));
 
   const saved = await site.evaluate(async () => {
     const out = {sha: DATA_SHA};
@@ -10861,6 +10874,13 @@ async function main(){
         JSON.stringify({asked: api.programAsked}));
   check('a copy made from it carries both inside it, where their tags stood',
         !copied.beside && copied.program && copied.style, JSON.stringify({beside: copied.beside, program: copied.program, style: copied.style}));
+  check('and the editing parts each where it stood in the program, with no stand-in left for them',
+        !/\/\*! @(?:editor|lazy|part)|RHIZOME_EDITOR = "editor\./.test(copied.src) && /function openNodeEditor\([^)]/.test(copied.src)
+        && copied.src.indexOf('function openNodeEditor(') > copied.src.indexOf('function inlineSiteFiles(')
+        && copied.src.indexOf('function openNodeEditor(') < copied.src.indexOf('function checkSiteOwner('),
+        JSON.stringify({marks: (copied.src.match(/\/\*! @(?:editor|lazy|part)/g) || []).length,
+          at: ['function inlineSiteFiles(', 'function openNodeEditor(', 'function checkSiteOwner('].map(k=> copied.src.indexOf(k)),
+          named: /RHIZOME_EDITOR = "editor\./.test(copied.src)}));
   {
     const elsewhere = await browser.newContext({viewport: {width: 1200, height: 800}});
     await elsewhere.route('https://fonts.googleapis.com/**', quiet);

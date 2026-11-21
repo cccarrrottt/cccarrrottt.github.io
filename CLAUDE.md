@@ -181,8 +181,8 @@ page decides when it opens:
 Things that follow, and are pinned in the suite ("the page on the published
 site") and `build_guard`:
 
-- **The hidden controls are not the security.** Every reader gets the
-  editor's code. The write service (`worker/index.js`) is what refuses:
+- **The hidden controls are not the security.** Every reader can fetch
+  the editor's code. The write service (`worker/index.js`) is what refuses:
   session sealed with `SESSION_SECRET`, login in `OWNERS` (or `EDITORS`,
   whose saves keep the repository's settings), session handed
   only to `ALLOWED_ORIGINS`, and the commit made with the owner's own GitHub
@@ -570,23 +570,43 @@ Two things were measured here and are not worth doing:
   layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
   what an edge note measures by a sub-pixel.
 
-### How much of the program a reader runs
+### How much of the program a reader runs, and the editor beside it
 
 `tools/bench-reader-code.js` opens the site as a reader and reads it as
 one does (a pan, the wheel, an entry pointed at and picked, a search,
-every drawer, About, the text version), then takes V8's byte coverage.
-November 21: the site's program is 234 KB gzipped, and 38% of its bytes
-ran; 149 KB gzipped never did. That is the bound on lazy loading, not
-what it can take: the code a reader skips is spread through every part,
-untaken branches of functions that do run. What whole parts could go —
-the editing ones, 23–25, 27–33, 35, 45 — is 59 KB of 272 minified and
-gzipped, before the forty-odd functions and twenty declarations the
-reader's own paths call in them (a card closing on `deselect`, `defId`
-in every render, the hex squares in the legend) moved back out. About a
-fifth, for surgery across fifteen parts and a second script on the site
-that only the owner's page would run; parts 30, 35, 45 and 33, which a
-reader calls nothing of, are 15 KB. Not done; re-propose it with a
-reader path that this is the slow part of.
+every drawer, About, the text version), takes V8's byte coverage, and
+fails if the reader's page throws or asks for the editor's file.
+
+November 21, before: the site's program was 234 KB gzipped and 38% of
+it ran. The code a reader skips is mostly spread through every part —
+untaken branches of functions that do run — but ten parts are editing
+from top to bottom, and the owner asked for them to go
+(`LAZY_PARTS`, `build.py`). On the site they are `editor.<hash>.js`,
+fetched by `loadEditorParts` (`36-site-owner.js`) once the service has
+said the owner is here, before anything is made editable, and kept by
+the service worker for editing with no signal. After: the reader's
+program is 194 KB gzipped, and the editor 42 KB beside it.
+
+How it holds together, since the page is still one scope:
+
+- **Only the site is split.** `dist/nexus.html`, `src/index.html` and an
+  export have every part where `APP_PARTS` puts it, so the suite drives
+  the one program it always did; `inlineSiteFiles` puts each part back
+  where its mark (`/*! @lazy … */`) stands. `build_guard` checks both
+  halves are the program minified, and that they make it whole again.
+- **What a reader's page reads of them is not in them.** The panels'
+  state and the layers they draw in are declared at the end of
+  `26-bio-crop.js`; what drawing, copying and exporting call is in the
+  part it belongs to (`defId`, `cssEscape`, `settleAnchor`, the
+  serializers, the drawer's note). A `const` the reader's paths read in
+  a lazy part is a ReferenceError on the site and nowhere else.
+- **Their functions the rest names are empty until the file comes**
+  (`editor_stubs`): closing a panel nobody could open is nothing to do.
+  A function a reader needs an ANSWER from must not live in a lazy part —
+  a stand-in answers `undefined`.
+- **Listeners in a lazy part are registered when it arrives**, after
+  every other part's, on the owner's page only. One that must run before
+  another's on the same target does not belong in a lazy part.
 
 ### What a phone waits for on a chart of hundreds
 
@@ -719,7 +739,8 @@ Do not re-propose these without new evidence:
   not separate it; and two builds create a class of "looks different in the
   viewer" bugs that one program with a flag cannot have. If this is ever
   wanted, do it as lazy loading of the editing parts from one codebase, not as
-  a second build.
+  a second build. That is what the site does now (`LAZY_PARTS`; see "How
+  much of the program a reader runs").
 - **An `[A-Za-z0-9_-]+` whitelist for entry ids.** Ids come from the chart's
   own content.
 

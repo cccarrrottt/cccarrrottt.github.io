@@ -1391,3 +1391,118 @@ makeRichDocument(document.getElementById('detailNoteInput'));
   rec.surface.addEventListener('input', ()=> queueLabelPreview());
 });
 
+
+/* ---------------------------------------------------------------------
+   The note editor in the detail drawer.
+
+   It sits in the drawer rather than inside the entry form because a note
+   is the thing you read when you click a node, and wanting to fix a word
+   in it shouldn't mean opening a separate editing mode for the whole
+   entry. The pencil opens it where it stands, looking just as it did, with
+   the formatting buttons under "Note" (the owner's list of 19.11); the
+   words settle as they are written, and the pencil again closes it.
+   ------------------------------------------------------------------ */
+const detailNoteInput = document.getElementById('detailNoteInput');
+const detailNoteEditBtn = document.getElementById('detailNoteEdit');
+const detailNoteToolbar = document.getElementById('detailNoteToolbar');
+const detailNoteSurface = richFields.get('detailNoteInput').surface;
+let detailNoteEditing = false;
+
+function setDetailNoteEditing(on){
+  detailNoteEditing = on;
+  detailNoteSurface.contentEditable = on ? 'true' : 'false';
+  detailNoteSurface.classList.toggle('locked', !on);
+  detailNoteSurface.classList.toggle('doc-open', on);
+  // makeRichField sets a min-height inline to match the textarea it stood
+  // in for; inline styles outrank the .locked rule, so it has to be
+  // cleared by hand or a one-line note would still reserve three rows.
+  detailNoteSurface.style.minHeight = '';
+  detailNoteToolbar.style.display = on ? '' : 'none';
+  detailNoteEditBtn.classList.toggle('active', on);
+  if(!on) closeRulePanel();
+  if(on){
+    detailNoteSurface.focus();
+    /* At the end of what is written: inside the last line, or the last
+       item of a list that ends it — never between a list's items. */
+    let last = detailNoteSurface.lastElementChild;
+    while(last && /^(UL|OL)$/.test(last.tagName) && last.lastElementChild) last = last.lastElementChild;
+    placeCaret(last || detailNoteSurface, true);
+  }
+}
+function showDetailNote(markup){
+  setRichValue(detailNoteInput, markup);
+  setDetailNoteEditing(false);
+  syncNoteExpandBtn();
+}
+/* Nothing to open at full size when there is nothing written.
+ *
+ * The button is the drawer's answer to a note too long for a column three
+ * hundred pixels wide; on an entry with no note it offered to show an
+ * empty card, which is a control that cannot do anything. */
+function syncNoteExpandBtn(){
+  const btn = document.getElementById('detailNoteExpand');
+  if(!btn) return;
+  const text = (detailNoteInput && detailNoteInput.value || '').trim();
+  btn.style.display = text ? '' : 'none';
+}
+/* The note settles as it is written, like every other field.
+ *
+ * It was the one place in the entry editor that waited for a button.
+ * Everything else — the label, the colours, the archetype — takes effect
+ * as you make the change, so nobody expected this one to be different:
+ * type a note, click the next entry, and the words were gone. Nothing was
+ * stored, the Save button still said "Saved", and there was nothing to
+ * undo, because as far as the chart was concerned nothing had happened.
+ *
+ * So it commits on a pause, exactly as the label does, and the whole time
+ * the field is open is one step of undo. There is no Apply and no Cancel
+ * any more (19.11): what was written is kept, and Ctrl+Z is the way back. */
+let detailNoteUndoPushed = false;
+let detailNoteTimer = 0;
+let detailNoteOwner = null;      // the entry the open editor belongs to
+function commitDetailNote(){
+  const id = detailNoteOwner;
+  if(!id || readOnlyView) return;
+  const n = nodes.get(id);
+  if(!n) return;
+  const text = detailNoteInput.value.trim();
+  if((n.note || '') === text) return;
+  if(!detailNoteUndoPushed){ pushUndo(); detailNoteUndoPushed = true; }
+  commitEntry(()=>{
+    const found = workingEntry(id);
+    if(!found) return;
+    found.entry[4] = text || undefined;
+    putEntry(found.index, found.entry, entryOpts(found.entry));
+  });
+}
+function queueDetailNoteCommit(){
+  if(detailNoteTimer) clearTimeout(detailNoteTimer);
+  detailNoteTimer = setTimeout(()=>{ detailNoteTimer = 0; commitDetailNote(); }, 480);
+}
+function flushDetailNoteCommit(){
+  if(detailNoteTimer){ clearTimeout(detailNoteTimer); detailNoteTimer = 0; }
+  commitDetailNote();
+}
+detailNoteSurface.addEventListener('input', ()=>{
+  syncNoteExpandBtn();
+  if(detailNoteEditing) queueDetailNoteCommit();
+});
+detailNoteSurface.addEventListener('blur', ()=>{ if(detailNoteEditing) flushDetailNoteCommit(); });
+detailNoteEditBtn.onclick = (ev)=>{
+  ev.stopPropagation();
+  if(!selectedId || readOnlyView) return;
+  if(detailNoteEditing){ flushDetailNoteCommit(); setDetailNoteEditing(false); return; }
+  detailNoteOwner = selectedId;
+  detailNoteUndoPushed = false;
+  setDetailNoteEditing(true);
+};
+
+// Colours are typed as hex rather than picked from a swatch, so an exact
+// value can be pasted in and read back out. HEX_RE is in 01-store.js.
+function readHex(input){
+  // A field holding only its # is an empty one (see HEX_FIELD).
+  const v = hexFieldValue(input.value);
+  const ok = HEX_RE.test(v);
+  input.classList.toggle('bad', v !== '' && !ok);
+  return ok ? v : null;
+}

@@ -27,7 +27,7 @@ const nodeEditorText = document.getElementById('nodeEditorText');
    field is open. A `let` is in its temporal dead zone until then — and a
    dead-zone read throws even from inside a typeof — so the first transform
    of the session took the whole boot down with it. */
-var nodeEditorTarget = null, nodeEditorUndoPushed = false, nodeEditorCommitTimer = 0;
+var nodeEditorUndoPushed = false, nodeEditorCommitTimer = 0;
 var noteEditorPaintFrame = 0;
 /* WHAT the field is open on.
  *

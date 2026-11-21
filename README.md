@@ -177,8 +177,9 @@ suggest a change, and when it is the owner, the same tab becomes the editor. **S
 into `src/chart.json` on `main`, and CI rebuilds the site from that
 commit, so a save is on the site a few minutes after it is made.
 
-What keeps everybody else out is not the hidden controls — every reader
-receives the editor's code. It is that a static page cannot be written to,
+What keeps everybody else out is not the hidden controls — the editor's
+code is a file beside the page (`editor.<hash>.js`, fetched only once the
+owner is signed in), and anyone can fetch it. It is that a static page cannot be written to,
 and the one place a write can go is the write service in `worker/`, which:
 
 - signs people in through a GitHub App and hands out a session only to a
@@ -333,8 +334,9 @@ which writes it to the Worker's log: Cloudflare, the Worker, *Logs*
 message, the program file and the place in it, the stack, the version and
 the browser; never the session. A page sends at most five, each once. The
 program on the site is minified, so a place reads as line and column of
-`app.<hash>.js`; its source map is beside it, `app.<hash>.map`, and the
-stack still names the functions, which minification leaves as they are.
+`app.<hash>.js` (or, on the owner's page, `editor.<hash>.js`); each has its
+source map beside it, and the stack still names the functions, which
+minification leaves as they are.
 
 The log is kept three days on Cloudflare's free plan, so the service also
 counts each fault in a KV namespace, one line a fault however many readers

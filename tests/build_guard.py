@@ -357,12 +357,43 @@ def main():
           and lifted.replace(f'"{log_name}"', sources['js'][lit_at:lit_end]) == sources['js'], log_name)
     check('and it keeps every "<" escaped, since an export puts it back inside a script',
           '<' not in log_text)
-    site_sources = {'js': lifted, 'css': sources['css']}
+    # On the site the editing parts (LAZY_PARTS) are a file of their own:
+    # the program holds a mark where each stood, and ends with an empty
+    # stand-in for each of their functions the rest names, and the editor's
+    # name. Each put back where its mark stands, the program is whole.
+    head_js, editor_js = built_by.split_site_program(sources['js'])
+    rebuilt = head_js
+    for n in built_by.LAZY_PARTS:
+        rebuilt = rebuilt.replace(built_by.LAZY_MARK.format(n) + '\n', (tmp / 'src' / 'app' / n).read_text(encoding='utf-8'))
+    check('the site\'s program and the editor\'s file, each part put back where its mark stands, are the program',
+          rebuilt == sources['js'] and all(built_by.PART_MARK.format(n) in editor_js for n in built_by.LAZY_PARTS))
+    head_lifted = built_by.lift_version_log(head_js)[0]
+    site_sources = {'js': head_lifted, 'css': sources['css']}
+    def bare(n):
+        text = (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8').split('\n//# sourceMappingURL=')[0].rstrip('\n')
+        return text.split('\n' + built_by.EDITOR_OPEN + '\n')[0] if n.endswith('.js') else text
     minified = all(
-        (tmp / 'dist' / 'site' / n).read_text(encoding='utf-8').split('\n//# sourceMappingURL=')[0].rstrip('\n')
-        == built_by.minify_for_site(site_sources[n.rsplit('.', 1)[1]], n.rsplit('.', 1)[1])[0].rstrip('\n')
+        bare(n) == built_by.minify_for_site(site_sources[n.rsplit('.', 1)[1]], n.rsplit('.', 1)[1])[0].rstrip('\n')
         for n in files)
     check('they are the program and the stylesheet, minified and nothing else', minified)
+    app_name = next(n for n in files if n.endswith('.js'))
+    app_text = (tmp / 'dist' / 'site' / app_name).read_text(encoding='utf-8')
+    tail = re.search(re.escape(built_by.EDITOR_OPEN) + r'\n(.*?)\nvar RHIZOME_EDITOR = "(editor\.[0-9a-f]{16}\.js)";\n'
+                     + re.escape(built_by.EDITOR_CLOSE) + r'\n', app_text, re.S)
+    editor_name = tail and tail.group(2)
+    editor_file = editor_name and (tmp / 'dist' / 'site' / editor_name)
+    check('the program ends naming the editor\'s file, which is beside it, named by its bytes',
+          bool(editor_file) and editor_file.exists()
+          and hashlib.sha256(editor_file.read_bytes()).hexdigest()[:16] == editor_name.split('.')[1], app_text[-200:])
+    if editor_file and editor_file.exists():
+        check('and the file is the editing parts, minified and nothing else',
+              editor_file.read_text(encoding='utf-8').split('\n//# sourceMappingURL=')[0].rstrip('\n')
+              == built_by.minify_for_site(editor_js, 'js')[0].rstrip('\n'))
+        stubs = tail.group(1).split('\n')
+        check('with an empty stand-in for every function of theirs the rest of the program names, and nothing else',
+              stubs == built_by.editor_stubs(head_lifted, editor_js)
+              and all(re.fullmatch(r'(?:async )?function\*? [\w$]+\(\)\{\}', x) for x in stubs)
+              and 'closeEdgePopover' in tail.group(1), f'{len(stubs)} stand-ins')
     js_name = next(n for n in files if n.endswith('.js'))
     js_text = (tmp / 'dist' / 'site' / js_name).read_text(encoding='utf-8')
     if ESBUILD.exists():

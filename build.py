@@ -125,6 +125,43 @@ APP_PARTS = [
     '44-ink.js',
     '45-clouds.js',
 ]
+# The editing parts, which the published site does not hand a reader.
+#
+# Every reader of the site used to download the whole program, the editor's
+# code with it, because the page decides who may edit only once it is open.
+# tools/bench-reader-code.js measured what a reader runs: 38% of the bytes.
+# Most of what is left is spread through every part, but these are editing
+# from top to bottom, and on the site they are a file of their own
+# (build_site), fetched once the write service has said the owner is here
+# (loadEditorParts, src/app/36-site-owner.js). Everywhere else — this page,
+# an export, src/index.html — they are where APP_PARTS puts them, so the
+# program is the one it always was and the suite drives it as it is.
+#
+# What a reader's page reads of them is not in them: the state of their
+# panels and the layers they draw in (26-bio-crop.js), and what drawing,
+# copying and exporting call (defId, settleAnchor, the serializers...). A
+# function of theirs the rest of the program calls is, on the site, an empty
+# one until the file comes (editor_stubs): closing a panel nobody could open
+# is nothing to do. One the reader needs an answer from does not belong here.
+LAZY_PARTS = [
+    '23-quick-edit.js',
+    '27-sticker-ui.js',
+    '28-media-ui.js',
+    '29-editors.js',
+    '30-node-editor.js',
+    '31-free-menu.js',
+    '32-guides-bends.js',
+    '33-leader.js',
+    '35-draw-out.js',
+    '45-clouds.js',
+]
+# Where a lazy part stood in the site's program, and where it starts in the
+# editor's file. Legal comments, so esbuild keeps them; inlineSiteFiles
+# (20-about.js) puts each part back where it stood for an export.
+LAZY_MARK = '/*! @lazy {} */'
+PART_MARK = '/*! @part {} */'
+EDITOR_OPEN = '/*! @editor */'
+EDITOR_CLOSE = '/*! @editor-end */'
 PAGE_BEGIN = '<!-- @@PAGE:BEGIN@@ -->'
 PAGE_END = '<!-- @@PAGE:END@@ -->'
 
@@ -297,11 +334,13 @@ def minify_for_site(text, kind):
         src = Path(d) / f'app.{kind}'
         out = Path(d) / f'out.{kind}'
         src.write_text(text, encoding='utf-8')
-        args = [exe, str(src), f'--outfile={out}', '--charset=utf8', '--legal-comments=none', '--log-level=error']
+        args = [exe, str(src), f'--outfile={out}', '--charset=utf8', '--log-level=error']
         if kind == 'js':
-            args += ['--minify-whitespace', '--minify-syntax', '--sourcemap=external', '--sources-content=true']
+            # Inline: the only legal comments in the program are the marks
+            # where the editing parts stood (LAZY_MARK), which an export reads.
+            args += ['--legal-comments=inline', '--minify-whitespace', '--minify-syntax', '--sourcemap=external', '--sources-content=true']
         else:
-            args += ['--minify']
+            args += ['--legal-comments=none', '--minify']
         r = subprocess.run(args, capture_output=True, text=True)
         if r.returncode != 0:
             sys.exit(f'build: esbuild could not minify the site\'s {kind}:\n{r.stderr}')
@@ -314,6 +353,40 @@ def minify_for_site(text, kind):
     if kind == 'js' and re.search(r'</script', mini, re.I):
         sys.exit('build: the minified program contains a closing script tag')
     return mini, smap
+
+
+def split_site_program(app_js):
+    """The program as the site carries it: (what every page runs, the editor).
+
+    The first is the program with each of LAZY_PARTS replaced by its mark;
+    the second is those parts in order, each after a mark of its own. Put
+    each back where its mark stands and the program is whole again."""
+    texts = {n: read(SRC / 'app' / n) for n in APP_PARTS}
+    if ''.join(texts[n] for n in APP_PARTS) != app_js:
+        sys.exit('build: the program is not its parts written out in order')
+    unknown = [n for n in LAZY_PARTS if n not in APP_PARTS]
+    if unknown:
+        sys.exit(f'build: LAZY_PARTS names {", ".join(unknown)}, which APP_PARTS does not list')
+    head = ''.join(LAZY_MARK.format(n) + '\n' if n in LAZY_PARTS else texts[n] for n in APP_PARTS)
+    editor = ''.join(PART_MARK.format(n) + '\n' + texts[n] for n in APP_PARTS if n in LAZY_PARTS)
+    return head, editor
+
+
+def editor_stubs(head_js, editor_js):
+    """An empty function for each one the editing parts declare and the rest
+    of the program names, so that on the site a call before the editor has
+    come does nothing rather than throw. Declared again by the editor's file
+    when it comes, which replaces them.
+
+    A name is matched as a word anywhere in the rest of the program, a
+    comment included: a stub too many costs a dozen bytes, one too few is
+    a ReferenceError on a reader's screen."""
+    out = []
+    for m in re.finditer(r'^(async\s+)?function\s*(\*?)\s*([\w$]+)', editor_js, re.M):
+        name = m.group(3)
+        if re.search(r'(?<![\w$.])' + re.escape(name) + r'(?![\w$])', head_js):
+            out.append(f'{m.group(1) or ""}function{m.group(2)} {name}(){{}}')
+    return out
 
 
 VERSION_LOG_OPEN = 'const VERSION_LOG = ['
@@ -471,11 +544,25 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
     out.mkdir(parents=True)
     sizes = {}
     names = {}
+    app_js, editor_js = split_site_program(app_js)
     app_js, log_name, log_text = lift_version_log(app_js)
     (out / log_name).write_text(log_text, encoding='utf-8')
+    # The editor first: the program names it.
+    text, smap = minify_for_site(editor_js, 'js')
+    if smap:
+        map_name = f'editor.{hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}.map'
+        (out / map_name).write_text(smap, encoding='utf-8')
+        text = text.rstrip('\n') + f'\n//# sourceMappingURL={map_name}\n'
+    editor_name = f'editor.{hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}.js'
+    (out / editor_name).write_text(text, encoding='utf-8')
+    sizes['editor'] = len(text)
+    stubs = editor_stubs(app_js, editor_js)
     for kind, text in (('app', app_js), ('style', css)):
         ext = 'js' if kind == 'app' else 'css'
         text, smap = minify_for_site(text, ext)
+        if kind == 'app':
+            text = (text.rstrip('\n') + f'\n{EDITOR_OPEN}\n' + '\n'.join(stubs)
+                    + f'\nvar RHIZOME_EDITOR = "{editor_name}";\n{EDITOR_CLOSE}\n')
         if smap:
             # Named by the program it maps, before the line naming it is
             # added — that line is part of the bytes the program is named by.
@@ -526,7 +613,7 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
     if not (out / OG_IMAGE).exists():
         sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')
     print(f'  dist/site/index.html   {len(page):>8,} chars, '
-          f'{names["app"]} {sizes["app"]:,}, {names["style"]} {sizes["style"]:,}'
+          f'{names["app"]} {sizes["app"]:,}, {editor_name} {sizes["editor"]:,}, {names["style"]} {sizes["style"]:,}'
           + ('' if esbuild_path() else ' (not minified: no esbuild)'))
 
 

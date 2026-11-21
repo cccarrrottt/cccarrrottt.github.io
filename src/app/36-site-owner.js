@@ -213,6 +213,34 @@ function siteNotice(msg){
   setSaveState('err site-notice', msg);
 }
 
+/* The editing parts, on the site. They are a file of their own there
+   (LAZY_PARTS, build.py), named where the program ends by RHIZOME_EDITOR,
+   and fetched here once, the first time the page is to become an editor;
+   a reader's page never asks for them. Anywhere else they are already in
+   the program, and there is nothing to wait for. Resolves to whether the
+   editor is here: with no connection and no copy kept by the service
+   worker, the page stays a reader, which is all it can honestly be. */
+let editorPartsLoading = null;
+function loadEditorParts(){
+  const name = window.RHIZOME_EDITOR;
+  if(!name) return Promise.resolve(true);
+  if(!editorPartsLoading){
+    editorPartsLoading = new Promise(done=>{
+      const s = document.createElement('script');
+      s.src = name;
+      s.onload = ()=>{ window.RHIZOME_EDITOR = ''; done(true); };
+      s.onerror = ()=>{
+        editorPartsLoading = null;
+        s.remove();
+        siteNotice('The editor could not be loaded (' + name + '). The chart stays read-only; reload to try again.');
+        done(false);
+      };
+      document.head.appendChild(s);
+    });
+  }
+  return editorPartsLoading;
+}
+
 /* Asked once at load, and again whenever a sign-in completes. Anything
    short of a clear "yes, the owner, and your page is current" leaves the
    page a reader — an unreachable service included, since the only thing
@@ -243,6 +271,7 @@ async function checkSiteOwner(){
     if(!res.ok) siteNotice(`Signed in, but the write service failed (${res.status}${me && me.error ? ': ' + me.error : ''}). The chart stays read-only.`);
     return false;
   }
+  if(!await loadEditorParts()) return false;
   siteReader = null;
   siteTakesMedia = me.media === true;
   setCloudsFromService(me.clouds);
@@ -267,9 +296,10 @@ async function checkSiteOwner(){
 /* With no answer to be had, the last one stands. Only an owner this
    browser has already seen confirmed is let in, and only while it still
    holds the session the service will check. */
-function workOffline(){
+async function workOffline(){
   const who = rememberedOwner();
   if(!who || !siteSession()) return false;
+  if(!await loadEditorParts()) return false;
   siteOwner = who;
   updateOwnerBtn();
   markEditable();

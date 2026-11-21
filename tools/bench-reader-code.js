@@ -123,6 +123,12 @@ async function readAsAReader(page){
     return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: siteHtml});
   });
   const p2 = await ctx2.newPage();
+  /* A reader's page that throws, or that asks for the editor's file, has
+     reached into the editing parts (LAZY_PARTS, build.py) — which is what
+     this reading is for finding before a reader does. */
+  const faults = [], asked = [];
+  p2.on('pageerror', e => faults.push(e.message));
+  p2.on('request', r => { if(/\/editor\.[0-9a-f]+\.js$/.test(r.url())) asked.push(r.url()); });
   await p2.coverage.startJSCoverage({resetOnNavigation: false});
   await p2.goto(SITE + '/');
   await p2.waitForFunction(() => document.querySelector('#nodeLayer .node') && document.body.classList.contains('read-only'));
@@ -137,5 +143,13 @@ async function readAsAReader(page){
   console.log(`  the site's program:  ${kb(app.source.length)}, ${kb(gz(app.source))} gzipped`);
   console.log(`    ran for a reader   ${Math.round(100 * kept.length / app.source.length)}% of its bytes`);
   console.log(`    never ran          ${kb(dropped.length)}, ${kb(gz(dropped))} gzipped on its own`);
+  const editor = fs.readdirSync(SITE_DIR).find(n => /^editor\.[0-9a-f]+\.js$/.test(n));
+  if(editor){
+    const text = fs.readFileSync(path.join(SITE_DIR, editor), 'utf8');
+    console.log(`  the editor, fetched only for the owner: ${kb(text.length)}, ${kb(gz(text))} gzipped`);
+  }
+  console.log(`  the reader's page threw ${faults.length} time(s), and asked for the editor ${asked.length}`);
+  for(const f of faults) console.log('    ' + f);
+  if(faults.length || asked.length) process.exitCode = 1;
   await browser.close();
 })();

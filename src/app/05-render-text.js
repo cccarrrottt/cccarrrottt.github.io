@@ -921,3 +921,23 @@ function shareTextClip(txtEl, elm){
   if(clip) elm.setAttribute('clip-path', clip);
 }
 
+
+/* An id for something in <defs>, made from an entry's id.
+ *
+ * It used to be `prefix + id.replace(/[^a-zA-Z0-9_-]/g,'_')`, which is not a
+ * function that can be inverted and not one that is injective either: two
+ * entries whose ids differ only in the characters being replaced — "Ark 2"
+ * and "Ark.2", or the same name written in two scripts — came out as the
+ * same string, so the second one's clip path overwrote the first's and one
+ * entry was clipped by the other's mask. Nothing warned, because an id
+ * collision inside <defs> is legal SVG: the last one simply wins.
+ *
+ * The readable part is kept, because a definition you cannot recognise in
+ * the inspector is a definition you cannot debug, and a short hash of the
+ * ORIGINAL id is appended, which is what makes it injective in practice. */
+function defId(prefix, raw){
+  const s = String(raw);
+  let h = 0;
+  for(let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return prefix + s.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + (h >>> 0).toString(36);
+}

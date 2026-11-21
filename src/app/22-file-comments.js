@@ -709,6 +709,9 @@ if(ON_SITE) markReadOnly();
    it draws, so lifting the flag and drawing again is the whole of it. */
 function markEditable(){
   if(!readOnlyView) return;
+  /* On the site the editing parts come in a file of their own; a page
+     asked to become an editor before it has them gets them first. */
+  if(window.RHIZOME_EDITOR){ loadEditorParts().then(ok=>{ if(ok) markEditable(); }); return; }
   readOnlyView = false;
   document.body.classList.remove('read-only');
   /* A look as a reader ends here too, if the site's answer comes in

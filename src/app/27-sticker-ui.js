@@ -12,9 +12,7 @@
    if it is too big to belong in a page.
    ------------------------------------------------------------------ */
 const STICKER_MAX = 128;              // px, for still pictures
-const STICKER_GIF_LIMIT = 512 * 1024; // bytes of source GIF
 
-const stickerOverlay = document.getElementById('stickerOverlay');
 const stickerGrid = document.getElementById('stickerGrid');
 const stickerFile = document.getElementById('stickerFile');
 const stickerStatusEl = document.getElementById('stickerStatus');
