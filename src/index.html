@@ -58,8 +58,8 @@
     </button>
     <!-- The language the page speaks (the owner's list of 19.11): its
          texts are translated by hand in src/i18n/, see 43-i18n.js. -->
-    <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5M12 3.5C9.6 5.9 8.4 8.7 8.4 12s1.2 6.1 3.6 8.5"/></svg><span class="lang-code" translate="no">EN</span>
+    <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu" data-lang="en">
+      <span class="lang-flag" aria-hidden="true"></span>
     </button>
     <!-- A pencil and an eraser for notes in the margin of the chart (the
          owner's list of 20.11, 44-ink.js). The author's only. -->
@@ -529,10 +529,12 @@
     <!-- The sticker library: a menu dropped from its button, like
          Export/Import, rather than a window in the middle of the chart. +
          adds; each tile's ✕ removes it, and Replace swaps its picture. -->
-    <!-- Each language named in its own words, so the menu is never translated. -->
+    <!-- Each language shown by its flag (the owner's list of 21.11: English
+         by the American one), and named in its own words for a screen
+         reader, so the menu is never translated. -->
     <div class="file-popover lang-menu" id="langMenu" role="menu" translate="no">
-      <button type="button" class="lang-option" role="menuitemradio" data-lang="en">English</button>
-      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru">Русский</button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="en" title="English" aria-label="English"><span class="lang-flag" aria-hidden="true"></span></button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru" title="Русский" aria-label="Русский"><span class="lang-flag" aria-hidden="true"></span></button>
     </div>
     <div class="file-popover sticker-pop" id="stickerOverlay">
       <div class="edge-popover-head">

@@ -24328,10 +24328,13 @@ async function main(){
       const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
       const out = {};
       const btn = document.getElementById('langToggle');
-      out.button = !!btn && btn.textContent.trim() === 'EN';
+      /* Flags, drawn (the owner's list of 21.11): the button wears the
+         flag of the language spoken, English the American one. */
+      const flagOf = el=> { const f = el.querySelector('.lang-flag'); return f && f.querySelector('svg') ? f.dataset.flag : ''; };
+      out.button = !!btn && flagOf(btn) === 'en' && /#3c3b6e/.test(btn.innerHTML) && btn.getAttribute('aria-label') === 'English';
       btn.click(); await wait(50);
       const menu = document.getElementById('langMenu');
-      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> b.textContent).join('|') === 'English|Русский';
+      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> flagOf(b) + ':' + b.getAttribute('aria-label')).join('|') === 'en:English|ru:Русский';
       menu.classList.remove('open');
       const kept = LANG_TABLES.ru;
       LANG_TABLES.ru = {name: 'Русский', strings: {
@@ -24340,7 +24343,7 @@ async function main(){
       applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
       await wait(100);
       menu.querySelector('[data-lang="ru"]').click(); await wait(50);
-      out.ru = document.documentElement.lang === 'ru' && btn.textContent.trim() === 'RU' &&
+      out.ru = document.documentElement.lang === 'ru' && flagOf(btn) === 'ru' && /#0039a6/.test(btn.innerHTML) &&
                document.getElementById('saveBtn').textContent === 'Сохранить' &&
                document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Отменить (Ctrl+Z)';
       out.stored = localStorage.getItem('rhizome.lang') === 'ru';

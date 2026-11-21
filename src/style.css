@@ -2527,15 +2527,20 @@
     display:none;flex-direction:column;gap:8px;
   }
   .file-popover.open{display:flex;}
-  /* The language: a globe and the code of the one spoken, and a menu of
-     the languages each in its own words. */
-  .icon-btn.lang-toggle{width:auto;padding:0 7px;gap:3px;display:inline-flex;align-items:center;}
-  .lang-code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.4px;}
-  .lang-menu{gap:2px;padding:6px;}
-  .lang-option{font:inherit;font-size:13px;text-align:left;padding:5px 12px;border:0;border-radius:5px;
-    background:none;color:var(--ink);cursor:pointer;}
+  /* The language: the flag of the one spoken, and a menu of the others'
+     flags (the owner's list of 21.11), each named in its own words to a
+     screen reader. */
+  .icon-btn.lang-toggle{display:inline-flex;align-items:center;justify-content:center;}
+  /* A flag, 3:2, with a hairline round it so the white of either one is
+     not lost on a white bar. */
+  .lang-flag{display:inline-block;width:21px;height:14px;border-radius:2px;overflow:hidden;
+    box-shadow:0 0 0 1px var(--line);line-height:0;}
+  .lang-flag svg{width:100%;height:100%;display:block;}
+  .lang-menu{flex-direction:row;gap:4px;padding:6px;}
+  .lang-option{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;border:0;border-radius:5px;
+    background:none;cursor:pointer;}
   .lang-option:hover{background:var(--panel-2);}
-  .lang-option.active{color:var(--accent);font-weight:600;}
+  .lang-option.active{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .file-popover .editor-status{margin:0;}
   /* A little smaller than they were (the owner's ask, 22.10). Four now,
      spread across the width five of them took, so the buttons below keep
