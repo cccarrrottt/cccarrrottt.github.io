@@ -1477,12 +1477,25 @@ function listDropUnder(x, y){
     if(grp.dataset.cat === UNGROUPED && !grp.classList.contains('legend-loose')) return null;
     return {el: grp, where: 'into'};
   }
+  if(listDrag.kind === 'mediaField'){
+    /* A field goes before or after another field of its own kind: on a
+       row of the list by its height, on a chip of the line by its width. */
+    const [kindId, fid] = listDrag.key.split('\u0000');
+    const at = under.closest('.media-field, .media-chip');
+    const box = at && at.closest('.media-kind');
+    if(!at || !box || box.dataset.kind !== kindId || at.dataset.field === fid) return null;
+    const r = at.getBoundingClientRect();
+    const across = at.classList.contains('media-chip');
+    return {el: at, where: (across ? x < r.left + r.width/2 : y < r.top + r.height/2) ? 'before' : 'after'};
+  }
   const row = under.closest('.ref-item');
   if(!row || row.dataset.key === listDrag.key) return null;
   const r = row.getBoundingClientRect();
   return {el: row, where: y < r.top + r.height/2 ? 'before' : 'after'};
 }
-window.addEventListener('mousemove', ev=>{
+/* Pointer events, so a row picked up by a finger (the grip of a field
+   in the Media drawer) is carried as one picked up by the mouse is. */
+window.addEventListener('pointermove', ev=>{
   if(!listDrag) return;
   if(!listDrag.moved){
     if(Math.hypot(ev.clientX - listDrag.startX, ev.clientY - listDrag.startY) < LIST_DRAG_THRESHOLD) return;
@@ -1497,7 +1510,7 @@ window.addEventListener('mousemove', ev=>{
   listDrag.where = hit ? hit.where : null;
   if(hit) hit.el.classList.add('drop-' + hit.where);
 });
-window.addEventListener('mouseup', ()=>{
+function endListDrag(){
   const st = listDrag;
   listDrag = null;
   if(!st) return;
@@ -1521,6 +1534,11 @@ window.addEventListener('mouseup', ()=>{
     setLegendStatus('ok', `“${st.key}” is now under ${cat}.`);
   } else if(st.kind === 'ref'){
     reorderRef(st.key, st.target.dataset.key, st.where);
+  } else if(st.kind === 'mediaField'){
+    const [kindId, fid] = st.key.split('\u0000');
+    moveMediaField(kindId, fid, st.target.dataset.field, st.where);
   }
-});
+}
+window.addEventListener('pointerup', endListDrag);
+window.addEventListener('pointercancel', endListDrag);
 

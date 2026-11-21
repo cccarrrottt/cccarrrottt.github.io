@@ -208,7 +208,9 @@
                      "name": {"type": "string"},
                      "fields": {"type": "array", "items": {"type": "object", "required": ["id"],
                        "properties": {"id": {"type": "string", "pattern": "^f\\d{1,6}$"}, "label": {"type": "string"}}}},
-                     "format": {"type": "string", "description": "No longer read (0.25.6): the line is the fields' facts in their order. Dropped when the kinds are next edited."}}
+                     "format": {"type": "string", "description": "No longer read (0.25.6): the line is the fields' facts in their order. Dropped when the kinds are next edited."},
+                     "joins": {"type": "array", "items": {"type": "string"},
+                               "description": "The words the line writes before the first fact, between each two and after the last: one more than there are fields, by place rather than by field (0.26.3). Absent, nothing round the line and a comma between."}}
     },
     "figureTemplate": {
       "type": "object", "required": ["d"],

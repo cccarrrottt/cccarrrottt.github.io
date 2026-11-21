@@ -1688,7 +1688,7 @@
   .media-kind.shut .media-fold{transform:none;}
   .media-kind.shut > :not(.media-kind-top){display:none;}
   .media-kind.shut{padding-bottom:2px;margin:2px 0;}
-  .media-field{margin-top:2px;padding:0 6px 0 28px;}
+  .media-field{margin-top:2px;padding:0 6px 0 14px;cursor:grab;}
   /* Names, not fields (the owner's list of 11.11): a kind's in the type
      of a category's heading, a field's in the type of a tag row, so the
      drawer reads as the panels beside it do. */
@@ -1723,6 +1723,33 @@
   }
   .media-x:hover{color:var(--ink);border-color:var(--line);}
   .media-add-field{margin:4px 0 0 28px;}
+  /* The grip a field is carried by — the row itself is, with a mouse; a
+     finger takes the dots, since the row is where it scrolls. */
+  .media-grip{flex:0 0 auto;width:10px;height:14px;display:inline-flex;align-items:center;justify-content:center;
+    color:var(--ink-faint);opacity:0.6;cursor:grab;touch-action:none;}
+  .media-grip svg{width:6px;height:9px;}
+  .media-field:hover .media-grip{opacity:1;}
+  .media-field.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .media-field.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
+  /* The line the kind writes, under its fields: each fact a chip by its
+     field's name, the words between them typed where they stand (the
+     owner's list of 21.11). Italic, as the card's middle band is. */
+  .media-written{margin:7px 6px 2px 28px;}
+  .media-written-label{font-size:9px;letter-spacing:0.4px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:3px;}
+  .media-line{font-size:12px;line-height:1.9;font-style:italic;color:var(--ink-dim);
+    border:1px dashed var(--line);border-radius:4px;padding:2px 6px;}
+  .media-chip{display:inline-block;padding:0 6px;margin:0 1px;line-height:1.5;border-radius:9px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);font-style:normal;font-size:11px;
+    cursor:grab;user-select:none;touch-action:none;}
+  .media-chip.unnamed{color:var(--ink-faint);font-style:italic;}
+  .media-chip.drop-before{box-shadow:-2px 0 0 0 var(--accent);}
+  .media-chip.drop-after{box-shadow:2px 0 0 0 var(--accent);}
+  .media-join{white-space:pre;outline:none;border-radius:2px;padding:0 1px;}
+  /* An empty place still takes a caret: a hair of room, marked only when
+     the pointer is over it. */
+  .media-join:empty{display:inline-block;min-width:5px;height:1em;vertical-align:middle;}
+  .media-join[contenteditable]:hover, .media-join:focus{background:var(--panel-2);box-shadow:0 0 0 1px var(--line);cursor:var(--ibeam);}
+  .media-join:focus{box-shadow:0 0 0 1px var(--accent);}
   .editor-field select.media-kind-select{margin-bottom:6px;}
   .media-facts:empty{display:none;}
   .media-facts{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}

@@ -24882,6 +24882,84 @@ async function main(){
   check('a connector\'s note, with a reading, in the field as drawn', near(r.note), JSON.stringify(r.note));
   });
 
+  /* The owner's list of 21.11: a kind's line is shown as it will be
+     written, its facts as chips carried along it and its fields' rows
+     carried up and down, and the words between the facts typed where they
+     stand. */
+  await scenario("a kind's line, written where it is read, its fields carried by hand", async () => {
+  const before = await page.evaluate(()=>{
+    window.__mtKept = {kinds: SETTINGS.mediaTypes, nodes: workingNodes.slice()};
+    applyEdit(()=>{
+      SETTINGS.mediaTypes = [{id:'mtfilm', name:'Film', fields:[{id:'f1',label:'Studio'},{id:'f2',label:'Director'},{id:'f3',label:'Year'}]}];
+      workingNodes.push(['mt_c','Beast Wars',null,null,null,null,{pos:[96000,96000], bioCard:true, mediaType:'mtfilm',
+                         mediaData:{f1:'Mainframe', f2:'Ian Pearson', f3:'1996'}}]);
+    });
+    rebuildChart(); mediaKindsOpen().add('mtfilm'); buildMediaTab();
+    setSideTab(document.getElementById('mediaPanel'), true);
+    return mediaLineOf(nodes.get('mt_c'));
+  });
+  const at = (sel)=> page.evaluate(s=>{ const e = document.querySelector(s); e.scrollIntoView({block:'center'});
+                                         const r = e.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; }, sel);
+  const still = (sel)=> page.evaluate(s=>{ const r = document.querySelector(s).getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; }, sel);
+  // A row carried above another.
+  const a = await at('.media-field[data-field="f3"] .media-field-label'), b = await still('.media-field[data-field="f1"]');
+  await page.mouse.move(a.x, a.y); await page.mouse.down();
+  await page.mouse.move(a.x, a.y - 6, {steps:2}); await page.mouse.move(b.x, b.y - 4, {steps:5}); await page.mouse.up();
+  await wait(150);
+  const rows = await page.evaluate(()=> ({order: mediaTypesOf()[0].fields.map(f=> f.id).join(),
+    chips: [...document.querySelectorAll('.media-line .media-chip')].map(c=> c.dataset.field).join(),
+    line: mediaLineOf(nodes.get('mt_c'))}));
+  // The words between the first two facts typed over.
+  const j = await at('.media-join[data-at="1"]');
+  await page.mouse.click(j.x, j.y); await page.keyboard.press('End');
+  await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
+  await page.keyboard.type(' ('); await page.keyboard.press('Enter');
+  await wait(100);
+  const j3 = await at('.media-join[data-at="3"]');
+  await page.mouse.click(j3.x, j3.y); await page.keyboard.type(')'); await page.keyboard.press('Enter');
+  await wait(100);
+  // A chip carried to the front of the line.
+  const c = await at('.media-chip[data-field="f2"]'), c0 = await still('.media-line .media-chip');
+  await page.mouse.move(c.x, c.y); await page.mouse.down();
+  await page.mouse.move(c.x - 6, c.y, {steps:2}); await page.mouse.move(c0.x - c0.x % 1 - 4, c0.y, {steps:5}); await page.mouse.up();
+  await wait(150);
+  const r = await page.evaluate(()=>{
+    const out = {};
+    const k = mediaTypesOf()[0];
+    out.order = k.fields.map(f=> f.id).join();
+    out.joins = k.joins;
+    out.line = mediaLineOf(nodes.get('mt_c'));
+    out.preview = [...document.querySelectorAll('.media-line > *')].map(e=> e.textContent).join('|');
+    // A fact not given goes with the words before it, the first one's with those after.
+    out.gaps = [mediaLineFor(k, {f1:'Mainframe', f3:'1996'}), mediaLineFor(k, {f3:'1996'}), mediaLineFor(k, {})];
+    // A field added and one taken out keep the words round the line.
+    const t = JSON.parse(JSON.stringify(k));
+    addMediaField(t, 'f4'); out.added = t.joins.slice();
+    dropMediaField(t, 'f4'); out.dropped = t.joins.slice();
+    dropMediaField(t, t.fields[0].id); out.dropFirst = t.joins.slice();
+    out.schema = cleanMediaTypes([{id:'x', fields:[{id:'f1',label:'A'}], joins:['', '']}])[0].joins === undefined;
+    applyEdit(()=>{ SETTINGS.mediaTypes = window.__mtKept.kinds; if(SETTINGS.mediaTypes === undefined) delete SETTINGS.mediaTypes;
+                    workingNodes.length = 0; window.__mtKept.nodes.forEach(x=> workingNodes.push(x)); });
+    setSideTab(document.getElementById('mediaPanel'), false);
+    rebuildChart(); buildMediaTab();
+    return out;
+  });
+  eq('a kind writes its facts in order, a comma between', before, 'Mainframe, Ian Pearson, 1996');
+  check('a field\'s row carried above another changes the order, and the line\'s chips with it',
+        rows.order === 'f3,f1,f2' && rows.chips === 'f3,f1,f2' && rows.line === '1996, Mainframe, Ian Pearson', JSON.stringify(rows));
+  check('a chip carried along the line moves its field; the words between stay where they were typed',
+        r.order === 'f2,f3,f1' && JSON.stringify(r.joins) === JSON.stringify(['', ' (', ', ', ')']) &&
+        r.line === 'Ian Pearson (1996, Mainframe)', JSON.stringify([r.order, r.joins, r.line]));
+  eq('…and the preview reads as the line does', r.preview, '|Director| (|Year|, |Studio|)');
+  check('a fact not given takes the words before it with it, or the first one those after it',
+        JSON.stringify(r.gaps) === JSON.stringify(['1996, Mainframe)', '1996)', '']), JSON.stringify(r.gaps));
+  check('a field added goes in after a comma, before the words that end the line; one taken out takes its words',
+        JSON.stringify(r.added) === JSON.stringify(['', ' (', ', ', ', ', ')']) &&
+        JSON.stringify(r.dropped) === JSON.stringify(['', ' (', ', ', ')']) &&
+        JSON.stringify(r.dropFirst) === JSON.stringify(['', ', ', ')']), JSON.stringify([r.added, r.dropped, r.dropFirst]));
+  check('words that only say what the commas say are not kept in the file', r.schema);
+  });
+
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
