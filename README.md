@@ -210,6 +210,10 @@ on the site it is a reader unless the service says otherwise.
 
 ### Setting up the write service
 
+To run a copy of your own — your site, your chart, your keys — follow
+[DISTRIBUTING.md](DISTRIBUTING.md), which puts the steps below in order for
+a fork.
+
 Done once. Until it is, `api` in `src/app/00-config.js` points at nothing
 and the site is read-only for everybody, the owner included.
 

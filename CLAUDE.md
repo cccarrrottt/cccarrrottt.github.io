@@ -714,7 +714,7 @@ and one scenario is twenty seconds.
 - A message containing **"код 1"** means: run a full review → critique →
   optimise cycle over the codebase.
 - Deliverable archives keep the split-source layout (`src/`, `dist/`, `tests/`,
-  `tools/`, `build.py`, `README.md`, `CHANGELOG.md`, `package.json`,
+  `tools/`, `build.py`, `README.md`, `DISTRIBUTING.md`, `CHANGELOG.md`, `package.json`,
   `eslint.config.mjs`).
 - Every version bump touches four places: `APP_VERSION` and `VERSION_LOG` in
   `src/app/20-about.js`, `CHANGELOG.md`, `README.md`, `package.json`. The
