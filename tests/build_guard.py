@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -415,7 +416,17 @@ def main():
           f'{len(cut(inlined))} chars against {len(cut(built))}')
     check('beside the files src/site/ holds, the preview picture among them',
           all((tmp / 'dist' / 'site' / f.name).read_bytes() == f.read_bytes()
-              for f in (tmp / 'src' / 'site').iterdir()) and (tmp / 'dist' / 'site' / 'og-image.png').exists())
+              for f in (tmp / 'src' / 'site').iterdir() if f.name != 'manifest.webmanifest')
+          and (tmp / 'dist' / 'site' / 'og-image.png').exists())
+    # The chart as data beside the page: the file Save commits, but for the
+    # address of its schema, which is the site's own.
+    published = (tmp / 'dist' / 'site' / 'chart.json')
+    own = (tmp / 'src' / 'chart.json').read_text(encoding='utf-8')
+    check('and the chart itself, as data, at <site>/chart.json',
+          published.exists() and json.loads(published.read_text(encoding='utf-8'))['nodes'] == json.loads(own)['nodes']
+          and json.loads(published.read_text(encoding='utf-8'))['$schema'] == built_by.site_origin() + '/chart.schema.json')
+    check('which the page names as where its data is',
+          '<link rel="alternate" type="application/json" href="chart.json">' in site[:site.index('<!-- @@PAGE:BEGIN@@ -->')])
     og = ['og:title', 'og:description', 'og:image', 'og:url', 'twitter:card']
     check('the site says what a link to it is, for a chat to show',
           all(f'"{k}"' in site[:site.index('<!-- @@PAGE:BEGIN@@ -->')] for k in og)
@@ -440,8 +451,9 @@ def main():
           bool(handlers) and all(
               "'sha256-" + base64.b64encode(hashlib.sha256(h.replace('&#39;', "'").encode()).digest()).decode() + "'" in pol
               for h in handlers), handlers)
-    check('and it lets requests go to the write service',
-          built_by.site_config()['api'].rstrip('/') in pol.split('connect-src')[1].split(';')[0])
+    api = built_by.site_config()['api'].rstrip('/')
+    check('and it lets requests go to the write service, when there is one',
+          (api in pol.split('connect-src')[1].split(';')[0]) if api else "connect-src 'self' https://" in pol, pol)
     check('only the site has one: not the single page, nor an export cut from it',
           'Content-Security-Policy' not in built and 'Content-Security-Policy' not in cut(site))
 
@@ -506,11 +518,19 @@ def main():
                              (ROOT / 'src' / 'app' / '00-config.js').read_text(encoding='utf-8'), re.M))
     wrangler = dict(re.findall(r'^(\w+) = "([^"]*)"', (ROOT / 'worker' / 'wrangler.toml').read_text(encoding='utf-8'), re.M))
     check('the config says site, api and repo', all(k in config for k in ('site', 'api', 'repo')), str(config))
-    check('the write service is deployed for the repository the config names',
-          wrangler.get('REPO') == config.get('repo'), f"{wrangler.get('REPO')} vs {config.get('repo')}")
-    check('and lets in the site the config names',
-          config.get('site') in [o.strip() for o in wrangler.get('ALLOWED_ORIGINS', '').split(',')],
-          f"{wrangler.get('ALLOWED_ORIGINS')} vs {config.get('site')}")
+    # A copy with no write service (api empty) is read-only for everybody
+    # and deploys nothing, so what wrangler.toml says is nobody's business.
+    # The service lets in an ORIGIN: a site under a path is let in by the
+    # origin it is under, which is all a browser tells the service.
+    site_at = urllib.parse.urlsplit(config.get('site', ''))
+    if config.get('api'):
+        check('the write service is deployed for the repository the config names',
+              wrangler.get('REPO') == config.get('repo'), f"{wrangler.get('REPO')} vs {config.get('repo')}")
+        check('and lets in the site the config names',
+              f'{site_at.scheme}://{site_at.netloc}' in [o.strip() for o in wrangler.get('ALLOWED_ORIGINS', '').split(',')],
+              f"{wrangler.get('ALLOWED_ORIGINS')} vs {config.get('site')}")
+    else:
+        check('with no write service in the config, there is no service to agree with', True)
 
     # And everything the build writes about where it lives follows the
     # config: another address there is another address in the link preview,
@@ -534,6 +554,58 @@ def main():
           '"$id": "https://example.org/chart.schema.json"' in schema, schema[:300])
     check('and the one the program asks',
           "site: 'https://example.org'" in nexus and f"site: '{old_site}'" not in nexus)
+    # A repository Pages serves under a path: the site is the address with
+    # it, everywhere the build writes one, and the page is told the same.
+    part.write_text(text.replace(f"site: '{old_site}'", "site: 'https://example.org/charts/'"), encoding='utf-8')
+    r = run(tmp)
+    site_page = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    schema = (tmp / 'dist' / 'site' / 'chart.schema.json').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    data = (tmp / 'dist' / 'site' / 'chart.json').read_text(encoding='utf-8') if r.returncode == 0 else '{}'
+    check('a site under a path is named with it, and with one slash, in the preview',
+          'og:url" content="https://example.org/charts/"' in site_page
+          and 'og:image" content="https://example.org/charts/og-image.png"' in site_page, r.stdout + r.stderr)
+    check('and in the schema and the chart published beside it',
+          '"$id": "https://example.org/charts/chart.schema.json"' in schema
+          and json.loads(data).get('$schema') == 'https://example.org/charts/chart.schema.json')
+    # No write service at all: the build makes the same site, read-only for
+    # everybody, and its policy names no service.
+    part.write_text(re.sub(r"api: '[^']*'", "api: ''", text), encoding='utf-8')
+    r = run(tmp)
+    site_page = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    check('a config with no write service builds a site whose policy names none',
+          r.returncode == 0 and "connect-src 'self' https://api.github.com" in site_page, r.stdout + r.stderr)
+    part.write_text(text, encoding='utf-8')
+
+    # What the chart is called and says it is comes from the chart
+    # (settings.title, settings.description), not from the platform: the
+    # tab, the link preview and the app a phone keeps all follow it.
+    chart_file = tmp / 'src' / 'chart.json'
+    chart_text = chart_file.read_text(encoding='utf-8')
+    ch = json.loads(chart_text)
+    ch['settings'] = dict(ch.get('settings') or {}, title='A <Map> of Rivers', description='Where the water goes.')
+    chart_file.write_text(json.dumps(ch), encoding='utf-8')
+    r = run(tmp)
+    site_page = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    nexus = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    manifest = json.loads((tmp / 'dist' / 'site' / 'manifest.webmanifest').read_text(encoding='utf-8')) if r.returncode == 0 else {}
+    check("the chart's name and sentence are what a link to the site shows",
+          'og:title" content="A &lt;Map&gt; of Rivers"' in site_page and 'og:description" content="Where the water goes."' in site_page
+          and 'Transformers' not in site_page[:site_page.index('<!-- @@PAGE:BEGIN@@ -->')], r.stdout + r.stderr)
+    check('and the title of the tab, in the site and the single page',
+          '<title>A &lt;Map&gt; of Rivers</title>' in site_page and '<title>A &lt;Map&gt; of Rivers</title>' in nexus)
+    check('and the name of the app a phone keeps',
+          manifest.get('name') == 'A <Map> of Rivers' and manifest.get('description') == 'Where the water goes.', str(manifest))
+    for k in ('title', 'description'):
+        ch['settings'].pop(k)
+    chart_file.write_text(json.dumps(ch), encoding='utf-8')
+    r = run(tmp)
+    site_page = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    head = site_page[:site_page.index('<!-- @@PAGE:BEGIN@@ -->')] if site_page else ''
+    check('a chart that names nothing is called by the platform\'s name, and says no sentence',
+          'og:title" content="Rhizome Project"' in head and 'og:description' not in head
+          and 'name="description"' not in head, r.stdout + r.stderr)
+    chart_file.write_text(chart_text, encoding='utf-8')
+
     part.write_text(text.replace("site: '", "site: \"").replace(f"{old_site}',", f'{old_site}",'), encoding='utf-8')
     r = run(tmp)
     check('a config the build cannot read stops it and says which file',

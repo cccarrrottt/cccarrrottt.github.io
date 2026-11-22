@@ -293,8 +293,28 @@ def site_config():
 
 
 def site_origin():
-    """The published site's address, as the program names it."""
-    return site_config()['site']
+    """The published site's address, as the program names it: an origin, or
+    an origin and a path when Pages serves the repository under one
+    (https://<login>.github.io/<repo>). Never with the slash after it, so
+    every address below it is written base + '/' + name."""
+    return site_config()['site'].rstrip('/')
+
+
+def chart_words():
+    """What the chart is called and says it is: settings.title and
+    settings.description in src/chart.json, which the owner writes in About
+    (showChartWords, src/app/20-about.js). They used to be constants here,
+    a sentence about Transformers continuity that every copy of the
+    platform published as its own until somebody found it. Absent, the
+    platform's name, and no sentence."""
+    try:
+        settings = json.loads(read(SRC / 'chart.json')).get('settings') or {}
+    except (ValueError, AttributeError):
+        settings = {}
+    def word(key):
+        v = settings.get(key) if isinstance(settings, dict) else None
+        return v.strip() if isinstance(v, str) else ''
+    return word('title') or APP_NAME, word('description')
 
 
 # The esbuild that minifies the site's program and stylesheet is pinned in
@@ -583,22 +603,26 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
                f'{chart}\n'
                f'<script src="{names["app"]}" data-inline></script>\n{PAGE_END}\n')
     origin = site_origin()
+    title, description = chart_words()
+    said = (f'<meta name="description" content="{html_attr(description)}">\n'
+            f'<meta property="og:description" content="{html_attr(description)}">\n') if description else ''
     # What a link to the site shows when it is pasted into a chat. Only the
     # site's own document says it: an exported copy is cut out between the
-    # markers and is nobody's address.
+    # markers and is nobody's address. Beside it, where the chart can be had
+    # as data (chart.json, published below).
     preview = (
         site_policy(content, bool(analytics_beacon()))
         + f'<meta name="{SHA_META}" content="{data_sha}">\n'
-        f'<meta name="description" content="{html_attr(OG_DESCRIPTION)}">\n'
         '<meta property="og:type" content="website">\n'
-        f'<meta property="og:site_name" content="{html_attr(OG_TITLE)}">\n'
-        f'<meta property="og:title" content="{html_attr(OG_TITLE)}">\n'
-        f'<meta property="og:description" content="{html_attr(OG_DESCRIPTION)}">\n'
+        f'<meta property="og:site_name" content="{html_attr(title)}">\n'
+        f'<meta property="og:title" content="{html_attr(title)}">\n'
+        + said +
         f'<meta property="og:url" content="{origin}/">\n'
         f'<meta property="og:image" content="{origin}/{OG_IMAGE}">\n'
         '<meta property="og:image:width" content="1200">\n'
         '<meta property="og:image:height" content="630">\n'
         '<meta name="twitter:card" content="summary_large_image">\n'
+        '<link rel="alternate" type="application/json" href="chart.json">\n'
         + analytics_beacon())
     page = wrap(content, preview)
     (out / 'index.html').write_text(page, encoding='utf-8')
@@ -612,8 +636,26 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
                             lambda m: m.group(1) + origin + m.group(2),
                             read(f), count=1)
             (out / f.name).write_text(schema, encoding='utf-8')
+        elif f.name == 'manifest.webmanifest':
+            # The app a phone keeps is called what the chart is.
+            manifest = json.loads(read(f))
+            manifest['name'] = title
+            if description:
+                manifest['description'] = description
+            else:
+                manifest.pop('description', None)
+            (out / f.name).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
         elif f.is_file():
             shutil.copyfile(f, out / f.name)
+    # The chart as data, at <site>/chart.json, for anyone who would rather
+    # read it than look at it: the file Save commits, named against the
+    # schema published beside it. Pages answers every origin
+    # (Access-Control-Allow-Origin: *), so a script elsewhere can fetch it,
+    # and a picture it names by path is a file beside it, as on the page.
+    published = re.sub(r'("\$schema":\s*")[^"]*(/chart\.schema\.json")',
+                       lambda m: m.group(1) + origin + m.group(2),
+                       read(SRC / 'chart.json'), count=1)
+    (out / 'chart.json').write_text(published, encoding='utf-8')
     if not (out / OG_IMAGE).exists():
         sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')
     print(f'  dist/site/index.html   {len(page):>8,} chars, '
@@ -654,7 +696,7 @@ def site_policy(content, counted):
         "font-src 'self' data: https://fonts.gstatic.com",
         "img-src 'self' data: blob: https:",
         "media-src 'self' data: blob: https:",
-        f"connect-src 'self' {api} https://api.github.com https://fonts.googleapis.com"
+        f"connect-src 'self'{' ' + api if api else ''} https://api.github.com https://fonts.googleapis.com"
         " https://fonts.gstatic.com" + (' https://cloudflareinsights.com' if counted else ''),
         "object-src 'none'",
         "base-uri 'none'",
@@ -689,8 +731,9 @@ def analytics_beacon():
             f' data-cf-beacon=\'{{"token": "{token}"}}\'></script>\n')
 
 
-OG_TITLE = 'Rhizome Project'
-OG_DESCRIPTION = 'A cartography of crossed realities: an interactive chart of Transformers continuity.'
+# The platform's name, which a chart that names itself nothing is called by
+# (APP_NAME in src/app/20-about.js says the same).
+APP_NAME = 'Rhizome Project'
 OG_IMAGE = 'og-image.png'
 
 
@@ -729,6 +772,10 @@ def build():
     # element the parser is inside <head> and keeps it.
     charset = '<meta charset="utf-8">'
     head_rest = head[len(charset):].lstrip('\n') if head.startswith(charset) else head
+    # The tab says what the chart is called; the program says it again once
+    # it runs (showChartWords), for a chart imported or renamed since.
+    head_rest = re.sub(r'<title>[^<]*</title>', lambda m: f'<title>{html.escape(chart_words()[0], quote=False)}</title>',
+                       head_rest, count=1)
     page = (f'{charset}\n{PAGE_BEGIN}\n{head_rest}\n\n<style>{css}</style>{body}\n\n'
             f'{chart}\n<script>\n{app_js}</script>\n{PAGE_END}\n')
 

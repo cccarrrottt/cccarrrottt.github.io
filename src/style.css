@@ -2408,6 +2408,19 @@
     font-size:13px;line-height:1.65;color:var(--ink-dim);margin:0 0 12px;
   }
   .about-body p:last-child{margin-bottom:0;}
+  /* The chart's own words, and the owner's fields for them (showChartWords,
+     20-about.js). A reader has nothing to fill in. */
+  .about-chart-title{font-size:15px;font-weight:600;color:var(--ink);margin:0 0 8px;}
+  .about-chart-text{font-size:13px;line-height:1.65;color:var(--ink-dim);margin:0 0 12px;}
+  .about-chart-text p{margin:0 0 8px;}
+  .about-chart:empty{display:none;}
+  .about-chart-edit{margin:0 0 14px;font-size:12.5px;color:var(--ink-dim);}
+  .about-chart-edit summary{cursor:pointer;margin-bottom:6px;}
+  .about-chart-edit label{display:flex;flex-direction:column;gap:3px;margin:0 0 8px;}
+  .about-chart-edit input, .about-chart-edit textarea{font:inherit;font-size:13px;color:var(--ink);
+    background:transparent;border:1px solid var(--line);border-radius:4px;padding:5px 7px;resize:vertical;}
+  .about-body p.about-chart-hint{font-size:11.5px;line-height:1.5;margin:0;}
+  body.read-only .about-chart-edit{display:none;}
   /* A comment read at full size. The card's own type, so the note looks
      like a page rather than like a widened form field, and the figures get
      the whole column. */

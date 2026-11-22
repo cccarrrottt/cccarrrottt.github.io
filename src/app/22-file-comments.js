@@ -258,7 +258,7 @@ function chartJsonOf(text){
   const settings = Object.assign({}, c.settings || {});
   delete settings.format;
   return {
-    $schema: SITE_ORIGINS[0] + '/chart.schema.json',
+    $schema: SITE_BASE + '/chart.schema.json',
     format: DATA_FORMAT,
     nodes: (c.nodes || []).map(it=> recordOfEntry(entryOfRecord(it))),
     edgeStyles: c.edgeStyles || [], stickers: c.stickers || [], media: c.media || [],
@@ -355,6 +355,13 @@ function importChartFromText(text){
     if(fontsIn.length) SETTINGS.fonts = fontsIn; else delete SETTINGS.fonts;
     ['legendNames', 'legendHidden', 'legendAdded', 'legendOwn', 'legendIcons'].forEach(k=>{
       if(rowsIn[k]) SETTINGS[k] = rowsIn[k]; else delete SETTINGS[k];
+    });
+    /* What the chart is called and says it is (showChartWords,
+       20-about.js): the chart's, so a file that names none is not given
+       the name of the chart it replaced. */
+    ['title', 'description', 'about'].forEach(k=>{
+      const v = settingsIn && typeof settingsIn[k] === 'string' ? settingsIn[k] : '';
+      if(v.trim()) SETTINGS[k] = v; else delete SETTINGS[k];
     });
     // Last, so a step that adds an entry adds it to the chart coming in.
     migrateChart(chartFormatOf(settingsIn));

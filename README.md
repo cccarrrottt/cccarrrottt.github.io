@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.26.5** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.27.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -164,6 +164,9 @@ rather than 2.5 — and the program takes that drawing away as it draws its
 own; an export leaves it out. The site is
 <https://cccarrrottt.github.io>, which is what naming the repository after
 the account buys: a page served at the bare address rather than under a path.
+A copy published from a repository with any other name lives under one,
+`https://<login>.github.io/<repo>`, and works there the same: `site` in
+`src/app/00-config.js` is that address, path and all.
 The source of that site must stay **GitHub Actions** (Settings → Pages →
 Build and deployment). Set to a branch instead, Pages renders `README.md`
 through Jekyll and serves that — a site that builds perfectly and is not the
@@ -369,10 +372,20 @@ In `src/chart.json`, one item to a line:
 ```
 
 with `format`, the form its entries are written in, at the top, and
-`$schema` naming `chart.schema.json`, which describes all of it. **Save**
+`$schema` naming `chart.schema.json`, which describes all of it. What the
+chart is called, the sentence a link to it shows and the text at the top of
+About are the chart's too (`settings.title`, `settings.description`,
+`settings.about`), written in About by the owner; the build puts the first
+two into the site's link preview and the app's name. **Save**
 on the published site commits the file to the repository through the write
 service, so the repository is current by construction, and a build makes the
 page from `src/` and nothing else.
+
+The site publishes it, too, beside the page: `<site>/chart.json` is the
+same file, naming the schema published beside it, for anyone who would
+rather read the chart than look at it. Pages answers a request for it from
+any origin, so a script elsewhere can fetch it; a picture it names by path
+(`media/<sha256>.<ext>`) is a file beside it as well.
 
 The build puts the file into the page as JSON in a script element a browser
 does not run, and the program reads it with `JSON.parse`. Until 0.23.0 the
@@ -813,7 +826,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 165 named scenarios, and they are independent of one
+The browser suite is 166 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
