@@ -17741,6 +17741,115 @@ async function main(){
         r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
         JSON.stringify(r.calls));
   });
+  await scenario("a carry and a pick ask the layout nothing they already know", async () => {
+  /* A connector's note asked the browser for its face and for where its
+     letters stand as soon as it was drawn, and every such question in the
+     middle of a redraw laid the whole page out again; a tap that picked
+     an entry set two fields writable to what they already were, which
+     restyled the page twice; and a drop drew the connectors twice over
+     (the owner's report, 22.11). What is checked: the answers are the
+     ones the layout gives, and the questions are not asked again. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    try{
+      applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+        for(let i = 0; i < 12; i++) workingNodes.push(['lq' + i, i % 3 ? 'Entry ' + i : '**Bold** and *it* ' + i,
+          i ? 'lq' + (i - 1) : null, null, null, null, {pos: [(i % 4) * 220, Math.floor(i / 4) * 160]}]);
+        EDGE_STYLES.push({from:'lq0', to:'lq1', note:'along the line', noteAlong:true});
+        EDGE_STYLES.push({from:'lq1', to:'lq2', note:'on it', noteAlong:true, notePos:'on'});
+        EDGE_STYLES.push({from:'lq2', to:'lq3', note:'a level **note**'});
+        EDGE_STYLES.push({from:'lq4', to:'lq5', note:'below *it*', notePos:'below'});
+        EDGE_STYLES.push({from:'lq5', to:'lq6', note:'גבע mixed', noteAlong:true});
+      });
+      await wait(200);
+      /* Every run's box, as inkBoxOf gives it and as the layout does. */
+      const legacy = (txtEl)=>{
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for(const ts of txtEl.querySelectorAll('tspan')){
+          const s = ts.textContent || ''; if(!s.trim()) continue;
+          const p = ts.getStartPositionOfChar(0), cs = getComputedStyle(ts);
+          inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${parseFloat(cs.fontSize) * INK_SCALE}px ${cs.fontFamily}`;
+          const m = inkCtx.measureText(s);
+          x0 = Math.min(x0, p.x - m.actualBoundingBoxLeft / INK_SCALE); y0 = Math.min(y0, p.y - m.actualBoundingBoxAscent / INK_SCALE);
+          x1 = Math.max(x1, p.x + m.actualBoundingBoxRight / INK_SCALE); y1 = Math.max(y1, p.y + m.actualBoundingBoxDescent / INK_SCALE);
+        }
+        return x1 >= x0 ? {x: x0, y: y0, width: x1 - x0, height: y1 - y0} : null;
+      };
+      const texts = [...document.querySelectorAll('#viewport text')].filter(t=> t.querySelector('tspan[x][y]'));
+      let worst = 0;
+      texts.forEach(t=>{
+        const a = inkBoxOf(t), b = legacy(t);
+        if(!a || !b) return;
+        worst = Math.max(worst, ...['x', 'y', 'width', 'height'].map(k=> Math.abs(a[k] - b[k])));
+      });
+      out.texts = texts.length; out.worst = worst;
+      /* The along notes: their length against the layout's, now. */
+      out.lengths = [...document.querySelectorAll('text.edge-note-along')].map(t=>
+        Math.abs(noteAlongMeasure(t.textContent, t).len - t.getComputedTextLength()) < 1e-9);
+      /* A redraw with the measures remembered is the drawing a redraw with
+         none remembered makes. */
+      /* Written with each element's attributes in order of name: a plate
+         kept from the pass before has them in the order they were first
+         set, and that is not a difference anyone can see. */
+      const markup = e=> e.nodeType !== 1 ? e.textContent :
+        '<' + e.tagName + [...e.attributes].map(a=> ' ' + a.name + '="' + a.value + '"').sort().join('') + '>' +
+        [...e.childNodes].map(markup).join('') + '</>';
+      const notes = ()=> [...arrowLayer.querySelectorAll('.edge-note')].map(g=> markup(g).replace(/note-along-\d+/g, 'n')).join('|');
+      redrawEdges(); const warm = notes();
+      faceCache.clear(); noteAlongCache.clear(); redrawEdges(); const cold = notes();
+      out.sameDrawing = warm === cold && warm.length > 200; out.drawn = warm.length;
+      /* And asks the layout nothing about them. */
+      const T = SVGTextContentElement.prototype, asked = {style: 0, start: 0, length: 0};
+      const was = {gcs: window.getComputedStyle, start: T.getStartPositionOfChar, len: T.getComputedTextLength};
+      window.getComputedStyle = function(...a){ if(a[0] && a[0].closest && a[0].closest('.edge-note')) asked.style++; return was.gcs.apply(this, a); };
+      T.getStartPositionOfChar = function(...a){ if(this.closest('.edge-note')) asked.start++; return was.start.apply(this, a); };
+      T.getComputedTextLength = function(...a){ if(this.closest('.edge-note')) asked.length++; return was.len.apply(this, a); };
+      try{ redrawEdges(); } finally { window.getComputedStyle = was.gcs; T.getStartPositionOfChar = was.start; T.getComputedTextLength = was.len; }
+      out.asked = asked;
+      /* Picking entries one after another leaves the fields that are
+         already as they should be alone. */
+      const seen = [];
+      const mo = new MutationObserver(list=> list.forEach(m=> seen.push(m.target.className)));
+      /* The first pick may lock what nothing picked left open; that is a
+         change. The ones after it find everything as they want it. */
+      deselect(); toggleInSelection('lq0'); await wait(30);
+      mo.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['contenteditable']});
+      ['lq3', 'lq7', 'lq9', 'lq10'].forEach(id=> toggleInSelection(id));
+      await wait(50);
+      mo.disconnect();
+      out.editableWrites = seen.length;
+      /* A drop after a frame still owed draws the connectors once before
+         the rebuild, not twice. */
+      const g = document.querySelector('.node[data-id="lq9"]');
+      const b = g.getBoundingClientRect(), sx = b.x + b.width/2, sy = b.y + b.height/2;
+      g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
+      for(let k = 1; k <= 4; k++){ window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:sx + k*12, clientY:sy + k*8})); await wait(20); }
+      window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:sx + 64, clientY:sy + 40}));
+      out.owed = !!(dragRedrawFrame || dragRedrawTimer);
+      let draws = 0; const real = window.redrawEdges;
+      window.redrawEdges = function(...a){ draws++; return real.apply(this, a); };
+      try{ window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true})); } finally { window.redrawEdges = real; }
+      out.dropDraws = draws;
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      deselect();
+    }
+    return out;
+  });
+  check('a note\'s ink is measured where the layout puts its letters, without asking it',
+        r.texts >= 10 && r.worst < 1e-6, JSON.stringify({texts: r.texts, worst: r.worst}));
+  check('a note along its line has the length the layout gives it',
+        r.lengths.length >= 3 && r.lengths.every(Boolean), JSON.stringify(r.lengths));
+  check('remembered, the notes are drawn as they are with nothing remembered', r.sameDrawing, JSON.stringify(r.drawn));
+  check('and a redraw asks the layout nothing about them', !r.asked.style && !r.asked.start && !r.asked.length, JSON.stringify(r.asked));
+  check('picking entry after entry sets no field writable that already was', r.editableWrites === 0, String(r.editableWrites));
+  check('a drop with a frame still owed draws the connectors once before the rebuild',
+        r.owed && r.dropDraws === 2, JSON.stringify({owed: r.owed, draws: r.dropDraws}));
+  });
   await scenario("an edit redraws only the entries it changed", async () => {
   /* Every entry is still drawn each pass, and one whose drawing comes out
      as it was keeps the drawing it had (drawOrKeep). Two claims, checked:

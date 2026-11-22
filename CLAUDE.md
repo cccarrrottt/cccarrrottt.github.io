@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 161 named scenarios, and they do not depend on one another —
+The suite is 162 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -632,6 +632,40 @@ What is left before the first entry is `renderNodes` (~1.8 s at 400), and
 three quarters of that is measuring text with the cache cold. The side
 tabs (~75 ms) and the text view (~30 ms) also run at start-up; putting them
 off would save a thirtieth, so they are left where they are.
+
+### What a phone pays to pick many entries and carry them
+
+`tools/` has no bench for it; it was measured on the owner's chart at
+390×844, CPU ×4, picking entry after entry and carrying them (22.11):
+
+| | before | after |
+| --- | ---: | ---: |
+| a connectors' redraw in a carry | ~44 ms | ~30 ms |
+| a tap that adds to the pick | ~10 ms | ~4.6 ms |
+| a drop, in script | ~282 ms | ~226 ms |
+| of which `redrawEdges` | 146 ms, 3 calls | 73 ms, 2 calls |
+
+Three things, none of them drawing:
+
+- **A connector's note asked the layout its face and where its letters
+  stand** (`getComputedStyle`, `getStartPositionOfChar`,
+  `getComputedTextLength`) while the connectors were being drawn, and each
+  question laid out everything drawn so far. The face is now remembered by
+  what decides it (`faceOf`, `05-render-text.js`: the element's and its
+  ancestors' attributes but those that only place it), a level run's start
+  is its own `x`/`y` where nothing can move it, and a note along its line
+  remembers its length, which is the words' advance whatever the path
+  (`noteAlongMeasure`, `11-edge-notes.js`). `fontsLanded` forgets both.
+- **Setting `contentEditable` restyles the page even to the value it has**,
+  and every pick set two fields. `setEditable` (`24-rich-fields.js`) sets
+  only a change.
+- **A drop drew the connectors twice in a row**: the frame the carry still
+  owed, then the pass that prunes hand bends. The owed frame is drawn only
+  for a carry that came back to where it started.
+
+Moving the connectors inside a carried group by translation instead of
+routing them again was looked at and left: their masks and gradients are
+named by entry and by pass, and the hops are worked out from every route.
 
 ### What one edit costs, and the routes it no longer recomputes
 

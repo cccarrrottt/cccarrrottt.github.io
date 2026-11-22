@@ -548,6 +548,16 @@ function wordInReadingOnly(surface){
     sel.removeAllRanges(); sel.addRange(r);
   });
 }
+/* A field made writable or not, only when that changes.
+ *
+ * Setting contentEditable makes the browser style the whole page before
+ * it returns, even to the value it already has — and selecting an entry
+ * set two fields to what they already were, so every tap that added an
+ * entry to a selection on a phone paid for a full restyle twice (the
+ * owner's report, 22.11). */
+function setEditable(el, value){
+  if(el && el.getAttribute('contenteditable') !== value) el.contentEditable = value;
+}
 function makeRichField(textarea){
   if(!textarea || richFields.has(textarea.id)) return;
   /* If a surface is already sitting beside this textarea, that is one this
