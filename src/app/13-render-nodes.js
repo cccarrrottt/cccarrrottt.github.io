@@ -2280,6 +2280,18 @@ const drawOne = (n)=>{
     const t = el('text', {class:'nsfw-mark', x: cx.toFixed(2), y: (cy + r*0.27).toFixed(2),
                           'font-size': (r*0.78).toFixed(2), 'text-anchor':'middle'}, veil);
     t.textContent = '18+';
+    /* …and its scenery and ground with it, which stand in layers of their
+       own where the entry's class cannot reach them: an echo or a weave
+       left sharp round a blurred box showed the shape of what was hidden
+       (the owner, 22.11). Only this pass's pieces — a kept drawing's aura
+       has its data-id renamed while this one is drawn (drawOrKeep). */
+    const scenery = [...auraLayer.querySelectorAll(`.node-aura[data-id="${CSS.escape(n.id)}"]`)];
+    if(groundHost) scenery.push(groundHost);
+    scenery.forEach(piece=>{
+      piece.classList.add('nsfw-scenery');
+      piece.setAttribute('data-nsfw', n.id);
+      if(nsfwOpen.has(n.id)) piece.classList.add('nsfw-open');
+    });
   }
 
   /* A tag that DOES something to its entry says so when you look at the

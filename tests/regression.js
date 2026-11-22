@@ -25062,12 +25062,18 @@ async function main(){
     const X = 9600, Y = 9600, out = {};
     try {
       applyEdit(()=>{
-        workingNodes.push(['nsA', 'Veiled', null, null, null, null, {pos:[X, Y], tags:['NSFW'], size:[200, 80]}]);
+        workingNodes.push(['nsA', 'Veiled', null, null, null, null, {pos:[X, Y], tags:['NSFW', HUB_TAG, FANFIC_TAG], size:[200, 80]}]);
         workingNodes.push(['nsB', 'Plain', null, null, null, null, {pos:[X + 320, Y]}]);
       });
       vs = 1; vx = -(X - 200); vy = -(Y - 200); applyTransform(); deselect();
       await wait(100);
       const g = ()=> document.querySelector('.node[data-id="nsA"]');
+      // The echo and the weave stand in layers of their own (the owner, 22.11).
+      const sceneryBlur = ()=>{
+        const p = [document.querySelector('#auraLayer .node-aura[data-id="nsA"]'),
+                   document.querySelector('[data-ground="nsA"]')];
+        return p.every(Boolean) ? p.map(e=> getComputedStyle(e).filter.includes('nsfw-blur')) : 'missing';
+      };
       const look = ()=>{
         const veil = g().querySelector('.nsfw-veil'), disc = g().querySelector('.nsfw-disc');
         const d = disc.getBoundingClientRect(), b = g().querySelector('rect').getBoundingClientRect();
@@ -25075,6 +25081,7 @@ async function main(){
         return {op: +getComputedStyle(veil).opacity, shown: getComputedStyle(veil).display !== 'none',
                 hits: getComputedStyle(veil).pointerEvents !== 'none',
                 blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
+                scenery: sceneryBlur(),
                 tall: +(d.height + sw).toFixed(1), boxH: +nodes.get('nsA').h.toFixed(1),
                 mid: Math.abs((d.left + d.right)/2 - (b.left + b.right)/2) < 1 && Math.abs((d.top + d.bottom)/2 - (b.top + b.bottom)/2) < 1,
                 plain: !document.querySelector('.node[data-id="nsB"] .nsfw-veil')};
@@ -25089,13 +25096,14 @@ async function main(){
       await wait(80);
       out.lifted = {open: g().classList.contains('nsfw-open'), selected: selectedId,
                     blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
+                    scenery: sceneryBlur(),
                     shown: getComputedStyle(g().querySelector('.nsfw-veil')).display !== 'none'};
       g().dispatchEvent(new MouseEvent('click', at));
       await wait(450);
       out.second = selectedId;
       vx -= 4000; applyTransform(); vx += 4000; applyTransform();
       await wait(50);
-      out.back = {open: g().classList.contains('nsfw-open'), selected: selectedId, blur: look().blur};
+      out.back = {open: g().classList.contains('nsfw-open'), selected: selectedId, blur: look().blur, scenery: sceneryBlur()};
       setReaderPreview(false);
       await wait(150);
     } finally {
@@ -25105,13 +25113,13 @@ async function main(){
     return out;
   });
   check('to the author the 18+ badge is as faint as a hidden entry, and in nobody\'s way',
-        r.edit.op === 0.1 && !r.edit.hits && !r.edit.blur && r.edit.plain, JSON.stringify(r.edit));
-  check('to a reader the badge is whole, as tall as the entry, over its middle, and the entry is blurred',
-        r.read.op === 1 && r.read.hits && r.read.blur && Math.abs(r.read.tall - r.read.boxH) < 1 && r.read.mid, JSON.stringify(r.read));
-  check('one press lifts the veil and does nothing else', r.lifted.open && !r.lifted.blur && !r.lifted.shown && r.lifted.selected == null,
+        r.edit.op === 0.1 && !r.edit.hits && !r.edit.blur && r.edit.plain && String(r.edit.scenery) === 'false,false', JSON.stringify(r.edit));
+  check('to a reader the badge is whole, as tall as the entry, over its middle, and the entry and its scenery are blurred',
+        r.read.op === 1 && r.read.hits && r.read.blur && String(r.read.scenery) === 'true,true' && Math.abs(r.read.tall - r.read.boxH) < 1 && r.read.mid, JSON.stringify(r.read));
+  check('one press lifts the veil and does nothing else', r.lifted.open && !r.lifted.blur && String(r.lifted.scenery) === 'false,false' && !r.lifted.shown && r.lifted.selected == null,
         JSON.stringify(r.lifted));
   check('…and the entry is then picked as any other', r.second === 'nsA', String(r.second));
-  check('out of sight and back, it is veiled again and let go', !r.back.open && r.back.blur && r.back.selected == null, JSON.stringify(r.back));
+  check('out of sight and back, it is veiled again and let go', !r.back.open && r.back.blur && String(r.back.scenery) === 'true,true' && r.back.selected == null, JSON.stringify(r.back));
   });
 
   await scenario("the arrow keys: a step of the grid, and a walk along the lines", async () => {

@@ -236,9 +236,13 @@ function computeBounds(){
 /* A lifted veil lasts while its entry is in sight (see NSFW_TAG): an
    entry no part of which is in the view any more is veiled again. Asked
    on every move of the view, and only of the few entries lifted. */
+function nsfwPiecesOf(id){
+  return [...qNodes('.node.nsfw').filter(g=> g.dataset.id === id),
+          ...viewport.querySelectorAll(`.nsfw-scenery[data-nsfw="${CSS.escape(id)}"]`)];
+}
 function liftNsfwVeil(id){
   nsfwOpen.add(id);
-  qNodes('.node.nsfw').forEach(g=>{ if(g.dataset.id === id) g.classList.add('nsfw-open'); });
+  nsfwPiecesOf(id).forEach(p=> p.classList.add('nsfw-open'));
 }
 function veilWhatLeftView(){
   const W = svg.clientWidth, H = svg.clientHeight;
@@ -253,7 +257,7 @@ function veilWhatLeftView(){
        frame of the move rather than inside it, so a view moved at start-up
        never reaches the panels before they exist. */
     if(selectedId === id) setTimeout(()=>{ if(selectedId === id && !nsfwOpen.has(id)) deselect(); });
-    qNodes('.node.nsfw-open').forEach(g=>{ if(g.dataset.id === id) g.classList.remove('nsfw-open'); });
+    nsfwPiecesOf(id).forEach(p=> p.classList.remove('nsfw-open'));
   });
 }
 function applyTransform(){

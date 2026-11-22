@@ -21,7 +21,7 @@ const VERSION_LOG = [
 'Every + that adds something is the same drawn plus, centred in its square, rather than a typed character.',
 'The browser suite draws a chart of its own, tests/fixtures/chart.json, in place of the owner\'s, so a chart changed by Save, or a copy with a chart of its own, never turns a check red.',
 'The code of the page is under the MIT licence (LICENSE), and NOTICE says what it does not cover: the chart\'s own content, its franchises and brands, pictures, video and fonts, which belong to their owners. About says the same in a paragraph of its own.',
-'A special tag, NSFW, for an entry whose media are not for minors. A reader sees such an entry blurred under a round 18+ badge as tall as the entry; one press lifts the veil, and the entry can then be picked as any other. Once it is out of sight it is veiled again. To the author the badge is only as faint as a hidden entry.'
+'A special tag, NSFW, for an entry whose media are not for minors. A reader sees such an entry, its scenery and its ground lightly blurred under a round 18+ badge as tall as the entry; one press lifts the veil, and the entry can then be picked as any other. Once it is out of sight it is veiled again. To the author the badge is only as faint as a hidden entry.'
   ]},
   {v:'0.26.2', date:'2026-11-20', title:'From the drives', notes:[
 'An entry\'s words are written the way a note\'s are: Enter starts a new line, and the field is let go of with a click anywhere else, with Escape, with Ctrl+Enter or with the ✓ on its toolbar, which a desk now has too. The field has no frame and no ground of its own: the words are typed straight onto the entry, its card, its figure or the note\'s plate, and the words drawn there step aside while they are being written.',

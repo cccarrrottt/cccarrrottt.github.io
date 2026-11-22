@@ -1679,6 +1679,7 @@
   .nsfw-mark{fill:#d0021b;font-family:'Big Shoulders Display',sans-serif;font-weight:800;}
   body.read-only .nsfw-veil{opacity:1;pointer-events:auto;cursor:pointer;}
   body.read-only .node.nsfw:not(.nsfw-open) > :not(.nsfw-veil){filter:url(#nsfw-blur);}
+  body.read-only .nsfw-scenery:not(.nsfw-open){filter:url(#nsfw-blur);}
   .node.nsfw-open .nsfw-veil{display:none;}
   .edge.struct.amalgam-through.tag-hidden:not(.lit){opacity:0 !important;}
   .tag-hidden *{pointer-events:none !important;}
