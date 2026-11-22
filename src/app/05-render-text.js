@@ -693,7 +693,8 @@ function autoNodeWidth(texts, fontSize, family, maxLines, maxWidth){
 const blockCache = new Map();
 const BLOCK_CACHE_MAX = 4000;
 function refOrderKey(){
-  let s = '';
+  /* …and how the numbers are written: (9) is not as wide as [9]. */
+  let s = refStyle() + '\u0001';
   for(let i = 0; i < REFS.length; i++) s += (REFS[i] && REFS[i].key) + '';
   return s;
 }

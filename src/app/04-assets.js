@@ -308,7 +308,7 @@ function refChipHtml(key){
 function refTitle(key){
   const i = refIndex(key);
   if(i < 0) return 'This reference no longer exists';
-  return refBodyText(REFS[i]) || `Reference [${i+1}]`;
+  return refBodyText(REFS[i]) || 'Reference ' + refNumberText(i+1);
 }
 /* One run list as editor HTML. inlineToHtml is this, applied to a whole
    label; a reading's two halves go through it as well, which is what makes

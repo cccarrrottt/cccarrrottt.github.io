@@ -324,6 +324,9 @@ function importChartFromText(text){
          replaced had been given. */
       SETTINGS.refColor = DEFAULT_REF_COLOR;
     }
+    // How its numbers are written belongs to the chart too.
+    if(settingsIn && REF_STYLES.includes(settingsIn.refStyle) && settingsIn.refStyle !== 'square') SETTINGS.refStyle = settingsIn.refStyle;
+    else delete SETTINGS.refStyle;
     /* The legend's words belong to the chart they describe: brought in
        with it, and not left over from the chart it replaced. */
     const legendIn = cleanLegend(settingsIn && settingsIn.legend);

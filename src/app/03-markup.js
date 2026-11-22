@@ -417,9 +417,22 @@ const DEFAULT_REF_COLOR = '#c23b22';
 function refColor(){
   return (SETTINGS && isHexColor(SETTINGS.refColor)) ? SETTINGS.refColor : DEFAULT_REF_COLOR;
 }
+/* How a citation's number is written (To do, item 4; the owner's list of
+   22.11): in square brackets, the default and the absence of the field;
+   in round ones; or bare, as a footnote's number. The same everywhere the
+   number is written — the chart, the References list, the editor's chip —
+   so all of them ask refNumberText. */
+const REF_STYLES = ['square', 'round', 'bare'];
+function refStyle(){
+  return (SETTINGS && REF_STYLES.includes(SETTINGS.refStyle)) ? SETTINGS.refStyle : 'square';
+}
+function refNumberText(num){
+  const st = refStyle();
+  return st === 'round' ? '(' + num + ')' : st === 'bare' ? String(num) : '[' + num + ']';
+}
 function refMarkText(key){
   const i = refIndex(key);
-  return i < 0 ? '[?]' : '[' + (i+1) + ']';
+  return refNumberText(i < 0 ? '?' : i + 1);
 }
 // A sticker draws as a square a little taller than the text it sits in,
 // so it reads as a glyph rather than as an illustration.

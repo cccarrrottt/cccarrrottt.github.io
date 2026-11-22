@@ -134,7 +134,7 @@ function buildRefsInto(host){
        reference written without one reading "(untitled)". */
     const body = refBodyText(r);
     row.innerHTML =
-      `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">[${i+1}]</span>` +
+      `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">${refNumberText(i+1)}</span>` +
       `<span class="ref-detail">${escapeHtml(body) || '<em>empty</em>'}</span>` +
       `<span class="ref-uses" title="How many texts cite this">${used}</span></div>` +
       (r.url ? `<a class="ref-link" href="${escapeHtml(safeUrl(r.url) || '')}" target="_blank" rel="noopener">${escapeHtml(r.url)}</a>` : '');
@@ -156,7 +156,7 @@ function buildRefsInto(host){
          one step per press, which is a poor way to say "third". */
       row.classList.add('draggable-row');
       row.title = 'Drag above or below another reference to renumber';
-      row.addEventListener('mousedown', ev=> beginListDrag(ev, 'ref', r.key, `[${i+1}]`));
+      row.addEventListener('mousedown', ev=> beginListDrag(ev, 'ref', r.key, refNumberText(i+1)));
     }
     host.appendChild(row);
   });
@@ -190,7 +190,7 @@ function buildNewRefRow(num){
   const row = document.createElement('div');
   row.className = 'ref-item ref-item-new';
   row.innerHTML =
-    `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">[${num}]</span>` +
+    `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">${refNumberText(num)}</span>` +
     `<span class="ref-detail ref-naming-text" contenteditable="plaintext-only" spellcheck="false"></span>` +
     `<span class="ref-uses">0</span></div>`;
   const box = row.querySelector('.ref-naming-text');
@@ -528,6 +528,19 @@ buildSideTabs();
       sync(); rebuildChart(); buildSideTabs();
     });
     sync();
+  }
+  /* …and how its numbers are written. The default is the absence of the
+     field, as the colour's is. */
+  const style = document.getElementById('refStyleSelect');
+  if(style){
+    style.value = refStyle();
+    style.addEventListener('click', ev=> ev.stopPropagation());
+    style.addEventListener('change', ()=>{
+      const v = REF_STYLES.includes(style.value) ? style.value : 'square';
+      applyEdit(()=>{ if(v === 'square') delete SETTINGS.refStyle; else SETTINGS.refStyle = v; });
+      rebuildChart();
+      buildSideTabs();
+    });
   }
 }
 

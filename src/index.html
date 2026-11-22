@@ -33,65 +33,68 @@
       <div class="mark">Rhizome<span>·</span>Project</div>
       <div class="sub">A cartography of crossed realities</div>
     </div>
-    <button class="icon-btn" id="gridToggle" title="Alignment grid — ruled in the same steps entries snap to">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><line x1="9.2" y1="3.5" x2="9.2" y2="20.5"/><line x1="14.8" y1="3.5" x2="14.8" y2="20.5"/><line x1="3.5" y1="9.2" x2="20.5" y2="9.2"/><line x1="3.5" y1="14.8" x2="20.5" y2="14.8"/></svg>
-    </button>
-    <button class="icon-btn" id="lodToggle" title="Patches from far away — past a point, entries are drawn as a patch per tag, then per category">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4.5 9.5c0-3 2.6-5 5.4-4.6 2 .3 2.4 1.7 4.3 1.6 2.4-.1 4.8 1.3 4.8 4 0 2.4-1.7 3.2-1.5 5.2.2 2.3-1.9 4-4.4 3.6-2-.3-2.6-1.8-4.6-1.6-2.6.2-4.9-1.3-5-3.8-.1-2.2 1-2.6 1-4.4z"/><circle cx="9.5" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13.5" r="1.3" fill="currentColor" stroke="none"/></svg>
-    </button>
+    <!-- The bar as the owner sketched it on 22.11: the view and the
+         panels on the left, the search, the counts and the account on the
+         right, and under it a thin row of the tools that change the chart. -->
     <button class="icon-btn" id="themeToggle" title="Dark background">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
     </button>
-    <button class="icon-btn" id="fileToggle" title="Export or import this chart as a file">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5.5M9.5 14.5 12 17l2.5-2.5"/></svg>
+    <!-- Two halves of one place: the alignment grid over the patches. -->
+    <div class="tb-stack">
+      <button class="icon-btn tb-half" id="gridToggle" title="Alignment grid — ruled in the same steps entries snap to">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><line x1="9.2" y1="3.5" x2="9.2" y2="20.5"/><line x1="14.8" y1="3.5" x2="14.8" y2="20.5"/><line x1="3.5" y1="9.2" x2="20.5" y2="9.2"/><line x1="3.5" y1="14.8" x2="20.5" y2="14.8"/></svg>
     </button>
-    <!-- My files (the owner's list of 19.11): the stickers, and every
-         picture and video the chart holds. -->
+      <button class="icon-btn tb-half" id="lodToggle" title="Patches from far away — past a point, entries are drawn as a patch per tag, then per category">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4.5 9.5c0-3 2.6-5 5.4-4.6 2 .3 2.4 1.7 4.3 1.6 2.4-.1 4.8 1.3 4.8 4 0 2.4-1.7 3.2-1.5 5.2.2 2.3-1.9 4-4.4 3.6-2-.3-2.6-1.8-4.6-1.6-2.6.2-4.9-1.3-5-3.8-.1-2.2 1-2.6 1-4.4z"/><circle cx="9.5" cy="11" r="1.3" fill="currentColor" stroke="none"/><circle cx="14.5" cy="13.5" r="1.3" fill="currentColor" stroke="none"/></svg>
+    </button>
+    </div>
+    <button class="icon-btn" id="minimapToggle" title="Overview — the whole chart in small, and where the view is on it" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="11" y="10" width="7" height="6" rx="0.5"/></svg>
+    </button>
+    <button class="icon-btn" id="readerToggle" title="See the chart as a reader sees it" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M5 9.2s2.6-4.2 7-4.2 7 4.2 7 4.2-2.6 4.2-7 4.2-7-4.2-7-4.2z"/><circle cx="12" cy="9.2" r="1.7"/><path d="M12 20.5c-2.2-1.5-5.3-2-8.5-1.7v-4.6c3.2-.3 6.3.2 8.5 1.7 2.2-1.5 5.3-2 8.5-1.7v4.6c-3.2-.3-6.3.2-8.5 1.7zM12 15.9v4.6"/></svg>
+    </button>
+    <!-- The scenario studio (the owner's list of 22.11): "when this, then
+         that", kept as the chart's data. The author's only. -->
+    <button class="icon-btn" id="studioToggle" title="Scenarios — what happens when an entry is pressed or comes into view" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5M13.5 4.5l-3 15"/></svg>
+    </button>
     <button class="icon-btn" id="filesToggle" title="My files — the stickers, and every picture and video in the chart">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 7A1.5 1.5 0 0 1 5 5.5h4.2l2 2.2H19A1.5 1.5 0 0 1 20.5 9.2V17.5A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M3.5 10.5h17"/></svg>
     </button>
     <button class="icon-btn" id="commentsToggle" title="Suggestions" style="display:none;">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
     </button>
+    <button class="icon-btn" id="fileToggle" title="Export or import this chart as a file">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5.5M9.5 14.5 12 17l2.5-2.5"/></svg>
+    </button>
     <button class="icon-btn" id="aboutToggle" title="About this project">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
-    </button>
-    <!-- The language the page speaks (the owner's list of 19.11): its
-         texts are translated by hand in src/i18n/, see 43-i18n.js. -->
-    <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu" data-lang="en">
-      <span class="lang-flag" aria-hidden="true"></span>
-    </button>
-    <!-- A pencil and an eraser for notes in the margin of the chart (the
-         owner's list of 20.11, 44-ink.js). The author's only. -->
-    <button class="icon-btn ink-tool" id="inkPen" title="Pencil: write on the chart by hand — press again or Escape to put it down" aria-pressed="false">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 20l1.2-4.6L15.8 4.8a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.2 6.4l3.4 3.4M4 20l4.6-1.2"/></svg>
-    </button>
-    <button class="icon-btn ink-tool" id="inkEraser" title="Eraser: take pencilled strokes off the chart — press again or Escape to put it down" aria-pressed="false">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M8.5 19.5L3.8 14.8a1.8 1.8 0 0 1 0-2.6l8.4-8.4a1.8 1.8 0 0 1 2.6 0l5.4 5.4a1.8 1.8 0 0 1 0 2.6l-8.2 8.2"/><path d="M8.5 19.5H20M8.6 9.4l6 6"/></svg>
-    </button>
-    <!-- The owner looking at the chart as a reader sees it, without signing
-         out (the owner's list of 2.11). Shown only to whoever may edit. -->
-    <button class="icon-btn" id="readerToggle" title="See the chart as a reader sees it" aria-pressed="false">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
     </button>
     <div class="search-wrap">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="searchInput" type="text" aria-label="Search the chart" placeholder="Search realities, titles, characters…" autocomplete="off">
       <div class="search-results" id="searchResults"></div>
     </div>
+    
+    <div class="topbar-stats"><span><b id="statNodes">0</b> entries</span><span><b id="statEdges">0</b> links</span><span><b id="statClusters">0</b> tags</span></div>
     <div class="save-state" id="saveState" aria-live="polite">
       <span class="save-dot"></span><span class="save-text" id="saveStateText"></span>
     </div>
     <button class="save-btn" id="saveBtn" disabled title="Publish your changes to this page (Ctrl+S)">Save</button>
     <div class="view-badge" title="You are viewing this chart; only its owner can change it">View only</div>
+    
     <img class="owner-avatar" id="ownerAvatar" hidden alt="">
-    <button class="owner-btn" id="ownerBtn" hidden aria-label="Sign in" title="Sign in with GitHub: anyone may suggest a change, and the owner edits."></button>
-    <div class="topbar-end">
-      <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
-      <!-- Under the counts, small: undo and redo, which a phone has no keys
-           for, and the guides Shift gives a mouse. Cut, copy, paste and
-           delete are on the menu a long press or a right click brings up;
-           see 38-touch.js. -->
+    <!-- The language over the way in or out of the account. -->
+    <div class="tb-account">
+      <button class="icon-btn lang-toggle" id="langToggle" title="Language" aria-haspopup="menu" data-lang="en">
+      <span class="lang-flag" aria-hidden="true"></span>
+    </button>
+      <button class="owner-btn" id="ownerBtn" hidden aria-label="Sign in" title="Sign in with GitHub: anyone may suggest a change, and the owner edits."></button>
+    </div>
+    <!-- The second row: undo, redo and the guides, then the hand tools —
+         the pencil, the eraser, the eyedropper and the style brush. -->
+    <div class="toolrow" id="toolRow">
       <div class="topbar-tools">
         <div class="touch-tools" id="touchTools" role="group" aria-label="Undo and redo">
           <button type="button" data-act="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5 2.5 6.5l3 3"/><path d="M2.8 6.5h6.7a3.5 3.5 0 0 1 0 7H7"/></svg></button>
@@ -102,6 +105,20 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
         </button>
       </div>
+      <span class="toolrow-sep" aria-hidden="true"></span>
+      <button class="tool-btn ink-tool" id="inkPen" title="Pencil: write on the chart by hand — press again or Escape to put it down" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M4 20l1.2-4.6L15.8 4.8a2 2 0 0 1 2.8 0l.6.6a2 2 0 0 1 0 2.8L8.6 18.8z"/><path d="M14.2 6.4l3.4 3.4M4 20l4.6-1.2"/></svg>
+    </button>
+      <button class="tool-btn ink-tool" id="inkEraser" title="Eraser: take pencilled strokes off the chart — press again or Escape to put it down" aria-pressed="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M8.5 19.5L3.8 14.8a1.8 1.8 0 0 1 0-2.6l8.4-8.4a1.8 1.8 0 0 1 2.6 0l5.4 5.4a1.8 1.8 0 0 1 0 2.6l-8.2 8.2"/><path d="M8.5 19.5H20M8.6 9.4l6 6"/></svg>
+    </button>
+      <button class="tool-btn" id="pipetteTool" title="Eyedropper: press anything on the chart to copy its colour" aria-pressed="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M14.5 5.5l4 4M13 7l4 4-8.8 8.8a1.5 1.5 0 0 1-1.1.4H5.5a1 1 0 0 1-1-1v-1.6a1.5 1.5 0 0 1 .4-1.1z"/><path d="M15.6 4.4a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3l-1.6 1.6-4-4z" fill="currentColor"/></svg>
+        <span class="pipette-swatch" id="pipetteSwatch" hidden></span>
+      </button>
+      <button class="tool-btn" id="stylePaintTool" title="Copy the style of what is picked, then press another entry or connector to give it the same" aria-pressed="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="4" y="3.5" width="14" height="6" rx="1.2"/><path d="M18 6.5h2v5.5h-8v3"/><rect x="10.5" y="15" width="3" height="6" rx="0.8"/></svg>
+      </button>
     </div>
   </div>
 
@@ -149,15 +166,6 @@
           <div class="legend-list" id="mediaList"></div>
         </div>
       </section>
-      <!-- The whole chart, small, with a frame for the view; press or drag on
-           it to go there. -->
-      <section class="side-tab" id="minimapPanel">
-        <button type="button" class="side-tab-handle" id="minimapTab" aria-expanded="false"
-                aria-controls="minimapCanvas" title="Overview — the whole chart, and where the view is on it" aria-label="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="11" y="10" width="7" height="6" rx="0.5"/></svg></button>
-        <div class="side-tab-body">
-          <canvas id="minimapCanvas" class="minimap-canvas"></canvas>
-        </div>
-      </section>
       <!-- Belongs to the references, and is moved in under their heading on
            every rebuild; it lives here only so its wiring has something to
            bind. -->
@@ -167,6 +175,12 @@
                  title="The colour every [n] mark is drawn in">
           <button type="button" class="hex-reset" id="refColorReset" title="Back to the default">⟲</button>
         </div>
+        <!-- How the numbers are written, beside the colour they are written in. -->
+        <select id="refStyleSelect" class="style-select ref-style-select" title="How every citation's number is written" aria-label="How citations are written">
+          <option value="square">[1]</option>
+          <option value="round">(1)</option>
+          <option value="bare">¹ footnote</option>
+        </select>
       </div>
     </div>
 
@@ -363,6 +377,14 @@
 
     <input type="file" id="bioImageFile" accept="image/*" style="display:none;">
 
+    <!-- The whole chart, small, with a frame for the view; press or drag on
+         it to go there. Shown by its button on the bar, in the corner over
+         the coordinates, and carried by its grip (the owner's list of 22.11:
+         it was the fifth drawer on the left). -->
+    <div class="minimap-float" id="minimapPanel" hidden>
+      <div class="minimap-grip" id="minimapGrip" title="Drag to move the overview — it goes back to its corner when shown again"><svg viewBox="0 0 12 8" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1"/><circle cx="6" cy="2" r="1"/><circle cx="10" cy="2" r="1"/><circle cx="2" cy="6" r="1"/><circle cx="6" cy="6" r="1"/><circle cx="10" cy="6" r="1"/></g></svg></div>
+      <canvas id="minimapCanvas" class="minimap-canvas"></canvas>
+    </div>
     <div class="coord"><span id="coord">x0 · y0</span><button type="button" class="coord-home" id="coordHome" title="Go to the origin — x 0, y 0 in the middle of the view">⌖</button></div>
     <!-- Making an entry: one round button in the corner. Pointed at, the
          styles stand up above it; picking one puts that entry on the
@@ -822,6 +844,7 @@
     '43-i18n.js',
     '44-ink.js',
     '45-clouds.js',
+    '46-hand-tools.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){

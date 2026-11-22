@@ -695,7 +695,7 @@ function openRefPicker(anchorBtn, surface){
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'ref-pick';
-    b.innerHTML = `<span class="ref-num">[${i+1}]</span><span>${escapeHtml(refBodyText(r)) || '<em>empty</em>'}</span>`;
+    b.innerHTML = `<span class="ref-num">${refNumberText(i+1)}</span><span>${escapeHtml(refBodyText(r)) || '<em>empty</em>'}</span>`;
     b.addEventListener('click', ev=>{
       ev.stopPropagation();
       insertIntoSurface(surface, '{{r:' + r.key + '}}');

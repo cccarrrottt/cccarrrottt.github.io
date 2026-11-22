@@ -105,6 +105,10 @@ function knownTags(){
   const set = new Set(tagCounts.keys());
   set.delete(UNTAGGED);
   TAG_CATS.forEach(c=> c.tags.forEach(t=> set.add(t)));
+  /* NSFW is in the author's Special group from the start, carried by
+     nothing yet (the owner's list of 22.11): it is a tag one reaches for
+     the moment a picture calls for it, not one to be typed from memory. */
+  if(!readOnlyView) set.add(NSFW_TAG);
   return Array.from(set).sort((a,b)=> a.localeCompare(b));
 }
 function tagExists(tag){ return tagCounts.has(tag) || TAG_CATS.some(c=> c.tags.indexOf(tag) >= 0); }
@@ -259,7 +263,11 @@ function buildSideTabs(){
   /* The citation colour is a setting OF the references, so it sits with
      them — and above the list rather than below it, where a long list of
      references would otherwise push it out of sight. */
-  if(colorRow && !readOnlyView){ colorRow.hidden = false; refsList.appendChild(colorRow); }
+  if(colorRow && !readOnlyView){
+    colorRow.hidden = false; refsList.appendChild(colorRow);
+    const st = document.getElementById('refStyleSelect');
+    if(st) st.value = refStyle();
+  }
   else if(colorRow) colorRow.hidden = true;
   buildRefsInto(refsList);
   refsList.scrollTop = scroll;
@@ -1383,6 +1391,15 @@ function buildTagRow(tag, catName){
     row.classList.add('draggable-row');
     row.title = `${displayName} — drag onto a category to file this tag there`;
     row.addEventListener('mousedown', ev=> beginListDrag(ev, 'tag', tag, displayName));
+    /* The six dots the fields of a kind of media are carried by, here too
+       (the owner's list of 22.11): they say the row can be picked up, and
+       a finger, which would scroll the list by the row, takes them. */
+    const grip = document.createElement('span');
+    grip.className = 'media-grip tag-grip';
+    grip.title = 'Drag onto a category to file this tag there';
+    grip.innerHTML = '<svg viewBox="0 0 8 12" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1"/><circle cx="6" cy="2" r="1"/><circle cx="2" cy="6" r="1"/><circle cx="6" cy="6" r="1"/><circle cx="2" cy="10" r="1"/><circle cx="6" cy="10" r="1"/></g></svg>';
+    grip.addEventListener('pointerdown', ev=>{ if(ev.pointerType !== 'mouse') beginListDrag(ev, 'tag', tag, displayName); });
+    row.insertBefore(grip, row.firstChild);
   }
   /* A tag anybody wrote is renamed by pressing its name (the owner's list
      of 11.11): the words take the caret where they stand, and every entry

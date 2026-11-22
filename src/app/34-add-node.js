@@ -85,7 +85,8 @@ function openAddFab(){
 /* Whether it was open, so Escape knows it had something to put away. */
 function closeAddFab(){
   const was = addFab.classList.contains('open');
-  addFab.classList.remove('open', 'figures');
+  addFab.classList.remove('open', 'figures', 'presets');
+  if(typeof presetKind !== 'undefined') presetKind = null;
   addFabBtn.setAttribute('aria-expanded', 'false');
   return was;
 }
@@ -118,8 +119,10 @@ function addEntryOfStyle(style){
   const shapeVal = style === 'rect' ? undefined : style;
   const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
   const spot = emptySpotNearCentre(shapeVal);
+  /* What the gear beside the kind says it starts as (presets). */
+  const preset = (style === 'rect' || style === 'ellipse' || style === 'link') ? presetOptsFor(style) : {};
   applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, shapeVal,
-                                    {pos: [spot.x, spot.y]}]));
+                                    Object.assign(preset, {pos: [spot.x, spot.y]})]));
   selectNode(id);
   /* Words go in where they will stand. A portrait and a picture have a
      picture to choose before anything else, which their settings ask for;
@@ -1277,15 +1280,136 @@ figureFileInput.addEventListener('change', ()=>{
   more.title = 'More shapes — the flowchart figures, and templates of your own';
   more.setAttribute('aria-haspopup', 'menu');
   more.setAttribute('aria-expanded', 'false');
-  /* A gear (the owner's list of 2.11): what it opens is the settings of
-     what Default puts down. Its teeth are worked out rather than copied
-     from an icon set, eight of them round a hub. */
-  more.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">' +
-                   '<path d="' + gearPathD(12, 12, 9.2, 6.6, 8) + '"/><circle cx="12" cy="12" r="2.6"/></svg>';
-  more.addEventListener('click', ev=>{ ev.stopPropagation(); openFigureMenu(); });
+  /* A triangle, as a category of tags folds and unfolds (the owner's list
+     of 22.11): what it opens is more of what Default puts down. The gear
+     it was is now the preset's, on every kind that has one. */
+  more.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 9.5h11L12 16z" fill="currentColor"/></svg>';
+  more.addEventListener('click', ev=>{ ev.stopPropagation(); openPresetMenu(null); openFigureMenu(); });
   row.appendChild(more);
   row.appendChild(def);
 })();
+/* The gear on Default, Character and Link: what that kind is put down
+   with (presets, 46-hand-tools.js). */
+['rect', 'ellipse', 'link'].forEach(kind=>{
+  const b = addFabStyles.querySelector(`.node-style-btn[data-value="${kind}"]`);
+  if(!b) return;
+  let row = b.parentElement;
+  if(!row.classList.contains('add-fab-row')){
+    row = document.createElement('div');
+    row.className = 'add-fab-row';
+    b.replaceWith(row);
+    row.appendChild(b);
+  }
+  const gear = document.createElement('button');
+  gear.type = 'button';
+  gear.className = 'add-fab-preset';
+  gear.dataset.kind = kind;
+  gear.title = 'What a new ' + (NODE_STYLE_PICKS.find(p=> p.value === kind) || {label: kind}).label + ' entry starts as';
+  gear.setAttribute('aria-haspopup', 'dialog');
+  gear.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">' +
+                   '<path d="' + gearPathD(12, 12, 9.2, 6.6, 8) + '"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  gear.addEventListener('click', ev=>{ ev.stopPropagation(); openFigureMenu(false); openPresetMenu(presetKind === kind ? null : kind); });
+  row.appendChild(gear);
+});
+/* The card of a kind's preset, where the figures' card stands. Every
+   field has a ⟲ back to the page's default, live only once it is set. */
+const addFabPresets = document.createElement('div');
+addFabPresets.className = 'add-fab-presets';
+addFabPresets.id = 'addFabPresets';
+addFab.appendChild(addFabPresets);
+var presetKind = null;
+function openPresetMenu(kind){
+  presetKind = kind;
+  addFab.classList.toggle('presets', !!kind);
+  addFabStyles.querySelectorAll('.add-fab-preset').forEach(g=> g.classList.toggle('on', g.dataset.kind === kind));
+  if(kind) buildPresetMenu();
+}
+function buildPresetMenu(){
+  const kind = presetKind;
+  addFabPresets.textContent = '';
+  if(!kind) return;
+  const p = presetOptsFor(kind);
+  const card = document.createElement('div');
+  card.className = 'add-fab-figures-card preset-card';
+  addFabPresets.appendChild(card);
+  const head = document.createElement('div');
+  head.className = 'add-fab-figures-head';
+  head.textContent = (NODE_STYLE_PICKS.find(x=> x.value === kind) || {label: kind}).label + ' — new entries start as';
+  card.appendChild(head);
+  const row = (label, key, control)=>{
+    const r = document.createElement('div');
+    r.className = 'preset-row';
+    r.dataset.key = key;
+    const l = document.createElement('span');
+    l.className = 'preset-label';
+    l.textContent = label;
+    r.appendChild(l);
+    r.appendChild(control);
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'hex-reset preset-reset';
+    back.textContent = '\u27f2';
+    back.title = 'Back to the default';
+    back.disabled = p[key] === undefined;
+    back.addEventListener('click', ev=>{ ev.stopPropagation(); setPresetField(kind, key, undefined); buildPresetMenu(); });
+    r.appendChild(back);
+    card.appendChild(r);
+  };
+  const keys = PRESET_KINDS[kind];
+  const colour = (key, title)=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'hex-field';
+    const box = document.createElement('input');
+    box.type = 'text'; box.className = 'tb-hex'; box.maxLength = 9; box.spellcheck = false;
+    box.value = p[key] ? p[key][0] : '';
+    wrap.appendChild(box);
+    squareForHexInput(box, {title, fallback: ()=> key === 'bg' ? null : DEFAULT_NODE_COLOR});
+    box.addEventListener('input', ()=>{
+      const v = hexFieldValue(box.value);
+      if(!HEX_RE.test(v)) return;
+      setPresetField(kind, key, [v.toLowerCase()]);
+      const back = wrap.parentElement && wrap.parentElement.querySelector('.preset-reset');
+      if(back) back.disabled = false;
+    });
+    return wrap;
+  };
+  const select = (key, options, cur)=>{
+    const sel = document.createElement('select');
+    sel.className = 'style-select';
+    options.forEach(([v, t])=>{ const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); });
+    sel.value = cur;
+    sel.addEventListener('change', ()=>{
+      const o = options.find(x=> x[0] === sel.value);
+      setPresetField(kind, key, o ? o[2] : undefined);
+      buildPresetMenu();
+    });
+    return sel;
+  };
+  if(keys.includes('colors')) row('Border colour', 'colors', colour('colors', 'the border a new entry is drawn with'));
+  if(keys.includes('bg')) row('Ground', 'bg', colour('bg', 'what a new entry is filled with'));
+  if(keys.includes('border')) row('Border', 'border', select('border',
+    PRESET_BORDERS.map(b=> [b, b[0].toUpperCase() + b.slice(1), b === 'solid' ? undefined : b]), p.border || 'solid'));
+  if(keys.includes('square')) row('Corners', 'square', select('square',
+    [['square', 'Square', undefined], ['round', 'Rounded', false]], p.square === false ? 'round' : 'square'));
+  if(keys.includes('font')) row('Font', 'font', select('font',
+    fontOptions().map(f=> [f.key, f.label, f.key === FONT_OPTIONS[0].key ? undefined : f.key]), p.font || FONT_OPTIONS[0].key));
+  if(keys.includes('fontSize')){
+    const size = document.createElement('input');
+    size.type = 'number'; size.min = '6'; size.max = '96'; size.step = '1';
+    size.className = 'preset-size';
+    size.placeholder = String(NODE_FS);
+    size.value = p.fontSize || '';
+    size.addEventListener('change', ()=>{
+      const v = Number(size.value);
+      setPresetField(kind, 'fontSize', Number.isFinite(v) && v >= 6 && v <= 96 && size.value !== '' ? v : undefined);
+      buildPresetMenu();
+    });
+    row('Size', 'fontSize', size);
+  }
+  if(keys.includes('align')) row('Words', 'align', select('align',
+    [['left', 'Left', 'left'], ['center', 'Centred', undefined], ['right', 'Right', 'right']], p.align || 'center'));
+  card.addEventListener('mousedown', ev=> ev.stopPropagation());
+}
 /* A gear's outline: `teeth` flat-topped teeth between radii r0 and r1. */
 function gearPathD(cx, cy, r1, r0, teeth){
   const pts = [];
@@ -1304,8 +1428,9 @@ function addEntryOfFigure(fig){
   if(readOnlyView) return null;
   const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
   const spot = emptySpotNearCentre(undefined);
+  // A figure is a Default entry of another shape, and starts as Default's preset says.
   applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, undefined,
-                                    {pos: [spot.x, spot.y], figure: fig}]));
+                                    Object.assign(presetOptsFor('rect'), {pos: [spot.x, spot.y], figure: fig})]));
   selectNode(id);
   openNodeEditor(id);
   return id;
