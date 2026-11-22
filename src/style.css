@@ -3975,11 +3975,11 @@
     .topbar > .icon-btn, .topbar > .tb-stack{order:3;}
     .topbar > .icon-btn{width:34px;height:34px;}
     .icon-btn.tb-half{width:20px;height:16px;}
-    /* The tools are the third row, all of it; the account and Save the
-       fourth, under them (the owner's sketch of 22.11 has seven tools
-       where there were three, and a phone has no room for Save beside
-       them). */
-    .toolrow{order:4;flex:1 1 100%;margin:0;padding:0;border:none;gap:3px;min-width:0;}
+    /* The tools are a toolbar of their own, as on a wide screen: the
+       bar's last row, its whole width, under a hairline (the owner's word
+       of 22.11). The account and Save are the row above it. */
+    .toolrow{order:10;flex:0 0 calc(100% + 20px);margin:1px -10px -7px;padding:5px 10px;gap:3px;min-width:0;
+      border-top:1px solid var(--line);}
     .tool-btn{width:30px;height:28px;}
     .toolrow-sep{margin:0 2px;}
     .tb-account{order:6;flex-direction:row;}

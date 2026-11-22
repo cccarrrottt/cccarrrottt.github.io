@@ -20543,9 +20543,10 @@ async function main(){
   check('a sticker in the in-entry field is the height it is in the entry', p.stickerEm > 0.6 && p.stickerEm < 0.9,
         String(p.stickerEm));
 
-  /* 4. On a phone, undo, redo and the guides start the row of tools,
-     and the sign-in button, which the site always shows, is on the row
-     under it (the owner's sketch of 22.11: seven tools leave no room). */
+  /* 4. On a phone, undo, redo and the guides start the second toolbar,
+     the bar's last row and its whole width, and the sign-in button,
+     which the site always shows, is on the row above it (the owner's
+     word of 22.11). */
   const phone = await browser.newContext({viewport:{width:390, height:844},
     deviceScaleFactor:2, isMobile:true, hasTouch:true});
   await phone.route('https://fonts.googleapis.com/**', noFonts);
@@ -20561,14 +20562,15 @@ async function main(){
       const tools = document.querySelector('.topbar-tools').getBoundingClientRect();
       const bar = document.querySelector('.topbar').getBoundingClientRect();
       const row = document.getElementById('toolRow').getBoundingClientRect();
-      const out = {sameRow: tools.height > 0 && tools.top >= row.top - 0.5 && tools.bottom <= row.bottom + 0.5 && sb.top >= row.bottom - 0.5,
-                   leftOfIt: Math.abs(tools.left - row.left) < 1 && Math.abs(sb.left - row.left) < 40, fits: bar.right <= innerWidth + 0.5 && row.right <= innerWidth + 0.5,
+      const out = {sameRow: tools.height > 0 && tools.top >= row.top - 0.5 && tools.bottom <= row.bottom + 0.5 && sb.bottom <= row.top + 0.5 &&
+                            Math.abs(row.bottom - bar.bottom) < 2 && row.width >= bar.width - 1 && getComputedStyle(document.getElementById('toolRow')).borderTopStyle === 'solid',
+                   leftOfIt: tools.left - row.left < 14 && tools.left >= row.left, fits: bar.right <= innerWidth + 0.5 && row.right <= innerWidth + 0.5,
                    tools:[tools.left, tools.top, tools.right, tools.bottom].map(Math.round),
                    sign:[sb.left, sb.top, sb.right, sb.bottom].map(Math.round)};
       document.getElementById('ownerBtn').hidden = true;
       return out;
     });
-    check('on a phone, undo, redo and the guides start the row of tools, the sign-in button under it', ph.sameRow && ph.leftOfIt && ph.fits,
+    check('on a phone the tools are a second toolbar, the bar\'s last row, undo first, the sign-in button above it', ph.sameRow && ph.leftOfIt && ph.fits,
           JSON.stringify(ph));
   } finally {
     await phone.close();
@@ -23960,12 +23962,18 @@ async function main(){
   await page.waitForTimeout(200);
   const bar = await page.evaluate(()=>{
     const top = document.querySelector('.topbar');
-    const kids = [...top.querySelectorAll(':scope > *:not(.brand):not(.search-wrap)')].filter(e=> e.offsetParent !== null && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0);
+    // The tool row is a band the bar's width; its tools start at the left like the rest.
+    const kids = [...top.querySelectorAll(':scope > *:not(.brand):not(.search-wrap):not(#toolRow), #toolRow > .topbar-tools')].filter(e=> e.offsetParent !== null && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0);
     const rows = new Map();
-    kids.forEach(e=>{ const b = e.getBoundingClientRect(); const k = Math.round(b.top / 8); if(!rows.has(k)) rows.set(k, []); rows.get(k).push(b); });
-    const lefts = [...rows.values()].map(rs=> Math.min(...rs.map(b=> b.left)));
+    // A row by the middle of what stands in it: Save is taller than the account beside it.
+    kids.forEach(e=>{ const b = e.getBoundingClientRect(); const k = Math.round((b.top + b.height / 2) / 8); if(!rows.has(k)) rows.set(k, []); rows.get(k).push(b); });
+    const saveBox = document.getElementById('saveBtn').getBoundingClientRect();
+    // Save on a row of its own keeps to the right end, as it is meant to.
+    const lefts = [...rows.values()].filter(rs=> !(rs.length === 1 && rs[0].left === saveBox.left && rs[0].top === saveBox.top))
+      .map(rs=> Math.min(...rs.map(b=> b.left)));
     const save = document.getElementById('saveBtn').getBoundingClientRect();
-    const others = kids.filter(e=> !e.matches('#saveBtn, .owner-avatar, .owner-btn, .save-state')).map(e=> e.getBoundingClientRect());
+    // The second toolbar is the bar's last row, under Save (22.11).
+    const others = kids.filter(e=> !e.matches('#saveBtn, .owner-avatar, .owner-btn, .save-state, .topbar-tools')).map(e=> e.getBoundingClientRect());
     return {lefts: lefts.map(v=> Math.round(v)), rows: rows.size,
             saveRight: save.right >= Math.max(...others.filter(b=> Math.abs(b.top - save.top) < 12).map(b=> b.right), 0),
             saveLow: others.every(b=> b.top < save.bottom - 1),
@@ -23973,7 +23981,7 @@ async function main(){
   });
   await page.setViewportSize({width: 1500, height: 950});
   await page.waitForTimeout(200);
-  check('on a phone every row of the top bar starts at the left, and Save keeps the bottom right corner',
+  check('on a phone every row of the top bar starts at the left, and Save keeps the right end of the last row above the tools',
         bar.lefts.every(l=> Math.abs(l - bar.lefts[0]) < 3) && bar.saveRight && bar.saveLow && bar.saveNearEnd, JSON.stringify(bar));
   } finally {
     await page.evaluate(()=>{
