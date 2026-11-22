@@ -193,36 +193,15 @@ function setPageLang(lang){
    never translated. */
 const langToggle = document.getElementById('langToggle');
 const langMenu = document.getElementById('langMenu');
-/* Each language by its flag, drawn here rather than typed: an emoji flag
-   is two letters on Windows, which draws no flags at all. English is the
-   American flag (the owner's list of 21.11). All are 3:2, so the button
-   keeps its width whichever is showing; the Stars and Stripes is drawn at
-   that proportion rather than its own 19:10. */
-const LANG_FLAGS = (()=>{
-  const us = (()=>{
-    const h = 20 / 13;
-    let stripes = '';
-    for(let i = 0; i < 13; i += 2) stripes += `<rect y="${(i*h).toFixed(3)}" width="30" height="${h.toFixed(3)}" fill="#b22234"/>`;
-    const cw = 12, ch = 7 * h;
-    let stars = '';
-    for(let row = 0; row < 9; row++){
-      const n = row % 2 ? 5 : 6;
-      for(let k = 0; k < n; k++){
-        const x = cw / 12 * (row % 2 ? 2 + 2*k : 1 + 2*k), y = ch / 10 * (row + 1);
-        stars += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="0.42"/>`;
-      }
-    }
-    return `<rect width="30" height="20" fill="#fff"/>${stripes}` +
-           `<rect width="${cw}" height="${ch.toFixed(3)}" fill="#3c3b6e"/><g fill="#fff">${stars}</g>`;
-  })();
-  const ru = '<rect width="30" height="20" fill="#fff"/><rect y="6.667" width="30" height="6.667" fill="#0039a6"/>' +
-             '<rect y="13.333" width="30" height="6.667" fill="#d52b1e"/>';
-  const wrap = body=> `<svg viewBox="0 0 30 20" preserveAspectRatio="none">${body}</svg>`;
-  return {en: wrap(us), ru: wrap(ru)};
-})();
+/* Each language by its flag, the same emoji the language tabs of an entry
+   wear (flagForCode), drawn by the same Noto face on every machine, so
+   Windows shows flags too (the owner's list of 22.11, evening: the flags
+   drawn here by hand looked like nothing else on the page). English is
+   the American flag (the owner's list of 21.11). */
+const LANG_FLAG_CODES = {en: 'US', ru: 'RU'};
 function wearFlag(holder, lang){
   const f = holder && holder.querySelector('.lang-flag');
-  if(f && f.dataset.flag !== lang){ f.innerHTML = LANG_FLAGS[lang] || ''; f.dataset.flag = lang; }
+  if(f && f.dataset.flag !== lang){ f.textContent = flagForCode(LANG_FLAG_CODES[lang] || '') || ''; f.dataset.flag = lang; }
 }
 if(langMenu) langMenu.querySelectorAll('[data-lang]').forEach(b=> wearFlag(b, b.dataset.lang));
 function syncLangButton(){

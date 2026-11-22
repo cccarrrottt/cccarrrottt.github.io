@@ -344,7 +344,7 @@ function drawCalloutLeaders(from, to, pts, paint, route){
        statement about the middle; a note that has never been moved is. */
     const snap = n.leader.snap || null;
     const f = busyDot ? f0 : settleAnchor(pts, f0, snap,
-                                          calloutBeingMoved(n.id) ? null : held, false);
+                                          calloutBeingMoved(n.id) ? null : held, false, onCurve(edgeStyleFor(from, to)));
     if(Math.abs(f - n.leader.at) > 1e-4){
       n.leader.at = f;
       persistLeaderAt(n.id, f);
@@ -804,7 +804,7 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
   /* A note that has never been moved stands on the middle, and belongs
      there in the same way as one put there with Shift. */
   const snap = styleNow.noteSnap || (Math.abs(stored - 0.5) < 1e-9 ? 'mid' : null);
-  let f = sliding ? stored : settleAnchor(pts, stored, snap, held, false);
+  let f = sliding ? stored : settleAnchor(pts, stored, snap, held, false, onCurve(styleNow));
   if(Math.abs(f - stored) > 1e-4){
     f = +f.toFixed(4);
     setEdgeStyleOverride(from, to, Object.assign({}, styleNow, {noteAt: f}));
@@ -1374,8 +1374,16 @@ function legPlace(pts, f){
   const leg = legs[i];
   return {leg: i, t: leg && leg.len ? (d - leg.start) / leg.len : 0, legs: legs.length};
 }
-function settleAnchor(pts, stored, snap, held, busy){
+function settleAnchor(pts, stored, snap, held, busy, curve){
   if(!pts || pts.length < 2) return stored;
+  /* A curve is drawn through its route, as a run of short chords, and
+     has no legs to keep a place on: their number changes whenever the
+     curve does, and the nearest point to where the remark was could be
+     anywhere along a curve that has swung away from it — a note on one
+     left the line and stood far off it once an entry was moved (the
+     owner's list of 22.11, night). On a curve the share of the way is
+     kept as it is. */
+  if(curve && snap !== 'mid') return stored;
   if(snap){
     const f = fractionForSnap(pts, snap);
     if(f !== null) return f;
@@ -1389,6 +1397,7 @@ function settleAnchor(pts, stored, snap, held, busy){
   const shift = routeShift(held.pts, pts);
   return fractionNearest(pts, held.x + (shift ? shift.dx : 0), held.y + (shift ? shift.dy : 0));
 }
+function onCurve(style){ return !!style && style.routing === 'curve' && !style.sinusoid; }
 function heldAnchor(pts, f){
   const m = pointAtFraction(pts, f);
   return Object.assign({x: m.x, y: m.y, at: f, pts: pts.map(q=> ({x:q.x, y:q.y}))},

@@ -1487,13 +1487,18 @@ function listDragGhost(){
   return g;
 }
 function clearListDragMarks(){
-  document.querySelectorAll('.drop-into, .drop-before, .drop-after')
-    .forEach(e=> e.classList.remove('drop-into','drop-before','drop-after'));
+  document.querySelectorAll('.drop-into, .drop-before, .drop-after, .drop-onto')
+    .forEach(e=> e.classList.remove('drop-into','drop-before','drop-after','drop-onto'));
 }
 function listDropUnder(x, y){
   const under = document.elementFromPoint(x, y);
   if(!under || !under.closest) return null;
   if(listDrag.kind === 'tag'){
+    /* Over the chart, with entries picked, the tag goes onto every one of
+       them (the owner's list of 22.11, evening): pick an area, then carry
+       the tag out of the drawer onto it. Anywhere on the chart counts —
+       the picking already said where. */
+    if(listDrag.key !== UNTAGGED && under.closest('#canvas') && tagDropTargets().length) return {el: svg, where: 'onto'};
     const grp = under.closest('.legend-group');
     if(!grp) return null;
     /* The uncategorised block IS a place to drop: dropping there is how a
@@ -1535,7 +1540,30 @@ window.addEventListener('pointermove', ev=>{
   listDrag.target = hit ? hit.el : null;
   listDrag.where = hit ? hit.where : null;
   if(hit) hit.el.classList.add('drop-' + hit.where);
+  /* Carried onto the chart, the ghost says how many entries it lands on. */
+  if(listDrag.kind === 'tag')
+    g.textContent = listDrag.label + (hit && hit.where === 'onto' ? ' \u2192 ' + tagDropTargets().length : '');
 });
+/* What a tag carried onto the chart lands on: every entry picked. */
+function tagDropTargets(){
+  const ids = new Set(multiSelection);
+  if(selectedId) ids.add(selectedId);
+  return [...ids].filter(id=> nodes.has(id) && workingEntry(id));
+}
+function tagPickedEntries(tag){
+  const ids = tagDropTargets();
+  let added = 0;
+  applyEdit(()=> ids.forEach(id=>{
+    const found = workingEntry(id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    const tags = Array.isArray(opts.tags) ? opts.tags : (opts.tags = []);
+    if(tags.indexOf(tag) < 0){ tags.push(tag); added++; }
+    putEntry(found.index, found.entry, opts);
+  }));
+  buildSideTabs();
+  setLegendStatus('ok', added ? 'Entries given the tag: ' + added : 'Every picked entry already has this tag.');
+}
 function endListDrag(){
   const st = listDrag;
   listDrag = null;
@@ -1545,6 +1573,10 @@ function endListDrag(){
   clearListDragMarks();
   if(st.moved) listDragEndedAt = Date.now();
   if(!st.moved || !st.target) return;
+  if(st.kind === 'tag' && st.where === 'onto'){
+    tagPickedEntries(st.key);
+    return;
+  }
   if(st.kind === 'tag'){
     const cat = st.target.dataset.cat;
     if(!cat) return;

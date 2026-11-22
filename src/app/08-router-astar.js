@@ -593,6 +593,16 @@ function mergeCollinear(pts){
    piece of a wavy line, and a straight piece in the middle of one reads as
    the style not having been applied at all. */
 function wavyPath(rawPts, trimIn, trimOut, short, cornerR){
+  const wave = wavyPoints(rawPts, trimIn, trimOut, short, cornerR);
+  if(wave) return smoothPath(wave, false);
+  const pts = mergeCollinear(rawPts), last = pts[pts.length-1];
+  return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
+}
+/* The ripple's own points, each with the baseline point it stands off
+   (bx, by) and how far along it is (s) — or null where the line is drawn
+   straight. A hop on a wavy line is cut where the ripple crosses its
+   baseline, so it asks for these (drawHops). */
+function wavyPoints(rawPts, trimIn, trimOut, short, cornerR){
   const cutIn = Math.max(0, trimIn || 0), cutOut = Math.max(0, trimOut || 0);
   const pts = mergeCollinear(rawPts);
   const step = EDGE_WAVE_LEN / WAVE_STEP_DIV;
@@ -601,15 +611,9 @@ function wavyPath(rawPts, trimIn, trimOut, short, cornerR){
   const samples = cornerR >= CURVE_CORNER_R
     ? sampleRounded(curveThrough(pts, step / 2, {start: cutIn > 0, end: cutOut > 0}), 0, step)
     : sampleRounded(pts, EDGE_CORNER_R, step);
-  if(samples.length < 3){
-    const last = pts[pts.length-1];
-    return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
-  }
+  if(samples.length < 3) return null;
   const total = samples[samples.length-1].s;
-  if(total < EDGE_WAVE_LEN * (short ? 0.75 : 2)){
-    const last = pts[pts.length-1];
-    return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
-  }
+  if(total < EDGE_WAVE_LEN * (short ? 0.75 : 2)) return null;
   const lam = waveLambda(total, EDGE_WAVE_LEN);
   /* Which side the wave leans to first. A wave visits both sides, so this
      only fixes where it STARTS: up for a line setting off horizontally,
@@ -623,7 +627,7 @@ function wavyPath(rawPts, trimIn, trimOut, short, cornerR){
   /* The wave is laid on the WHOLE line and only the part the arrowheads
      leave is drawn, so turning a head on hides a stretch of ripple and
      never shifts the pattern. */
-  return wavyFromSamples(samples, amp, lam, cutIn, total - cutOut, false);
+  return waveOffsetPoints(samples, amp, lam, cutIn, total - cutOut, false);
 }
 // The arrowhead's "overall direction" is the tangent of the underlying
 // straight/elbowed SKELETON path at its very last point — never the

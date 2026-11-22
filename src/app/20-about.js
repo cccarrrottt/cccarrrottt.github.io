@@ -11,9 +11,37 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.26.3';
+const APP_VERSION = '0.27.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.27.0', date:'2026-11-22', title:'Anyone\'s own', notes:[
+'What the chart is called, the sentence a link to it shows and the text at the top of About are the chart\'s own now, not the platform\'s: the owner writes them in About, under «The chart\'s name and description», and they are saved, imported and exported with the chart. The name is the tab\'s title, the name a pasted link shows and the name of the app a phone keeps.',
+'A copy of the platform may live under a path, https://<login>.github.io/<repo>, as well as at the root of an account: the page is the site at the address the config names or below it. One account can publish as many charts as it has repositories.',
+'A copy may have no write service at all: with no service in the config the site is read-only for everybody and CI deploys nothing, and the chart changes by a commit of src/chart.json. DISTRIBUTING.md says how, in about ten minutes.',
+'The site publishes its chart as data beside the page, at chart.json, named against the schema published with it, so another page or a script can read it.'
+  ]},
+  {v:'0.26.5', date:'2026-11-22', title:'Over and under', notes:[
+'A note on a curved connector stays where it was put along the curve when an end of it moves, instead of flying off far from the line.',
+'Where two connectors cross, the hop is part of the line itself, so the line runs into it and out of it without a gap or a notch, a double line hops with both its rails, and dashes run on over it. A wavy line hops too, laid flat for half a wave either side.',
+'A button beside the guides turns the hops off and on for the chart; it is kept with the chart and undone as an edit.',
+'The blur under an entry marked 18+ stays on while a finger moves the chart.',
+'The list of how citations are written is only as wide as its widest choice; the footnote is written ¹.',
+'The language is chosen from a menu: each language by its flag and its own name, the one spoken ticked.',
+'A kind\'s preset card opens level with the button whose gear opened it, rather than at the foot of the column.',
+'About has the history of the chart\'s edits, as a wiki page has: each edit by when, by whom and what it was called, with what it changed, everything since, and the chart as it stood, on GitHub.',
+'The field can have a colour of its own, or a picture laid on it to fill it or repeated: Background, in the menu over open paper.'
+  ]},
+  {v:'0.26.4', date:'2026-11-22', title:'Picked by the area', notes:[
+'The language buttons wear the same flag emoji as an entry\'s language tabs.',
+'On a phone the top bar is laid out as on a computer: the working keys on the left, in two rows, and the account, Save and the language on the right. The toolbar under it is a row of its own across the screen.',
+'The drawers on the left each take a fifth of the edge again, though there are four of them now.',
+'On a phone the top bar goes in two steps as the chart is carried up: its upper keys first, and the toolbar under them once the chart is carried on further. Carried down, both come back. The wordmark and the search stay.',
+'The card of figures beside Default is smaller, and the author\'s own templates are in pages of eight, turned by arrows over them; the page slides across. The triangle that opens the card turns towards it as it rises into place, and a kind\'s preset card rises the same way.',
+'With the pencil or the eraser in hand, a second finger on the chart puts away the line being drawn and moves the chart instead.',
+'The style brush is put down after one press. Pressed beside the entries rather than on one, it draws an area, and gives the look to every entry wholly inside it, or every connector with both ends inside it, in one step of undo.',
+'A tag carried out of the Tags drawer onto the chart while entries are picked goes on every one of them, in one step of undo; the tag under the pointer says how many.',
+'The words in the field over an entry are painted on the same pixels as the entry\'s own, line by line, at a screen density of one and of two; at other densities they are at most one device pixel apart.'
+  ]},
   {v:'0.26.3', date:'2026-11-21', title:'As it is drawn', notes:[
 'An entry\'s words look the same while they are being written as when they are drawn, letter for letter: the readings over words, underlines and strikes, a larger word in a line, several lines, lists and dividers all stand where the drawing puts them, and the field is laid on the drawing by its first letter.',
 'The languages are picked by their flags on the top bar: the American one for English, the Russian one for Russian.',
@@ -639,10 +667,68 @@ const aboutOverlay = document.getElementById('aboutOverlay');
 renderVersionInfo();
 document.getElementById('aboutToggle').onclick = ()=>{
   closeToolbarMenus('aboutOverlay');
+  showChartWords();
   aboutOverlay.classList.add('open');
 };
 document.getElementById('aboutClose').onclick = ()=> aboutOverlay.classList.remove('open');
 aboutOverlay.addEventListener('click', e=>{ if(e.target===aboutOverlay) aboutOverlay.classList.remove('open'); });
+
+/* ---------------------------------------------------------------------
+   What the chart is called, and what it is about.
+
+   These used to be the platform's: the name in <title> and in the link
+   preview, the sentence a pasted link shows, and the paragraph at the top
+   of this card that says the chart is a map of Transformers continuity —
+   in src/index.html and build.py, files every copy of the platform carries.
+   A copy with a chart of its own said it was a map of Transformers
+   continuity until somebody found the three places and rewrote them. They
+   are the chart's now (settings.title, settings.description,
+   settings.about), saved and imported with it; build.py writes the first
+   two into the site's preview, and this puts the name on the tab and the
+   rest at the top of About. A chart that names nothing is called by the
+   platform's name and has no paragraph.
+
+   Asked after every rebuild, so an undo, an import or a merged save shows
+   the words they brought. Not before this part has run: the first rebuild
+   is in part 02, before APP_NAME exists. */
+var chartWordsReady = false;
+function chartWord(key){
+  const v = SETTINGS && typeof SETTINGS[key] === 'string' ? SETTINGS[key].trim() : '';
+  return v;
+}
+function showChartWords(){
+  if(!chartWordsReady) return;
+  const title = chartWord('title');
+  document.title = title || APP_NAME;
+  const box = document.getElementById('aboutChart');
+  if(box){
+    const about = chartWord('about');
+    box.innerHTML = (title ? `<h3 class="about-chart-title">${escapeHtml(title)}</h3>` : '') +
+      (about ? `<div class="about-chart-text">${markupToRichHtml(about)}</div>` : '');
+  }
+  /* What is being typed is left alone: a rebuild while the field is in
+     the hand would put back the value it had before the keystroke. */
+  [['chartTitleField', 'title'], ['chartDescField', 'description'], ['chartAboutField', 'about']].forEach(([id, key])=>{
+    const f = document.getElementById(id);
+    if(f && document.activeElement !== f) f.value = SETTINGS && typeof SETTINGS[key] === 'string' ? SETTINGS[key] : '';
+  });
+}
+/* Taken when the field is left, as one edit: a keystroke each would be an
+   undo step each, and a rebuild each. An empty field is the absence of the
+   setting, so the platform's name comes back rather than an empty title. */
+[['chartTitleField', 'title'], ['chartDescField', 'description'], ['chartAboutField', 'about']].forEach(([id, key])=>{
+  const f = document.getElementById(id);
+  if(!f) return;
+  f.addEventListener('change', ()=>{
+    const v = key === 'about' ? f.value.replace(/\s+$/, '') : f.value.trim();
+    const was = SETTINGS && typeof SETTINGS[key] === 'string' ? SETTINGS[key] : '';
+    if(v === was) return;
+    applyEdit(()=>{ if(v) SETTINGS[key] = v; else delete SETTINGS[key]; });
+    showChartWords();
+  });
+});
+chartWordsReady = true;
+showChartWords();
 
 /* This document's own bytes, which Export writes the chart into.
 

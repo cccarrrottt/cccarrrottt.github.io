@@ -15,9 +15,9 @@
  *
  * The style brush takes the look of what is picked when it is taken up —
  * an entry's borders, ground, corners, face, size and alignment, or a
- * connector's line, ends, path and colour — and gives it to every entry
- * or connector pressed after, each press one step of undo, until it is
- * put down. An entry gives its look to entries and a connector to
+ * connector's line, ends, path and colour — and gives it to the entry or
+ * connector pressed next, or to all of those inside an area drawn with
+ * it, in one step of undo, and is put down with that. An entry gives its look to entries and a connector to
  * connectors: the two have no look in common.
  *
  * And the presets: what Default, Character and Link put down, set from
@@ -100,26 +100,72 @@ function lookOfPicked(){
   if(e) return {kind:'edge', look: pickLook(edgeStyleFor(e.from, e.to), EDGE_LOOK_KEYS)};
   return null;
 }
-function paintNode(id){
+/* Giving the look: to entries or to connectors, any number of them, in
+   one step of undo. */
+function paintNodes(ids){
   if(!paintLook || paintLook.kind !== 'node') return false;
-  const found = workingEntry(id);
-  if(!found) return false;
-  applyEdit(()=>{
+  ids = ids.filter(id=> workingEntry(id));
+  if(!ids.length) return false;
+  applyEdit(()=> ids.forEach(id=>{
     const f = workingEntry(id);
     const opts = entryOpts(f.entry);
     NODE_LOOK_KEYS.forEach(k=>{ if(paintLook.look[k] === undefined) delete opts[k]; else opts[k] = JSON.parse(JSON.stringify(paintLook.look[k])); });
     putEntry(f.index, f.entry, opts);
-  });
+  }));
   return true;
 }
-function paintEdge(from, to){
-  if(!paintLook || paintLook.kind !== 'edge') return false;
-  applyEdit(()=>{
+function paintNode(id){ return paintNodes([id]); }
+function paintEdges(pairs){
+  if(!paintLook || paintLook.kind !== 'edge' || !pairs.length) return false;
+  applyEdit(()=> pairs.forEach(([from, to])=>{
     const kept = Object.assign({}, edgeStyleFor(from, to));
     EDGE_LOOK_KEYS.forEach(k=>{ if(paintLook.look[k] === undefined) delete kept[k]; else kept[k] = JSON.parse(JSON.stringify(paintLook.look[k])); });
     setEdgeStyleOverride(from, to, kept);
-  });
+  }));
   return true;
+}
+function paintEdge(from, to){ return paintEdges([[from, to]]); }
+/* What a drawn area holds: the entries wholly inside it, or the
+   connectors whose two ends are both inside it. Arrays and links are
+   their own kinds of thing and keep their look. */
+function paintArea(a, b){
+  const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  const inside = n=> n && n.x >= x0 && n.y >= y0 && n.x + n.w <= x1 && n.y + n.h <= y1;
+  if(paintLook.kind === 'node'){
+    const ids = [...nodes.values()].filter(n=> inside(n) && !isArrayNode(n) && !isLinkNode(n) && !nodeHidden(n)).map(n=> n.id);
+    return paintNodes(ids);
+  }
+  const pairs = structEdges.filter(e=> inside(nodes.get(e.from)) && inside(nodes.get(e.to))).map(e=> [e.from, e.to]);
+  return paintEdges(pairs);
+}
+var paintDrag = null;
+function paintDragMove(ev){
+  if(!paintDrag) return;
+  const w = clientToWorld(ev.clientX, ev.clientY);
+  paintDrag.to = w;
+  const a = paintDrag.from;
+  marqueeRect.setAttribute('x', Math.min(a.x, w.x)); marqueeRect.setAttribute('y', Math.min(a.y, w.y));
+  marqueeRect.setAttribute('width', Math.abs(w.x - a.x)); marqueeRect.setAttribute('height', Math.abs(w.y - a.y));
+  marqueeRect.setAttribute('stroke-width', 1 / vs);
+  marqueeRect.style.display = '';
+}
+function paintDragEnd(ev){
+  if(!paintDrag) return;
+  paintDragMove(ev);
+  const d = paintDrag;
+  paintDrag = null;
+  marqueeRect.style.display = 'none';
+  window.removeEventListener('pointermove', paintDragMove, true);
+  window.removeEventListener('pointerup', paintDragEnd, true);
+  window.removeEventListener('pointercancel', paintDragEnd, true);
+  if(Math.hypot(d.to.x - d.from.x, d.to.y - d.from.y) * vs < 6){ paintMissed(); return; }
+  if(paintArea(d.from, d.to)) setHandTool(null);
+  else flashStatus(paintLook && paintLook.kind === 'edge' ? 'No connector has both its ends inside that area'
+                                                        : 'No entry stands wholly inside that area');
+}
+function paintMissed(){
+  flashStatus(paintLook && paintLook.kind === 'edge' ? 'The brush holds a connector’s style: press a connector, or draw round several'
+                                                     : 'The brush holds an entry’s style: press an entry, or draw round several');
 }
 
 /* A press with a hand tool: the chart never sees it. */
@@ -137,11 +183,22 @@ function handDown(ev){
   }
   const g = t && t.closest && t.closest('.node');
   const hit = t && t.closest && t.closest('[data-from][data-to]');
-  let done = false;
-  if(g && g.dataset.id) done = paintNode(g.dataset.id);
-  else if(hit) done = paintEdge(hit.getAttribute('data-from'), hit.getAttribute('data-to'));
-  if(!done) flashStatus(paintLook && paintLook.kind === 'edge' ? 'The brush holds a connector’s style: press a connector'
-                                                               : 'The brush holds an entry’s style: press an entry');
+  /* One press gives the look once, and the brush is put down with it
+     (the owner's list of 22.11, evening); pressed beside them, the brush
+     draws an area round several, and gives it to all of them at once. */
+  const kindHit = paintLook && (paintLook.kind === 'node' ? g && g.dataset.id : hit);
+  if(kindHit){
+    const done = paintLook.kind === 'node' ? paintNode(g.dataset.id)
+                                           : paintEdge(hit.getAttribute('data-from'), hit.getAttribute('data-to'));
+    if(done) setHandTool(null);
+    return;
+  }
+  if(!paintLook) return;
+  const w = clientToWorld(ev.clientX, ev.clientY);
+  paintDrag = {from: w, to: w};
+  window.addEventListener('pointermove', paintDragMove, true);
+  window.addEventListener('pointerup', paintDragEnd, true);
+  window.addEventListener('pointercancel', paintDragEnd, true);
 }
 svg.addEventListener('pointerdown', handDown, true);
 ['mousedown', 'touchstart', 'click', 'dblclick', 'contextmenu'].forEach(type=>

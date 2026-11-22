@@ -421,6 +421,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          # A copy with no write service (api empty in 00-config.js) is a
+          # site read-only for everybody, its chart changed by committing
+          # src/chart.json (DISTRIBUTING.md, "Without the service"). There
+          # is nothing for the page to talk to, so nothing to deploy.
+          site_api=$(sed -n "s/^[[:space:]]*api: '\([^']*\)'.*/\1/p" ../src/app/00-config.js)
+          if [ -z "$site_api" ]; then
+            echo "The config names no write service; there is nothing to deploy."
+            exit 0
+          fi
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             # A fork has no service of its own to deploy, and passes. The
             # repository the site names (00-config.js) does: there, a skip

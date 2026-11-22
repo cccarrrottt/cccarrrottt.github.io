@@ -394,12 +394,17 @@ function portOnSide(n, side, i, count, ring){
    is fastened where the geometry put it; the bending happens along the
    line. A rippled border's drop is therefore worked out once, where the
    port is, and never again at some new place along the side. */
-function roundedPath(pts, r){
+/* `cut`, when given, is asked for each leg by the index of the point it
+   ends at, and what it answers is written on that leg before the leg
+   ends: a hop over a crossing line (seatHops) is spliced in that way, so
+   the corners are rounded exactly as they would be without it. */
+function roundedPath(pts, r, cut){
   if(r >= CURVE_CORNER_R) return polylinePath(curveThrough(pts, CURVE_STEP));
-  if(pts.length<=2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
+  if(pts.length<=2) return `M${pts[0].x},${pts[0].y}${cut ? cut(1) : ''} L${pts[1].x},${pts[1].y}`;
   const segLen=(a,b)=>Math.hypot(b.x-a.x,b.y-a.y);
   let d = `M${pts[0].x},${pts[0].y}`;
   for(let i=1;i<pts.length-1;i++){
+    if(cut) d += cut(i);
     const prev=pts[i-1], cur=pts[i], next=pts[i+1];
     const l1=segLen(prev,cur), l2=segLen(cur,next);
     /* Two corners sharing a leg each get half of it, so their arcs cannot
@@ -439,6 +444,7 @@ function roundedPath(pts, r){
     d += ` L${cur.x+ax*rr},${cur.y+ay*rr} Q${cur.x},${cur.y} ${cur.x+bx*rr},${cur.y+by*rr}`;
   }
   const last = pts[pts.length-1];
+  if(cut) d += cut(pts.length-1);
   d += ` L${last.x},${last.y}`;
   return d;
 }
@@ -883,9 +889,6 @@ function waveOffsetPoints(samples, amp, lam, from, to, closed){
     out.push({x: p.x - dy*off, y: p.y + dx*off, s: p.s, bx: p.x, by: p.y});
   }
   return out;
-}
-function wavyFromSamples(samples, amp, lam, from, to, closed){
-  return smoothPath(waveOffsetPoints(samples, amp, lam, from, to, closed), closed);
 }
 // Many small scallops rather than a few big ones: a fine ripple reads as
 // a deliberate frame, where a long slow wave just looks like a wobbly box.

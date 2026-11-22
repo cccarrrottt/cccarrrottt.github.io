@@ -319,6 +319,7 @@ function alignEditorOnInk(){
   const t = nodeEditorTarget;
   const rec = richFields.get('nodeEditorText');
   if(!t || !rec || nodeEditor.hidden) return;
+  if(nodeEditorSeat) nodeEditorSeat.textContent = '';
   const box = nodeEditorBoxFor(t);
   if(!box || box.turn) return;
   let drawn = [];
@@ -360,7 +361,7 @@ function alignEditorOnInk(){
   range.selectNodeContents(rec.surface);
   const f = range.getBoundingClientRect();
   if(!f.width || !f.height) return;
-  const dx = (l + r)/2 - (f.left + f.right)/2;
+  let dx = (l + r)/2 - (f.left + f.right)/2;
   let dy = (tp + b)/2 - (f.top + f.bottom)/2;
   /* Up and down, by the first letter rather than by the whole block. The
      block's height is the ink of everything in it, and a reading counts
@@ -387,13 +388,90 @@ function alignEditorOnInk(){
         const lr = document.createRange();
         lr.setStart(firstTyped, j); lr.setEnd(firstTyped, j + 1);
         const q = lr.getBoundingClientRect();
-        if(m && q.height) dy = new DOMPoint(e.x, e.y + e.height).matrixTransform(m).y - q.bottom;
+        if(m && q.height){
+          const pen = firstDrawn.getStartPositionOfChar(i);
+          const start = new DOMPoint(pen.x, pen.y).matrixTransform(m);
+          /* Across, by the same letter's pen too: the middle of the whole
+             block counts an italic's overhang on one side and not the
+             other, and put every letter of "**bold** *it*" a third of a
+             pixel to the right. Up and down, by its baseline. */
+          dx = start.x - q.left;
+          const below = new DOMPoint(e.x, e.y + e.height).matrixTransform(m).y - start.y;
+          dy = start.y - (q.bottom - below);
+        }
       }catch(err){ /* a letter the drawing cannot give a box for: the block's middle stands */ }
     }
   }
   if(Math.abs(dx) > (r - l)/2 || Math.abs(dy) > (b - tp)/2) return;
-  nodeEditor.style.left = (parseFloat(nodeEditor.style.left) + dx).toFixed(2) + 'px';
-  nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(2) + 'px';
+  nodeEditor.style.left = (parseFloat(nodeEditor.style.left) + dx).toFixed(3) + 'px';
+  nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(3) + 'px';
+  seatLinesOnPixels(rec.surface, drawn);
+}
+/* Laid one on the other, the two baselines agree to a hundredth of a
+ * pixel — and the words still showed a whole pixel apart (the owner's list
+ * of 22.11, evening: "not a pixel between them"). That pixel is the
+ * painting, not the layout. Chromium places an HTML line on the nearest
+ * whole CSS pixel (two device pixels at a time at a density of two), and
+ * an SVG line on the device pixel its baseline is in at a density of one,
+ * on the nearest at two; the field then paints one device pixel above the
+ * drawing. Measured by painting each alone and sweeping it across a pixel
+ * in steps of a twentieth. At densities between and beyond (1.25, 1.5,
+ * 2.625, 3) the rule for two was the nearest found: the same pixels or
+ * one device pixel off, where the baseline alone was up to three.
+ *
+ * So each line of the field is moved, by a translation — which the browser
+ * does carry out to the single device pixel — from where HTML would paint
+ * it to where the drawing paints the same line. Each line on its own,
+ * since the two step down by a fraction of a pixel a line and round it
+ * differently; by a stylesheet, not by the lines' own style, which a line
+ * typed after one would copy. */
+var nodeEditorSeat = null;
+function seatLinesOnPixels(surface, drawn){
+  if(!nodeEditorSeat){
+    nodeEditorSeat = document.createElement('style');
+    nodeEditorSeat.id = 'nodeEditorSeat';
+    document.head.appendChild(nodeEditorSeat);
+  }
+  nodeEditorSeat.textContent = '';
+  if(!surface || !drawn || !drawn.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const letters = [];
+  drawn.flatMap(e=> [...e.querySelectorAll('tspan')])
+    .filter(e=> !e.querySelector('tspan') && !e.classList.contains('ruby-anno') && !e.classList.contains('text-gap'))
+    .forEach(el=>{ const t = el.textContent; for(let i = 0; i < t.length; i++) if(/\S/.test(t[i])) letters.push({el, i, ch: t[i]}); });
+  const lines = new Map();
+  const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+  let k = 0, tn;
+  while((tn = walker.nextNode())){
+    if(tn.parentElement && tn.parentElement.closest('rt')) continue;
+    const t = tn.textContent;
+    for(let j = 0; j < t.length; j++){
+      if(!/\S/.test(t[j])) continue;
+      let line = tn.parentNode;
+      while(line && line.parentNode !== surface && line !== surface) line = line.parentNode;
+      const at = k++;
+      if(!line || line === surface || line.nodeType !== 1 || lines.has(line)) continue;
+      lines.set(line, {tn, j, at});
+    }
+  }
+  const rules = [];
+  [...surface.children].forEach((line, n)=>{
+    const one = lines.get(line);
+    const d = one && letters[one.at];
+    if(!d || d.ch !== one.tn.textContent[one.j]) return;
+    try{
+      const m = d.el.getScreenCTM(), pen = d.el.getStartPositionOfChar(d.i), e = d.el.getExtentOfChar(d.i);
+      const bs = new DOMPoint(pen.x, pen.y).matrixTransform(m).y;
+      const below = new DOMPoint(e.x, e.y + e.height).matrixTransform(m).y - bs;
+      const rg = document.createRange();
+      rg.setStart(one.tn, one.j); rg.setEnd(one.tn, one.j + 1);
+      const bh = rg.getBoundingClientRect().bottom - below;
+      const lift = (dpr === 1 ? Math.floor(bs + 1e-3) : Math.round(bs * dpr) / dpr) + 1 / dpr - Math.round(bh);
+      if(Math.abs(lift) > 1e-3 && Math.abs(lift) <= 1.5)
+        rules.push(`#nodeEditor .rich-surface > :nth-child(${n + 1}){translate:0 ${lift.toFixed(4)}px;}`);
+    }catch(err){ /* a letter the drawing cannot place: the line stands as laid out */ }
+  });
+  nodeEditorSeat.textContent = rules.join('\n');
 }
 const NODE_EDITOR_MINH = 22;
 /* A phone's browser zooms the whole PAGE in on a field whose type is
@@ -787,6 +865,7 @@ function closeNodeEditor(keep){
   if(!nodeEditorTarget) return;
   if(nodeEditorCommitTimer){ clearTimeout(nodeEditorCommitTimer); nodeEditorCommitTimer = 0; }
   if(noteEditorPaintFrame){ cancelAnimationFrame(noteEditorPaintFrame); noteEditorPaintFrame = 0; }
+  if(nodeEditorSeat) nodeEditorSeat.textContent = '';
   const wasNote = nodeEditorTarget.kind === 'note';
   if(keep !== false) commitNodeEditorText();
   endLabelPreview(keep !== false);

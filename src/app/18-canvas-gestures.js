@@ -413,14 +413,25 @@ function followWithPhoneBar(){
   if(Math.abs(moved) < 2 * Math.abs(across)) return;
   // A run of moves the same way, so a finger that wavers does not flicker it.
   f.run = (Math.sign(f.run || 0) === Math.sign(moved) ? f.run : 0) + moved;
-  if(f.run < -28) setPhoneBarHidden(true);
-  else if(f.run > 28) setPhoneBarHidden(false);
+  /* In two steps (the owner's list of 22.11, evening): the upper part of
+     the bar goes first, and the toolbar under it only once the chart has
+     been carried on further the same way. Carried down, both come back. */
+  if(f.run < -PHONE_BAR_SECOND) setPhoneBarHidden(2);
+  else if(f.run < -28) setPhoneBarHidden(Math.max(1, setPhoneBarHidden.level || 0));
+  else if(f.run > 28) setPhoneBarHidden(0);
 }
+var PHONE_BAR_SECOND = 160;
+/* How much of the bar is put away: 0 none, 1 the upper part (its keys
+   and the account; the wordmark and the search stay), 2 the toolbar
+   under it too. true and false are 2 and 0. */
 function setPhoneBarHidden(hide){
   const f = setPhoneBarHidden;
   const bar = document.querySelector('.topbar');
-  if(!bar || !!f.hidden === !!hide) return;
-  f.hidden = !!hide;
+  const level = hide === true ? 2 : hide === false ? 0 : Math.max(0, Math.min(2, hide | 0));
+  if(!bar || (f.level || 0) === level) return;
+  const was = f.level || 0;
+  f.level = level;
+  f.hidden = level > 0;
   clearTimeout(f.timer);
   cancelAnimationFrame(f.frame);
   /* What the bar gives up or takes back is put into the view as it goes,
@@ -448,11 +459,14 @@ function setPhoneBarHidden(hide){
      instead of jumping to its new place. */
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const FADE = reduced ? 0 : 150, FOLD = reduced ? 0 : 200;
-  const heightOf = (gone)=>{
-    const had = bar.classList.contains('gone');
-    bar.classList.toggle('gone', gone);
+  /* The classes each step wears: slid fades, gone gives the height up. */
+  const STEPS = [['slid', 'gone'], ['slid2', 'gone2']];
+  const wear = (lv, which)=> STEPS.forEach((st, i)=> bar.classList.toggle(st[which], i < lv));
+  const heightOf = (lv)=>{
+    const had = STEPS.map(st=> bar.classList.contains(st[1]));
+    wear(lv, 1);
     const h = bar.getBoundingClientRect().height;
-    bar.classList.toggle('gone', had);
+    STEPS.forEach((st, i)=> bar.classList.toggle(st[1], had[i]));
     return h;
   };
   const fold = (from, to, done)=>{
@@ -472,18 +486,18 @@ function setPhoneBarHidden(hide){
     };
     f.frame = requestAnimationFrame(step);
   };
-  if(hide){
-    bar.classList.add('slid');
+  if(level > was){
+    wear(level, 0);
     f.timer = setTimeout(()=>{
       top = svg.getBoundingClientRect().top;
-      fold(heightOf(false), heightOf(true), ()=> bar.classList.add('gone'));
+      fold(heightOf(was), heightOf(level), ()=> wear(level, 1));
     }, FADE);
   } else {
     const from = bar.getBoundingClientRect().height;
-    bar.classList.remove('gone');
+    wear(level, 1);
     const to = bar.getBoundingClientRect().height;
     fold(from, to, ()=>{});
-    f.timer = setTimeout(()=> bar.classList.remove('slid'), FOLD);
+    f.timer = setTimeout(()=> wear(level, 0), FOLD);
   }
 }
 /* A bar put away on a phone is back when the window is no longer one. */

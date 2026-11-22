@@ -454,7 +454,7 @@ function updateAddFabPosition(){
    time because they are created all over this file. The tabs at the left
    edge are not among them: they cover none of these, and each keeps its
    own state until it is pressed again. */
-const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'cloudOverlay', 'aboutOverlay', 'textViewOverlay', 'langMenu'];
+const TOOLBAR_SURFACES = ['filePopover', 'stickerOverlay', 'cloudOverlay', 'aboutOverlay', 'textViewOverlay', 'historyOverlay', 'langMenu'];
 function closeToolbarMenus(keep){
   TOOLBAR_SURFACES.forEach(id=>{
     if(id === keep) return;
@@ -618,7 +618,7 @@ function entryLinkTarget(raw){
   const want = entryFromHash(u.hash);
   if(!want || !nodes.has(want.id)) return null;
   const here = u.origin + u.pathname === location.origin + location.pathname;
-  return (here || raw.trim().startsWith('#') || SITE_ORIGINS.includes(u.origin)) ? want : null;
+  return (here || raw.trim().startsWith('#') || atSite(u.href)) ? want : null;
 }
 /* Where a link node goes: the entry its link names — a copied link, a bare
    `#entry=…`, or the entry's id typed as it is — unless that is itself. */
@@ -722,7 +722,7 @@ function linksIntoChart(raw){
   if(raw.trim().startsWith('#')) return true;
   let u;
   try{ u = new URL(raw.trim(), location.href); }catch(e){ return false; }
-  return SITE_ORIGINS.includes(u.origin) || u.origin + u.pathname === location.origin + location.pathname;
+  return atSite(u.href) || u.origin + u.pathname === location.origin + location.pathname;
 }
 function openEntryFromHash(){
   const want = entryFromHash(location.hash);
@@ -1005,6 +1005,7 @@ function rebuildChart(){
   paintSuggestionMarks();
   textViewChanged();
   dropOrphanFloaters();
+  showChartWords();
 }
 /* Whatever floats over the chart for one thing goes when that thing does.
    Each of these used to be shut by the one path that deleted — the Delete
