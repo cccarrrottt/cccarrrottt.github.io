@@ -53,7 +53,7 @@ self.addEventListener('fetch', ev => {
     return;
   }
   if(req.mode === 'navigate') return;
-  if(MEDIA.test(url.pathname) || HASHED.test(url.pathname) || VERSIONS.test(url.pathname)){
+  if(MEDIA.test(url.pathname) || HASHED.test(url.pathname) || VERSIONS.test(url.pathname) || EDITOR.test(url.pathname)){
     ev.respondWith(aPicture(req, ev));
     return;
   }
@@ -120,6 +120,10 @@ function piece(whole, range){
    with no signal after it has opened once. It is not let go with the
    program: a release changes it, and releases are few. */
 const VERSIONS = /\/versions\.[0-9a-f]{16}\.js$/;
+/* The editing parts, which the program fetches only for the owner
+   (build.py, LAZY_PARTS). Kept the same way once fetched, which is what
+   lets the owner edit with no signal after editing once with one. */
+const EDITOR = /\/editor\.[0-9a-f]{16}\.js$/;
 const HASHED = /\/(?:app|style)\.[0-9a-f]{16}\.(?:js|css)$/;
 const namedIn = text => [...String(text || '').matchAll(/(?:src|href)="((?:app|style)\.[0-9a-f]{16}\.(?:js|css))" data-inline/g)]
   .map(m => new URL(m[1], PAGE).href);

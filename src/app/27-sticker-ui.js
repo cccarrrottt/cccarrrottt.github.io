@@ -12,9 +12,7 @@
    if it is too big to belong in a page.
    ------------------------------------------------------------------ */
 const STICKER_MAX = 128;              // px, for still pictures
-const STICKER_GIF_LIMIT = 512 * 1024; // bytes of source GIF
 
-const stickerOverlay = document.getElementById('stickerOverlay');
 const stickerGrid = document.getElementById('stickerGrid');
 const stickerFile = document.getElementById('stickerFile');
 const stickerStatusEl = document.getElementById('stickerStatus');
@@ -697,7 +695,7 @@ function openRefPicker(anchorBtn, surface){
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'ref-pick';
-    b.innerHTML = `<span class="ref-num">[${i+1}]</span><span>${escapeHtml(refBodyText(r)) || '<em>empty</em>'}</span>`;
+    b.innerHTML = `<span class="ref-num">${refNumberText(i+1)}</span><span>${escapeHtml(refBodyText(r)) || '<em>empty</em>'}</span>`;
     b.addEventListener('click', ev=>{
       ev.stopPropagation();
       insertIntoSurface(surface, '{{r:' + r.key + '}}');

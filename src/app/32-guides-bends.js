@@ -24,7 +24,6 @@ const GUIDE_DOT_R = 3.2;      // the mark on a guide that means a PLACE, not a l
 /* The handles that bend a connector by hand. Above the drawing, because
    they are things to take hold of, and below the guides, which are only
    ever drawn over the top of whatever they are lining up. */
-const bendLayer = el('g', {id:'bendLayer'}, viewport);
 
 /* ---------------------------------------------------------------------
    Bending a connector by hand.
@@ -1007,7 +1006,6 @@ function dropIdleBends(from, to, list){
   }
   return kept;
 }
-const guideLayer = el('g', {id:'guideLayer', style:'pointer-events:none;'}, viewport);
 function clearGuides(){
   while(guideLayer.firstChild) guideLayer.removeChild(guideLayer.firstChild);
 }
@@ -1262,7 +1260,6 @@ function alignGuides(st, offX, offY, free, only){
   paintExtra(py, false);
   return {x: outX, y: outY, hitX: !!(gx || px), hitY: !!(gy || py)};
 }
-const leaderPickLayer = el('g', {id:'leaderPickLayer', style:'pointer-events:none;'}, viewport);
 
 /* Choosing "on a leader line" IS the request to place it.
  *
@@ -1285,9 +1282,6 @@ function edgePointsFor(from, to){
   const steps = Math.max(8, Math.min(120, Math.round(len / 6)));
   for(let i=0;i<=steps;i++){ const p = hit.getPointAtLength(len*i/steps); out.push({x:p.x, y:p.y}); }
   return out;
-}
-function cssEscape(v){
-  return (window.CSS && CSS.escape) ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&');
 }
 function beginCalloutPick(){
   if(!currentEdgeStyleTarget || readOnlyView) return;

@@ -27,7 +27,7 @@ const nodeEditorText = document.getElementById('nodeEditorText');
    field is open. A `let` is in its temporal dead zone until then — and a
    dead-zone read throws even from inside a typeof — so the first transform
    of the session took the whole boot down with it. */
-var nodeEditorTarget = null, nodeEditorUndoPushed = false, nodeEditorCommitTimer = 0;
+var nodeEditorUndoPushed = false, nodeEditorCommitTimer = 0;
 var noteEditorPaintFrame = 0;
 /* WHAT the field is open on.
  *
@@ -292,6 +292,10 @@ function positionNodeEditor(){
   surf.transformOrigin = box.turn ? 'center' : '';
   nodeEditor.style.left = x + 'px';
   nodeEditor.style.top  = y + 'px';
+  /* Seated again now that the field has the width it will keep: a
+     reading seated while the field was still at the last thing's width
+     could have had its word on another line. */
+  seatFieldReadings(rec.surface);
   alignEditorOnInk();
 }
 /* The last word on where the field stands: on the words it is covering.
@@ -357,7 +361,36 @@ function alignEditorOnInk(){
   const f = range.getBoundingClientRect();
   if(!f.width || !f.height) return;
   const dx = (l + r)/2 - (f.left + f.right)/2;
-  const dy = (tp + b)/2 - (f.top + f.bottom)/2;
+  let dy = (tp + b)/2 - (f.top + f.bottom)/2;
+  /* Up and down, by the first letter rather than by the whole block. The
+     block's height is the ink of everything in it, and a reading counts
+     in it differently on the two sides — the drawing's tspan reaches as
+     far as its face's box, the field's reading as far as its own — so a
+     label with a reading on its first line stood a unit lower in the field
+     than on the chart. A letter's box is the face's ascent and descent at
+     that letter's size on both sides, so two of them can be laid one on
+     the other exactly. */
+  const firstDrawn = drawn.flatMap(e=> [...e.querySelectorAll('tspan')])
+    .find(e=> !e.querySelector('tspan') && !e.classList.contains('ruby-anno') &&
+               !e.classList.contains('text-gap') && /\S/.test(e.textContent));
+  const walker = document.createTreeWalker(rec.surface, NodeFilter.SHOW_TEXT);
+  let firstTyped = null, tn;
+  while((tn = walker.nextNode())){
+    if(tn.parentElement && tn.parentElement.closest('rt')) continue;
+    if(/\S/.test(tn.textContent)){ firstTyped = tn; break; }
+  }
+  if(firstDrawn && firstTyped){
+    const i = firstDrawn.textContent.search(/\S/), j = firstTyped.textContent.search(/\S/);
+    if(firstDrawn.textContent[i] === firstTyped.textContent[j]){
+      try{
+        const e = firstDrawn.getExtentOfChar(i), m = firstDrawn.getScreenCTM();
+        const lr = document.createRange();
+        lr.setStart(firstTyped, j); lr.setEnd(firstTyped, j + 1);
+        const q = lr.getBoundingClientRect();
+        if(m && q.height) dy = new DOMPoint(e.x, e.y + e.height).matrixTransform(m).y - q.bottom;
+      }catch(err){ /* a letter the drawing cannot give a box for: the block's middle stands */ }
+    }
+  }
   if(Math.abs(dx) > (r - l)/2 || Math.abs(dy) > (b - tp)/2) return;
   nodeEditor.style.left = (parseFloat(nodeEditor.style.left) + dx).toFixed(2) + 'px';
   nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(2) + 'px';
@@ -489,6 +522,22 @@ function scaleFieldSizes(surface){
    browser put them (an empty mark standing on each), and the reading is
    moved by the difference, in its own ems so a zoom keeps it. */
 let seatingReadings = false;
+/* How far over its baseline a plain line of the field reaches: the top of
+   the line box the field's own line-height makes. A reading's line is
+   lifted by RUBY_EXTRA over that (see the stylesheet's ruby::before). */
+function fieldLineReach(surface){
+  const probe = document.createElement('div');
+  const cs = getComputedStyle(surface);
+  probe.style.cssText = 'position:absolute;visibility:hidden;left:0;top:0;white-space:pre;' +
+    `font-family:${cs.fontFamily};font-size:${cs.fontSize};line-height:${cs.lineHeight};`;
+  const m = document.createElement('span');
+  m.style.cssText = 'display:inline-block;width:0;height:0;';
+  probe.appendChild(m);
+  nodeEditor.appendChild(probe);
+  const up = m.getBoundingClientRect().bottom - probe.getBoundingClientRect().top;
+  probe.remove();
+  return up;
+}
 function seatFieldReadings(surface){
   if(seatingReadings) return;
   const rubies = surface.querySelectorAll('ruby');
@@ -496,15 +545,56 @@ function seatFieldReadings(surface){
   seatingReadings = true;
   try{
     const cs = getComputedStyle(surface);
-    const own = (parseFloat(cs.fontSize) || NODE_FS * vs) / (vs || 1);
-    const family = cs.fontFamily;
+    /* The entry's own size, which is what the drawing makes room by: a
+       line carrying a reading is RUBY_EXTRA at the ENTRY's scale taller
+       than one that does not (wrapAndMeasure), whatever size the run the
+       reading sits in. The field's line box is given the same lift. */
+    const entryFs = (parseFloat(cs.fontSize) || NODE_FS * vs) / (vs || 1);
+    surface.style.setProperty('--ruby-lift',
+      (fieldLineReach(surface) + RUBY_EXTRA * (entryFs / NODE_FS) * vs).toFixed(2) + 'px');
+    const sizeOf = e=> (parseFloat(getComputedStyle(e).fontSize) || NODE_FS * vs) / (vs || 1);
     rubies.forEach(ruby=>{
       const rt = ruby.querySelector('rt');
       if(!rt) return;
-      const word = [...ruby.childNodes].filter(c=> c !== rt && c.nodeName !== 'RP').map(c=> c.textContent).join('');
-      if(!word.trim()) return;
-      const bold = parseInt(getComputedStyle(ruby).fontWeight, 10) >= 600;
-      const rise = inkReach(word, {bold, fontSize: own, family}).up + RUBY_PAD * own / NODE_FS + own * RUBY_SCALE * 0.21;
+      /* A reading inside an underlined or struck run is drawn with the
+         run's rule (the reading's runs start from the run's look, see
+         parseMarkupInto), but a rule is not inherited in CSS — it is
+         painted by the box that carries it, and never across a box taken
+         out of the line, which the reading now is. So the field wore the
+         rule under the word and none under the reading the chart
+         underlines. It is put on the reading here, from the nearest run
+         that has each. */
+      let under = null, strike = null;
+      for(let e = ruby.parentElement; e && e !== surface; e = e.parentElement){
+        if(!under) under = underOfEl(e);
+        if(!strike) strike = strikeOfEl(e);
+      }
+      const lines = [under ? 'underline' : '', strike ? 'line-through' : ''].filter(Boolean);
+      rt.style.textDecorationLine = lines.join(' ');
+      rt.style.textDecorationStyle = lines.length ? (LINE_STYLES[under || strike] || LINE_STYLES.solid).css : '';
+      /* The height is rubyRise's, asked of the same letters at the same
+         sizes: the word's tallest letter run by run, RUBY_PAD at the size
+         the unit is set in, and the reading's depth at its largest run.
+         It was asked at the ENTRY's size, so a reading over a word set
+         larger stood where it would stand over a word of ordinary size —
+         inside the word. */
+      const own = sizeOf(ruby);
+      const texts = (root, skip)=>{
+        const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let t;
+        while((t = w.nextNode())) if(t.textContent.trim() && !(skip && skip.contains(t))) out.push(t);
+        return out;
+      };
+      const baseTexts = texts(ruby, rt);
+      if(!baseTexts.length) return;
+      const up = Math.max(0, ...baseTexts.map(t=>{
+        const pcs = getComputedStyle(t.parentElement);
+        return inkReach(t.textContent, {bold: parseInt(pcs.fontWeight, 10) >= 600,
+          italic: pcs.fontStyle === 'italic', fontSize: sizeOf(t.parentElement),
+          family: pcs.fontFamily}).up;
+      }));
+      const anno = Math.max(own * RUBY_SCALE, ...texts(rt).map(t=> sizeOf(t.parentElement)));
+      const rise = up + RUBY_PAD * own / NODE_FS + anno * 0.21;
       const mark = ()=>{ const m = document.createElement('span'); m.style.cssText = 'display:inline-block;width:0;height:0;'; return m; };
       const inWord = mark(), inReading = mark();
       ruby.insertBefore(inWord, rt);

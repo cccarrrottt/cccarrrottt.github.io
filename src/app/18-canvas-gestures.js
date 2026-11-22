@@ -206,6 +206,8 @@ function applyVisibility(opts){
     const hide = (a && nodeHidden(a)) || (b && nodeHidden(b)) || (c && nodeHidden(c));
     fadeForTags(g, !!hide);
   });
+  hopsFollowVisibility();
+  scenarioHoldSync();
 }
 
 /* ---------------------------------------------------------------------
@@ -232,8 +234,36 @@ function computeBounds(){
  * camera at empty space. Bounds are cheap — one pass over the entries —
  * and the only caller runs on a click, so there is nothing to cache. */
 
+/* A lifted veil lasts while its entry is in sight (see NSFW_TAG): an
+   entry no part of which is in the view any more is veiled again. Asked
+   on every move of the view, and only of the few entries lifted. */
+function nsfwPiecesOf(id){
+  return [...qNodes('.node.nsfw').filter(g=> g.dataset.id === id),
+          ...viewport.querySelectorAll(`.nsfw-scenery[data-nsfw="${CSS.escape(id)}"]`)];
+}
+function liftNsfwVeil(id){
+  nsfwOpen.add(id);
+  nsfwPiecesOf(id).forEach(p=> p.classList.add('nsfw-open'));
+}
+function veilWhatLeftView(){
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if(!W || !H) return;
+  const x0 = -vx/vs, y0 = -vy/vs, x1 = x0 + W/vs, y1 = y0 + H/vs;
+  [...nsfwOpen].forEach(id=>{
+    const n = nodes.get(id);
+    const seen = n && n.x < x1 && n.x + n.w > x0 && n.y < y1 && n.y + n.h > y0;
+    if(seen) return;
+    nsfwOpen.delete(id);
+    /* Veiled again, it is not left open in the panel either — after this
+       frame of the move rather than inside it, so a view moved at start-up
+       never reaches the panels before they exist. */
+    if(selectedId === id) setTimeout(()=>{ if(selectedId === id && !nsfwOpen.has(id)) deselect(); });
+    nsfwPiecesOf(id).forEach(p=> p.classList.remove('nsfw-open'));
+  });
+}
 function applyTransform(){
   viewport.setAttribute('transform',`translate(${vx},${vy}) scale(${vs})`);
+  if(nsfwOpen.size) veilWhatLeftView();
   markViewMoving();
   followWithPhoneBar();
   syncAlignGrid();
@@ -257,6 +287,7 @@ function applyTransform(){
   showCoord(`x${Math.round(mid.x)} · y${Math.round(mid.y)}`);
   rememberView();
   syncMinimap();
+  scenariosInView();
 }
 /* The coordinates in the corner, rewritten on every frame of a pan.
 
@@ -1340,15 +1371,18 @@ window.addEventListener('mouseup', ()=>{
   qEdges('.bead-carried').forEach(c=> c.classList.remove('bead-carried'));
   // A frame still owing from the drag would draw over what settling the
   // drag is about to draw, from a state that no longer exists.
-  if(dragRedrawFrame || dragRedrawTimer){
+  /* But the drawing it owed is what tells the callouts on these
+     connectors where their anchors ended up, and that has to be written
+     down before the chart is rebuilt from the entries — a rebuild starts
+     the anchors again from what the entries say. So the frame is not
+     dropped: a drop that moved anything draws the connectors afresh
+     below, before the rebuild, and that is the frame; only a carry that
+     came back to where it started takes it here. Taken in both, it was
+     the same drawing twice in a row — a sixth of a drop on a phone. */
+  const owed = !!(dragRedrawFrame || dragRedrawTimer);
+  if(owed){
     cancelAnimationFrame(dragRedrawFrame); dragRedrawFrame = 0;
     clearTimeout(dragRedrawTimer); dragRedrawTimer = 0;
-    /* But the drawing it owed is what tells the callouts on these
-       connectors where their anchors ended up, and that has to be written
-       down before the chart is rebuilt from the entries — a rebuild starts
-       the anchors again from what the entries say. So the frame is not
-       dropped, it is taken now. */
-    if(st.moved) redrawEdges();
   }
   st.g.classList.remove('dragging');
   clearGuides();
@@ -1366,6 +1400,7 @@ window.addEventListener('mouseup', ()=>{
   if(st.node.x===st.originX && st.node.y===st.originY){
     // Snapped back to where it started — and the bends with it, and any
     // bar the carry fixed, since nothing has been done.
+    if(owed) redrawEdges();
     carryBends(st, 0, 0);
     unfixAmalgamBars(st.barsFixed);
     return;
@@ -1819,3 +1854,85 @@ window.addEventListener('mouseup', e=>{
   });
 });
 
+
+/* ---------------------------------------------------------------------
+   The arrow keys.
+
+   With entries picked, an arrow carries them one step of the grid, and
+   Shift+arrow five; Alt+arrow walks from the entry that is open along its
+   lines instead — up to where it came from, down to what came of it, and
+   left or right to the entry beside it that came of the same one. The
+   walk is a reader's as much as the owner's: it moves the view, not the
+   chart.
+
+   A step is a carry, not a write of its own. Everything a carry does to
+   what it moves — the bends it brings along, a parent kept to its stretch
+   of a bar, a split kept to its line, an array refitted round what is in
+   it, the one step of undo — lives in the gesture, so a key that wrote
+   positions itself would do part of it and differ from a hand in the
+   rest. The key takes the entry by its middle, moves the hand the step's
+   width on screen and lets go.
+   ------------------------------------------------------------------ */
+const NUDGE_STEPS = 1, NUDGE_STEPS_SHIFT = 5;
+function nudgePicked(dx, dy){
+  if(readOnlyView || nodeDragState || !selectedId) return false;
+  const n = nodes.get(selectedId);
+  const g = n && qNode(`.node[data-id="${CSS.escape(n.id)}"]`);
+  if(!g) return false;
+  const rect = svg.getBoundingClientRect();
+  const x = rect.left + vx + (n.x + n.w/2) * vs, y = rect.top + vy + (n.y + n.h/2) * vs;
+  const mouse = (type, cx, cy, target)=> target.dispatchEvent(new MouseEvent(type,
+    {bubbles: true, cancelable: true, button: 0, buttons: type === 'mouseup' ? 0 : 1, clientX: cx, clientY: cy}));
+  mouse('mousedown', x, y, g);
+  if(!nodeDragState) return false;
+  /* The carry snaps the distance the hand went to the grid, so the hand
+     goes exactly the step. A step that is shorter on screen than a press
+     is allowed to wander first goes out further and comes back to it. */
+  const sx = dx * GRID * vs, sy = dy * GRID * vs;
+  if(Math.hypot(sx, sy) < DRAG_THRESHOLD + 1) mouse('mousemove', x + Math.sign(sx) * 40, y + Math.sign(sy) * 40, window);
+  mouse('mousemove', x + sx, y + sy, window);
+  mouse('mouseup', x + sx, y + sy, window);
+  return true;
+}
+/* The next entry along the open one's lines, one way. A split and the
+   frame of an array are steps of a line, not places to stop, so the walk
+   goes through a split to the far side and never into a frame. */
+function lineageStep(id, way){
+  const n = nodes.get(id);
+  if(!n) return null;
+  const stopsAt = m=> m && !isArrayNode(m) && !isSplitNode(m);
+  const parentsOf = m=> (m.parents || []).map(p=> nodes.get(p)).filter(Boolean);
+  const childrenOf = m=> [...nodes.values()].filter(c=> (c.parents || []).includes(m.id));
+  const midX = m=> m.x + m.w/2, midY = m=> m.y + m.h/2;
+  // Through splits: what is on the far side of one, the way the walk goes.
+  const beyond = (list, next)=>{
+    const out = [], seen = new Set();
+    const go = m=>{ if(!m || seen.has(m.id)) return; seen.add(m.id); if(stopsAt(m)) out.push(m); else if(isSplitNode(m)) next(m).forEach(go); };
+    list.forEach(go);
+    return out;
+  };
+  const nearestTo = list=> list.sort((a, b)=> Math.hypot(midX(a) - midX(n), midY(a) - midY(n)) - Math.hypot(midX(b) - midX(n), midY(b) - midY(n)))[0] || null;
+  if(way === 'up') return nearestTo(beyond(parentsOf(n), parentsOf));
+  if(way === 'down') return nearestTo(beyond(childrenOf(n), childrenOf));
+  // Beside: what came of the same entries as this one, nearest on that side.
+  const fellows = beyond(beyond(parentsOf(n), parentsOf).flatMap(childrenOf), childrenOf).filter(m=> m.id !== n.id);
+  const sign = way === 'left' ? -1 : 1;
+  const onSide = fellows.filter(m=> (midX(m) - midX(n)) * sign > 0.5);
+  return onSide.sort((a, b)=> Math.abs(midX(a) - midX(n)) - Math.abs(midX(b) - midX(n)))[0] || null;
+}
+function walkLineage(way){
+  if(!selectedId) return false;
+  const m = lineageStep(selectedId, way);
+  if(!m) return false;
+  selectNode(m.id); flyToNode(m.id);
+  return true;
+}
+const ARROW_WAYS = {ArrowUp: ['up', 0, -1], ArrowDown: ['down', 0, 1], ArrowLeft: ['left', -1, 0], ArrowRight: ['right', 1, 0]};
+document.addEventListener('keydown', e=>{
+  const way = ARROW_WAYS[e.key];
+  if(!way || e.ctrlKey || e.metaKey || !selectedId || typingInField()) return;
+  if(askOverlay.classList.contains('open')) return;
+  const steps = e.shiftKey ? NUDGE_STEPS_SHIFT : NUDGE_STEPS;
+  const done = e.altKey ? walkLineage(way[0]) : nudgePicked(way[1] * steps, way[2] * steps);
+  if(done) e.preventDefault();
+});

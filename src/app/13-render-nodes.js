@@ -2265,6 +2265,50 @@ const drawOne = (n)=>{
      instead. Raised to the top it is a button all the way round. */
   if(linkWrap && linkWrap.parentNode === g) g.appendChild(linkWrap);
 
+  /* The veil of an entry tagged NSFW (see NSFW_TAG): a round badge as
+     tall as the entry, over its middle, and — to a reader, while it is
+     not lifted — everything else of the entry blurred under it, by the
+     stylesheet (.node.nsfw). Drawn last and unturned, so it stands over
+     the whole drawing upright whichever way the entry is turned. */
+  if(!isFree && nodeHasTag(n, NSFW_TAG)){
+    g.classList.add('nsfw');
+    if(nsfwOpen.has(n.id)) g.classList.add('nsfw-open');
+    const r = h/2, cx = n.x + w/2, cy = n.y + h/2;
+    const veil = el('g', {class:'nsfw-veil'}, g);
+    /* The owner's reference of 22.11, as it is, point for point: drawn in
+       its own pixels — a circle of radius 84 about (129.5, 129.5), the ring
+       17 wide — and scaled so the circle is as tall as the entry. The
+       figures are shapes, not a face: no face every reader has is as heavy,
+       and the emoji (🔞) is another sign, struck through, and every system
+       draws its own. */
+    const k = r/84;
+    const sign = el('g', {class:'nsfw-mark',
+      transform:`translate(${(cx - 129.5*k).toFixed(2)},${(cy - 129.5*k).toFixed(2)}) scale(${k.toFixed(4)})`}, veil);
+    el('circle', {class:'nsfw-disc', cx:129.5, cy:129.5, r:75.5, 'stroke-width':17}, sign);
+    el('path', {d:'M103 101.5L92 101.5L80 109.5L80 116.5L86 117.5L89 119L89 158.5L103 158.5Z'}, sign);
+    /* The eight as two round bowls, the lower a little the wider, with
+       their counters cut out in the disc's white: boxes with rounded
+       corners, read off the reference's pixels, came out flattened. */
+    el('ellipse', {cx:125.75, cy:115, rx:15.25, ry:14}, sign);
+    el('ellipse', {cx:125.75, cy:141.75, rx:16.75, ry:16.75}, sign);
+    el('ellipse', {class:'nsfw-counter', cx:126, cy:115, rx:4, ry:7}, sign);
+    el('ellipse', {class:'nsfw-counter', cx:126, cy:141.5, rx:4.5, ry:9}, sign);
+    // The plus square about its own middle, both arms 9 thick and 33 long.
+    el('path', {d:'M147 125H180V134H147ZM159 113H168V146H159Z'}, sign);
+    /* …and its scenery and ground with it, which stand in layers of their
+       own where the entry's class cannot reach them: an echo or a weave
+       left sharp round a blurred box showed the shape of what was hidden
+       (the owner, 22.11). Only this pass's pieces — a kept drawing's aura
+       has its data-id renamed while this one is drawn (drawOrKeep). */
+    const scenery = [...auraLayer.querySelectorAll(`.node-aura[data-id="${CSS.escape(n.id)}"]`)];
+    if(groundHost) scenery.push(groundHost);
+    scenery.forEach(piece=>{
+      piece.classList.add('nsfw-scenery');
+      piece.setAttribute('data-nsfw', n.id);
+      if(nsfwOpen.has(n.id)) piece.classList.add('nsfw-open');
+    });
+  }
+
   /* A tag that DOES something to its entry says so when you look at the
      entry. The decorations are still, and still is right for a chart being
      read — a page of things quietly moving is a page nobody can read — but
@@ -2284,6 +2328,12 @@ const drawOne = (n)=>{
     // A drag that actually moved the node ends with a click event too —
     // swallow that one so letting go of a node doesn't also re-select it.
     if(suppressNodeClick){ suppressNodeClick = false; return; }
+    /* A reader's first press on a veiled entry lifts the veil and does
+       nothing else: the press was to see it, not yet to open it. */
+    if(readOnlyView && g.classList.contains('nsfw') && !nsfwOpen.has(n.id)){
+      liftNsfwVeil(n.id);
+      return;
+    }
     // Ctrl/Cmd-click adds to or removes from the selection instead of
     // replacing it.
     if(ev.ctrlKey || ev.metaKey){ toggleInSelection(n.id); return; }

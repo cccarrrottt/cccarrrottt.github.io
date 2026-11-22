@@ -387,6 +387,65 @@
   .icon-btn.active{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
   .icon-btn svg{width:16px;height:16px;}
 
+  /* ---------- The bar as the owner sketched it (22.11) ----------
+     One row of the view, the panels, the search, the counts and the
+     account, in rounded keys; under it a thin row of the tools that
+     change the chart. */
+  @media (min-width: 721px){
+    .topbar{flex-wrap:wrap;gap:8px 10px;padding:10px 18px 0;}
+    .topbar > .icon-btn{width:40px;height:40px;border-radius:8px;
+      box-shadow:0 1px 2px rgba(20, 24, 31, 0.06);transition:border-color .12s, color .12s;}
+    .topbar > .icon-btn svg{width:19px;height:19px;}
+    /* The keys stand in groups: how it looks, what is read, what is made,
+       the files, and about. */
+    #studioToggle, #filesToggle, #aboutToggle{margin-left:10px;}
+    .search-wrap{flex:1 1 280px;max-width:440px;margin-left:auto;}
+    .search-wrap input{padding:10px 12px 10px 34px;border-radius:8px;font-size:13px;}
+    .search-wrap svg{left:12px;top:12px;}
+    .topbar-stats{display:flex;flex-direction:column;align-items:flex-start;line-height:1.35;}
+    .owner-avatar{width:40px;height:40px;margin-left:2px;}
+    /* A message in the pill stands at the end of the tool row, out of
+       the first row's way: in it, a long one pushed Save and the account
+       onto a line of their own and the whole chart down by a row while it
+       was shown. Cut short if it must be; the whole of it is its title. */
+    .topbar{position:relative;}
+    .save-state{position:absolute;right:18px;bottom:5px;max-width:55%;padding:2px 10px;overflow:hidden;}
+    .save-state .save-text{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+    body.read-only .save-state{position:static;max-width:none;padding:5px 11px;}
+  }
+  /* The language over the account's way in or out. */
+  .tb-account{display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 auto;}
+  .tb-account .icon-btn.lang-toggle{width:34px;height:20px;border-radius:5px;}
+  .tb-account .owner-btn{margin-left:0;padding:2px 8px;}
+  .tb-account .owner-btn svg{width:14px;height:14px;}
+  /* The second row: the width of the bar, thin, under a hairline. */
+  .toolrow{
+    flex:0 0 calc(100% + 36px);margin:0 -18px;padding:4px 18px;
+    display:flex;align-items:center;gap:4px;
+    border-top:1px solid var(--line);background:var(--panel);
+  }
+  body.read-only .toolrow{display:none;}
+  body.read-only:not(.reader-preview) #studioToggle{display:none;}
+  .toolrow-sep{width:1px;height:16px;background:var(--line);margin:0 6px;flex:0 0 auto;}
+  .tool-btn{
+    position:relative;width:26px;height:24px;padding:0;flex:0 0 auto;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    color:var(--ink-dim);cursor:pointer;
+  }
+  .tool-btn svg{width:15px;height:15px;}
+  .tool-btn:hover{color:var(--ink);border-color:var(--accent);}
+  .tool-btn.active, .tool-btn[aria-pressed="true"]{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
+  .toolrow .topbar-tools button{height:24px;border-radius:5px;}
+  .toolrow .touch-tools button, .toolrow .guide-toggle{width:26px;}
+  .toolrow .touch-tools button:first-child{border-radius:5px 0 0 5px;}
+  .toolrow .touch-tools button:last-child{border-radius:0 5px 5px 0;border-left:none;}
+  .toolrow .topbar-tools svg{width:14px;height:14px;}
+  /* The colour the eyedropper last took, in the corner of its key. */
+  .pipette-swatch{position:absolute;right:-3px;bottom:-3px;width:9px;height:9px;border-radius:2px;
+    border:1px solid var(--panel);box-shadow:0 0 0 1px var(--line);}
+  .pipette-swatch[hidden]{display:none;}
+
   /* ---------- Main area ---------- */
   /* The drawing is a drawing, not a page of prose.
    *
@@ -1265,18 +1324,18 @@
        drawers should take a click. */
     pointer-events:none;
   }
-  /* Each drawer's fifth of the edge. The tab sits at the top of it; the
-     drawer, when open, fills it beside the tab. */
+  /* Each drawer's quarter of the edge. The tab sits at the top of it; the
+     drawer, when open, fills it beside the tab. The overview was a fifth
+     drawer until it became a button on the bar (22.11). */
   .side-tab{
     position:absolute;left:0;
-    height:calc((100% - var(--side-tab-gap) * 4) / 5);
+    height:calc((100% - var(--side-tab-gap) * 3) / 4);
   }
   #tagsPanel{top:0;}
-  #refsPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 + var(--side-tab-gap));}
-  #keyPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 2 + var(--side-tab-gap) * 2);}
-  #mediaPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 3 + var(--side-tab-gap) * 3);}
-  #minimapPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 4 + var(--side-tab-gap) * 4);}
-  /* A reader has all five drawers, the legend's too since the owner's
+  #refsPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 + var(--side-tab-gap));}
+  #keyPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 2 + var(--side-tab-gap) * 2);}
+  #mediaPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 3 + var(--side-tab-gap) * 3);}
+  /* A reader has all four drawers, the legend's too since the owner's
      list of 20.11 — read, with nothing to edit or add — so the edge is
      cut the same way for both. */
   .side-tab-body{
@@ -1317,8 +1376,20 @@
     .side-tab.shutting:not(.open) .side-tab-body{visibility:hidden;animation:none;}
     .topbar{transition:none !important;}
   }
-  /* The overview is drawn on a canvas that fills its drawer. */
-  .minimap-canvas{display:block;width:100%;height:100%;cursor:pointer;touch-action:none;}
+  /* The overview, over the coordinates in the corner: a canvas under a
+     grip to carry it by. */
+  .minimap-float{
+    position:absolute;left:36px;bottom:48px;z-index:26;
+    width:220px;height:156px;display:flex;flex-direction:column;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .minimap-float[hidden]{display:none;}
+  .minimap-grip{flex:0 0 auto;height:12px;display:flex;align-items:center;justify-content:center;
+    color:var(--ink-faint);cursor:grab;touch-action:none;border-bottom:1px solid var(--line);}
+  .minimap-grip:active{cursor:grabbing;}
+  .minimap-grip svg{width:12px;height:8px;}
+  .minimap-canvas{display:block;width:100%;flex:1 1 auto;min-height:0;cursor:pointer;touch-action:none;}
   .side-tab-handle{
     position:absolute;left:0;top:0;
     width:26px;height:min(var(--side-tab-len), 100%);padding:0;
@@ -1492,6 +1563,12 @@
      scale of a row rather than of the panel's top bar. */
   .plus-mini{width:19px;height:17px;flex:0 0 auto;margin-left:4px;}
   .plus-mini svg{width:11px;height:11px;}
+  /* Every plain + on the page: one square, one drawn cross in its middle
+     (PLUS_SVG, the owner's list of 21.11). */
+  .icon-action.add-plus{width:18px;height:18px;flex:0 0 auto;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;line-height:0;}
+  .icon-action.add-plus svg{width:10px;height:10px;display:block;}
+  .icon-action.add-plus:hover{color:var(--accent);}
   /* The Tags heading's two: a tag and a category, drawn a size up so the
      small + on each still reads. */
   .plus-mini.add-tag svg, .plus-mini.add-cat svg, .plus-mini.add-ref svg{width:13px;height:13px;}
@@ -1637,12 +1714,6 @@
     content:'No tags';font-size:10px;color:var(--ink-faint);
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
   }
-  .tag-add-btn{
-    flex:0 0 auto;width:20px;height:20px;line-height:1;
-    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
-    border-radius:4px;cursor:pointer;font-size:12px;
-  }
-  .tag-add-btn:hover{color:var(--ink);border-color:var(--accent);}
   .tag-menu{
     position:absolute;top:100%;right:0;z-index:20;margin-top:3px;
     min-width:130px;max-height:180px;overflow-y:auto;
@@ -1671,6 +1742,17 @@
      at full strength with only its arrowhead faded (the owner's list of
      7.11). A line drawn only while lit stays undrawn. */
   .tag-hidden{opacity:0.1 !important;pointer-events:none !important;}
+  /* The NSFW veil (NSFW_TAG). To the author a ghost, as faint as a hidden
+     entry and never in the way; to a reader the badge itself, over the
+     entry blurred, until a press lifts it (.nsfw-open). */
+  .nsfw-veil{opacity:0.1;pointer-events:none;}
+  .nsfw-disc{fill:#fff;stroke:#fe0000;}
+  .nsfw-mark{fill:#000;}
+  .nsfw-mark .nsfw-counter{fill:#fff;}
+  body.read-only .nsfw-veil{opacity:1;pointer-events:auto;cursor:pointer;}
+  body.read-only .node.nsfw:not(.nsfw-open) > :not(.nsfw-veil){filter:url(#nsfw-blur);}
+  body.read-only .nsfw-scenery:not(.nsfw-open){filter:url(#nsfw-blur);}
+  .node.nsfw-open .nsfw-veil{display:none;}
   .edge.struct.amalgam-through.tag-hidden:not(.lit){opacity:0 !important;}
   .tag-hidden *{pointer-events:none !important;}
 
@@ -1688,7 +1770,7 @@
   .media-kind.shut .media-fold{transform:none;}
   .media-kind.shut > :not(.media-kind-top){display:none;}
   .media-kind.shut{padding-bottom:2px;margin:2px 0;}
-  .media-field{margin-top:2px;padding:0 6px 0 28px;}
+  .media-field{margin-top:2px;padding:0 6px 0 14px;cursor:grab;}
   /* Names, not fields (the owner's list of 11.11): a kind's in the type
      of a category's heading, a field's in the type of a tag row, so the
      drawer reads as the panels beside it do. */
@@ -1723,6 +1805,38 @@
   }
   .media-x:hover{color:var(--ink);border-color:var(--line);}
   .media-add-field{margin:4px 0 0 28px;}
+  /* The grip a field is carried by — the row itself is, with a mouse; a
+     finger takes the dots, since the row is where it scrolls. */
+  .media-grip{flex:0 0 auto;width:10px;height:14px;display:inline-flex;align-items:center;justify-content:center;
+    color:var(--ink-faint);opacity:0.6;cursor:grab;touch-action:none;}
+  .media-grip svg{width:6px;height:9px;}
+  .media-field:hover .media-grip{opacity:1;}
+  .legend-item:hover > .tag-grip{opacity:1;}
+  /* In the row's own padding, out of the flow, so the eyes stand in one
+     column with the categories' (16-tags.js). */
+  .legend-item:has(> .tag-grip){position:relative;}
+  .legend-item > .tag-grip{position:absolute;left:-3px;top:50%;transform:translateY(-50%);}
+  .media-field.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .media-field.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
+  /* The line the kind writes, under its fields: each fact a chip by its
+     field's name, the words between them typed where they stand (the
+     owner's list of 21.11). Italic, as the card's middle band is. */
+  .media-written{margin:7px 6px 2px 28px;}
+  .media-written-label{font-size:9px;letter-spacing:0.4px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:3px;}
+  .media-line{font-size:12px;line-height:1.9;font-style:italic;color:var(--ink-dim);
+    border:1px dashed var(--line);border-radius:4px;padding:2px 6px;}
+  .media-chip{display:inline-block;padding:0 6px;margin:0 1px;line-height:1.5;border-radius:9px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);font-style:normal;font-size:11px;
+    cursor:grab;user-select:none;touch-action:none;}
+  .media-chip.unnamed{color:var(--ink-faint);font-style:italic;}
+  .media-chip.drop-before{box-shadow:-2px 0 0 0 var(--accent);}
+  .media-chip.drop-after{box-shadow:2px 0 0 0 var(--accent);}
+  .media-join{white-space:pre;outline:none;border-radius:2px;padding:0 1px;}
+  /* An empty place still takes a caret: a hair of room, marked only when
+     the pointer is over it. */
+  .media-join:empty{display:inline-block;min-width:5px;height:1em;vertical-align:middle;}
+  .media-join[contenteditable]:hover, .media-join:focus{background:var(--panel-2);box-shadow:0 0 0 1px var(--line);cursor:var(--ibeam);}
+  .media-join:focus{box-shadow:0 0 0 1px var(--accent);}
   .editor-field select.media-kind-select{margin-bottom:6px;}
   .media-facts:empty{display:none;}
   .media-facts{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}
@@ -2098,6 +2212,26 @@
     position:absolute;right:62px;bottom:52px;padding-right:16px;display:none;
   }
   .add-fab.open.figures .add-fab-figures{display:block;}
+  /* A kind's preset: a gear on the top right corner of its button, and
+     its card where the figures' card stands (the owner's list of 22.11). */
+  .add-fab-preset{
+    position:absolute;right:-9px;top:-7px;z-index:1;
+    width:22px;height:22px;padding:2px;border-radius:50%;
+    background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);
+    cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;
+  }
+  .add-fab-preset svg{width:16px;height:16px;display:block;}
+  .add-fab-preset:hover, .add-fab-preset.on{border-color:var(--accent);color:var(--accent);}
+  .add-fab-presets{position:absolute;right:62px;bottom:52px;padding-right:16px;display:none;}
+  .add-fab.open.presets .add-fab-presets{display:block;}
+  .preset-card{min-width:250px;gap:6px;}
+  .preset-row{display:flex;align-items:center;gap:6px;}
+  .preset-label{flex:0 0 84px;font-size:11px;color:var(--ink-dim);}
+  .preset-row > .style-select, .preset-row > .preset-size{flex:1 1 auto;min-width:0;}
+  .preset-row > .hex-field{flex:1 1 auto;}
+  .preset-size{width:64px;padding:3px 6px;border:1px solid var(--line);border-radius:4px;
+    background:var(--panel-2);color:var(--ink);font:inherit;font-size:12px;}
+  .preset-reset:disabled{opacity:0.3;cursor:default;}
   .add-fab-figures-card{
     display:flex;flex-direction:column;gap:4px;padding:6px 8px 8px;
     max-height:calc(100vh - 150px);overflow-y:auto;
@@ -2132,7 +2266,8 @@
     0%, 55%{filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 2px var(--accent));}
     100%{filter:none;}
   }
-  .figure-upload-plus{font-size:20px;line-height:30px;height:30px;color:var(--ink-dim);}
+  .figure-upload-plus{height:30px;display:flex;align-items:center;justify-content:center;color:var(--ink-dim);}
+  .figure-upload-plus svg{width:16px;height:16px;display:block;}
 
   /* Undo, redo and the guides, small, under the counts at the end of the
      bar (the owner's list of 23.10): they stood as two big round buttons
@@ -2527,15 +2662,20 @@
     display:none;flex-direction:column;gap:8px;
   }
   .file-popover.open{display:flex;}
-  /* The language: a globe and the code of the one spoken, and a menu of
-     the languages each in its own words. */
-  .icon-btn.lang-toggle{width:auto;padding:0 7px;gap:3px;display:inline-flex;align-items:center;}
-  .lang-code{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.4px;}
-  .lang-menu{gap:2px;padding:6px;}
-  .lang-option{font:inherit;font-size:13px;text-align:left;padding:5px 12px;border:0;border-radius:5px;
-    background:none;color:var(--ink);cursor:pointer;}
+  /* The language: the flag of the one spoken, and a menu of the others'
+     flags (the owner's list of 21.11), each named in its own words to a
+     screen reader. */
+  .icon-btn.lang-toggle{display:inline-flex;align-items:center;justify-content:center;}
+  /* A flag, 3:2, with a hairline round it so the white of either one is
+     not lost on a white bar. */
+  .lang-flag{display:inline-block;width:21px;height:14px;border-radius:2px;overflow:hidden;
+    box-shadow:0 0 0 1px var(--line);line-height:0;}
+  .lang-flag svg{width:100%;height:100%;display:block;}
+  .lang-menu{flex-direction:row;gap:4px;padding:6px;}
+  .lang-option{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;border:0;border-radius:5px;
+    background:none;cursor:pointer;}
   .lang-option:hover{background:var(--panel-2);}
-  .lang-option.active{color:var(--accent);font-weight:600;}
+  .lang-option.active{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .file-popover .editor-status{margin:0;}
   /* A little smaller than they were (the owner's ask, 22.10). Four now,
      spread across the width five of them took, so the buttons below keep
@@ -2685,12 +2825,6 @@
   /* A menu now, dropped from its button: as wide as four tiles, and the
      tiles scroll inside it rather than the menu growing down the page. */
   .sticker-pop{width:min(420px, calc(100vw - 16px));}
-  .sticker-plus{
-    flex:0 0 auto;width:22px;height:22px;padding:0;
-    border:1px solid var(--line);border-radius:5px;background:var(--panel);
-    color:var(--ink-dim);font:400 16px/1 'IBM Plex Sans',sans-serif;cursor:pointer;
-  }
-  .sticker-plus:hover{border-color:var(--accent);color:var(--accent);}
   .sticker-status:not(.show){display:none;}
   .sticker-grid{
     display:grid;grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));
@@ -2912,6 +3046,40 @@
   .rich-surface:not(.locked) .note-rule{cursor:pointer;border-radius:3px;}
   .rich-surface:not(.locked) .note-rule:hover{background:var(--panel-2);}
   .rich-surface .note-rule.picked{background:rgba(194,59,34,0.16);outline:1px solid var(--accent);}
+  /* On the chart itself a note's list and its dividers are text: an item
+     is its words after "• " or "1. ", a divider a row of box-drawing
+     strokes round its title (flattenNoteBlocks, 03-markup) — a label has
+     no room for a document's indents. The field standing on the drawing
+     sets them the same way, or every item stood an indent to the right of
+     where it would be drawn and a divider was a rule across the field the
+     drawing never shows. */
+  .node-editor .rich-surface ul, .node-editor .rich-surface ol{
+    list-style:none;margin:0;padding:0;counter-reset:rhz-item;
+  }
+  .node-editor .rich-surface li{padding:0;}
+  .node-editor .rich-surface li::before{content:'\2022  ';white-space:pre;}
+  .node-editor .rich-surface ol > li{counter-increment:rhz-item;}
+  .node-editor .rich-surface ol > li::before{content:counter(rhz-item) '. ';}
+  .node-editor .rich-surface .note-rule{
+    margin:0;padding:0;white-space:pre;border-radius:0;--bit:'\2500';
+  }
+  .node-editor .rich-surface .note-rule[data-line="dashed"]{--bit:'\254C';}
+  .node-editor .rich-surface .note-rule[data-line="dotted"]{--bit:'\2508';}
+  .node-editor .rich-surface .note-rule[data-line="double"]{--bit:'\2550';}
+  .node-editor .rich-surface .note-rule[data-line="wavy"]{--bit:'\223F';}
+  .node-editor .rich-surface .note-rule::before{content:var(--bit) var(--bit) ' ';}
+  .node-editor .rich-surface .note-rule::after,
+  .node-editor .rich-surface .note-rule[data-line="wavy"]::after{
+    content:' ' var(--bit) var(--bit);display:inline;border:none;height:auto;background:none;
+  }
+  .node-editor .rich-surface .note-rule:not(:has(.note-rule-title))::before{
+    content:var(--bit) var(--bit) var(--bit) var(--bit) var(--bit) var(--bit);
+  }
+  .node-editor .rich-surface .note-rule:not(:has(.note-rule-title))::after{content:none;}
+  .node-editor .rich-surface .note-rule-title{
+    display:inline;width:auto;max-width:none;font-weight:inherit;font-size:1em;
+    line-height:inherit;color:inherit;padding:0;overflow-wrap:normal;
+  }
   /* The panel a divider is set in: its kind of line. Its title is typed
      over it, on a double click. */
   .rule-panel{
@@ -2992,6 +3160,14 @@
      a fifth of itself below the line. */
   .node-editor .sticker-inline{width:0.78em;height:0.78em;margin:0;vertical-align:-0.156em;}
   .sticker-missing-inline{color:var(--ink-faint);opacity:0.6;}
+  /* A sticker that is gone is still a sticker's square on the chart
+     (layoutLine draws a dashed box of stickerBox's width), so in the field
+     it holds the same square rather than the width of a "▢" in the face,
+     which moved every word after it. */
+  .node-editor .sticker-missing-inline{
+    display:inline-block;width:0.78em;height:0.78em;vertical-align:-0.156em;
+    overflow:hidden;text-align:center;line-height:0.78em;
+  }
   .sticker-missing{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:2 2;}
   .sticker-glyph{pointer-events:none;}
   /* A link node's arrow — see isLinkNode. */
@@ -3518,6 +3694,7 @@
      the hex field has to give way rather than run off the panel's edge. */
   .legend-list > .legend-setting{border-bottom:none;padding:8px 0 2px;}
   .hex-field{display:flex;align-items:center;gap:3px;}
+  .legend-setting .ref-style-select{flex:0 0 auto;width:auto;min-width:0;}
   /* A field and the control that puts it back to its default, on one row. */
   .field-with-reset{display:flex;align-items:center;gap:5px;}
   .editor-field-pair{display:flex;gap:10px;align-items:flex-start;}
@@ -3597,6 +3774,36 @@
     font-size:0.652em;line-height:1;
     text-align:center;
     position:relative;
+  }
+  /* On the entry itself the field is the drawing, and the drawing does not
+     set a reading the way a browser does. The chart lays the word out at
+     its own width and centres the reading over it, hanging past both ends
+     when it is the longer (layoutLine, 05-render-text); a browser makes
+     the ruby as wide as the wider of the two and spreads the word's
+     letters across it. So a long reading pushed "Up" apart from "rising"
+     and the rest of the line past the box's edge while it was being
+     written, and closed up again the moment it was done (the owner's
+     video of 21.11). Here the reading is taken out of the line: it
+     stands over the middle of its word and makes no room for itself,
+     which is what the chart does. */
+  .node-editor .rich-surface ruby{display:inline;position:relative;white-space:nowrap;}
+  /* …and the line it stands on is as tall as the drawing's. The chart
+     gives every line the same slot, LINE_H at the entry's size, and a line
+     carrying a reading RUBY_EXTRA more (wrapAndMeasure); a run set larger
+     makes no line taller, it only reaches further into the next. A browser
+     grows the line box to whatever is in it, so the field's lines came
+     apart wherever a word was set larger, and — once the reading left the
+     line — not at all over a reading. A run in the field therefore makes
+     no line box of its own (line-height 0: the field's strut alone sets
+     the line), and a reading props its line up by an empty mark of
+     exactly the height the drawing adds, worked out in seatFieldReadings. */
+  .node-editor .rich-surface :is(span, b, i, strong, em, font, u, s, ruby, a):not(rt, rt *, .note-rule *){line-height:0;}
+  .node-editor .rich-surface ruby::before{
+    content:'';display:inline-block;width:0;height:var(--ruby-lift, 0px);vertical-align:baseline;
+  }
+  .node-editor .rich-surface ruby rt{
+    position:absolute;left:50%;top:0;transform:translateX(-50%);
+    white-space:pre;
   }
 
   /* ---- smart guides -------------------------------------------------
@@ -3761,18 +3968,22 @@
     .topbar::after{content:'';order:2;flex:0 0 100%;height:0;}
     .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
     .search-wrap svg{top:9px;}
-    .topbar > .icon-btn{order:3;width:34px;height:34px;}
-    /* A phone has room for one more button, not two: the eraser stands
-       in for the look-as-a-reader eye while a tool is in the hand, and
-       otherwise the pencil is the one way in. */
-    body:not(.ink-pen):not(.ink-eraser) #inkEraser{display:none;}
-    body.ink-pen #readerToggle, body.ink-eraser #readerToggle{display:none;}
+    .topbar > .icon-btn{order:3;}
+    .topbar > .icon-btn{width:34px;height:34px;}
+    /* The tools are a toolbar of their own, as on a wide screen: the
+       bar's last row, its whole width, under a hairline (the owner's word
+       of 22.11). The account and Save are the row above it. */
+    .toolrow{order:10;flex:0 0 calc(100% + 20px);margin:1px -10px -7px;padding:5px 10px;gap:3px;min-width:0;
+      border-top:1px solid var(--line);}
+    .tool-btn{width:30px;height:28px;}
+    .toolrow-sep{margin:0 2px;}
+    .tb-account{order:6;flex-direction:row;}
     /* The second row starts at the left like the first — undo, redo, the
        guides — and Save keeps to its right end, just before the account
        (the owner's list of 11.11): it stood in the middle of the row with
        the tools after it. A reader has no Save, so the account takes the
        end on its own. */
-    .save-btn, .view-badge{order:5;margin-left:auto;}
+    .save-btn, .view-badge{order:7;margin-left:auto;}
     .owner-avatar, .owner-btn{order:6;margin-left:0;}
     body.read-only .owner-avatar, body.read-only .owner-avatar[hidden] + .owner-btn{margin-left:auto;}
     /* On the site a reader has both the badge and the owner's way in, and
@@ -3782,16 +3993,15 @@
     /* The status pill says why a save or an edit was refused, so it is
        given a row of its own while it has something to say rather than
        being cut to fit beside the buttons. */
-    .save-state{order:7;flex:1 1 100%;margin-left:0;white-space:normal;}
+    .save-state{order:8;flex:1 1 100%;margin-left:0;white-space:normal;}
     .topbar-stats{display:none;}
     /* The counts go; undo, redo and the guides stay, a fingertip's size,
        at the start of the row the account sits at the end of — that row
        was the empty space a row of their own left under it (the owner's
        list of 24.10). */
-    .topbar-end{order:4;flex:0 0 auto;margin-left:0;}
-    .topbar-tools button{height:28px;}
-    .touch-tools button, .guide-toggle{width:32px;}
-    .topbar-tools svg{width:16px;height:16px;}
+    .toolrow .topbar-tools button{height:28px;}
+    .toolrow .touch-tools button, .toolrow .guide-toggle{width:30px;}
+    .toolrow .topbar-tools svg{width:16px;height:16px;}
     .search-results{max-height:min(320px, 55dvh);}
 
     .side-tabs{top:8px;bottom:8px;}
@@ -3912,3 +4122,47 @@
   .swatch-strip .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
   .swatch-strip .swatch-blank.swatch-pick:hover{border-color:var(--accent);box-shadow:none;}
   .key-own-colour{display:flex;align-items:center;}
+
+/* ---- The studio (47-scenarios.js) ---- */
+.studio-panel{
+  position:absolute;right:16px;top:12px;z-index:27;width:400px;max-width:calc(100% - 32px);
+  max-height:calc(100% - 90px);display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+  font-size:13px;color:var(--ink);
+}
+.studio-panel[hidden]{display:none;}
+/* Beside the entry drawer, not under it: both stand on the right. */
+.main:has(.detail.open) .studio-panel{right:350px;}
+body.read-only:not(.reader-preview) .studio-panel{display:none;}
+body.reader-preview .studio-list{opacity:.55;pointer-events:none;}
+body.reader-preview .studio-foot .scn-add{display:none;}
+.studio-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 6px;border-bottom:1px solid var(--line);}
+.studio-title{font-weight:600;}
+.studio-list{overflow:auto;padding:8px 10px;display:flex;flex-direction:column;gap:8px;}
+.scn-empty{color:var(--ink-faint);line-height:1.4;}
+.scn-card{border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:5px;}
+.scn-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.scn-action{padding-left:14px;}
+.scn-word{color:var(--ink-faint);}
+.scn-select{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 4px;}
+.scn-chip{font:inherit;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:2px 9px;cursor:pointer;}
+.scn-chip.empty, .scn-chip.picking{border-style:dashed;color:var(--accent);}
+.scn-x{font:inherit;margin-left:auto;background:none;border:0;color:var(--ink-faint);cursor:pointer;padding:2px 4px;}
+.scn-x:hover{color:var(--ink);}
+.scn-add, .scn-play, .scn-reset{font:inherit;background:none;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 8px;cursor:pointer;}
+.scn-card .scn-add{align-self:flex-start;margin-left:14px;border-style:dashed;}
+.studio-foot{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line);}
+.studio-foot .scn-play{margin-left:auto;}
+body.reader-preview .scn-play{background:var(--accent);color:#fff;border-color:var(--accent);}
+body.scn-picking svg#canvas, body.scn-picking svg#canvas *{cursor:crosshair !important;}
+/* Held back until a scenario shows it: nothing, not a ghost. */
+.scn-held{opacity:0 !important;pointer-events:none !important;}
+.scn-held *{pointer-events:none !important;}
+.node.scn-pulse{animation:scn-pulse .9s ease-in-out 2;}
+.node.scn-glow{animation:scn-glow 1.4s ease-in-out 1;}
+.node.scn-shake{animation:scn-shake .5s ease-in-out 1;}
+@keyframes scn-pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+@keyframes scn-glow{0%,100%{filter:none;}50%{filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 3px var(--accent));}}
+@keyframes scn-shake{0%,100%{translate:0 0;}20%{translate:-6px 0;}40%{translate:6px 0;}60%{translate:-4px 0;}80%{translate:4px 0;}}
+@media (prefers-reduced-motion: reduce){ .node.scn-pulse, .node.scn-glow, .node.scn-shake{animation:none;} }

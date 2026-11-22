@@ -477,7 +477,7 @@ function placeUnderButton(pop, btn){
   pop.style.left = Math.max(8, Math.min(b.left - h.left, room)) + 'px';
   pop.style.top = Math.max(6, b.bottom - h.top + 6) + 'px';
 }
-const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel', 'minimapPanel'];
+const SIDE_TABS = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'];
 function sideTabsOpen(){
   return SIDE_TABS.map(id=> document.getElementById(id)).filter(p=> p && p.classList.contains('open'));
 }
@@ -496,7 +496,6 @@ function setSideTab(panel, open){
   document.body.classList.toggle('side-tab-open', sideTabsOpen().length > 0);
   if(open && panel.id === 'keyPanel') buildKeyTab();
   if(open && panel.id === 'mediaPanel') buildMediaTab();
-  if(panel.id === 'minimapPanel') minimapOpened(open);
 }
 SIDE_TABS.forEach(id=>{
   const panel = document.getElementById(id);
@@ -520,7 +519,8 @@ const searchResults = document.getElementById('searchResults');
 function searchHits(q){
   const hits = [];
   nodes.forEach(n=>{
-    if(isArrayNode(n)) return;
+    // What a scenario has not shown yet is not found either.
+    if(isArrayNode(n) || scenarioHeld(n)) return;
     const tabs = (n.multiLang && Array.isArray(n.langTabs)) ? n.langTabs : [];
     const texts = [{tab:null, text:n.label}].concat(tabs.map((t, i)=>({tab:i, text:t && t.text})));
     texts.forEach(({tab, text})=>{
@@ -959,9 +959,18 @@ document.addEventListener('keydown', e=>{
 /* ---------------------------------------------------------------------
    Stats + init
    ------------------------------------------------------------------ */
+/* What the counts count (the owner's list of 22.11): an entry is a thing
+   the chart is about, so a loose line of text, a link to another entry and
+   a picture are not entries, and a line to or from one is not a link. */
+function countedEntry(n){
+  return !!n && !['textbox', 'link', 'image'].includes(n.shape || '');
+}
 function updateStats(){
-  document.getElementById('statNodes').textContent = nodes.size;
-  document.getElementById('statEdges').textContent = structEdges.length;
+  let entries = 0;
+  nodes.forEach(n=>{ if(countedEntry(n)) entries++; });
+  const links = structEdges.filter(e=> countedEntry(nodes.get(e.from)) && countedEntry(nodes.get(e.to))).length;
+  document.getElementById('statNodes').textContent = entries;
+  document.getElementById('statEdges').textContent = links;
   document.getElementById('statClusters').textContent = allTags.filter(t=>t!==UNTAGGED).length;
 }
 updateStats();

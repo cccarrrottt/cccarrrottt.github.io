@@ -42,10 +42,30 @@ function cleanMediaTypes(v){
        owner had it taken out (the owner's list of 11.11) — the fields are
        written in the order they stand, top to bottom, and that order is
        the line. A chart that still has one loses it the next time its
-       kinds are edited, and is drawn without it until then. */
+       kinds are edited, and is drawn without it until then.
+     *
+       What came back (the owner's list of 21.11) is the words BETWEEN the
+       facts, `joins`: one before the first, one after each — so a film
+       can read "Mainframe (1996)" — kept by place, not by field, so a
+       field carried to another place takes its fact there and leaves the
+       punctuation where it stood. Only kept where it says something the
+       commas do not. */
+    const joins = Array.isArray(t.joins) && t.joins.length === kind.fields.length + 1 &&
+                  t.joins.every(j=> typeof j === 'string')
+      ? t.joins.map(j=> j.replace(/[\r\n]+/g, ' ').slice(0, 24)) : null;
+    if(joins && joins.join('\u0000') !== defaultJoins(kind.fields.length).join('\u0000')) kind.joins = joins;
     out.push(kind);
   });
   return out.slice(0, 100);
+}
+/* The words a kind writes between its facts when nobody has said
+   otherwise: nothing before or after, a comma between. */
+function defaultJoins(n){
+  return n ? ['', ...Array(Math.max(0, n - 1)).fill(', '), ''] : [''];
+}
+function joinsOf(kind){
+  return kind && Array.isArray(kind.joins) && kind.joins.length === kind.fields.length + 1
+    ? kind.joins.slice() : defaultJoins(kind ? kind.fields.length : 0);
 }
 function mediaTypesOf(){ return cleanMediaTypes(SETTINGS.mediaTypes); }
 function mediaTypeById(id){ return id ? mediaTypesOf().find(t=> t.id === id) || null : null; }
@@ -59,16 +79,26 @@ function cleanMediaData(v){
   return Object.keys(out).length ? out : null;
 }
 /* The line a kind writes for these facts: its fields' facts in the order
-   the fields stand, a comma between. A fact not given is left out with
-   its comma, so a film with no director reads "Mainframe, 1996", not
-   "Mainframe, , 1996". A field with no name is not written either — it
-   is one nobody has said what goes in yet. */
+   the fields stand, with the kind's words between them (a comma, unless
+   it was given others). A fact not given is left out with the words
+   before it — or, first in the line, the words after it — so a film with
+   no director reads "Mainframe, 1996", not "Mainframe, , 1996". A field
+   with no name is not written either — it is one nobody has said what
+   goes in yet. The words before the first fact and after the last are
+   written only round a line that has a fact in it. */
 function mediaLineFor(kind, data){
   if(!kind) return '';
   const facts = data || {};
-  return kind.fields.filter(f=> f.label)
-    .map(f=> String(facts[f.id] || '').replace(/\s+/g, ' ').trim())
-    .filter(Boolean).join(', ');
+  const joins = joinsOf(kind);
+  const vals = kind.fields.map(f=> f.label ? String(facts[f.id] || '').replace(/\s+/g, ' ').trim() : '');
+  let out = '', any = false;
+  vals.forEach((v, i)=>{
+    if(!v) return;
+    out += any ? joins[i] : '';
+    out += v;
+    any = true;
+  });
+  return any ? (joins[0] + out + joins[joins.length - 1]).trim() : '';
 }
 function mediaLineOf(n){
   if(!n || !n.mediaType) return '';
@@ -254,7 +284,22 @@ function buildMediaTab(){
           if(ff) ff.label = v;
         })));
       if(!readOnlyView) row.appendChild(cross('Take this field out of the kind', ()=>
-        editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) t.fields = t.fields.filter(x=> x.id !== f.id); })));
+        editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t) dropMediaField(t, f.id); })));
+      /* Picked up by the row, as a reference is, and put where it goes:
+         the line below writes the fields in this order (the owner's list
+         of 21.11). The grip is there for a finger, which cannot pick up
+         a row it would otherwise scroll. */
+      const grip = document.createElement('span');
+      grip.className = 'media-grip';
+      grip.title = 'Drag to another place in the line';
+      grip.innerHTML = '<svg viewBox="0 0 8 12" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1"/><circle cx="6" cy="2" r="1"/><circle cx="2" cy="6" r="1"/><circle cx="6" cy="6" r="1"/><circle cx="2" cy="10" r="1"/><circle cx="6" cy="10" r="1"/></g></svg>';
+      row.insertBefore(grip, row.firstChild);
+      const pick = ev=>{
+        if(ev.target.isContentEditable) return;
+        beginListDrag(ev, 'mediaField', kind.id + '\u0000' + f.id, f.label || 'Field');
+      };
+      row.addEventListener('mousedown', pick);
+      grip.addEventListener('pointerdown', ev=>{ if(ev.pointerType !== 'mouse') pick(ev); });
       box.appendChild(row);
     });
     if(!readOnlyView){
@@ -265,15 +310,117 @@ function buildMediaTab(){
       addField.addEventListener('click', ev=>{
         ev.stopPropagation();
         let fid = null;
-        editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t){ fid = nextFieldId(t); t.fields.push({id: fid, label: ''}); } });
+        editMediaTypes(list=>{ const t = list.find(x=> x.id === kind.id); if(t){ fid = nextFieldId(t); addMediaField(t, fid); } });
         if(fid) startMediaRename(mediaList.querySelector(
           `.media-kind[data-kind="${cssEscape(kind.id)}"] .media-field[data-field="${fid}"] .media-field-label`));
       });
       box.appendChild(addField);
+      box.appendChild(mediaLinePreview(kind));
     }
     mediaList.appendChild(box);
   });
   mediaList.scrollTop = scroll;
+}
+/* A field added goes at the end of the line, after a comma; the words
+   after the last fact stay after the last fact. */
+function addMediaField(t, fid){
+  const joins = joinsOf(t);
+  t.fields.push({id: fid, label: ''});
+  if(t.fields.length === 1) t.joins = [joins[0], ''];
+  else { joins.splice(joins.length - 1, 0, ', '); t.joins = joins; }
+}
+/* A field taken out takes the words after it, or — the last one — the
+   words before it, so the words round the whole line stay round it. */
+function dropMediaField(t, fid){
+  const i = t.fields.findIndex(x=> x.id === fid);
+  if(i < 0) return;
+  const joins = joinsOf(t);
+  t.fields.splice(i, 1);
+  if(!t.fields.length){ t.joins = [joins[0] + joins[joins.length - 1]]; return; }
+  joins.splice(i < t.fields.length ? i + 1 : i, 1);
+  t.joins = joins;
+}
+/* A field carried to another place: the facts move, the words between
+   them stay where they stand. */
+function moveMediaField(kindId, fid, overFid, where){
+  editMediaTypes(list=>{
+    const t = list.find(x=> x.id === kindId);
+    if(!t) return;
+    const joins = joinsOf(t);
+    const i = t.fields.findIndex(x=> x.id === fid);
+    if(i < 0) return;
+    const [it] = t.fields.splice(i, 1);
+    const j = t.fields.findIndex(x=> x.id === overFid);
+    if(j < 0){ t.fields.splice(i, 0, it); return; }
+    t.fields.splice(where === 'after' ? j + 1 : j, 0, it);
+    t.joins = joins;
+  });
+}
+/* The line a kind writes, as it will be drawn, with the words between
+ * the facts there to be typed over (the owner's list of 21.11).
+ *
+   Each fact is shown by its field's name, in a chip that can be carried
+   along the line as the rows above can; the words between them are the
+   kind's own and are typed where they stand — a comma, " (" and ")", a
+   " — ". A sample of the line, a card's facts, would read better and
+   say less: what is being written here is where each fact goes. */
+function mediaLinePreview(kind){
+  const wrap = document.createElement('div');
+  wrap.className = 'media-written';
+  const cap = document.createElement('div');
+  cap.className = 'media-written-label';
+  cap.textContent = 'Written as';
+  wrap.appendChild(cap);
+  const line = document.createElement('div');
+  line.className = 'media-line';
+  const joins = joinsOf(kind);
+  const join = (i)=>{
+    const j = document.createElement('span');
+    j.className = 'media-join';
+    j.dataset.at = String(i);
+    j.textContent = joins[i];
+    j.title = i === 0 ? 'Words before the first fact'
+            : i === joins.length - 1 ? 'Words after the last fact'
+            : 'Words between these two facts';
+    if(!readOnlyView){
+      j.contentEditable = 'plaintext-only';
+      j.spellcheck = false;
+      j.addEventListener('keydown', ev=>{
+        if(ev.key === 'Enter'){ ev.preventDefault(); j.blur(); }
+        else if(ev.key === 'Escape'){ ev.preventDefault(); j.textContent = joins[i]; j.blur(); }
+        ev.stopPropagation();
+      });
+      j.addEventListener('blur', ()=>{
+        const v = j.textContent.replace(/[\r\n]+/g, ' ').slice(0, 24);
+        if(v === joins[i]) return;
+        editMediaTypes(list=>{
+          const t = list.find(x=> x.id === kind.id);
+          if(!t) return;
+          const js = joinsOf(t);
+          js[i] = v;
+          t.joins = js;
+        });
+      });
+    }
+    return j;
+  };
+  line.appendChild(join(0));
+  kind.fields.forEach((f, k)=>{
+    const chip = document.createElement('span');
+    chip.className = 'media-chip' + (f.label ? '' : ' unnamed');
+    chip.dataset.field = f.id;
+    chip.dataset.kind = kind.id;
+    chip.textContent = f.label || 'Field';
+    if(!readOnlyView){
+      chip.title = 'Drag to another place in the line';
+      chip.addEventListener('mousedown', ev=> beginListDrag(ev, 'mediaField', kind.id + '\u0000' + f.id, f.label || 'Field'));
+      chip.addEventListener('pointerdown', ev=>{ if(ev.pointerType !== 'mouse') beginListDrag(ev, 'mediaField', kind.id + '\u0000' + f.id, f.label || 'Field'); });
+    }
+    line.appendChild(chip);
+    line.appendChild(join(k + 1));
+  });
+  wrap.appendChild(line);
+  return wrap;
 }
 /* A name in the drawer, typed over at once: what a kind just made or a
    field just added wants first. */

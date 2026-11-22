@@ -306,7 +306,7 @@ syncLod();
 /* =========================================================================
    THE OVERVIEW
    -----------------------------------------------------------------------
-   The whole chart drawn small in the lowest drawer on the left, with a
+   The whole chart drawn small in the corner over the coordinates, with a
    frame for the part of it the view is showing. Pressing or dragging on it
    moves the view there, at the zoom it already had.
 
@@ -314,7 +314,7 @@ syncLod();
    read for where things ARE, and because it is drawn again on every
    movement of the view: six hundred filled rectangles are nothing to a
    canvas, where a second copy of the SVG would be the whole chart again.
-   It is drawn only while its drawer is open, and at most once a frame.
+   It is drawn only while it is shown, and at most once a frame.
 
    `var` and function declarations, like the rest of this part: the view
    asks for a redraw on its very first move, before this part has run.
@@ -379,18 +379,46 @@ function drawMinimap(){
   c.strokeRect(v.x0 * fit.k + fit.ox + 0.75, v.y0 * fit.k + fit.oy + 0.75,
                Math.max(2, (v.x1 - v.x0) * fit.k - 1.5), Math.max(2, (v.y1 - v.y0) * fit.k - 1.5));
 }
-/* The drawer itself opens and shuts like the others (setSideTab); this is
-   what the overview adds to that: drawn as it opens, and remembered. */
-function minimapOpened(open){
+/* Shown and hidden by its button on the bar; where it stands is its own,
+   moved by the grip, and goes back to the corner whenever it is shown
+   again (the owner's list of 22.11). */
+function setMinimap(open){
+  const p = document.getElementById('minimapPanel');
+  if(!p) return;
+  p.classList.toggle('open', !!open);
+  p.hidden = !open;
+  p.style.left = p.style.top = p.style.right = p.style.bottom = '';
+  const btn = document.getElementById('minimapToggle');
+  if(btn){ btn.classList.toggle('active', !!open); btn.setAttribute('aria-pressed', open ? 'true' : 'false'); }
   try{ localStorage.setItem(MINIMAP_KEY, open ? '1' : '0'); }catch(e){}
   if(open) drawMinimap();
-}
-function setMinimap(open){
-  setSideTab(document.getElementById('minimapPanel'), open);
 }
 {
   const p = document.getElementById('minimapPanel');
   const cv = document.getElementById('minimapCanvas');
+  const btn = document.getElementById('minimapToggle');
+  if(btn) btn.addEventListener('click', ev=>{ ev.stopPropagation(); setMinimap(!minimapOpen()); });
+  const grip = document.getElementById('minimapGrip');
+  if(p && grip){
+    /* Carried by the grip within the chart's area, by mouse or finger. */
+    let from = null;
+    grip.addEventListener('pointerdown', ev=>{
+      ev.stopPropagation(); ev.preventDefault();
+      const r = p.getBoundingClientRect(), host = p.offsetParent.getBoundingClientRect();
+      from = {x: ev.clientX - r.left + host.left, y: ev.clientY - r.top + host.top, host};
+      try{ grip.setPointerCapture(ev.pointerId); }catch(e){}
+    });
+    grip.addEventListener('pointermove', ev=>{
+      if(!from) return;
+      const h = from.host;
+      const x = Math.max(0, Math.min(h.width - p.offsetWidth, ev.clientX - from.x));
+      const y = Math.max(0, Math.min(h.height - p.offsetHeight, ev.clientY - from.y));
+      p.style.left = x + 'px'; p.style.top = y + 'px'; p.style.bottom = 'auto';
+    });
+    const drop = ()=>{ from = null; };
+    grip.addEventListener('pointerup', drop);
+    grip.addEventListener('pointercancel', drop);
+  }
   if(p && cv){
     /* The point pressed becomes the middle of the view. The layout is the
        one the canvas was last drawn with, so where the press lands is
@@ -417,5 +445,6 @@ function setMinimap(open){
     let was = false;
     try{ was = localStorage.getItem(MINIMAP_KEY) === '1'; }catch(e){}
     if(was) setMinimap(true);
+    p.addEventListener('mousedown', ev=> ev.stopPropagation());
   }
 }

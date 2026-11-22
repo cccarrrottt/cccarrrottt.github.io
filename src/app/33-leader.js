@@ -88,10 +88,11 @@ svg.addEventListener('mousemove', ev=>{
  * nothing else. */
 const SWALLOW_WINDOW = 700;   // ms a press may claim the click that follows
 let swallowUntil = 0;
-/* True for the moment between placing a leader note and the click that
-   placed it finishing its journey through the page. See the popover's
-   outside-click closer, which must not treat that click as "elsewhere". */
-let leaderJustPlaced = false;
+/* leaderJustPlaced (declared in 26-bio-crop.js, since a reader's page
+   reads it too) is true for the moment between placing a leader note and
+   the click that placed it finishing its journey through the page. See the
+   popover's outside-click closer, which must not treat that click as
+   "elsewhere". */
 svg.addEventListener('click', ev=>{
   if(performance.now() > swallowUntil) return;
   swallowUntil = 0;

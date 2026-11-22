@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.26.2** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.26.3** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -66,7 +66,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 43 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 48 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -177,8 +177,9 @@ suggest a change, and when it is the owner, the same tab becomes the editor. **S
 into `src/chart.json` on `main`, and CI rebuilds the site from that
 commit, so a save is on the site a few minutes after it is made.
 
-What keeps everybody else out is not the hidden controls — every reader
-receives the editor's code. It is that a static page cannot be written to,
+What keeps everybody else out is not the hidden controls — the editor's
+code is a file beside the page (`editor.<hash>.js`, fetched only once the
+owner or an editor is signed in), and anyone can fetch it. It is that a static page cannot be written to,
 and the one place a write can go is the write service in `worker/`, which:
 
 - signs people in through a GitHub App and hands out a session only to a
@@ -209,6 +210,10 @@ reload in their own browser. None of that can recur: there is one file, and
 on the site it is a reader unless the service says otherwise.
 
 ### Setting up the write service
+
+To run a copy of your own — your site, your chart, your keys — follow
+[DISTRIBUTING.md](DISTRIBUTING.md), which puts the steps below in order for
+a fork.
 
 Done once. Until it is, `api` in `src/app/00-config.js` points at nothing
 and the site is read-only for everybody, the owner included.
@@ -285,7 +290,12 @@ keys are among the service's Secrets; until then nothing about it shows.
 A picture picked from a drive is shared by link (a reader has to be able to
 see it), and the chart names it by the service's address,
 `/cloud/gdrive/file/<id>` or `/cloud/yadisk/file?key=<public key>`, which
-answers every reader from the drive. The owner's own grant to the drive is
+answers every reader from the drive. The address also carries a mark only
+the service can make (`&mark=…`, from `SESSION_SECRET`), so it answers for
+a file the owner picked and for no other file shared by link: the service
+is not a free way through to anyone's drive. Changing `SESSION_SECRET`
+therefore stops the drive pictures already on the chart, which are picked
+again to get a new mark. The owner's own grant to the drive is
 kept inside the owner's session, as the GitHub token is; the service still
 stores nothing.
 
@@ -329,8 +339,9 @@ which writes it to the Worker's log: Cloudflare, the Worker, *Logs*
 message, the program file and the place in it, the stack, the version and
 the browser; never the session. A page sends at most five, each once. The
 program on the site is minified, so a place reads as line and column of
-`app.<hash>.js`; its source map is beside it, `app.<hash>.map`, and the
-stack still names the functions, which minification leaves as they are.
+`app.<hash>.js` (or, on the owner's page, `editor.<hash>.js`); each has its
+source map beside it, and the stack still names the functions, which
+minification leaves as they are.
 
 The log is kept three days on Cloudflare's free plan, so the service also
 counts each fault in a KV namespace, one line a fault however many readers
@@ -802,7 +813,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 155 named scenarios, and they are independent of one
+The browser suite is 163 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
@@ -849,3 +860,11 @@ the host runtime deleted, the semicircle geometry, tag categories, connector-not
 the crop chooser's clamping, stacking and round frame, the outward wave direction, the amalgam
 junction bead, leader-line notes, the reference system, and URL-scheme filtering. There are no unit tests, deliberately — nearly everything here is
 geometry, layout and event wiring, and a unit test cannot vouch for any of it.
+
+## Licence
+
+The platform, the code and design that draw, edit and publish a chart, is
+under the MIT licence (`LICENSE`). The chart it publishes here is not:
+`src/chart.json`, `src/media/` and `tests/fixtures/` hold content whose
+franchises, brands, pictures, video and fonts belong to their own authors.
+`NOTICE` says which is which.

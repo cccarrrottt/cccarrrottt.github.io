@@ -810,15 +810,23 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     r = await post('/cloud/gdrive/pick', tok, {id: 'pic1'});
     body = await r.json();
     check('a picture picked is shared by link, and named by its address on this service',
-          r.status === 200 && drive.shared.has('pic1') && body.src === SVC + '/cloud/gdrive/file/pic1' && body.kind === 'image' &&
+          r.status === 200 && drive.shared.has('pic1') && body.src.indexOf(SVC + '/cloud/gdrive/file/pic1?mark=') === 0 && body.kind === 'image' &&
           asked.includes('share {"role":"reader","type":"anyone"}'), JSON.stringify(body));
-    r = await ccall('/cloud/gdrive/file/pic1', {headers: {Range: 'bytes=0-3'}});
+    const picSrc = body.src.slice(SVC.length);
+    r = await ccall('/cloud/gdrive/file/pic1');
+    check('…which without the mark its address was given is nothing, so the service lends itself to no file it was not asked to show',
+          r.status === 404 && !asked.some(a => /^media \/drive\/v3\/files\/pic1/.test(a)), r.status);
+    r = await ccall(picSrc.replace(/mark=./, m => 'mark=' + (m.slice(-1) === 'A' ? 'B' : 'A')));
+    check('…and nor is it with a mark that is not this service\'s', r.status === 404, r.status);
+    r = await ccall('/cloud/gdrive/file/doc1?mark=' + new URL(SVC + picSrc).searchParams.get('mark'));
+    check('…nor with another file\'s mark', r.status === 404, r.status);
+    r = await ccall(picSrc, {headers: {Range: 'bytes=0-3'}});
     check('…which anyone\'s browser is answered at, with the file, read with the service\'s key, the range passed on',
           r.status === 200 && (await r.text()) === 'PNGBYTES' && r.headers.get('Content-Type') === 'image/png' &&
           r.headers.get('Access-Control-Allow-Origin') === '*' && asked.includes('media /drive/v3/files/pic1 g-key bytes=0-3'),
           asked.filter(a => /^media/.test(a)).join(' | '));
     drive.shared.add('doc1');
-    r = await ccall('/cloud/gdrive/file/doc1');
+    r = await ccall('/cloud/gdrive/file/doc1?mark=' + await w.fileMark(ENV, 'gdrive', 'doc1'));
     check('…and only a picture or a clip: a page shared by link is not passed on', r.status === 404);
     /* The drive's token runs out within the hour; the session carries what
        renews it. */
@@ -858,10 +866,12 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     body = await r.json();
     check('a Yandex file picked is published, and named by its public key',
           r.status === 200 && disk.published.get('disk:/b.jpg') === 'pk-disk:/b.jpg' &&
-          body.src === SVC + '/cloud/yadisk/file?key=' + encodeURIComponent('pk-disk:/b.jpg'), JSON.stringify(body));
+          body.src.indexOf(SVC + '/cloud/yadisk/file?key=' + encodeURIComponent('pk-disk:/b.jpg') + '&mark=') === 0, JSON.stringify(body));
     r = await ccall('/cloud/yadisk/file?key=' + encodeURIComponent('pk-disk:/b.jpg'));
+    check('…which without its mark is nothing', r.status === 404, r.status);
+    r = await ccall(body.src.slice(SVC.length));
     check('…and its address sends the browser on to Yandex\'s download', r.status === 302 && /^https:\/\/downloader\.disk\.yandex\.ru\//.test(r.headers.get('Location')));
-    r = await ccall('/cloud/yadisk/file?key=nothing-published');
+    r = await ccall('/cloud/yadisk/file?key=nothing-published&mark=' + await w.fileMark(ENV, 'yadisk', 'nothing-published'));
     check('…while a key Yandex does not know is nothing', r.status === 404);
     r = await post('/cloud/yadisk/forget', tok);
     body = await r.json();
@@ -890,6 +900,21 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
   FAULTS.full = false;
   console.error = consoleError;
   check('a fault is still taken when the count cannot be written', r.status === 204, r.status);
+  {
+    // A flood: the day's tally is full, so a new fault is logged and not counted.
+    const today = new Date().toISOString().slice(0, 10);
+    kv.set('day:' + today, '200');
+    const before = [...kv.keys()].length;
+    console.error = () => {};
+    r = await report(KENV, {...fault, message: 'one of a thousand sent by a script'});
+    console.error = consoleError;
+    check('past the day\'s reports a fault is still taken, and not counted, so a flood can neither bury the list nor spend the day\'s writes',
+          r.status === 204 && [...kv.keys()].length === before && kv.get('day:' + today) === '200', [...kv.keys()].join());
+    kv.delete('day:' + today);
+    const fresh = await w.withinFaultBudget(FAULTS, '2000-01-01');
+    check('…while a day under its tally counts, one more each report', fresh === true && kv.get('day:2000-01-01') === '1', kv.get('day:2000-01-01'));
+    kv.delete('day:2000-01-01');
+  }
   const owners = (tok, p, init) => svc.fetch(new Request(SVC + p, Object.assign({headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
                                               'Content-Type': 'application/json'}}, init || {})), KENV);
   r = await owners(s, '/faults');

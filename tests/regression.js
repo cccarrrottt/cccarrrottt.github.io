@@ -37,6 +37,45 @@ const PORT = Number(process.env.RHIZOME_TEST_PORT) || 8830;
 const MIME = {'.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8',
               '.js':'text/javascript; charset=utf-8'};
 
+/* The chart the suite draws is its own, not the repository's.
+ *
+ * Every page the suite opens is the page as built, with its chart swapped
+ * for tests/fixtures/chart.json — and its pictures, fonts and films served
+ * from tests/fixtures/media. The suite used to draw whatever src/chart.json
+ * held, which is the owner's chart and changes with every Save; eleven of
+ * its checks read entries of that chart, so a copy of the project with a
+ * chart of its own came out red on its first push of code (DISTRIBUTING.md,
+ * "Your own chart"). The fixture is a chart as the owner's stood on
+ * 21.11, kept still so the checks that lean on it have something that
+ * does not move. */
+const FIXTURE_DIR = path.join(__dirname, 'fixtures');
+const FIXTURE_RAW = fs.readFileSync(path.join(FIXTURE_DIR, 'chart.json'));
+const FIXTURE_SHA = require('crypto').createHash('sha1')
+  .update(Buffer.concat([Buffer.from(`blob ${FIXTURE_RAW.length}\0`), FIXTURE_RAW])).digest('hex');
+/* A built page with the fixture where its chart stood: the chart's script
+   element as build.py writes it (chart_script), and the id of the file it
+   was built from (rhizome-data-sha), which a Save is checked against. */
+function withFixture(html){
+  const text = String(html);
+  const open = '<script type="application/json" id="chart-data">\n';
+  const a = text.indexOf(open);
+  if(a < 0) return text;
+  const b = text.indexOf('\n</script>', a + open.length);
+  if(b < 0) return text;
+  const body = FIXTURE_RAW.toString('utf8').replace(/\n+$/, '').replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  return (text.slice(0, a + open.length) + body + text.slice(b))
+    .replace(/(<meta name="rhizome-data-sha" content=")[0-9a-f]*(")/, `$1${FIXTURE_SHA}$2`);
+}
+/* A picture, font or film the fixture names, from beside it; anything else
+   from where the page was built. */
+function mediaFile(rel){
+  const m = /^\/?(media\/[0-9a-f]{64}\.[a-z0-9]+)$/.exec(rel);
+  if(!m) return null;
+  const own = path.join(FIXTURE_DIR, m[1]);
+  return fs.existsSync(own) ? own : null;
+}
+
 let pass = 0, fail = 0;
 const results = [];
 const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGP4z8DwnwEIGP4zMDAwAAAj7AT8W4yTIQAAAABJRU5ErkJggg==', 'base64');
@@ -191,10 +230,11 @@ async function scenario(name, body){
 async function main(){
   const srv = http.createServer((q, r) => {
     const rel = decodeURIComponent(q.url.split('?')[0]);
-    const p = path.join(DIR, rel === '/' ? PAGE : rel);
+    const p = mediaFile(rel) || path.join(DIR, rel === '/' ? PAGE : rel);
     if(rel === '/favicon.ico'){ r.writeHead(204); r.end(); return; }
-    let body; try { body = fs.readFileSync(p); }
+    let body; try { body = rel === '/chart.json' ? FIXTURE_RAW : fs.readFileSync(p); }
     catch(e){ r.writeHead(404); r.end('not found'); return; }
+    if(path.extname(p) === '.html') body = withFixture(body);
     r.writeHead(200, {'Content-Type': MIME[path.extname(p)] || 'application/octet-stream'});
     r.end(body);
   });
@@ -5024,6 +5064,7 @@ async function main(){
         if(st && st.routing === 'straight') return;      // a slant is the point of these
         if(st && st.routing === 'curve') return;         // and a curve is drawn as a fine polyline
         if(el.classList.contains('amalgam-out')) return; // and of a merge's own arrow
+        if(el.classList.contains('hop')) return;         // and a hop's arch over a crossing
         const toks = el.getAttribute('d').match(/[MLQ][^MLQZ]*/g) || [];
         const pts = [];
         toks.forEach(t=>{
@@ -10471,9 +10512,9 @@ async function main(){
   /* The site as CI stages it: dist/site/, whose page keeps its program and
      stylesheet beside it (build_site in build.py). */
   const SITE_BUILT = path.join(DIR, 'site');
-  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const html = withFixture(fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8'));
   const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const dataRaw = FIXTURE_RAW;
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   /* The service's own writer, so what the page sends can be held to what
@@ -10502,6 +10543,7 @@ async function main(){
                              : r.fulfill({status: 404, body: ''});
     }
     const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
+    if(beside && /^\/editor\.[0-9a-f]{16}\.js$/.test(u.pathname)) api.editorAsked = (api.editorAsked || 0) + 1;
     if(beside){
       api.programAsked = (api.programAsked || 0) + 1;
       return r.fulfill({status: 200, contentType: u.pathname.endsWith('.css') ? 'text/css' : 'text/javascript', body: beside});
@@ -10649,6 +10691,14 @@ async function main(){
   });
   check('a session offered by anyone but the write service is ignored',
         forged.readOnly && forged.stored === null, JSON.stringify(forged));
+  /* The editing parts are a file of their own on the site (LAZY_PARTS,
+     build.py), and a reader reading has no use for them. */
+  const readerStubs = await site.evaluate(() => ({named: !!window.RHIZOME_EDITOR,
+    stub: typeof openNodeEditor === 'function' && /^function openNodeEditor\(\)\s*\{\s*\}$/.test(String(openNodeEditor)),
+    editorHere: typeof NODE_EDITOR_MINH !== 'undefined'}));
+  check('a reader\'s page never asks for the editing parts, and runs without them',
+        !api.editorAsked && readerStubs.named && readerStubs.stub && !readerStubs.editorHere,
+        JSON.stringify({asked: api.editorAsked, readerStubs}));
 
   /* What the reader carries away is a copy of their own. Driven through the
      button, with the download plumbing stubbed, and opened the way a reader
@@ -10710,6 +10760,10 @@ async function main(){
   check('signing in in a popup makes the same tab an editor',
         !inn.readOnly && inn.saveShown && inn.stored === 'good-session', JSON.stringify(inn));
   check('and the button offers to sign out', inn.button === 'Sign out', inn.button);
+  const ownerParts = await site.evaluate(() => ({named: window.RHIZOME_EDITOR,
+    real: typeof NODE_EDITOR_MINH !== 'undefined' && !/^function openNodeEditor\(\)\s*\{\s*\}$/.test(String(openNodeEditor))}));
+  check('the owner\'s page has fetched the editing parts, and edits with them',
+        api.editorAsked >= 1 && ownerParts.real && !ownerParts.named, JSON.stringify({asked: api.editorAsked, ownerParts}));
 
   const saved = await site.evaluate(async () => {
     const out = {sha: DATA_SHA};
@@ -10820,6 +10874,13 @@ async function main(){
         JSON.stringify({asked: api.programAsked}));
   check('a copy made from it carries both inside it, where their tags stood',
         !copied.beside && copied.program && copied.style, JSON.stringify({beside: copied.beside, program: copied.program, style: copied.style}));
+  check('and the editing parts each where it stood in the program, with no stand-in left for them',
+        !/\/\*! @(?:editor|lazy|part)|RHIZOME_EDITOR = "editor\./.test(copied.src) && /function openNodeEditor\([^)]/.test(copied.src)
+        && copied.src.indexOf('function openNodeEditor(') > copied.src.indexOf('function inlineSiteFiles(')
+        && copied.src.indexOf('function openNodeEditor(') < copied.src.indexOf('function checkSiteOwner('),
+        JSON.stringify({marks: (copied.src.match(/\/\*! @(?:editor|lazy|part)/g) || []).length,
+          at: ['function inlineSiteFiles(', 'function openNodeEditor(', 'function checkSiteOwner('].map(k=> copied.src.indexOf(k)),
+          named: /RHIZOME_EDITOR = "editor\./.test(copied.src)}));
   {
     const elsewhere = await browser.newContext({viewport: {width: 1200, height: 800}});
     await elsewhere.route('https://fonts.googleapis.com/**', quiet);
@@ -11083,8 +11144,8 @@ async function main(){
   const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
   const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
-  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const html = withFixture(fs.readFileSync(path.join(DIR, PAGE), 'utf8'));
+  const dataRaw = FIXTURE_RAW;
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   const api = {asked: 0, loginAs: [], account: 'reader', posted: [], resolved: [], list: [], ghAsked: 0};
@@ -11351,7 +11412,7 @@ async function main(){
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
   const appVersion = /const APP_VERSION = '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'src', 'app', '20-about.js'), 'utf8'))[1];
   const SITE_BUILT = path.join(DIR, 'site');
-  const html = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const html = withFixture(fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8'));
   const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
   const c = await browser.newContext({viewport:{width:1500, height:950}, serviceWorkers: 'block'});
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
@@ -11428,7 +11489,7 @@ async function main(){
      worker, and what it keeps. */
   const SITE_DIR = path.join(DIR, 'site');
   const files = {};
-  for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = fs.readFileSync(path.join(SITE_DIR, f));
+  for(const f of fs.readdirSync(SITE_DIR)) files['/' + f] = f === 'index.html' ? Buffer.from(withFixture(fs.readFileSync(path.join(SITE_DIR, f), 'utf8'))) : fs.readFileSync(path.join(SITE_DIR, f));
   files['/'] = files['/index.html'];
   delete files['/index.html'];
   // A picture beside the page, as a Save puts one in src/media.
@@ -14000,11 +14061,12 @@ async function main(){
       return !!(at && at.closest('#' + id));
     };
     out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
-    /* Four drawers down the left edge, the overview the lowest: the tabs
+    /* Four drawers down the left edge, Media the lowest (the overview is a
+       button on the toolbar since the owner's list of 22.11): the tabs
        stand still whatever is open, every drawer is the same size, any of
        them can be open at once, and no two ever overlap. */
-    const tabIds = ['tagsTab', 'refsTab', 'keyTab', 'minimapTab'];
-    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'].map(id=> document.getElementById(id));
+    const tabIds = ['tagsTab', 'refsTab', 'keyTab', 'mediaTab'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'].map(id=> document.getElementById(id));
     const tabRects = ()=> tabIds.map(id=>{ const r = rect(document.getElementById(id)); return [r.top, r.height].map(v=> Math.round(v)); });
     const shutRects = JSON.stringify(tabRects());
     const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -14036,7 +14098,7 @@ async function main(){
         return {svg: !!b.querySelector('svg'), text: b.textContent.trim(), label: b.getAttribute('aria-label')}; });
       out.tabSigns = JSON.stringify(signs);
       out.tabsBySign = signs.every(t=> t.svg && !t.text && t.label) &&
-        signs.map(t=> t.label).join() === 'Tags,References,Legend,Overview';
+        signs.map(t=> t.label).join() === 'Tags,References,Legend,Media';
       const cite = document.querySelector('.mini-toolbar .tb-ref-btn');
       out.citeIsSign = !!cite && !!cite.querySelector('svg') && !cite.textContent.trim();
       buildSideTabs();
@@ -17381,9 +17443,12 @@ async function main(){
      an export — carries it. */
   const {withSnapshot, drawingOf} = require(path.join(ROOT, 'tools', 'prerender.js'));
   const SITE_DIR = path.join(DIR, 'site');
-  const built = fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8');
+  const built = withFixture(fs.readFileSync(path.join(SITE_DIR, 'index.html'), 'utf8'));
   const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
-  const silence = async p => { await p.route('https://fonts.googleapis.com/**', quiet); await p.route('https://fonts.gstatic.com/**', quiet); };
+  const silence = async p => { await p.route('https://fonts.googleapis.com/**', quiet); await p.route('https://fonts.gstatic.com/**', quiet);
+    await p.route(/\/index\.html$/, r => r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: built}));
+    await p.route(/\/media\/[0-9a-f]{64}\.[a-z0-9]+$/, r => { const f = mediaFile(new URL(r.request().url()).pathname);
+      return f ? r.fulfill({status: 200, body: fs.readFileSync(f)}) : r.continue(); }); };
   const snap = await drawingOf(browser, SITE_DIR, {route: silence});
   const html = withSnapshot(built, snap);
   const TYPES = {'.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png'};
@@ -17676,6 +17741,115 @@ async function main(){
   check('while a new name, more rings, a move and a new style do route again',
         r.calls.rename > 0 && r.calls.rings > 0 && r.calls.move > 0 && r.calls.restyle > 0,
         JSON.stringify(r.calls));
+  });
+  await scenario("a carry and a pick ask the layout nothing they already know", async () => {
+  /* A connector's note asked the browser for its face and for where its
+     letters stand as soon as it was drawn, and every such question in the
+     middle of a redraw laid the whole page out again; a tap that picked
+     an entry set two fields writable to what they already were, which
+     restyled the page twice; and a drop drew the connectors twice over
+     (the owner's report, 22.11). What is checked: the answers are the
+     ones the layout gives, and the questions are not asked again. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice());
+    const beforeStyles = EDGE_STYLES.map(x=> JSON.parse(JSON.stringify(x)));
+    const out = {};
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    try{
+      applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0;
+        for(let i = 0; i < 12; i++) workingNodes.push(['lq' + i, i % 3 ? 'Entry ' + i : '**Bold** and *it* ' + i,
+          i ? 'lq' + (i - 1) : null, null, null, null, {pos: [(i % 4) * 220, Math.floor(i / 4) * 160]}]);
+        EDGE_STYLES.push({from:'lq0', to:'lq1', note:'along the line', noteAlong:true});
+        EDGE_STYLES.push({from:'lq1', to:'lq2', note:'on it', noteAlong:true, notePos:'on'});
+        EDGE_STYLES.push({from:'lq2', to:'lq3', note:'a level **note**'});
+        EDGE_STYLES.push({from:'lq4', to:'lq5', note:'below *it*', notePos:'below'});
+        EDGE_STYLES.push({from:'lq5', to:'lq6', note:'גבע mixed', noteAlong:true});
+      });
+      await wait(200);
+      /* Every run's box, as inkBoxOf gives it and as the layout does. */
+      const legacy = (txtEl)=>{
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for(const ts of txtEl.querySelectorAll('tspan')){
+          const s = ts.textContent || ''; if(!s.trim()) continue;
+          const p = ts.getStartPositionOfChar(0), cs = getComputedStyle(ts);
+          inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${parseFloat(cs.fontSize) * INK_SCALE}px ${cs.fontFamily}`;
+          const m = inkCtx.measureText(s);
+          x0 = Math.min(x0, p.x - m.actualBoundingBoxLeft / INK_SCALE); y0 = Math.min(y0, p.y - m.actualBoundingBoxAscent / INK_SCALE);
+          x1 = Math.max(x1, p.x + m.actualBoundingBoxRight / INK_SCALE); y1 = Math.max(y1, p.y + m.actualBoundingBoxDescent / INK_SCALE);
+        }
+        return x1 >= x0 ? {x: x0, y: y0, width: x1 - x0, height: y1 - y0} : null;
+      };
+      const texts = [...document.querySelectorAll('#viewport text')].filter(t=> t.querySelector('tspan[x][y]'));
+      let worst = 0;
+      texts.forEach(t=>{
+        const a = inkBoxOf(t), b = legacy(t);
+        if(!a || !b) return;
+        worst = Math.max(worst, ...['x', 'y', 'width', 'height'].map(k=> Math.abs(a[k] - b[k])));
+      });
+      out.texts = texts.length; out.worst = worst;
+      /* The along notes: their length against the layout's, now. */
+      out.lengths = [...document.querySelectorAll('text.edge-note-along')].map(t=>
+        Math.abs(noteAlongMeasure(t.textContent, t).len - t.getComputedTextLength()) < 1e-9);
+      /* A redraw with the measures remembered is the drawing a redraw with
+         none remembered makes. */
+      /* Written with each element's attributes in order of name: a plate
+         kept from the pass before has them in the order they were first
+         set, and that is not a difference anyone can see. */
+      const markup = e=> e.nodeType !== 1 ? e.textContent :
+        '<' + e.tagName + [...e.attributes].map(a=> ' ' + a.name + '="' + a.value + '"').sort().join('') + '>' +
+        [...e.childNodes].map(markup).join('') + '</>';
+      const notes = ()=> [...arrowLayer.querySelectorAll('.edge-note')].map(g=> markup(g).replace(/note-along-\d+/g, 'n')).join('|');
+      redrawEdges(); const warm = notes();
+      faceCache.clear(); noteAlongCache.clear(); redrawEdges(); const cold = notes();
+      out.sameDrawing = warm === cold && warm.length > 200; out.drawn = warm.length;
+      /* And asks the layout nothing about them. */
+      const T = SVGTextContentElement.prototype, asked = {style: 0, start: 0, length: 0};
+      const was = {gcs: window.getComputedStyle, start: T.getStartPositionOfChar, len: T.getComputedTextLength};
+      window.getComputedStyle = function(...a){ if(a[0] && a[0].closest && a[0].closest('.edge-note')) asked.style++; return was.gcs.apply(this, a); };
+      T.getStartPositionOfChar = function(...a){ if(this.closest('.edge-note')) asked.start++; return was.start.apply(this, a); };
+      T.getComputedTextLength = function(...a){ if(this.closest('.edge-note')) asked.length++; return was.len.apply(this, a); };
+      try{ redrawEdges(); } finally { window.getComputedStyle = was.gcs; T.getStartPositionOfChar = was.start; T.getComputedTextLength = was.len; }
+      out.asked = asked;
+      /* Picking entries one after another leaves the fields that are
+         already as they should be alone. */
+      const seen = [];
+      const mo = new MutationObserver(list=> list.forEach(m=> seen.push(m.target.className)));
+      /* The first pick may lock what nothing picked left open; that is a
+         change. The ones after it find everything as they want it. */
+      deselect(); toggleInSelection('lq0'); await wait(30);
+      mo.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['contenteditable']});
+      ['lq3', 'lq7', 'lq9', 'lq10'].forEach(id=> toggleInSelection(id));
+      await wait(50);
+      mo.disconnect();
+      out.editableWrites = seen.length;
+      /* A drop after a frame still owed draws the connectors once before
+         the rebuild, not twice. */
+      const g = document.querySelector('.node[data-id="lq9"]');
+      const b = g.getBoundingClientRect(), sx = b.x + b.width/2, sy = b.y + b.height/2;
+      g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, button:0, clientX:sx, clientY:sy}));
+      for(let k = 1; k <= 4; k++){ window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:sx + k*12, clientY:sy + k*8})); await wait(20); }
+      window.dispatchEvent(new MouseEvent('mousemove', {bubbles:true, clientX:sx + 64, clientY:sy + 40}));
+      out.owed = !!(dragRedrawFrame || dragRedrawTimer);
+      let draws = 0; const real = window.redrawEdges;
+      window.redrawEdges = function(...a){ draws++; return real.apply(this, a); };
+      try{ window.dispatchEvent(new MouseEvent('mouseup', {bubbles:true})); } finally { window.redrawEdges = real; }
+      out.dropDraws = draws;
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      deselect();
+    }
+    return out;
+  });
+  check('a note\'s ink is measured where the layout puts its letters, without asking it',
+        r.texts >= 10 && r.worst < 1e-6, JSON.stringify({texts: r.texts, worst: r.worst}));
+  check('a note along its line has the length the layout gives it',
+        r.lengths.length >= 3 && r.lengths.every(Boolean), JSON.stringify(r.lengths));
+  check('remembered, the notes are drawn as they are with nothing remembered', r.sameDrawing, JSON.stringify(r.drawn));
+  check('and a redraw asks the layout nothing about them', !r.asked.style && !r.asked.start && !r.asked.length, JSON.stringify(r.asked));
+  check('picking entry after entry sets no field writable that already was', r.editableWrites === 0, String(r.editableWrites));
+  check('a drop with a frame still owed draws the connectors once before the rebuild',
+        r.owed && r.dropDraws === 2, JSON.stringify({owed: r.owed, draws: r.dropDraws}));
   });
   await scenario("an edit redraws only the entries it changed", async () => {
   /* Every entry is still drawn each pass, and one whose drawing comes out
@@ -18695,7 +18869,7 @@ async function main(){
     document.getElementById('fileToggle').click();
     document.getElementById('filesToggle').click(); await pause(100);
     out.stick = {pop: rect('stickerOverlay'), btn: rect('filesToggle'),
-                 plus: document.getElementById('stickerUpload').textContent.trim(),
+                 plus: document.querySelector('#stickerUpload svg line') ? '+' : document.getElementById('stickerUpload').textContent.trim(),
                  overlay: document.getElementById('stickerOverlay').classList.contains('about-overlay')};
     document.getElementById('filesToggle').click(); await pause(50);
     out.stickShut = !document.getElementById('stickerOverlay').classList.contains('open');
@@ -18717,7 +18891,7 @@ async function main(){
     /* The drawers end above the coordinates box, which stays put. */
     const coordBox = ()=> document.querySelector('.coord').getBoundingClientRect();
     const coordAt = coordBox().left;
-    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'];
     panels.forEach(id=> setSideTab(document.getElementById(id), true));
     await pause(250);
     const lowest = Math.max(...panels.map(id=> document.querySelector('#' + id + ' .side-tab-body').getBoundingClientRect().bottom));
@@ -19940,12 +20114,13 @@ async function main(){
     const out = {};
     const X = 74000, Y = 74000;
     try{
-      /* Undo, redo and the guides: small, on the toolbar under the counts,
-         for whoever edits — a mouse included — and for nobody else. */
-      const stats = document.querySelector('.topbar-stats').getBoundingClientRect();
+      /* Undo, redo and the guides: small, on the toolbar's second row
+         under the first (the owner's sketch of 22.11), for whoever edits —
+         a mouse included — and for nobody else. */
+      const first = document.getElementById('themeToggle').getBoundingClientRect();
       const tools = [...document.querySelectorAll('.topbar-tools button')].map(b=> b.getBoundingClientRect());
-      out.toolsUnderCounts = tools.length === 3 && tools.every(t=> t.top >= stats.bottom - 0.5 && t.height > 0 && t.height <= 20 &&
-                                                         t.right <= stats.right + 0.5);
+      out.toolsUnderCounts = tools.length === 3 && tools.every(t=> t.top >= first.bottom - 0.5 && t.height > 0 && t.height <= 28) &&
+                             !!document.querySelector('.topbar-tools').closest('#toolRow');
       out.inTopbar = !!document.getElementById('guideToggle').closest('.topbar') &&
                      !!document.getElementById('touchTools').closest('.topbar');
       markReadOnly(); await wait(150);
@@ -20057,7 +20232,7 @@ async function main(){
     }
     return out;
   });
-  check('undo, redo and the guides are small buttons under the counts on the toolbar',
+  check('undo, redo and the guides are small buttons on the toolbar\'s second row',
         r.toolsUnderCounts && r.inTopbar, JSON.stringify({under:r.toolsUnderCounts, bar:r.inTopbar}));
   check('…and a reader has none of them', r.readerNoTools);
   check('…and undo lights after an edit made with a mouse', r.undoLit);
@@ -20368,9 +20543,10 @@ async function main(){
   check('a sticker in the in-entry field is the height it is in the entry', p.stickerEm > 0.6 && p.stickerEm < 0.9,
         String(p.stickerEm));
 
-  /* 4. On a phone, undo, redo and the guides share the row of the
-     sign-in button, which the site always shows, rather than taking a
-     row of their own under it. */
+  /* 4. On a phone, undo, redo and the guides start the second toolbar,
+     the bar's last row and its whole width, and the sign-in button,
+     which the site always shows, is on the row above it (the owner's
+     word of 22.11). */
   const phone = await browser.newContext({viewport:{width:390, height:844},
     deviceScaleFactor:2, isMobile:true, hasTouch:true});
   await phone.route('https://fonts.googleapis.com/**', noFonts);
@@ -20385,14 +20561,16 @@ async function main(){
       const sb = document.getElementById('ownerBtn').getBoundingClientRect();
       const tools = document.querySelector('.topbar-tools').getBoundingClientRect();
       const bar = document.querySelector('.topbar').getBoundingClientRect();
-      const out = {sameRow: tools.height > 0 && tools.top < sb.bottom && tools.bottom > sb.top,
-                   leftOfIt: tools.right <= sb.left + 0.5, fits: bar.right <= innerWidth + 0.5,
+      const row = document.getElementById('toolRow').getBoundingClientRect();
+      const out = {sameRow: tools.height > 0 && tools.top >= row.top - 0.5 && tools.bottom <= row.bottom + 0.5 && sb.bottom <= row.top + 0.5 &&
+                            Math.abs(row.bottom - bar.bottom) < 2 && row.width >= bar.width - 1 && getComputedStyle(document.getElementById('toolRow')).borderTopStyle === 'solid',
+                   leftOfIt: tools.left - row.left < 14 && tools.left >= row.left, fits: bar.right <= innerWidth + 0.5 && row.right <= innerWidth + 0.5,
                    tools:[tools.left, tools.top, tools.right, tools.bottom].map(Math.round),
                    sign:[sb.left, sb.top, sb.right, sb.bottom].map(Math.round)};
       document.getElementById('ownerBtn').hidden = true;
       return out;
     });
-    check('on a phone, undo, redo and the guides sit on the sign-in button’s row', ph.sameRow && ph.leftOfIt && ph.fits,
+    check('on a phone the tools are a second toolbar, the bar\'s last row, undo first, the sign-in button above it', ph.sameRow && ph.leftOfIt && ph.fits,
           JSON.stringify(ph));
   } finally {
     await phone.close();
@@ -20926,11 +21104,20 @@ async function main(){
       openNodeEditor('ol_r', {focus:false});
       await wait(50);
       const surf = richFields.get('nodeEditorText').surface;
-      const rt = surf.querySelector('rt').getBoundingClientRect(), rb = surf.querySelector('ruby').getBoundingClientRect();
+      const rt = surf.querySelector('rt').getBoundingClientRect();
+      /* The word's own letters: the ruby's box now reaches up over its
+         reading by the line's lift (an empty mark, see seatFieldReadings). */
+      const wordRange = document.createRange();
+      wordRange.selectNodeContents(surf.querySelector('ruby').firstChild);
+      const rb = wordRange.getBoundingClientRect();
       const g = document.querySelector('.node[data-id="ol_r"]');
       const anno = g.querySelector('.ruby-anno').getBoundingClientRect();
       const base = [...g.querySelectorAll('tspan')].find(t=> t.textContent === '漢字').getBoundingClientRect();
-      out.ruby = [+(rb.top - rt.top).toFixed(1), +(base.top - anno.top).toFixed(1), +rt.height.toFixed(1), +anno.height.toFixed(1)];
+      /* By the feet of the two rows: a CJK face falls back to another,
+         and the field's box for the letters and the drawing's are of
+         different heights, so their tops part though the letters stand
+         on the same line. */
+      out.ruby = [+(rb.bottom - rt.bottom).toFixed(1), +(base.bottom - anno.bottom).toFixed(1), +rt.height.toFixed(1), +anno.height.toFixed(1)];
       closeNodeEditor(false);
       vs = 1; applyTransform();
 
@@ -20988,7 +21175,7 @@ async function main(){
   check('the field typed into an entry with no words yet is in the ink it will be drawn in',
         r.inks[0] === 'rgb(34, 51, 204)' && r.inks[1] === 'rgb(17, 170, 68)', JSON.stringify(r.inks));
   check('a reading in the field sits where the drawing puts it, at its size',
-        Math.abs(r.ruby[0] - r.ruby[1]) < 1.5 && Math.abs(r.ruby[2] - r.ruby[3]) < 2, JSON.stringify(r.ruby));
+        Math.abs(r.ruby[0] - r.ruby[1]) < 1.5 && Math.abs(r.ruby[2] - r.ruby[3]) < 3, JSON.stringify(r.ruby));
   check('a link node is set on its bar — colour and where it goes — with no drawer', r.bar && r.written,
         JSON.stringify([r.bar, r.written]));
   check('…its arrow points at where it goes', r.turned);
@@ -22706,14 +22893,15 @@ async function main(){
 
       /* 6. A reader's edge is the drawers they have, with no gaps: three
             then, four since the Media drawer is theirs (15.11), all five
-            since the legend is too (20.11). */
+            since the legend is too (20.11), and four again since the
+            overview went up to the toolbar (22.11). */
       setReaderPreview(true);
       await wait(150);
       {
         const box = id=> document.getElementById(id).getBoundingClientRect();
-        const t = box('tagsPanel'), f = box('refsPanel'), k = box('keyPanel'), d = box('mediaPanel'), m = box('minimapPanel');
-        r.reader = [t.height, f.height, k.height, d.height, m.height].map(v=> +v.toFixed(1))
-          .concat([+(f.top - t.bottom).toFixed(1), +(k.top - f.bottom).toFixed(1), +(d.top - k.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
+        const t = box('tagsPanel'), f = box('refsPanel'), k = box('keyPanel'), d = box('mediaPanel');
+        r.reader = [t.height, f.height, k.height, d.height].map(v=> +v.toFixed(1))
+          .concat([+(f.top - t.bottom).toFixed(1), +(k.top - f.bottom).toFixed(1), +(d.top - k.bottom).toFixed(1)]);
       }
       setReaderPreview(false);
       await wait(150);
@@ -22752,9 +22940,9 @@ async function main(){
         JSON.stringify([out.cutBefore, out.cropTurnsCutOff, out.cutTurnsCropOff, out.bothIsCrop]));
   check('the entry\'s panel carries no help under the picture or the colours, no medium preview, and its facts stepped in and smaller',
         out.helpGone && out.noPreview && out.factIn, JSON.stringify([out.helpGone, out.noPreview, out.factIn]));
-  check('a reader\'s edge is shared by the five drawers they have',
-        out.reader[0] > 100 && [1, 2, 3, 4].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
-        out.reader[5] < 20 && out.reader[5] >= 0 && [6, 7, 8].every(i=> Math.abs(out.reader[i] - out.reader[5]) < 1), JSON.stringify(out.reader));
+  check('a reader\'s edge is shared by the four drawers they have',
+        out.reader[0] > 100 && [1, 2, 3].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
+        out.reader[4] < 20 && out.reader[4] >= 0 && [5, 6].every(i=> Math.abs(out.reader[i] - out.reader[4]) < 1), JSON.stringify(out.reader));
   });
 
   await scenario("the owner's list of 7.11: a figure on card layout, a card's things kept, faded lines, a ruled space, one tick, a lit reader's eye, a link that darkens, a line round a box", async () => {
@@ -23330,7 +23518,7 @@ async function main(){
           : c.classList.contains('media-kind-name') ? 'name' : c.classList.contains('media-fold') ? 'fold'
           : c.classList.contains('media-kind-count') ? 'count' : c.classList.contains('media-x') ? 'x' : (c.className || c.tagName));
         r.inputs = document.querySelectorAll('#mediaList input').length;
-        r.writtenAs = /Written as/i.test(document.getElementById('mediaList').textContent) || !!document.querySelector('.media-format');
+        r.writtenAs = !!document.querySelector('.media-written .media-line') && !document.querySelector('.media-format');
         const name = box.querySelector('.media-kind-name'), label = box.querySelector('.media-field-label');
         r.nameTag = name.tagName + ':' + label.tagName;
         const head = document.querySelector('#tagsList .legend-group[data-cat] .legend-group-head .legend-group-name'), row = document.querySelector('#tagsList .legend-item');
@@ -23461,8 +23649,11 @@ async function main(){
   }, [X, Y]);
   check('a kind of medium\'s heading reads eye, name, ▸, count, ✕ — the fold before the count, as a category\'s',
         JSON.stringify(out.order) === '["eye","name","fold","count","x"]', JSON.stringify(out.order));
-  check('the media drawer holds no fields: its names are text, in the type of a category\'s heading and a tag row, and no "Written as"',
-        out.inputs === 0 && !out.writtenAs && out.nameTag === 'SPAN:SPAN' && out.nameFont.every(Boolean) && out.labelFont.every(Boolean),
+  /* "Written as" came back on the owner's list of 21.11 — as the line
+     itself, its facts as chips and the words between typed in place, not
+     as a field of %Name% markup. */
+  check('the media drawer holds no fields: its names are text, in the type of a category\'s heading and a tag row, and "Written as" is the line, not a field',
+        out.inputs === 0 && out.writtenAs && out.nameTag === 'SPAN:SPAN' && out.nameFont.every(Boolean) && out.labelFont.every(Boolean),
         JSON.stringify([out.inputs, out.writtenAs, out.nameTag, out.nameFont, out.labelFont]));
   check('…a double click types over a kind\'s name where it stands and does not fold it; a single click on the heading folds',
         out.renaming && out.renamedKind === 'Picture|true' && out.headFolds, JSON.stringify([out.renaming, out.renamedKind, out.headFolds]));
@@ -23771,20 +23962,26 @@ async function main(){
   await page.waitForTimeout(200);
   const bar = await page.evaluate(()=>{
     const top = document.querySelector('.topbar');
-    const kids = [...top.querySelectorAll(':scope > *:not(.brand):not(.search-wrap)')].filter(e=> e.offsetParent !== null && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0);
+    // The tool row is a band the bar's width; its tools start at the left like the rest.
+    const kids = [...top.querySelectorAll(':scope > *:not(.brand):not(.search-wrap):not(#toolRow), #toolRow > .topbar-tools')].filter(e=> e.offsetParent !== null && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0);
     const rows = new Map();
-    kids.forEach(e=>{ const b = e.getBoundingClientRect(); const k = Math.round(b.top / 8); if(!rows.has(k)) rows.set(k, []); rows.get(k).push(b); });
-    const lefts = [...rows.values()].map(rs=> Math.min(...rs.map(b=> b.left)));
+    // A row by the middle of what stands in it: Save is taller than the account beside it.
+    kids.forEach(e=>{ const b = e.getBoundingClientRect(); const k = Math.round((b.top + b.height / 2) / 8); if(!rows.has(k)) rows.set(k, []); rows.get(k).push(b); });
+    const saveBox = document.getElementById('saveBtn').getBoundingClientRect();
+    // Save on a row of its own keeps to the right end, as it is meant to.
+    const lefts = [...rows.values()].filter(rs=> !(rs.length === 1 && rs[0].left === saveBox.left && rs[0].top === saveBox.top))
+      .map(rs=> Math.min(...rs.map(b=> b.left)));
     const save = document.getElementById('saveBtn').getBoundingClientRect();
-    const others = kids.filter(e=> !e.matches('#saveBtn, .owner-avatar, .owner-btn, .save-state')).map(e=> e.getBoundingClientRect());
+    // The second toolbar is the bar's last row, under Save (22.11).
+    const others = kids.filter(e=> !e.matches('#saveBtn, .owner-avatar, .owner-btn, .save-state, .topbar-tools')).map(e=> e.getBoundingClientRect());
     return {lefts: lefts.map(v=> Math.round(v)), rows: rows.size,
             saveRight: save.right >= Math.max(...others.filter(b=> Math.abs(b.top - save.top) < 12).map(b=> b.right), 0),
-            saveLow: others.every(b=> b.top <= save.top + 1),
+            saveLow: others.every(b=> b.top < save.bottom - 1),
             saveNearEnd: top.getBoundingClientRect().right - save.right < 70};
   });
   await page.setViewportSize({width: 1500, height: 950});
   await page.waitForTimeout(200);
-  check('on a phone every row of the top bar starts at the left, and Save keeps the bottom right corner',
+  check('on a phone every row of the top bar starts at the left, and Save keeps the right end of the last row above the tools',
         bar.lefts.every(l=> Math.abs(l - bar.lefts[0]) < 3) && bar.saveRight && bar.saveLow && bar.saveNearEnd, JSON.stringify(bar));
   } finally {
     await page.evaluate(()=>{
@@ -23865,7 +24062,7 @@ async function main(){
       const list = document.getElementById('mediaList');
       r.readerTab = getComputedStyle(panel).display !== 'none' && !!list.querySelector('.media-kind');
       r.readerBare = !list.querySelector('.plus-mini, .media-fold, .media-x, .media-field, .media-add-field');
-      const tabs = ['tagsPanel', 'refsPanel', 'mediaPanel', 'minimapPanel'].map(id=> document.getElementById(id).getBoundingClientRect());
+      const tabs = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'].map(id=> document.getElementById(id).getBoundingClientRect());
       r.readerStacked = tabs.every((b, i)=> i === 0 || b.top >= tabs[i - 1].bottom - 1);
       setReaderPreview(false); await wait(150);
       buildMediaTab();
@@ -23979,7 +24176,9 @@ async function main(){
         for(let k = 1; k <= steps; k++){
           await go({x: last.x + (p0.x - last.x) * k / steps, y: last.y + (p0.y - last.y) * k / steps});
         }
-        await wait(30);
+        /* Past the swell's own 90 ms: a carry may draw the dot afresh,
+           and its swell then starts over (a CI run read it half grown). */
+        await wait(150);
         const dg = document.querySelector(`.node[data-id="${dotId}"] > circle:not(.split-hit):not(.node-hover-pad)`);
         r.splitSwells = /matrix\(1\.[5-6]/.test(getComputedStyle(dg).transform);
         /* …then across the inside of the corner, small steps, to the other. */
@@ -24319,10 +24518,13 @@ async function main(){
       const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
       const out = {};
       const btn = document.getElementById('langToggle');
-      out.button = !!btn && btn.textContent.trim() === 'EN';
+      /* Flags, drawn (the owner's list of 21.11): the button wears the
+         flag of the language spoken, English the American one. */
+      const flagOf = el=> { const f = el.querySelector('.lang-flag'); return f && f.querySelector('svg') ? f.dataset.flag : ''; };
+      out.button = !!btn && flagOf(btn) === 'en' && /#3c3b6e/.test(btn.innerHTML) && btn.getAttribute('aria-label') === 'English';
       btn.click(); await wait(50);
       const menu = document.getElementById('langMenu');
-      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> b.textContent).join('|') === 'English|Русский';
+      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> flagOf(b) + ':' + b.getAttribute('aria-label')).join('|') === 'en:English|ru:Русский';
       menu.classList.remove('open');
       const kept = LANG_TABLES.ru;
       LANG_TABLES.ru = {name: 'Русский', strings: {
@@ -24331,7 +24533,7 @@ async function main(){
       applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
       await wait(100);
       menu.querySelector('[data-lang="ru"]').click(); await wait(50);
-      out.ru = document.documentElement.lang === 'ru' && btn.textContent.trim() === 'RU' &&
+      out.ru = document.documentElement.lang === 'ru' && flagOf(btn) === 'ru' && /#0039a6/.test(btn.innerHTML) &&
                document.getElementById('saveBtn').textContent === 'Сохранить' &&
                document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Отменить (Ctrl+Z)';
       out.stored = localStorage.getItem('rhizome.lang') === 'ru';
@@ -24643,8 +24845,8 @@ async function main(){
   const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
   const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
   const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1].replace(/\/+$/, '');
-  const html = fs.readFileSync(path.join(DIR, PAGE), 'utf8');
-  const dataRaw = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'));
+  const html = withFixture(fs.readFileSync(path.join(DIR, PAGE), 'utf8'));
+  const dataRaw = FIXTURE_RAW;
   const dataSha = require('crypto').createHash('sha1')
     .update(Buffer.concat([Buffer.from(`blob ${dataRaw.length}\0`), dataRaw])).digest('hex');
   const api = {connected: [], asked: [], fileAsked: 0};
@@ -24657,7 +24859,7 @@ async function main(){
   await c.route(SITE_ORIGIN + '/**', r => {
     const u = new URL(r.request().url());
     const m = /^\/(media\/[0-9a-f]{64}\.[a-z0-9]+)$/.exec(u.pathname);
-    if(m && fs.existsSync(path.join(DIR, m[1]))) return r.fulfill({status: 200, body: fs.readFileSync(path.join(DIR, m[1]))});
+    if(m && mediaFile(m[1])) return r.fulfill({status: 200, body: fs.readFileSync(mediaFile(m[1]))});
     return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
   });
   await c.route(SITE_API + '/**', async r => {
@@ -24763,6 +24965,622 @@ async function main(){
   } finally {
     await c.close();
   }
+  });
+
+  /* The owner's video of 21.11: what is typed into the field on an entry
+     looked unlike what the entry draws — a reading wider than its word
+     pushed the word's letters apart, its rule was missing, a larger run
+     opened a gap under its line. The field is meant to BE the drawing
+     with a caret in it, so it is held to the drawing letter by letter:
+     every letter the drawing sets, at its size, where the field sets it. */
+  await scenario("the field on an entry is the drawing, letter for letter", async () => {
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.slice(), beforeStyles = EDGE_STYLES.slice();
+    const was = {vx, vy, vs};
+    const letters = {
+      drawn(sel){
+        const out = [];
+        document.querySelectorAll(sel).forEach(t=>{
+          if(t.querySelector('tspan')) return;
+          const s = t.textContent, m = t.getScreenCTM();
+          for(let i = 0; i < s.length; i++){
+            if(/\s/.test(s[i])) continue;
+            let e; try{ e = t.getExtentOfChar(i); }catch(err){ continue; }
+            const p = new DOMPoint(e.x + e.width/2, e.y + e.height).matrixTransform(m);
+            out.push([s[i], p.x, p.y]);
+          }
+        });
+        return out;
+      },
+      typed(){
+        const surf = richFields.get('nodeEditorText').surface, out = [];
+        const w = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT);
+        let t;
+        while((t = w.nextNode())){
+          const s = t.textContent;
+          for(let i = 0; i < s.length; i++){
+            if(/\s/.test(s[i])) continue;
+            const rg = document.createRange(); rg.setStart(t, i); rg.setEnd(t, i + 1);
+            const q = rg.getBoundingClientRect();
+            out.push([s[i], q.x + q.width/2, q.bottom]);
+          }
+        }
+        return out;
+      }
+    };
+    const apart = (a, b)=>{
+      if(a.length !== b.length || !a.length) return 'letters ' + a.length + ' / ' + b.length;
+      let worst = 0;
+      for(let i = 0; i < a.length; i++){
+        if(a[i][0] !== b[i][0]) return 'order at ' + i + ': ' + a[i][0] + b[i][0];
+        worst = Math.max(worst, Math.abs(a[i][1] - b[i][1]), Math.abs(a[i][2] - b[i][2]));
+      }
+      return +worst.toFixed(2);
+    };
+    const out = {};
+    const cases = {
+      wide: '{{u:solid|{{#c020c0|Beast Wars:}} [[Up|a much longer reading]]rising фыву}}',
+      lines: 'one\n[[two|r]] three\n{{z:16|bigger}} four\nfive',
+      larger: 'a {{z:18|[[big|reading]]}} b\nc',
+      dressed: '**bold** *it* {{z:8|tiny}} x'
+    };
+    try{
+      for(const [k, label] of Object.entries(cases)){
+        applyEdit(()=>{ workingNodes.push(['fd_' + k, label, null, null, null, null, {pos:[9000, 9000]}]); });
+        rebuildChart();
+        const n = nodes.get('fd_' + k), rect = svg.getBoundingClientRect();
+        vs = 3; vx = -(n.x + n.w/2)*vs + rect.width/2; vy = -(n.y + n.h/2)*vs + rect.height/2; applyTransform();
+        const drawn = letters.drawn(`.node[data-id="fd_${k}"] text tspan`);
+        selectedId = 'fd_' + k; openNodeEditor(selectedId);
+        await new Promise(res=> setTimeout(res, 150));
+        out[k] = apart(drawn, letters.typed());
+        if(k === 'wide'){
+          const rt = richFields.get('nodeEditorText').surface.querySelector('rt');
+          out.ruled = getComputedStyle(rt).textDecorationLine;
+        }
+        closeNodeEditor(false);
+        applyEdit(()=>{ workingNodes = workingNodes.filter(x=> x[0] !== 'fd_' + k); });
+      }
+      applyEdit(()=>{
+        workingNodes.push(['fd_a', 'A', null, null, null, null, {pos:[9000, 8700]}]);
+        workingNodes.push(['fd_b', 'B', 'fd_a', null, null, null, {pos:[9000, 9000]}]);
+        EDGE_STYLES.push({from:'fd_a', to:'fd_b', note:'a {{u:solid|[[note|longer reading]]}}\n{{z:12|two}} lines'});
+      });
+      rebuildChart();
+      const b = nodes.get('fd_b'), rect = svg.getBoundingClientRect();
+      vs = 3; vx = -(b.x + b.w/2)*vs + rect.width/2; vy = -(b.y - 150)*vs + rect.height/2; applyTransform();
+      const drawnNote = letters.drawn('.edge-note[data-from="fd_a"][data-to="fd_b"] .edge-note-text tspan');
+      openEdgeNoteEditor('fd_a', 'fd_b');
+      await new Promise(res=> setTimeout(res, 150));
+      out.note = apart(drawnNote, letters.typed());
+      closeNodeEditor(false);
+    } finally {
+      closeNodeEditor(false);
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+      vx = was.vx; vy = was.vy; vs = was.vs; applyTransform();
+      deselect(); rebuildChart();
+    }
+    return out;
+  });
+  const near = v=> typeof v === 'number' && v < 0.6;
+  check('a reading wider than its word: the word keeps its letters together, as drawn', near(r.wide), JSON.stringify(r.wide));
+  check('…and a reading in an underlined run is underlined in the field too', /underline/.test(r.ruled || ''), r.ruled);
+  check('lines with a reading or a larger run stand as far apart as drawn', near(r.lines), JSON.stringify(r.lines));
+  check('a reading over a larger word stands where the drawing puts it', near(r.larger), JSON.stringify(r.larger));
+  check('bold, italic and a smaller run set where drawn', near(r.dressed), JSON.stringify(r.dressed));
+  check('a connector\'s note, with a reading, in the field as drawn', near(r.note), JSON.stringify(r.note));
+  });
+
+  /* The owner's list of 21.11: a kind's line is shown as it will be
+     written, its facts as chips carried along it and its fields' rows
+     carried up and down, and the words between the facts typed where they
+     stand. */
+  await scenario("a kind's line, written where it is read, its fields carried by hand", async () => {
+  const before = await page.evaluate(()=>{
+    window.__mtKept = {kinds: SETTINGS.mediaTypes, nodes: workingNodes.slice()};
+    applyEdit(()=>{
+      SETTINGS.mediaTypes = [{id:'mtfilm', name:'Film', fields:[{id:'f1',label:'Studio'},{id:'f2',label:'Director'},{id:'f3',label:'Year'}]}];
+      workingNodes.push(['mt_c','Beast Wars',null,null,null,null,{pos:[96000,96000], bioCard:true, mediaType:'mtfilm',
+                         mediaData:{f1:'Mainframe', f2:'Ian Pearson', f3:'1996'}}]);
+    });
+    rebuildChart(); mediaKindsOpen().add('mtfilm'); buildMediaTab();
+    setSideTab(document.getElementById('mediaPanel'), true);
+    return mediaLineOf(nodes.get('mt_c'));
+  });
+  const at = (sel)=> page.evaluate(s=>{ const e = document.querySelector(s); e.scrollIntoView({block:'center'});
+                                         const r = e.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; }, sel);
+  const still = (sel)=> page.evaluate(s=>{ const r = document.querySelector(s).getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; }, sel);
+  // A row carried above another.
+  const a = await at('.media-field[data-field="f3"] .media-field-label'), b = await still('.media-field[data-field="f1"]');
+  await page.mouse.move(a.x, a.y); await page.mouse.down();
+  await page.mouse.move(a.x, a.y - 6, {steps:2}); await page.mouse.move(b.x, b.y - 4, {steps:5}); await page.mouse.up();
+  await wait(150);
+  const rows = await page.evaluate(()=> ({order: mediaTypesOf()[0].fields.map(f=> f.id).join(),
+    chips: [...document.querySelectorAll('.media-line .media-chip')].map(c=> c.dataset.field).join(),
+    line: mediaLineOf(nodes.get('mt_c'))}));
+  // The words between the first two facts typed over.
+  const j = await at('.media-join[data-at="1"]');
+  await page.mouse.click(j.x, j.y); await page.keyboard.press('End');
+  await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
+  await page.keyboard.type(' ('); await page.keyboard.press('Enter');
+  await wait(100);
+  const j3 = await at('.media-join[data-at="3"]');
+  await page.mouse.click(j3.x, j3.y); await page.keyboard.type(')'); await page.keyboard.press('Enter');
+  await wait(100);
+  // A chip carried to the front of the line.
+  const c = await at('.media-chip[data-field="f2"]'), c0 = await still('.media-line .media-chip');
+  await page.mouse.move(c.x, c.y); await page.mouse.down();
+  await page.mouse.move(c.x - 6, c.y, {steps:2}); await page.mouse.move(c0.x - c0.x % 1 - 4, c0.y, {steps:5}); await page.mouse.up();
+  await wait(150);
+  const r = await page.evaluate(()=>{
+    const out = {};
+    const k = mediaTypesOf()[0];
+    out.order = k.fields.map(f=> f.id).join();
+    out.joins = k.joins;
+    out.line = mediaLineOf(nodes.get('mt_c'));
+    out.preview = [...document.querySelectorAll('.media-line > *')].map(e=> e.textContent).join('|');
+    // A fact not given goes with the words before it, the first one's with those after.
+    out.gaps = [mediaLineFor(k, {f1:'Mainframe', f3:'1996'}), mediaLineFor(k, {f3:'1996'}), mediaLineFor(k, {})];
+    // A field added and one taken out keep the words round the line.
+    const t = JSON.parse(JSON.stringify(k));
+    addMediaField(t, 'f4'); out.added = t.joins.slice();
+    dropMediaField(t, 'f4'); out.dropped = t.joins.slice();
+    dropMediaField(t, t.fields[0].id); out.dropFirst = t.joins.slice();
+    out.schema = cleanMediaTypes([{id:'x', fields:[{id:'f1',label:'A'}], joins:['', '']}])[0].joins === undefined;
+    applyEdit(()=>{ SETTINGS.mediaTypes = window.__mtKept.kinds; if(SETTINGS.mediaTypes === undefined) delete SETTINGS.mediaTypes;
+                    workingNodes.length = 0; window.__mtKept.nodes.forEach(x=> workingNodes.push(x)); });
+    setSideTab(document.getElementById('mediaPanel'), false);
+    rebuildChart(); buildMediaTab();
+    return out;
+  });
+  eq('a kind writes its facts in order, a comma between', before, 'Mainframe, Ian Pearson, 1996');
+  check('a field\'s row carried above another changes the order, and the line\'s chips with it',
+        rows.order === 'f3,f1,f2' && rows.chips === 'f3,f1,f2' && rows.line === '1996, Mainframe, Ian Pearson', JSON.stringify(rows));
+  check('a chip carried along the line moves its field; the words between stay where they were typed',
+        r.order === 'f2,f3,f1' && JSON.stringify(r.joins) === JSON.stringify(['', ' (', ', ', ')']) &&
+        r.line === 'Ian Pearson (1996, Mainframe)', JSON.stringify([r.order, r.joins, r.line]));
+  eq('…and the preview reads as the line does', r.preview, '|Director| (|Year|, |Studio|)');
+  check('a fact not given takes the words before it with it, or the first one those after it',
+        JSON.stringify(r.gaps) === JSON.stringify(['1996, Mainframe)', '1996)', '']), JSON.stringify(r.gaps));
+  check('a field added goes in after a comma, before the words that end the line; one taken out takes its words',
+        JSON.stringify(r.added) === JSON.stringify(['', ' (', ', ', ', ', ')']) &&
+        JSON.stringify(r.dropped) === JSON.stringify(['', ' (', ', ', ')']) &&
+        JSON.stringify(r.dropFirst) === JSON.stringify(['', ', ', ')']), JSON.stringify([r.added, r.dropped, r.dropFirst]));
+  check('words that only say what the commas say are not kept in the file', r.schema);
+  });
+
+  /* The owner's list of 21.11: every + that adds something is the same
+     drawn cross in the middle of its square, never a typed "+". */
+  await scenario("one drawn + for every add button", async () => {
+  const r = await page.evaluate(async ()=>{
+    setSideTab(document.getElementById('tagsPanel'), true);
+    await new Promise(ok=> setTimeout(ok, 200));
+    const typed = [...document.querySelectorAll('button')].filter(b=> b.textContent.trim() === '+' || b.textContent.trim() === '＋')
+      .map(b=> b.id || b.className);
+    const all = [...document.querySelectorAll('.add-plus')];
+    const off = all.filter(b=>{
+      const svg = b.querySelector('svg');
+      if(!svg) return true;
+      const q = b.getBoundingClientRect(), v = svg.getBoundingClientRect();
+      if(!q.width) return false;
+      return Math.abs((q.left + q.right)/2 - (v.left + v.right)/2) > 0.5 || Math.abs((q.top + q.bottom)/2 - (v.top + v.bottom)/2) > 0.5;
+    }).map(b=> b.id || b.title);
+    setSideTab(document.getElementById('tagsPanel'), false);
+    return {typed, n: all.length, off};
+  });
+  check('no add button is a typed "+"', r.typed.length === 0, JSON.stringify(r.typed));
+  check('…each wears the drawn cross, in the middle of its square', r.n >= 3 && r.off.length === 0, JSON.stringify(r));
+  });
+
+  await scenario("an entry tagged NSFW: veiled for a reader, a ghost for the author", async () => {
+  /* The owner's word of 21.11. A reader sees the entry blurred under a
+     round 18+ badge as tall as the entry; one press lifts it, and only
+     lifts it; out of sight it is veiled again. To the author the badge
+     is as faint as a hidden entry and stops nothing. */
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice());
+    const view = [vx, vy, vs];
+    const X = 9600, Y = 9600, out = {};
+    try {
+      applyEdit(()=>{
+        workingNodes.push(['nsA', 'Veiled', null, null, null, null, {pos:[X, Y], tags:['NSFW', HUB_TAG, FANFIC_TAG], size:[200, 80]}]);
+        workingNodes.push(['nsB', 'Plain', null, null, null, null, {pos:[X + 320, Y]}]);
+      });
+      vs = 1; vx = -(X - 200); vy = -(Y - 200); applyTransform(); deselect();
+      await wait(100);
+      const g = ()=> document.querySelector('.node[data-id="nsA"]');
+      // The echo and the weave stand in layers of their own (the owner, 22.11).
+      const sceneryBlur = ()=>{
+        const p = [document.querySelector('#auraLayer .node-aura[data-id="nsA"]'),
+                   document.querySelector('[data-ground="nsA"]')];
+        return p.every(Boolean) ? p.map(e=> getComputedStyle(e).filter.includes('nsfw-blur')) : 'missing';
+      };
+      const look = ()=>{
+        const veil = g().querySelector('.nsfw-veil'), disc = g().querySelector('.nsfw-disc');
+        const d = disc.getBoundingClientRect(), b = g().querySelector('rect').getBoundingClientRect();
+        // The ring's outer edge: the circle drawn at 75.5 of 84, its stroke half of 17 past it.
+        const sw = d.height * 8.5 / 75.5;
+        return {op: +getComputedStyle(veil).opacity, shown: getComputedStyle(veil).display !== 'none',
+                hits: getComputedStyle(veil).pointerEvents !== 'none',
+                blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
+                scenery: sceneryBlur(),
+                tall: +(d.height + sw).toFixed(1), boxH: +nodes.get('nsA').h.toFixed(1),
+                mid: Math.abs((d.left + d.right)/2 - (b.left + b.right)/2) < 1 && Math.abs((d.top + d.bottom)/2 - (b.top + b.bottom)/2) < 1,
+                plain: !document.querySelector('.node[data-id="nsB"] .nsfw-veil')};
+      };
+      out.edit = look();
+      setReaderPreview(true);
+      await wait(150);
+      out.read = look();
+      const d = g().querySelector('.nsfw-disc').getBoundingClientRect();
+      const at = {clientX: d.left + d.width/2, clientY: d.top + d.height/2, bubbles: true};
+      g().querySelector('.nsfw-disc').dispatchEvent(new MouseEvent('click', at));
+      await wait(80);
+      out.lifted = {open: g().classList.contains('nsfw-open'), selected: selectedId,
+                    blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
+                    scenery: sceneryBlur(),
+                    shown: getComputedStyle(g().querySelector('.nsfw-veil')).display !== 'none'};
+      g().dispatchEvent(new MouseEvent('click', at));
+      await wait(450);
+      out.second = selectedId;
+      vx -= 4000; applyTransform(); vx += 4000; applyTransform();
+      await wait(50);
+      out.back = {open: g().classList.contains('nsfw-open'), selected: selectedId, blur: look().blur, scenery: sceneryBlur()};
+      setReaderPreview(false);
+      await wait(150);
+    } finally {
+      workingNodes = was; rebuildChart();
+      [vx, vy, vs] = view; applyTransform();
+    }
+    return out;
+  });
+  check('to the author the 18+ badge is as faint as a hidden entry, and in nobody\'s way',
+        r.edit.op === 0.1 && !r.edit.hits && !r.edit.blur && r.edit.plain && String(r.edit.scenery) === 'false,false', JSON.stringify(r.edit));
+  check('to a reader the badge is whole, as tall as the entry, over its middle, and the entry and its scenery are blurred',
+        r.read.op === 1 && r.read.hits && r.read.blur && String(r.read.scenery) === 'true,true' && Math.abs(r.read.tall - r.read.boxH) < 1 && r.read.mid, JSON.stringify(r.read));
+  check('one press lifts the veil and does nothing else', r.lifted.open && !r.lifted.blur && String(r.lifted.scenery) === 'false,false' && !r.lifted.shown && r.lifted.selected == null,
+        JSON.stringify(r.lifted));
+  check('…and the entry is then picked as any other', r.second === 'nsA', String(r.second));
+  check('out of sight and back, it is veiled again and let go', !r.back.open && r.back.blur && String(r.back.scenery) === 'true,true' && r.back.selected == null, JSON.stringify(r.back));
+  });
+
+  await scenario("the arrow keys: a step of the grid, and a walk along the lines", async () => {
+  /* Code 2 of 21.11, item 3. An arrow carries what is picked one step of
+     the grid and Shift+arrow five, as a carry by hand does — one step of
+     undo, nothing else moved; Alt+arrow walks from the open entry along
+     its lines, through a split, for a reader too. */
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice());
+    const X = 9000, Y = 9000;
+    applyEdit(()=>{
+      workingNodes.push(['akP', 'Parent', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['akS', '', 'akP', null, null, 'split', {pos:[X + 40, Y + 120]}]);
+      workingNodes.push(['akA', 'Left child', 'akS', null, null, null, {pos:[X - 200, Y + 260]}]);
+      workingNodes.push(['akB', 'Middle child', 'akS', null, null, null, {pos:[X, Y + 260]}]);
+      workingNodes.push(['akC', 'Right child', 'akP', null, null, null, {pos:[X + 220, Y + 260]}]);
+      workingNodes.push(['akD', 'Grandchild', 'akB', null, null, null, {pos:[X, Y + 420]}]);
+    });
+    await wait(100);
+    const at = id=> { const n = nodes.get(id); return [n.x, n.y]; };
+    const key = (k, o={})=> document.dispatchEvent(new KeyboardEvent('keydown', Object.assign({key: k, bubbles: true, cancelable: true}, o)));
+    const out = {};
+    if(document.activeElement) document.activeElement.blur();
+    keyboardOnChart = true;
+    selectNode('akB'); await wait(50);
+    const b0 = at('akB'), d0 = at('akD'), top0 = undoStack[undoStack.length - 1];
+    key('ArrowRight'); await wait(80);
+    const b1 = at('akB');
+    out.step = +(b1[0] - b0[0]).toFixed(2); out.stepY = +(b1[1] - b0[1]).toFixed(2);
+    // One step on top of what was there: counted by what is under it, as a full stack drops its oldest.
+    out.oneUndo = undoStack[undoStack.length - 1] !== top0 && undoStack[undoStack.length - 2] === top0;
+    out.othersStill = at('akD')[0] === d0[0] && at('akD')[1] === d0[1];
+    key('ArrowDown', {shiftKey: true}); await wait(80);
+    out.shiftStep = +(at('akB')[1] - b1[1]).toFixed(2);
+    undoLastEdit(); undoLastEdit(); await wait(80);
+    out.undone = at('akB')[0] === b0[0] && at('akB')[1] === b0[1];
+    out.stillPicked = selectedId === 'akB';
+    // The walk.
+    const walk = (k)=>{ key(k, {altKey: true}); return selectedId; };
+    out.up = walk('ArrowUp');          // through the split to the parent
+    out.down = walk('ArrowDown');      // the nearest of what came of it
+    selectNode('akB'); await wait(30);
+    out.right = walk('ArrowRight');    // beside it, of the same parent through the split
+    selectNode('akB'); await wait(30);
+    out.left = walk('ArrowLeft');
+    selectNode('akB'); await wait(30);
+    out.downB = walk('ArrowDown');
+    out.walkMovedNothing = at('akB')[0] === b0[0];
+    // In a field the arrows are the field's.
+    selectNode('akB'); await wait(30);
+    const box = document.createElement('textarea'); document.body.appendChild(box); box.focus();
+    keyboardOnChart = false;
+    box.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true}));
+    await wait(50);
+    out.fieldKept = at('akB')[0] === b0[0];
+    box.remove(); keyboardOnChart = true;
+    // A reader walks, but carries nothing.
+    markReadOnly(); await wait(150);
+    selectNode('akB'); await wait(30);
+    key('ArrowRight'); await wait(80);
+    out.readerStill = at('akB')[0] === b0[0];
+    out.readerWalks = walk('ArrowUp') === 'akP';
+    markEditable(); await wait(150);
+    deselect();
+    applyEdit(()=>{ workingNodes.length = 0; was.forEach(x=> workingNodes.push(x)); });
+    return Object.assign(out, {grid: GRID});
+  });
+  check('an arrow carries the picked entry one step of the grid', r.step === r.grid && r.stepY === 0, JSON.stringify(r));
+  check('…as one step of undo, and nothing else moves', r.oneUndo && r.othersStill, JSON.stringify(r));
+  check('Shift+arrow carries it five steps', r.shiftStep === +(5 * r.grid).toFixed(2), JSON.stringify(r));
+  check('undo puts it back, and it is still the one picked', r.undone && r.stillPicked, JSON.stringify(r));
+  check('Alt+up walks to where it came from, through a split', r.up === 'akP', JSON.stringify(r));
+  check('Alt+down walks to the nearest of what came of it', r.down === 'akB' && r.downB === 'akD', JSON.stringify(r));
+  check('Alt+left and right walk to the entries beside it, of the same parent', r.left === 'akA' && r.right === 'akC', JSON.stringify(r));
+  check('…and the walk moves nothing', r.walkMovedNothing, JSON.stringify(r));
+  check('in a field the arrows are the field\'s', r.fieldKept, JSON.stringify(r));
+  check('a reader walks the lines but carries nothing', r.readerStill && r.readerWalks, JSON.stringify(r));
+  });
+
+  await scenario("hops: where two lines cross, the level one arches over", async () => {
+  /* Code 2 of 21.11, item 6, and the owner's word that the hops be
+     rational: only a straight leg of a line hops, at a fair angle, clear
+     of corners and ends; the level line goes over the upright; a double
+     line arches as two rails; and a line hidden by its tags takes its
+     arches with it. */
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const X = 9000, Y = 9000;
+    applyEdit(()=>{
+      workingNodes.push(['hpL', 'Level from', null, null, null, null, {pos:[X, Y]}]);
+      workingNodes.push(['hpR', 'Level to', 'hpL', null, null, null, {pos:[X + 800, Y + 300]}]);
+      workingNodes.push(['hpT', 'Upright from', null, null, null, null, {pos:[X + 400, Y - 120], tags:['hop-probe']}]);
+      workingNodes.push(['hpB', 'Upright to', 'hpT', null, null, null, {pos:[X + 400, Y + 420]}]);
+    });
+    await wait(120);
+    const arches = ()=> [...edgeLayer.querySelectorAll('.edge.hop')];
+    const out = {};
+    const a0 = arches().filter(a=> a.dataset.overTo === 'hpB' || a.dataset.to === 'hpB');
+    out.count = a0.length;
+    out.levelHops = a0.length === 1 && a0[0].dataset.to === 'hpR' && a0[0].dataset.overTo === 'hpB';
+    const line = edgeLayer.querySelector('path.edge.struct:not(.hop)[data-to="hpR"]');
+    out.masked = !!(line && line.getAttribute('mask'));
+    out.uprightPlain = !edgeLayer.querySelector('path.edge.struct:not(.hop)[data-to="hpB"]').getAttribute('mask');
+    if(a0[0]){ const b = a0[0].getBBox(); out.above = b.height > 2 && b.width > 6; }
+    /* The rule itself, on lines laid by hand: a crossing a little way
+       past a turn is hopped, one on the turn is not. */
+    const keep = new Map(drawnRoutes), probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    edgeLayer.appendChild(probe);
+    const hopsFor = (turnX)=>{
+      drawnRoutes.clear();
+      drawnRoutes.set('crossed', {from: 'cA', to: 'cB', pts: [{x: 200, y: -200}, {x: 200, y: 200}]});
+      const before = edgeLayer.querySelectorAll('.hop').length;
+      drawHops([{from: 'jA', to: 'jB', style: Object.assign({}, DEFAULT_EDGE_STYLE, {arrow: false}), el: probe, inner: null, cornerR: 6, paint: '#000',
+                 pts: [{x: 0, y: -100}, {x: turnX, y: -100}, {x: turnX, y: 0}, {x: 400, y: 0}]}]);
+      return edgeLayer.querySelectorAll('.hop').length - before;
+    };
+    out.farFromTurn = hopsFor(150);
+    out.onTurn = hopsFor(196);
+    drawnRoutes.clear(); keep.forEach((v, k)=> drawnRoutes.set(k, v)); probe.remove();
+    // A double line: two rails, two arches.
+    applyEdit(()=>{ EDGE_STYLES.push({from: 'hpL', to: 'hpR', dash: 'double'}); });
+    await wait(120);
+    out.doubleArches = arches().filter(a=> a.dataset.to === 'hpR').length;
+    // The upright hidden by its tag: the arch goes, the hole closes.
+    hiddenTags.add('hop-probe'); applyVisibility(); await wait(60);
+    out.hiddenArch = arches().filter(a=> a.dataset.to === 'hpR').every(a=> a.style.display === 'none');
+    out.hiddenHole = [...edgeDefs.querySelectorAll('.hop-hole')].filter(h=> h.dataset.overTo === 'hpB').every(h=> h.style.display === 'none');
+    hiddenTags.delete('hop-probe'); applyVisibility(); await wait(60);
+    out.back = arches().filter(a=> a.dataset.to === 'hpR').every(a=> a.style.display === '');
+    // A wavy line does not hop.
+    applyEdit(()=>{ EDGE_STYLES.find(s=> s.from === 'hpL' && s.to === 'hpR').sinusoid = true; });
+    await wait(120);
+    out.wavyNone = arches().filter(a=> a.dataset.to === 'hpR').length;
+    applyEdit(()=>{
+      workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+      EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+    });
+    return out;
+  });
+  check('the level line arches over the upright where they cross', r.count === 1 && r.levelHops && r.above, JSON.stringify(r));
+  check('…the hole is cut in the level line, and the upright runs on whole', r.masked && r.uprightPlain, JSON.stringify(r));
+  check('a crossing on a line\'s turn is not hopped, one clear of it is', r.onTurn === 0 && r.farFromTurn === 1, JSON.stringify(r));
+  check('a double line arches as two rails', r.doubleArches === 2, JSON.stringify(r));
+  check('a line hidden by its tags takes its arches with it, and gives them back', r.hiddenArch && r.hiddenHole && r.back, JSON.stringify(r));
+  check('a wavy line does not hop', r.wavyNone === 0, JSON.stringify(r));
+  });
+
+  await scenario("the owner's list of 22.11: the toolbar in two rows, the hand tools, presets and scenarios", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const out = {};
+    const X = 61000, Y = 61000;
+    const centreOf = id=>{ const g = document.querySelector('.node[data-id="' + id + '"]'); const b = g.getBoundingClientRect(); return {x: b.x + b.width / 2, y: b.y + b.height / 2}; };
+    const pressAt = (pt)=> svg.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, clientX: pt.x, clientY: pt.y, button: 0, pointerType: 'mouse'}));
+    try{
+      /* References written three ways, chosen beside their colour. */
+      const sel = document.getElementById('refStyleSelect');
+      out.refSelect = !!sel && [...sel.options].map(o=> o.value).join() === 'square,round,bare';
+      SETTINGS.refStyle = 'round'; const round = refNumberText(3);
+      SETTINGS.refStyle = 'bare'; const bare = refNumberText(3);
+      delete SETTINGS.refStyle; const square = refNumberText(3);
+      out.refTexts = [square, round, bare].join(' ');
+
+      /* NSFW is in Special before any entry wears it; every tag that can
+         be carried has the six dots, and Untagged keeps their room. */
+      buildSideTabs();
+      setSideTab(document.getElementById('tagsPanel'), true); await wait(250);
+      out.nsfwListed = [...document.querySelectorAll('#tagsList .legend-item')].some(row=> row.textContent.includes(NSFW_TAG));
+      const rows = [...document.querySelectorAll('#tagsList .legend-item.draggable-row')];
+      out.gripsOnRows = rows.length > 0 && rows.every(row=> row.querySelector(':scope > .tag-grip:not(.tag-grip-room)'));
+      setSideTab(document.getElementById('tagsPanel'), false);
+
+      applyEdit(()=>{
+        workingNodes.push(['h22a', 'Painter', null, null, null, null, {pos: [X, Y], colors: ['#1e7d4f'], fontSize: 22, border: 'dashed'}]);
+        workingNodes.push(['h22b', 'Painted', null, null, null, null, {pos: [X + 400, Y]}]);
+        workingNodes.push(['h22c', 'Held back', null, null, null, null, {pos: [X + 800, Y]}]);
+      });
+      await wait(150);
+
+      /* The counts leave out what is not an entry of the chart's story. */
+      const count = ()=> +document.getElementById('statNodes').textContent;
+      const c0 = count();
+      applyEdit(()=>{
+        workingNodes.push(['h22t', 'Words', null, null, null, 'textbox', {pos: [X, Y + 400]}]);
+        workingNodes.push(['h22l', '', null, null, null, 'link', {pos: [X + 300, Y + 400]}]);
+      });
+      await wait(100);
+      out.countsSkip = count() === c0;
+      applyEdit(()=>{ workingNodes.splice(workingNodes.findIndex(x=> x[0] === 'h22t'), 1); workingNodes.splice(workingNodes.findIndex(x=> x[0] === 'h22l'), 1); });
+
+      /* The tools are a second row under the first. */
+      const first = document.getElementById('themeToggle').getBoundingClientRect();
+      const rowBox = document.getElementById('toolRow').getBoundingClientRect();
+      out.secondRow = rowBox.top >= first.bottom - 0.5 &&
+        ['touchTools', 'guideToggle', 'inkPen', 'inkEraser', 'pipetteTool', 'stylePaintTool'].every(id=> document.getElementById(id).closest('#toolRow'));
+
+      /* The overview: a button; shown, it stands over the coordinates at
+         the bottom left, is carried by its dots, and comes back to its
+         corner when shown again. */
+      const mm = document.getElementById('minimapPanel'), coord = document.querySelector('.coord');
+      document.getElementById('minimapToggle').click(); await wait(100);
+      const a = mm.getBoundingClientRect(), cb = coord.getBoundingClientRect();
+      out.mmShown = !mm.hidden && a.bottom <= cb.top + 0.5 && Math.abs(a.left - cb.left) < 40;
+      const grip = document.getElementById('minimapGrip').getBoundingClientRect();
+      const gx = grip.x + grip.width / 2, gy = grip.y + grip.height / 2;
+      const grab = document.getElementById('minimapGrip');
+      grab.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, clientX: gx, clientY: gy, button: 0, pointerId: 3, pointerType: 'mouse'}));
+      window.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      grab.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      window.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      grab.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      await wait(50);
+      const moved = mm.getBoundingClientRect();
+      out.mmMoved = Math.round(moved.left - a.left) + ',' + Math.round(moved.top - a.top);
+      document.getElementById('minimapToggle').click(); await wait(50);
+      out.mmHides = mm.hidden;
+      document.getElementById('minimapToggle').click(); await wait(50);
+      const back = mm.getBoundingClientRect();
+      out.mmBack = Math.abs(back.left - a.left) < 1 && Math.abs(back.top - a.top) < 1;
+      document.getElementById('minimapToggle').click();
+
+      /* The eyedropper copies what is drawn where it is pressed, and is put
+         down by the press. */
+      vs = 1; const rv = svg.getBoundingClientRect(); vx = rv.width / 2 - (X + 400); vy = rv.height / 2 - (Y + 20); applyTransform();
+      await wait(150);
+      setHandTool('pipette');
+      out.pipetteHeld = handTool === 'pipette' && document.getElementById('pipetteTool').classList.contains('active');
+      const g = document.querySelector('.node[data-id="h22a"]');
+      const ring = [...g.querySelectorAll('rect, path')].find(e=> hexOfPaint(getComputedStyle(e).stroke) === '#1e7d4f');
+      out.pipetteColour = ring ? colourAtTarget(ring) : 'no ring';
+      pressAt(centreOf('h22a'));
+      await wait(50);
+      const sw = document.getElementById('pipetteSwatch');
+      out.pipetteDown = handTool === null && !sw.hidden;
+
+      /* The brush takes the picked entry's look and gives it to the next
+         entry pressed, one step of undo for each. */
+      selectNode('h22a');
+      setHandTool('paint');
+      out.brushHeld = handTool === 'paint' && paintLook && paintLook.kind === 'node';
+      const top = undoStack[undoStack.length - 1];
+      pressAt(centreOf('h22b'));
+      await wait(100);
+      const ob = entryOpts(workingEntry('h22b').entry);
+      out.painted = JSON.stringify(ob.colors) === '["#1e7d4f"]' && ob.fontSize === 22 && ob.border === 'dashed' && undoStack[undoStack.length - 1] !== top;
+      out.selectionKept = selectedId === 'h22a';
+      undoLastEdit(); await wait(80);
+      out.paintUndone = entryOpts(workingEntry('h22b').entry).colors === undefined;
+      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+      out.brushDown = handTool === null;
+      deselect();
+      // Without anything picked the brush cannot be taken up.
+      setHandTool('paint');
+      out.brushNeedsPick = handTool === null;
+
+      /* Presets: what Default puts down, and its figures with it; each
+         field has its way back, and an empty preset is not kept. */
+      setPresetField('rect', 'colors', ['#aa3300']);
+      setPresetField('rect', 'align', 'left');
+      const made = addEntryOfStyle('rect'); closeNodeEditor(false);
+      const mo = entryOpts(workingEntry(made).entry);
+      out.presetUsed = JSON.stringify(mo.colors) === '["#aa3300"]' && mo.align === 'left';
+      const fig = addEntryOfFigure('diamond'); closeNodeEditor(false);
+      out.figureUsed = !!fig && JSON.stringify(entryOpts(workingEntry(fig).entry).colors) === '["#aa3300"]';
+      openAddFab();
+      openPresetMenu('rect');
+      const resetAlign = document.querySelector('.preset-row[data-key="align"] .preset-reset');
+      const resetBorder = document.querySelector('.preset-row[data-key="border"] .preset-reset');
+      out.resetLive = !!resetAlign && !resetAlign.disabled && !!resetBorder && resetBorder.disabled;
+      resetAlign.click();
+      document.querySelector('.preset-row[data-key="colors"] .preset-reset').click();
+      out.presetGone = SETTINGS.presets === undefined;
+      openPresetMenu(null);
+      closeAddFab();
+      { const more = document.querySelector('.add-fab-customize svg path'); out.figuresTriangle = !!more && /z$/i.test(more.getAttribute('d')) && more.getAttribute('d').split(/[hHzZ]/).length <= 4; }
+
+      /* Scenarios: pressing one entry shows another, which a reader does
+         not see, find or have in the text version until then; the editor
+         sees it all along. */
+      applyEdit(()=>{ SETTINGS.scenarios = [{id: 'h22s', when: {type: 'press', node: 'h22a'}, then: [{do: 'show', node: 'h22c'}, {do: 'anim', node: 'h22c', anim: 'pulse'}]}]; });
+      await wait(80);
+      out.editorSees = !scenarioHeld(nodes.get('h22c')) && !document.querySelector('.node[data-id="h22c"]').classList.contains('scn-held');
+      document.getElementById('studioToggle').click(); await wait(80);
+      out.studioRows = document.querySelectorAll('#studioList .scn-card').length === 1 &&
+                       document.querySelectorAll('#studioList .scn-action').length === 2;
+      document.getElementById('studioPlay').click(); await wait(200);
+      const held = ()=> document.querySelector('.node[data-id="h22c"]').classList.contains('scn-held');
+      out.readerHeld = readOnlyView && held() && !searchHits('held back').some(h=> h.n.id === 'h22c') && !textViewListed(nodes.get('h22c'));
+      out.studioOverPreview = !document.getElementById('studioPanel').hidden && getComputedStyle(document.getElementById('studioPanel')).display !== 'none';
+      scenariosPressed('h22a'); await wait(60);
+      out.shown = !held() && searchHits('held back').some(h=> h.n.id === 'h22c') &&
+                  document.querySelector('.node[data-id="h22c"]').classList.contains('scn-pulse');
+      document.getElementById('studioReset').click(); await wait(60);
+      out.resetHolds = held();
+      document.getElementById('studioPlay').click(); await wait(200);
+      out.backToEditing = !readOnlyView && !held();
+      document.getElementById('studioClose').click();
+      // Kept with the chart, and read back by Import.
+      SETTINGS.refStyle = 'round'; setPresetField('link', 'colors', ['#3355aa']);
+      { const kept = JSON.parse(chartFileText()).settings;
+        out.scenarioSaved = Array.isArray(kept.scenarios) && kept.scenarios.length === 1 && kept.refStyle === 'round' &&
+                            JSON.stringify(kept.presets) === '{"link":{"colors":["#3355aa"]}}'; }
+    } finally {
+      if(typeof readerPreview !== 'undefined' && readerPreview) setReaderPreview(false);
+      setHandTool(null);
+      applyEdit(()=>{
+        workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+        EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+        Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, wasSettings);
+      });
+    }
+    return out;
+  });
+  check('references are written [1], (1) or 1, picked beside their colour', r.refSelect && r.refTexts === '[3] (3) 3', JSON.stringify(r));
+  check('NSFW stands in Special before anything wears it', r.nsfwListed);
+  check('every tag that can be carried has the six dots', r.gripsOnRows);
+  check('the counts leave out words, links and pictures', r.countsSkip);
+  check('the tools are a row of their own under the first', r.secondRow);
+  check('the overview is a button: shown over the coordinates, carried by its dots, back in its corner when shown again',
+        r.mmShown && r.mmMoved === '200,-150' && r.mmHides && r.mmBack, JSON.stringify([r.mmShown, r.mmMoved, r.mmHides, r.mmBack]));
+  check('the eyedropper takes the colour pressed, keeps it in its corner and is put down',
+        r.pipetteHeld && r.pipetteColour === '#1e7d4f' && r.pipetteDown, JSON.stringify([r.pipetteHeld, r.pipetteColour, r.pipetteDown]));
+  check('the style brush gives the picked entry\'s look to the one pressed, a step of undo each, and is put down by Escape',
+        r.brushHeld && r.painted && r.selectionKept && r.paintUndone && r.brushDown && r.brushNeedsPick,
+        JSON.stringify([r.brushHeld, r.painted, r.selectionKept, r.paintUndone, r.brushDown, r.brushNeedsPick]));
+  check('the figures open from a triangle, the gear being the preset\'s', r.figuresTriangle);
+  check('a preset is what Default puts down, figures included, and each field has its way back',
+        r.presetUsed && r.figureUsed && r.resetLive && r.presetGone, JSON.stringify([r.presetUsed, r.figureUsed, r.resetLive, r.presetGone]));
+  check('a scenario: the editor sees everything, the studio lists it', r.editorSees && r.studioRows, JSON.stringify([r.editorSees, r.studioRows]));
+  check('…a reader does not see, find or read what it shows until it is pressed, and Reset holds it back again',
+        r.readerHeld && r.studioOverPreview && r.shown && r.resetHolds && r.backToEditing,
+        JSON.stringify([r.readerHeld, r.studioOverPreview, r.shown, r.resetHolds, r.backToEditing]));
+  check('…and it is kept with the chart, as are the presets and how references are written', r.scenarioSaved);
   });
 
   await scenario("nothing threw along the way", async () => {

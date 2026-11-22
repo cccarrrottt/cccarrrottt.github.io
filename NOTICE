@@ -1,0 +1,42 @@
+The platform and what is drawn on it
+====================================
+
+This repository holds two different things, under two different terms.
+
+THE PLATFORM -- MIT (see LICENSE)
+
+  The program that draws, edits, saves and publishes a chart: src/app/,
+  src/index.html, src/style.css, src/site/ (the schema, the service worker,
+  the site's icons), src/i18n/, build.py, tools/, tests/ (except
+  tests/fixtures/), worker/, and the documentation. This is what the
+  copyright holder in LICENSE claims, and what anyone may use, change and
+  share under the MIT licence.
+
+THE CONTENT -- not covered by LICENSE
+
+  "Rhizome Project" is one chart made on this platform, and what it shows
+  belongs to its own authors, not to the platform:
+
+    src/chart.json       the chart: its entries, notes, tags and references
+    src/media/           pictures, video and fonts the chart carries
+    tests/fixtures/      a copy of that chart and its files, used by the tests
+
+  - Franchises, titles, characters and brands named in the chart, among them
+    Transformers and every related name, are trademarks and works of their
+    owners (Hasbro, Takara Tomy and others). The chart is a fan reference
+    made without their involvement or endorsement, and naming them claims
+    no right to them.
+  - Pictures and video in src/media/ belong to their authors and rights
+    holders. They are shown here for reference and commentary; no licence
+    to them is granted by this repository.
+  - Fonts in src/media/ belong to their designers and are distributed on
+    their own terms. "Autobot Characters" (the Ancient Autobot face) is by
+    Jim Sorenson, 1997, released as freeware "to be distributed freely".
+    Check a font's own terms before using it elsewhere.
+
+A copy of the platform (see DISTRIBUTING.md) should replace the chart with
+its own content; the tests do not read it, so nothing depends on it.
+
+Fonts the page loads for its interface from Google Fonts (Big Shoulders
+Display, IBM Plex Sans, IBM Plex Mono, Noto Color Emoji) are under the SIL Open Font License, served by Google and
+not stored here.

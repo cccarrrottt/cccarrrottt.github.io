@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 46 files. **They are not modules.** The page is a single
+`src/app/` holds 48 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -113,12 +113,18 @@ package-lock.json's Playwright names, which is what CI compares with; a
 picture from another system would only ever disagree. CI also runs a few
 scenarios in WebKit (`--browser=webkit`, and `--only=a|b` for several).
 
+The suite draws `tests/fixtures/chart.json` (pictures in
+`tests/fixtures/media/`), put in place of the owner's chart in every page
+it serves, so a Save on the site, or a fork with a chart of its own, never
+turns a check red. A check that wants the real chart's contents reads the
+fixture; the fixture changes only in a commit that means it to.
+
 `dist` and `src` load the same program by different paths. A green run on one
 says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 155 named scenarios, and they do not depend on one another —
+The suite is 163 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -169,14 +175,14 @@ page decides when it opens:
 
 | where it is opened | what it is |
 | --- | --- |
-| `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner |
+| `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner or an editor |
 | anywhere else (disk, other hosts, the test server) | its holder's own copy, saving into their browser |
 
 Things that follow, and are pinned in the suite ("the page on the published
 site") and `build_guard`:
 
-- **The hidden controls are not the security.** Every reader gets the
-  editor's code. The write service (`worker/index.js`) is what refuses:
+- **The hidden controls are not the security.** Every reader can fetch
+  the editor's code. The write service (`worker/index.js`) is what refuses:
   session sealed with `SESSION_SECRET`, login in `OWNERS` (or `EDITORS`,
   whose saves keep the repository's settings), session handed
   only to `ALLOWED_ORIGINS`, and the commit made with the owner's own GitHub
@@ -231,7 +237,10 @@ site") and `build_guard`:
   reader's browser meets go to `POST /report` (`reportFault`,
   `01-store.js`), at most five a load, never with the session, which the
   service writes to its log and counts in a KV namespace (`FAULTS`, made
-  by wrangler on deploy), listed for the owner at the top of About.
+  by wrangler on deploy), listed for the owner at the top of About. At
+  most `MAX_FAULT_COUNTS_A_DAY` are counted a day (`withinFaultBudget`):
+  the Origin it checks is one a script can write, and a flood must not
+  bury the list or spend the namespace's writes.
 - **Where the site lives is said once**, in `src/app/00-config.js`
   (`SITE_CONFIG`: `site`, `api`, `repo`, one quoted string to a line, so
   `build.py` and the suite read it as text). `SITE_ORIGINS`, `SITE_API` and
@@ -303,6 +312,17 @@ the wheel and a pinch keep the middle of the view on it
 (`keepFieldInView`); a view set in so many words (a link, the overview, a
 test) is not held to it.
 
+## Where two lines cross
+
+The level line arches over the upright one (`drawHops`, `14-edges-draw.js`):
+a hole cut by a mask and an arch in the line's own paint, so it lights,
+dims and hides with its line. Only a straight leg of a line that is not
+wavy or a curve hops, at 35° or more, clear of its turns and arrowheads
+and of the crossed line's ends; crossings an arch apart share one arch;
+a line hidden by its tags takes its arches with it
+(`hopsFollowVisibility`). Computed every pass from `drawnRoutes`, never
+kept, so it changes no route.
+
 ## Notes in the margin
 
 The pencil and the eraser on the top bar (`44-ink.js`) write by hand over
@@ -327,8 +347,10 @@ Google Drive and Yandex Disk, through the write service (`CLOUDS` in
 the owner's session beside the GitHub token, and a GitHub renewal carries
 it on. A picked file is shared by link and named by the service's address
 (`/cloud/<drive>/file…`), which answers readers without the owner's
-grant: Google with `GOOGLE_API_KEY`, Yandex by its public key. The service
-still stores nothing. A drive whose Secrets are missing is not offered
+grant: Google with `GOOGLE_API_KEY`, Yandex by its public key — and only
+for an address carrying the service's mark of what it names (`fileMark`,
+from `SESSION_SECRET`, given out by pick), or the service would pass on
+any file anyone has shared by link. The service still stores nothing. A drive whose Secrets are missing is not offered
 (`/me` says which are ready), and the page shows drives only to the owner
 on the site.
 
@@ -553,6 +575,44 @@ Two things were measured here and are not worth doing:
   layouts an edit). It is ~3 ms of ~21, and the cheaper ways to it change
   what an edge note measures by a sub-pixel.
 
+### How much of the program a reader runs, and the editor beside it
+
+`tools/bench-reader-code.js` opens the site as a reader and reads it as
+one does (a pan, the wheel, an entry pointed at and picked, a search,
+every drawer, About, the text version), takes V8's byte coverage, and
+fails if the reader's page throws or asks for the editor's file.
+
+November 21, before: the site's program was 234 KB gzipped and 38% of
+it ran. The code a reader skips is mostly spread through every part —
+untaken branches of functions that do run — but ten parts are editing
+from top to bottom, and the owner asked for them to go
+(`LAZY_PARTS`, `build.py`). On the site they are `editor.<hash>.js`,
+fetched by `loadEditorParts` (`36-site-owner.js`) once the service has
+said the owner or an editor (`OWNERS`, `EDITORS`) is here, before anything is made editable, and kept by
+the service worker for editing with no signal. After: the reader's
+program is 194 KB gzipped, and the editor 42 KB beside it.
+
+How it holds together, since the page is still one scope:
+
+- **Only the site is split.** `dist/nexus.html`, `src/index.html` and an
+  export have every part where `APP_PARTS` puts it, so the suite drives
+  the one program it always did; `inlineSiteFiles` puts each part back
+  where its mark (`/*! @lazy … */`) stands. `build_guard` checks both
+  halves are the program minified, and that they make it whole again.
+- **What a reader's page reads of them is not in them.** The panels'
+  state and the layers they draw in are declared at the end of
+  `26-bio-crop.js`; what drawing, copying and exporting call is in the
+  part it belongs to (`defId`, `cssEscape`, `settleAnchor`, the
+  serializers, the drawer's note). A `const` the reader's paths read in
+  a lazy part is a ReferenceError on the site and nowhere else.
+- **Their functions the rest names are empty until the file comes**
+  (`editor_stubs`): closing a panel nobody could open is nothing to do.
+  A function a reader needs an ANSWER from must not live in a lazy part —
+  a stand-in answers `undefined`.
+- **Listeners in a lazy part are registered when it arrives**, after
+  every other part's, on the owner's page only. One that must run before
+  another's on the same target does not belong in a lazy part.
+
 ### What a phone waits for on a chart of hundreds
 
 `tools/bench-boot.js` opens a synthetic chart of lineages that merge, with
@@ -572,6 +632,40 @@ What is left before the first entry is `renderNodes` (~1.8 s at 400), and
 three quarters of that is measuring text with the cache cold. The side
 tabs (~75 ms) and the text view (~30 ms) also run at start-up; putting them
 off would save a thirtieth, so they are left where they are.
+
+### What a phone pays to pick many entries and carry them
+
+`tools/` has no bench for it; it was measured on the owner's chart at
+390×844, CPU ×4, picking entry after entry and carrying them (22.11):
+
+| | before | after |
+| --- | ---: | ---: |
+| a connectors' redraw in a carry | ~44 ms | ~30 ms |
+| a tap that adds to the pick | ~10 ms | ~4.6 ms |
+| a drop, in script | ~282 ms | ~226 ms |
+| of which `redrawEdges` | 146 ms, 3 calls | 73 ms, 2 calls |
+
+Three things, none of them drawing:
+
+- **A connector's note asked the layout its face and where its letters
+  stand** (`getComputedStyle`, `getStartPositionOfChar`,
+  `getComputedTextLength`) while the connectors were being drawn, and each
+  question laid out everything drawn so far. The face is now remembered by
+  what decides it (`faceOf`, `05-render-text.js`: the element's and its
+  ancestors' attributes but those that only place it), a level run's start
+  is its own `x`/`y` where nothing can move it, and a note along its line
+  remembers its length, which is the words' advance whatever the path
+  (`noteAlongMeasure`, `11-edge-notes.js`). `fontsLanded` forgets both.
+- **Setting `contentEditable` restyles the page even to the value it has**,
+  and every pick set two fields. `setEditable` (`24-rich-fields.js`) sets
+  only a change.
+- **A drop drew the connectors twice in a row**: the frame the carry still
+  owed, then the pass that prunes hand bends. The owed frame is drawn only
+  for a carry that came back to where it started.
+
+Moving the connectors inside a carried group by translation instead of
+routing them again was looked at and left: their masks and gradients are
+named by entry and by pass, and the hops are worked out from every route.
 
 ### What one edit costs, and the routes it no longer recomputes
 
@@ -684,7 +778,8 @@ Do not re-propose these without new evidence:
   not separate it; and two builds create a class of "looks different in the
   viewer" bugs that one program with a flag cannot have. If this is ever
   wanted, do it as lazy loading of the editing parts from one codebase, not as
-  a second build.
+  a second build. That is what the site does now (`LAZY_PARTS`; see "How
+  much of the program a reader runs").
 - **An `[A-Za-z0-9_-]+` whitelist for entry ids.** Ids come from the chart's
   own content.
 
@@ -714,10 +809,13 @@ and one scenario is twenty seconds.
 - A message containing **"код 1"** means: run a full review → critique →
   optimise cycle over the codebase.
 - Deliverable archives keep the split-source layout (`src/`, `dist/`, `tests/`,
-  `tools/`, `build.py`, `README.md`, `CHANGELOG.md`, `package.json`,
+  `tools/`, `build.py`, `README.md`, `DISTRIBUTING.md`, `CHANGELOG.md`, `LICENSE`, `NOTICE`, `package.json`,
   `eslint.config.mjs`).
 - Every version bump touches four places: `APP_VERSION` and `VERSION_LOG` in
   `src/app/20-about.js`, `CHANGELOG.md`, `README.md`, `package.json`. The
   About panel and the changelog are generated from the same `VERSION_LOG`, so
   they cannot disagree.
+- The code is MIT (`LICENSE`); the chart's content is not, and `NOTICE`
+  says so. The owner claims the platform only: what a chart names or
+  carries belongs to its own authors.
 - Replies to the repository owner are written in Russian.

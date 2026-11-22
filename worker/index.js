@@ -192,6 +192,28 @@ export async function unseal(env, purpose, token){
   }catch(e){ return null; }
 }
 
+/* A drive file's address carries this service's mark, so the address
+   answers only for a file the owner picked. Without it any file anyone
+   has shared by link could be fetched through here, on this account's
+   requests and the owner's Google key: a free proxy for whoever finds
+   it. A mark, not a seal, because the address is written into the chart
+   for good — it has no time to run out — and an HMAC of what it names
+   is all a reader's browser needs to bring back. */
+export async function fileMark(env, name, ref){
+  if(!env.SESSION_SECRET || String(env.SESSION_SECRET).length < 32) return null;
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode('cloud-file:' + env.SESSION_SECRET));
+  const key = await crypto.subtle.importKey('raw', raw, {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(name + '\u0000' + ref)));
+  return b64url(mac.subarray(0, 18));
+}
+export async function fileMarkOk(env, name, ref, mark){
+  const want = await fileMark(env, name, ref);
+  if(!want || typeof mark !== 'string' || mark.length !== want.length) return false;
+  let diff = 0;
+  for(let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ mark.charCodeAt(i);
+  return diff === 0;
+}
+
 /* ---- the file -------------------------------------------------------- */
 
 /* src/chart.json: the chart as JSON, the file the page's own chartJsonText
@@ -916,7 +938,7 @@ export async function report(env, request){
     version: text(b.version, 20), ua: text(b.ua, 300)};
   console.error(JSON.stringify(entry));
   if(env.FAULTS){
-    try{ await countFault(env.FAULTS, entry); }catch(e){ console.error(JSON.stringify({report: 'fault not counted', why: String(e && e.message || e)})); }
+    try{ if(await withinFaultBudget(env.FAULTS)) await countFault(env.FAULTS, entry); }catch(e){ console.error(JSON.stringify({report: 'fault not counted', why: String(e && e.message || e)})); }
   }
   return entry;
 }
@@ -1148,7 +1170,7 @@ async function cloudPick(env, request, ctx, name){
     if(!kind) throw httpError(400, 'only a picture or a clip can be put on the chart.');
     await cloudApi(`https://www.googleapis.com/drive/v3/files/${id}/permissions`, at,
       {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({role: 'reader', type: 'anyone'})});
-    return {src: `${self}/cloud/gdrive/file/${id}`, name: String(f.name || id), kind};
+    return {src: `${self}/cloud/gdrive/file/${id}?mark=${await fileMark(env, 'gdrive', id)}`, name: String(f.name || id), kind};
   }
   if(!/^disk:\//.test(id)) throw httpError(400, 'that is not a file of the drive.');
   const meta = u => cloudApi(u, at, null, 'OAuth');
@@ -1161,10 +1183,10 @@ async function cloudPick(env, request, ctx, name){
     f = await meta(`https://cloud-api.yandex.net/v1/disk/resources?path=${q}&fields=name,mime_type,public_key`);
   }
   if(!f || !f.public_key) throw httpError(502, 'Yandex Disk did not share the file.');
-  return {src: `${self}/cloud/yadisk/file?key=${encodeURIComponent(f.public_key)}`, name: String(f.name || ''), kind};
+  return {src: `${self}/cloud/yadisk/file?key=${encodeURIComponent(f.public_key)}&mark=${await fileMark(env, 'yadisk', f.public_key)}`, name: String(f.name || ''), kind};
 }
 /* What a reader's browser asks for. Anyone may: it reaches only files
-   shared by link. The range a video asks for is passed on, and so is
+   the owner picked, by the mark their address carries (fileMark). The range a video asks for is passed on, and so is
    what the drive answers it with. */
 async function cloudFile(env, request, url, name){
   const c = CLOUDS[name];
@@ -1173,6 +1195,7 @@ async function cloudFile(env, request, url, name){
   if(name === 'gdrive'){
     const id = url.pathname.slice('/cloud/gdrive/file/'.length);
     if(!/^[A-Za-z0-9_-]{1,200}$/.test(id)) return new Response('not found', {status: 404});
+    if(!await fileMarkOk(env, 'gdrive', id, url.searchParams.get('mark'))) return new Response('not found', {status: 404, headers: open});
     const headers = {};
     const range = request.headers.get('Range');
     if(range) headers.Range = range;
@@ -1190,6 +1213,7 @@ async function cloudFile(env, request, url, name){
   }
   const key = url.searchParams.get('key') || '';
   if(!key || key.length > 500) return new Response('not found', {status: 404});
+  if(!await fileMarkOk(env, 'yadisk', key, url.searchParams.get('mark'))) return new Response('not found', {status: 404, headers: open});
   const res = await fetch('https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=' + encodeURIComponent(key));
   const got = res.ok ? await res.json() : null;
   if(!got || typeof got.href !== 'string' || !/^https:\/\//.test(got.href)) return new Response('not found', {status: 404, headers: open});
@@ -1198,6 +1222,21 @@ async function cloudFile(env, request, url, name){
 }
 
 const FAULT_DAYS = 90;
+/* How many reports a day are counted. /report asks who sent it only by
+   the Origin header, which a browser cannot lie about and a script can,
+   so anyone could send it a thousand different faults: the owner's list
+   would be buried and the namespace's writes for the day (1000 on the
+   free plan) spent. Past this, a report still goes to the log; it is
+   only not counted. Each counted report costs two writes, this tally's
+   and its own, so a flood stops at well under the day's writes. */
+const MAX_FAULT_COUNTS_A_DAY = 200;
+export async function withinFaultBudget(kv, today){
+  const key = 'day:' + (today || new Date().toISOString().slice(0, 10));
+  const n = Number(await kv.get(key)) || 0;
+  if(n >= MAX_FAULT_COUNTS_A_DAY) return false;
+  await kv.put(key, String(n + 1), {expirationTtl: 2 * 86400});
+  return true;
+}
 // The most the owner's list holds; the newest come first.
 const MAX_FAULTS = 100;
 /* One fault, however many readers met it: the same message thrown from

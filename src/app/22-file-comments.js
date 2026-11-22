@@ -324,6 +324,15 @@ function importChartFromText(text){
          replaced had been given. */
       SETTINGS.refColor = DEFAULT_REF_COLOR;
     }
+    // How its numbers are written belongs to the chart too.
+    if(settingsIn && REF_STYLES.includes(settingsIn.refStyle) && settingsIn.refStyle !== 'square') SETTINGS.refStyle = settingsIn.refStyle;
+    else delete SETTINGS.refStyle;
+    /* What the + menu puts down, and what the chart does when it is read,
+       are the chart's as well (46-hand-tools.js, 47-scenarios.js). */
+    const presetsIn = cleanPresets(settingsIn && settingsIn.presets);
+    if(Object.keys(presetsIn).length) SETTINGS.presets = presetsIn; else delete SETTINGS.presets;
+    const scenariosIn = cleanScenarios(settingsIn && settingsIn.scenarios);
+    if(scenariosIn.length) SETTINGS.scenarios = scenariosIn; else delete SETTINGS.scenarios;
     /* The legend's words belong to the chart they describe: brought in
        with it, and not left over from the chart it replaced. */
     const legendIn = cleanLegend(settingsIn && settingsIn.legend);
@@ -709,6 +718,9 @@ if(ON_SITE) markReadOnly();
    it draws, so lifting the flag and drawing again is the whole of it. */
 function markEditable(){
   if(!readOnlyView) return;
+  /* On the site the editing parts come in a file of their own; a page
+     asked to become an editor before it has them gets them first. */
+  if(window.RHIZOME_EDITOR){ loadEditorParts().then(ok=>{ if(ok) markEditable(); }); return; }
   readOnlyView = false;
   document.body.classList.remove('read-only');
   /* A look as a reader ends here too, if the site's answer comes in

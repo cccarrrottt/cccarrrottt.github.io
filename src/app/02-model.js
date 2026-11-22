@@ -238,6 +238,19 @@ const FANFIC_TAG = 'fan-fiction';
  * straight verticals, like a shutter or a barred window, with no weave at
  * all. An entry can carry both. */
 const UNRELEASED_TAG = 'unreleased';
+/* The veil (the owner's word of 21.11).
+ *
+ * "NSFW" is for an entry whose pictures or video are not for anyone under
+ * eighteen. To a reader such an entry is drawn blurred, under a round
+ * "18+" badge as tall as the entry, and one press lifts the veil: the
+ * entry is then itself, and can be picked as any other. Taken out of
+ * sight it is veiled again, so a reader who comes back to it is asked
+ * again. To the author the badge is only a ghost, as faint as a hidden
+ * entry, so the chart can still be worked on. Which entries a reader has
+ * unveiled is this page's alone, never kept (nsfwOpen); declared here
+ * because the first chart is drawn while this part runs. */
+const NSFW_TAG = 'NSFW';
+const nsfwOpen = new Set();
 /* Tags that DO something.
  *
  * Almost every tag on this chart is a label: it names a thing the reader
@@ -266,7 +279,8 @@ const SPECIAL_TAGS = {
   [FANFIC_TAG]: 'Entries with this tag are drawn standing on a woven ground.',
   [UNRELEASED_TAG]: 'Entries with this tag are drawn standing on a ruled grey ground.',
   [HUB_TAG]: 'Entries with this tag are drawn with an echo spreading out of them.',
-  [LOCAL_TAG]: 'Entries with this tag are drawn with a stack of near-identical worlds behind them.'
+  [LOCAL_TAG]: 'Entries with this tag are drawn with a stack of near-identical worlds behind them.',
+  [NSFW_TAG]: 'Entries with this tag hold media not for minors: a reader sees them blurred under an 18+ badge until pressing it.'
 };
 
 /* Where each connector's crossbar was last drawn; see joinCandidates.

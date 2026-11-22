@@ -288,6 +288,70 @@ function rubyRise(baseRuns, annoRuns, own, family){
    is a sixty-fourth of a pixel once scaled back, and every density gives
    the same answer. */
 const INK_SCALE = 64;
+/* What a run of text is set in, asked once for each way it can be dressed.
+ *
+ * Every connector note asked the browser for its letters' computed face,
+ * and where its first letter stands, as soon as it was drawn — in the
+ * middle of a redraw that had just written dozens of other elements, so
+ * each question made the browser style and lay out the whole page again
+ * before it could answer. On a phone, carrying a group about, that was
+ * four in ten of every redraw (the owner's report, 22.11).
+ *
+ * A computed style is a function of the element's own attributes and its
+ * ancestors' — so those, less the ones that only place it, are the key,
+ * and a face is asked of the browser the first time a run is dressed that
+ * way and remembered after. `atAttrs` says whether the run's first letter
+ * stands exactly where its x and y say, which is so for text set from its
+ * start, left to right, on its own baseline; anything else is asked of
+ * the layout as before. */
+const FACE_PLACING = new Set(['x', 'y', 'dx', 'dy', 'transform', 'd', 'startOffset', 'href', 'id',
+                              'width', 'height', 'rx', 'ry', 'cx', 'cy', 'r', 'points', 'textLength']);
+const faceCache = new Map();
+function faceKeyOf(e){
+  let key = '';
+  for(; e && e.nodeType === 1; e = e.parentNode){
+    key += e.tagName;
+    for(const a of e.attributes) if(!FACE_PLACING.has(a.name)) key += ' ' + a.name + '=' + a.value;
+    key += '\u0001';
+  }
+  return key;
+}
+function faceOf(e){
+  const key = faceKeyOf(e);
+  const hit = faceCache.get(key);
+  if(hit) return hit;
+  const cs = getComputedStyle(e);
+  const face = {
+    style: cs.fontStyle, weight: cs.fontWeight, size: parseFloat(cs.fontSize), family: cs.fontFamily,
+    // Whatever else spaces the letters, so a length measured in one face
+    // is not handed to another that only looks the same.
+    spacing: [cs.fontVariant, cs.fontStretch, cs.letterSpacing, cs.wordSpacing, cs.fontKerning,
+              cs.fontFeatureSettings, cs.fontVariationSettings].join('|'),
+    atAttrs: cs.textAnchor === 'start' && cs.direction === 'ltr' && cs.writingMode.startsWith('horizontal') &&
+             (cs.baselineShift === '0px' || cs.baselineShift === 'baseline' || cs.baselineShift === '') &&
+             (cs.dominantBaseline === 'auto' || cs.dominantBaseline === '') &&
+             (cs.alignmentBaseline === 'auto' || cs.alignmentBaseline === 'baseline' || cs.alignmentBaseline === '')
+  };
+  face.font = `${face.style} ${face.weight} ${face.size * INK_SCALE}px ${face.family}`;
+  if(faceCache.size >= MEASURE_CACHE_MAX) faceCache.clear();
+  faceCache.set(key, face);
+  return face;
+}
+/* Where a run's first letter stands, from its attributes when they say it
+   exactly — the layout keeps a length as a single-precision number, so it
+   is rounded as the layout rounds it — or else from the layout. */
+const RTL_LETTERS = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/;
+function runStart(ts, face, s){
+  if(face.atAttrs && !RTL_LETTERS.test(s)){
+    const x = ts.getAttribute('x'), y = ts.getAttribute('y');
+    if(x !== null && y !== null && /^-?[\d.]+(e-?\d+)?$/i.test(x) && /^-?[\d.]+(e-?\d+)?$/i.test(y) &&
+       !ts.hasAttribute('dx') && !ts.hasAttribute('dy') && !ts.hasAttribute('rotate') &&
+       !ts.querySelector('[dx], [dy], [x], [y]')){
+      return {x: Math.fround(parseFloat(x)), y: Math.fround(parseFloat(y))};
+    }
+  }
+  return ts.getStartPositionOfChar(0);
+}
 function inkBoxOf(txtEl, beside){
   if(!inkCtx || !txtEl) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -298,12 +362,11 @@ function inkBoxOf(txtEl, beside){
   for(const ts of txtEl.querySelectorAll('tspan')){
     const s = ts.textContent || '';
     if(!s.trim()) continue;
+    const face = faceOf(ts);
     let p;
-    try{ p = ts.getStartPositionOfChar(0); }
+    try{ p = runStart(ts, face, s); }
     catch(e){ return null; }
-    const cs = getComputedStyle(ts);
-    inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ` +
-                  `${parseFloat(cs.fontSize) * INK_SCALE}px ${cs.fontFamily}`;
+    inkCtx.font = face.font;
     const m = inkCtx.measureText(s);
     if(!Number.isFinite(m.actualBoundingBoxAscent)) return null;
     take(p.x - m.actualBoundingBoxLeft / INK_SCALE, p.y - m.actualBoundingBoxAscent / INK_SCALE,
@@ -383,6 +446,7 @@ function fontsLanded(){
   if(!widthsMoved()) return;
   measureCache.clear();
   inkReachCache.clear();
+  noteAlongCache.clear();
   /* And the block cache with it. It is declared further down — the two
      are emptied for one reason and must be emptied together, so this
      reaches forward rather than growing a second handler that could be
@@ -693,7 +757,8 @@ function autoNodeWidth(texts, fontSize, family, maxLines, maxWidth){
 const blockCache = new Map();
 const BLOCK_CACHE_MAX = 4000;
 function refOrderKey(){
-  let s = '';
+  /* …and how the numbers are written: (9) is not as wide as [9]. */
+  let s = refStyle() + '\u0001';
   for(let i = 0; i < REFS.length; i++) s += (REFS[i] && REFS[i].key) + '';
   return s;
 }
@@ -921,3 +986,23 @@ function shareTextClip(txtEl, elm){
   if(clip) elm.setAttribute('clip-path', clip);
 }
 
+
+/* An id for something in <defs>, made from an entry's id.
+ *
+ * It used to be `prefix + id.replace(/[^a-zA-Z0-9_-]/g,'_')`, which is not a
+ * function that can be inverted and not one that is injective either: two
+ * entries whose ids differ only in the characters being replaced — "Ark 2"
+ * and "Ark.2", or the same name written in two scripts — came out as the
+ * same string, so the second one's clip path overwrote the first's and one
+ * entry was clipped by the other's mask. Nothing warned, because an id
+ * collision inside <defs> is legal SVG: the last one simply wins.
+ *
+ * The readable part is kept, because a definition you cannot recognise in
+ * the inspector is a definition you cannot debug, and a short hash of the
+ * ORIGINAL id is appended, which is what makes it injective in practice. */
+function defId(prefix, raw){
+  const s = String(raw);
+  let h = 0;
+  for(let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return prefix + s.replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + (h >>> 0).toString(36);
+}
