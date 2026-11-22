@@ -1677,6 +1677,7 @@
   .nsfw-veil{opacity:0.1;pointer-events:none;}
   .nsfw-disc{fill:#fff;stroke:#fe0000;}
   .nsfw-mark{fill:#000;}
+  .nsfw-mark .nsfw-counter{fill:#fff;}
   body.read-only .nsfw-veil{opacity:1;pointer-events:auto;cursor:pointer;}
   body.read-only .node.nsfw:not(.nsfw-open) > :not(.nsfw-veil){filter:url(#nsfw-blur);}
   body.read-only .nsfw-scenery:not(.nsfw-open){filter:url(#nsfw-blur);}

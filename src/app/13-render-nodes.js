@@ -2285,16 +2285,16 @@ const drawOne = (n)=>{
     const sign = el('g', {class:'nsfw-mark',
       transform:`translate(${(cx - 129.5*k).toFixed(2)},${(cy - 129.5*k).toFixed(2)}) scale(${k.toFixed(4)})`}, veil);
     el('circle', {class:'nsfw-disc', cx:129.5, cy:129.5, r:75.5, 'stroke-width':17}, sign);
-    // A rounded box as path data (joined, so tools/i18n.js does not take it for words).
-    const box = (x0, y0, x1, y1, q)=>{
-      const turn = (x, y)=> ['A', q, q, 0, 0, 1, x, y].join(' ');
-      return ['M', x0+q, y0, 'H', x1-q, turn(x1, y0+q), 'V', y1-q, turn(x1-q, y1),
-              'H', x0+q, turn(x0, y1-q), 'V', y0+q, turn(x0+q, y0), 'Z'].join(' ');
-    };
     el('path', {d:'M103 101.5L92 101.5L80 109.5L80 116.5L86 117.5L89 119L89 158.5L103 158.5Z'}, sign);
-    el('path', {'fill-rule':'evenodd', d: box(110, 101, 141.5, 126.5, 10) + box(109, 126.5, 142.5, 158.5, 12) +
-                box(123.5, 108, 128.5, 122, 2.5) + box(123.5, 132.5, 128.5, 150, 2.5)}, sign);
-    el('path', {d:'M147 126.5H180V134H169V146H160V134H147ZM160 112.5H169V126.5H160Z'}, sign);
+    /* The eight as two round bowls, the lower a little the wider, with
+       their counters cut out in the disc's white: boxes with rounded
+       corners, read off the reference's pixels, came out flattened. */
+    el('ellipse', {cx:125.75, cy:115, rx:15.25, ry:14}, sign);
+    el('ellipse', {cx:125.75, cy:141.75, rx:16.75, ry:16.75}, sign);
+    el('ellipse', {class:'nsfw-counter', cx:126, cy:115, rx:4, ry:7}, sign);
+    el('ellipse', {class:'nsfw-counter', cx:126, cy:141.5, rx:4.5, ry:9}, sign);
+    // The plus square about its own middle, both arms 9 thick and 33 long.
+    el('path', {d:'M147 125H180V134H147ZM159 113H168V146H159Z'}, sign);
     /* …and its scenery and ground with it, which stand in layers of their
        own where the entry's class cannot reach them: an echo or a weave
        left sharp round a blurred box showed the shape of what was hidden
