@@ -24055,7 +24055,9 @@ async function main(){
         for(let k = 1; k <= steps; k++){
           await go({x: last.x + (p0.x - last.x) * k / steps, y: last.y + (p0.y - last.y) * k / steps});
         }
-        await wait(30);
+        /* Past the swell's own 90 ms: a carry may draw the dot afresh,
+           and its swell then starts over (a CI run read it half grown). */
+        await wait(150);
         const dg = document.querySelector(`.node[data-id="${dotId}"] > circle:not(.split-hit):not(.node-hover-pad)`);
         r.splitSwells = /matrix\(1\.[5-6]/.test(getComputedStyle(dg).transform);
         /* …then across the inside of the corner, small steps, to the other. */
