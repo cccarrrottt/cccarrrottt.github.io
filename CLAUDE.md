@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 163 named scenarios, and they do not depend on one another —
+The suite is 164 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -175,7 +175,7 @@ page decides when it opens:
 
 | where it is opened | what it is |
 | --- | --- |
-| `SITE_ORIGINS` (the published site) | a reader; the editor once the write service confirms the owner or an editor |
+| `SITE_BASE` (the published site, or below it) | a reader; the editor once the write service confirms the owner or an editor |
 | anywhere else (disk, other hosts, the test server) | its holder's own copy, saving into their browser |
 
 Things that follow, and are pinned in the suite ("the page on the published
@@ -243,11 +243,25 @@ site") and `build_guard`:
   bury the list or spend the namespace's writes.
 - **Where the site lives is said once**, in `src/app/00-config.js`
   (`SITE_CONFIG`: `site`, `api`, `repo`, one quoted string to a line, so
-  `build.py` and the suite read it as text). `SITE_ORIGINS`, `SITE_API` and
+  `build.py` and the suite read it as text). `SITE_BASE`, `SITE_API` and
   `SITE_REPO` in `01-store.js` are taken from it, the build writes the
-  site's address into the link preview and the schema's `$id`, and
-  `build_guard` holds `REPO`/`ALLOWED_ORIGINS` in `worker/wrangler.toml` to
-  it — the service is deployed from that file and cannot read ours.
+  site's address into the link preview, the schema's `$id` and the
+  published `chart.json`, and `build_guard` holds `REPO`/`ALLOWED_ORIGINS`
+  in `worker/wrangler.toml` to it — the service is deployed from that file
+  and cannot read ours. `site` may carry a path (a repository Pages serves
+  at `<login>.github.io/<repo>`): the page is on the site at that address or
+  below it (`atSite`), and the service lets in its origin. An empty `api`
+  is a copy with no service: read-only for everybody, and CI deploys
+  nothing.
+- **What the chart is called is the chart's**, not the platform's:
+  `settings.title`, `settings.description` and `settings.about`, written in
+  About (`showChartWords`, `20-about.js`), carried by Save, Import and
+  Export like every other setting. `build.py` (`chart_words`) writes the
+  first two into the site's preview, `<title>` and the manifest. No text
+  about one particular chart belongs in `src/index.html` or `build.py`.
+- **The site publishes the chart as data**, `<site>/chart.json` beside the
+  page (`build_site`), the file Save commits with `$schema` naming the
+  site's own schema.
 - **No part may contain a closing script tag**, in a string or a comment:
   the program is inside a `<script>` in every build but the site's, and the
   parser ends it there. The build refuses it and names the part.

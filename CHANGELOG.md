@@ -6,6 +6,13 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.27.0 — "Anyone's own" (2026-11-22)
+
+- What the chart is called, the sentence a link to it shows and the text at the top of About are the chart's own now, not the platform's: the owner writes them in About, under «The chart's name and description», and they are saved, imported and exported with the chart. The name is the tab's title, the name a pasted link shows and the name of the app a phone keeps.
+- A copy of the platform may live under a path, https://<login>.github.io/<repo>, as well as at the root of an account: the page is the site at the address the config names or below it. One account can publish as many charts as it has repositories.
+- A copy may have no write service at all: with no service in the config the site is read-only for everybody and CI deploys nothing, and the chart changes by a commit of src/chart.json. DISTRIBUTING.md says how, in about ten minutes.
+- The site publishes its chart as data beside the page, at chart.json, named against the schema published with it, so another page or a script can read it.
+
 ## 0.26.3 — "As it is drawn" (2026-11-21)
 
 - An entry's words look the same while they are being written as when they are drawn, letter for letter: the readings over words, underlines and strikes, a larger word in a line, several lines, lists and dividers all stand where the drawing puts them, and the field is laid on the drawing by its first letter.

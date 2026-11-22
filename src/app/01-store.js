@@ -12,7 +12,7 @@
 
      site      — on the published site, for its owner only: Saving commits
                  the chart to the repository through the write service, and
-                 the site shows it once CI has rebuilt it. See SITE_ORIGINS
+                 the site shows it once CI has rebuilt it. See SITE_BASE
                  below and 36-site-owner.js.
      standalone— everywhere else: a file on a disk, a plain web server, a
                  local dev build. Saving writes the chart to this browser's
@@ -64,14 +64,26 @@ const STORE_KEY = STORE_PREFIX + (location.pathname + location.search || 'defaul
    not set up yet: the site is then read-only for everybody, the owner
    included, which is the safe way for that to be wrong. The addresses
    themselves are in 00-config.js.
+
+   The site's address may carry a path — a repository not named
+   <login>.github.io is served by Pages at <login>.github.io/<repo>/ — so
+   the page is on the site when its address is the site's or below it, not
+   merely when its origin is. Two charts published from one account then
+   share an origin and are still two sites; what they share besides is the
+   browser's storage, which is why STORE_KEY is by path.
    ------------------------------------------------------------------------- */
-const SITE_ORIGINS = [SITE_CONFIG.site];
+const SITE_BASE = SITE_CONFIG.site.replace(/\/+$/, '');
+function atSite(href, site){
+  let u, base;
+  try{ u = new URL(href); base = new URL((site === undefined ? SITE_BASE : site.replace(/\/+$/, '')) + '/'); }catch(e){ return false; }
+  return u.origin === base.origin && (u.pathname + '/').indexOf(base.pathname) === 0;
+}
 const SITE_API = SITE_CONFIG.api;
 /* The repository the site is published from, and where suggestions are
    kept as issues. The page reads the open ones from GitHub itself, so a
    reader who has not signed in sees them too. */
 const SITE_REPO = SITE_CONFIG.repo;
-const ON_SITE = SITE_ORIGINS.indexOf(location.origin) >= 0;
+const ON_SITE = atSite(location.href);
 /* What goes wrong in a reader's browser, told to the write service, which
    writes it to its log (POST /report, worker/index.js). Until now a fault
    on the site was known only if the person who met it wrote to say so, and

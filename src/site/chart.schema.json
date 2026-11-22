@@ -173,6 +173,12 @@
     "settings": {
       "type": "object",
       "properties": {
+        "title": {"type": "string", "maxLength": 120,
+                  "description": "What the chart is called (0.27.0): the page's title, the name a link to the site shows, the head of About. Absent, the platform's name."},
+        "description": {"type": "string", "maxLength": 300,
+                        "description": "One sentence of what the chart is (0.27.0), shown with a link to the site."},
+        "about": {"type": "string",
+                  "description": "What the chart is about, at the top of About (0.27.0), written in the markup a note is."},
         "refColor": {"$ref": "#/definitions/hex"},
         "refStyle": {"enum": ["square", "round", "bare"]},
         "presets": {"type": "object", "properties": {"rect": {"type": "object", "properties": {"colors": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "bg": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "border": {"enum": ["solid","dashed","dotted","dashdot","double","wavy"]}, "square": {"type": "boolean"}, "font": {"type": "string"}, "fontSize": {"type": "number"}, "align": {"enum": ["left","right"]}}}, "ellipse": {"type": "object", "properties": {"colors": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "bg": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "border": {"enum": ["solid","dashed","dotted","dashdot","double","wavy"]}, "square": {"type": "boolean"}, "font": {"type": "string"}, "fontSize": {"type": "number"}, "align": {"enum": ["left","right"]}}}, "link": {"type": "object", "properties": {"colors": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "bg": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "border": {"enum": ["solid","dashed","dotted","dashdot","double","wavy"]}, "square": {"type": "boolean"}, "font": {"type": "string"}, "fontSize": {"type": "number"}, "align": {"enum": ["left","right"]}}}}},

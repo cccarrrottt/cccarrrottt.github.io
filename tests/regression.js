@@ -18186,11 +18186,11 @@ async function main(){
       if(a){ a.addEventListener('click', stop); a.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); a.removeEventListener('click', stop); }
       await wait(100);
       out.linkGoAt = JSON.stringify({badge: !!badge, selected: selectedId, opened,
-        site: !!entryLinkTarget(SITE_ORIGINS[0] + '/#entry=lkTo&tab=2'),
+        site: !!entryLinkTarget(SITE_BASE + '/#entry=lkTo&tab=2'),
         elsewhere: !!entryLinkTarget('https://example.com/#entry=lkTo'),
         missing: !!entryLinkTarget('#entry=no-such-entry')});
       out.linkGo = !!badge && selectedId === 'lkTo' && !opened &&
-                   !!entryLinkTarget(SITE_ORIGINS[0] + '/#entry=lkTo&tab=2') &&
+                   !!entryLinkTarget(SITE_BASE + '/#entry=lkTo&tab=2') &&
                    !entryLinkTarget('https://example.com/#entry=lkTo') && !entryLinkTarget('#entry=no-such-entry');
       deselect();
     }
@@ -18300,7 +18300,7 @@ async function main(){
         {pos:[400, -600], tags:['probe-tag'], multiLang:true, langTabs:[{tag:'JP', text:'Zzkanaprobe title'}], link:'https://example.org/page'}]);
       workingNodes.push(['lq two', 'Langprobe other', null, null, null, null, {pos:[700, -600], link:'#entry=lq_one'}]);
       workingNodes.push(['lq three', 'Langprobe gone', null, null, null, null,
-        {pos:[1000, -600], link: SITE_ORIGINS[0] + '/#entry=nobody-by-that-name'}]);
+        {pos:[1000, -600], link: SITE_BASE + '/#entry=nobody-by-that-name'}]);
     });
     await pause(400);
     // Search finds the tab's text, says which tab and carries the tags.
@@ -25581,6 +25581,93 @@ async function main(){
         r.readerHeld && r.studioOverPreview && r.shown && r.resetHolds && r.backToEditing,
         JSON.stringify([r.readerHeld, r.studioOverPreview, r.shown, r.resetHolds, r.backToEditing]));
   check('…and it is kept with the chart, as are the presets and how references are written', r.scenarioSaved);
+  });
+
+  /* What the chart is called and what it is about are the chart's
+     (settings.title, settings.description, settings.about), written in
+     About and carried with it — not the platform's words in index.html and
+     build.py, which every copy of the platform published as its own. */
+  await scenario("the chart's own name and description", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const out = {};
+    const type = (id, v)=>{ const f = document.getElementById(id); f.focus(); f.value = v; f.dispatchEvent(new Event('change')); f.blur(); };
+    try{
+      ['title', 'description', 'about'].forEach(k=> delete SETTINGS[k]);
+      rebuildChart();
+      out.platformName = document.title === APP_NAME;
+      document.getElementById('aboutToggle').click(); await wait(150);
+      out.formShown = getComputedStyle(document.getElementById('aboutChartEdit')).display !== 'none';
+      out.emptyHidden = getComputedStyle(document.getElementById('aboutChart')).display === 'none';
+      type('chartTitleField', '  Rivers of the North  ');
+      type('chartAboutField', 'Where the *water* goes.\n\nSecond paragraph.');
+      type('chartDescField', 'One sentence.');
+      await wait(50);
+      out.saved = SETTINGS.title === 'Rivers of the North' && SETTINGS.description === 'One sentence.'
+        && SETTINGS.about === 'Where the *water* goes.\n\nSecond paragraph.';
+      out.tab = document.title === 'Rivers of the North';
+      const box = document.getElementById('aboutChart');
+      out.shown = box.querySelector('.about-chart-title').textContent === 'Rivers of the North'
+        && !!box.querySelector('.about-chart-text em, .about-chart-text i') && box.textContent.includes('Second paragraph.');
+      out.notTranslated = box.getAttribute('translate') === 'no';
+      out.dirty = isDirty();
+      /* One undo step a field, and the field follows it back. */
+      undoLastEdit(); await wait(50);
+      out.undone = SETTINGS.description === undefined && document.getElementById('chartDescField').value === '';
+      /* An empty field is no setting: the platform's name comes back. */
+      type('chartTitleField', '   ');
+      out.cleared = SETTINGS.title === undefined && document.title === APP_NAME;
+      /* A chart brought in from a file brings its words, and one that has
+         none does not keep the words of the chart it replaced. */
+      const file = chartJsonText({format: DATA_FORMAT, nodes: [{id: 'w1', label: 'One'}],
+        settings: {title: 'Imported', about: 'From a file.'}});
+      const keep = workingNodes.map(x=> x.slice());
+      importChartFromText(file); await wait(50);
+      out.imported = SETTINGS.title === 'Imported' && SETTINGS.about === 'From a file.' && SETTINGS.description === undefined
+        && document.title === 'Imported' && document.getElementById('chartTitleField').value === 'Imported';
+      importChartFromText(chartJsonText({format: DATA_FORMAT, nodes: [{id: 'w2', label: 'Two'}], settings: {}})); await wait(50);
+      out.importedNone = SETTINGS.title === undefined && SETTINGS.about === undefined && document.title === APP_NAME;
+      applyEdit(()=>{ workingNodes = keep; });
+      /* A reader reads the words and has no fields to change them. */
+      SETTINGS.title = 'Read only'; SETTINGS.about = 'Words.';
+      document.body.classList.add('read-only');
+      rebuildChart();
+      out.readerNoForm = getComputedStyle(document.getElementById('aboutChartEdit')).display === 'none'
+        && document.getElementById('aboutChart').textContent.includes('Words.');
+      document.body.classList.remove('read-only');
+      /* Where the page is the site: at the site's address or below it,
+         and a site under a path is not its neighbours on the same origin. */
+      out.atSite = [
+        atSite('https://a.github.io/', 'https://a.github.io'),
+        atSite('https://a.github.io/#entry=x', 'https://a.github.io/'),
+        atSite('https://a.github.io/charts/', 'https://a.github.io/charts'),
+        atSite('https://a.github.io/charts', 'https://a.github.io/charts'),
+        atSite('https://a.github.io/charts/index.html?x', 'https://a.github.io/charts'),
+        !atSite('https://a.github.io/chartsandmore/', 'https://a.github.io/charts'),
+        !atSite('https://a.github.io/', 'https://a.github.io/charts'),
+        !atSite('https://b.github.io/charts/', 'https://a.github.io/charts'),
+        !atSite('http://a.github.io/', 'https://a.github.io')
+      ].every(Boolean);
+    } finally {
+      document.getElementById('aboutClose').click();
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+      Object.assign(SETTINGS, wasSettings);
+      rebuildChart();
+    }
+    return out;
+  });
+  check('a chart that names nothing is called by the platform\'s name, and About shows no words for it',
+        r.platformName && r.emptyHidden, JSON.stringify([r.platformName, r.emptyHidden]));
+  check('the owner writes its name, its sentence and its About in About, kept in the chart\'s settings',
+        r.formShown && r.saved && r.dirty, JSON.stringify([r.formShown, r.saved, r.dirty]));
+  check('the name is the tab\'s title, and About shows it and the text, in the markup a note is, untranslated',
+        r.tab && r.shown && r.notTranslated, JSON.stringify([r.tab, r.shown, r.notTranslated]));
+  check('each field is a step of undo, and an empty one is no setting', r.undone && r.cleared, JSON.stringify([r.undone, r.cleared]));
+  check('an imported chart brings its own words, and one with none keeps none', r.imported && r.importedNone,
+        JSON.stringify([r.imported, r.importedNone]));
+  check('a reader reads them and has nothing to fill in', r.readerNoForm);
+  check('the page is on the site at the site\'s address or below it, and only there', r.atSite);
   });
 
   await scenario("nothing threw along the way", async () => {

@@ -11,9 +11,15 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.26.3';
+const APP_VERSION = '0.27.0';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.27.0', date:'2026-11-22', title:'Anyone\'s own', notes:[
+'What the chart is called, the sentence a link to it shows and the text at the top of About are the chart\'s own now, not the platform\'s: the owner writes them in About, under «The chart\'s name and description», and they are saved, imported and exported with the chart. The name is the tab\'s title, the name a pasted link shows and the name of the app a phone keeps.',
+'A copy of the platform may live under a path, https://<login>.github.io/<repo>, as well as at the root of an account: the page is the site at the address the config names or below it. One account can publish as many charts as it has repositories.',
+'A copy may have no write service at all: with no service in the config the site is read-only for everybody and CI deploys nothing, and the chart changes by a commit of src/chart.json. DISTRIBUTING.md says how, in about ten minutes.',
+'The site publishes its chart as data beside the page, at chart.json, named against the schema published with it, so another page or a script can read it.'
+  ]},
   {v:'0.26.3', date:'2026-11-21', title:'As it is drawn', notes:[
 'An entry\'s words look the same while they are being written as when they are drawn, letter for letter: the readings over words, underlines and strikes, a larger word in a line, several lines, lists and dividers all stand where the drawing puts them, and the field is laid on the drawing by its first letter.',
 'The languages are picked by their flags on the top bar: the American one for English, the Russian one for Russian.',
@@ -639,10 +645,68 @@ const aboutOverlay = document.getElementById('aboutOverlay');
 renderVersionInfo();
 document.getElementById('aboutToggle').onclick = ()=>{
   closeToolbarMenus('aboutOverlay');
+  showChartWords();
   aboutOverlay.classList.add('open');
 };
 document.getElementById('aboutClose').onclick = ()=> aboutOverlay.classList.remove('open');
 aboutOverlay.addEventListener('click', e=>{ if(e.target===aboutOverlay) aboutOverlay.classList.remove('open'); });
+
+/* ---------------------------------------------------------------------
+   What the chart is called, and what it is about.
+
+   These used to be the platform's: the name in <title> and in the link
+   preview, the sentence a pasted link shows, and the paragraph at the top
+   of this card that says the chart is a map of Transformers continuity —
+   in src/index.html and build.py, files every copy of the platform carries.
+   A copy with a chart of its own said it was a map of Transformers
+   continuity until somebody found the three places and rewrote them. They
+   are the chart's now (settings.title, settings.description,
+   settings.about), saved and imported with it; build.py writes the first
+   two into the site's preview, and this puts the name on the tab and the
+   rest at the top of About. A chart that names nothing is called by the
+   platform's name and has no paragraph.
+
+   Asked after every rebuild, so an undo, an import or a merged save shows
+   the words they brought. Not before this part has run: the first rebuild
+   is in part 02, before APP_NAME exists. */
+var chartWordsReady = false;
+function chartWord(key){
+  const v = SETTINGS && typeof SETTINGS[key] === 'string' ? SETTINGS[key].trim() : '';
+  return v;
+}
+function showChartWords(){
+  if(!chartWordsReady) return;
+  const title = chartWord('title');
+  document.title = title || APP_NAME;
+  const box = document.getElementById('aboutChart');
+  if(box){
+    const about = chartWord('about');
+    box.innerHTML = (title ? `<h3 class="about-chart-title">${escapeHtml(title)}</h3>` : '') +
+      (about ? `<div class="about-chart-text">${markupToRichHtml(about)}</div>` : '');
+  }
+  /* What is being typed is left alone: a rebuild while the field is in
+     the hand would put back the value it had before the keystroke. */
+  [['chartTitleField', 'title'], ['chartDescField', 'description'], ['chartAboutField', 'about']].forEach(([id, key])=>{
+    const f = document.getElementById(id);
+    if(f && document.activeElement !== f) f.value = SETTINGS && typeof SETTINGS[key] === 'string' ? SETTINGS[key] : '';
+  });
+}
+/* Taken when the field is left, as one edit: a keystroke each would be an
+   undo step each, and a rebuild each. An empty field is the absence of the
+   setting, so the platform's name comes back rather than an empty title. */
+[['chartTitleField', 'title'], ['chartDescField', 'description'], ['chartAboutField', 'about']].forEach(([id, key])=>{
+  const f = document.getElementById(id);
+  if(!f) return;
+  f.addEventListener('change', ()=>{
+    const v = key === 'about' ? f.value.replace(/\s+$/, '') : f.value.trim();
+    const was = SETTINGS && typeof SETTINGS[key] === 'string' ? SETTINGS[key] : '';
+    if(v === was) return;
+    applyEdit(()=>{ if(v) SETTINGS[key] = v; else delete SETTINGS[key]; });
+    showChartWords();
+  });
+});
+chartWordsReady = true;
+showChartWords();
 
 /* This document's own bytes, which Export writes the chart into.
 
