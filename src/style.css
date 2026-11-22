@@ -1675,8 +1675,9 @@
      entry and never in the way; to a reader the badge itself, over the
      entry blurred, until a press lifts it (.nsfw-open). */
   .nsfw-veil{opacity:0.1;pointer-events:none;}
-  .nsfw-disc{fill:#fff;stroke:#d0021b;}
-  .nsfw-mark{fill:#d0021b;font-family:'Big Shoulders Display',sans-serif;font-weight:800;}
+  .nsfw-disc{fill:#fff;stroke:#e3000f;}
+  .nsfw-mark{fill:#000;}
+  .nsfw-mark .nsfw-ring{fill:none;stroke:#000;}
   body.read-only .nsfw-veil{opacity:1;pointer-events:auto;cursor:pointer;}
   body.read-only .node.nsfw:not(.nsfw-open) > :not(.nsfw-veil){filter:url(#nsfw-blur);}
   body.read-only .nsfw-scenery:not(.nsfw-open){filter:url(#nsfw-blur);}

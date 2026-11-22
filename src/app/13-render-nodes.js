@@ -2275,11 +2275,22 @@ const drawOne = (n)=>{
     if(nsfwOpen.has(n.id)) g.classList.add('nsfw-open');
     const r = h/2, cx = n.x + w/2, cy = n.y + h/2;
     const veil = el('g', {class:'nsfw-veil'}, g);
+    /* As the road sign has it (the owner's reference, 22.11): a heavy red
+       ring a fifth of the radius wide, white inside, the figures black. */
     el('circle', {class:'nsfw-disc', cx: cx.toFixed(2), cy: cy.toFixed(2),
-                  r: (r - r*0.06).toFixed(2), 'stroke-width': (r*0.12).toFixed(2)}, veil);
-    const t = el('text', {class:'nsfw-mark', x: cx.toFixed(2), y: (cy + r*0.27).toFixed(2),
-                          'font-size': (r*0.78).toFixed(2), 'text-anchor':'middle'}, veil);
-    t.textContent = '18+';
+                  r: (r - r*0.1).toFixed(2), 'stroke-width': (r*0.2).toFixed(2)}, veil);
+    /* The figures are drawn, not set: no face every reader has is as heavy
+       as the sign's, and a fallback came out thin and too wide. Laid out
+       with a cap height of 100 about the middle, then scaled to six tenths
+       of the radius. */
+    const k = r*0.006;
+    const mark = el('g', {class:'nsfw-mark',
+      transform:`translate(${(cx + 2*k).toFixed(2)},${cy.toFixed(2)}) scale(${k.toFixed(4)})`}, veil);
+    el('polygon', {points:'-55,-50 -75,-50 -98,-30 -98,-10 -75,-27 -75,50 -55,50'}, mark);
+    el('ellipse', {class:'nsfw-ring', cx:-8, cy:-25, rx:19, ry:15.5, 'stroke-width':19}, mark);
+    el('ellipse', {class:'nsfw-ring', cx:-8, cy:22, rx:23, ry:18.5, 'stroke-width':20}, mark);
+    el('rect', {x:36, y:-9, width:58, height:18}, mark);
+    el('rect', {x:56, y:-29, width:18, height:58}, mark);
     /* …and its scenery and ground with it, which stand in layers of their
        own where the entry's class cannot reach them: an echo or a weave
        left sharp round a blurred box showed the shape of what was hidden
