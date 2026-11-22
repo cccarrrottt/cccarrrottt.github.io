@@ -571,7 +571,7 @@ function syncLabelFieldForShape(select){
     : ((selectedId && nodes.get(selectedId) && nodes.get(selectedId).shape) || 'rect');
   const off = shape === 'image';
   if(rec){
-    rec.surface.contentEditable = off ? 'false' : 'true';
+    setEditable(rec.surface, off ? 'false' : 'true');
     rec.surface.classList.toggle('locked', off);
   }
   const field = document.querySelector('#nodeEditorText');

@@ -1410,7 +1410,7 @@ let detailNoteEditing = false;
 
 function setDetailNoteEditing(on){
   detailNoteEditing = on;
-  detailNoteSurface.contentEditable = on ? 'true' : 'false';
+  setEditable(detailNoteSurface, on ? 'true' : 'false');
   detailNoteSurface.classList.toggle('locked', !on);
   detailNoteSurface.classList.toggle('doc-open', on);
   // makeRichField sets a min-height inline to match the textarea it stood

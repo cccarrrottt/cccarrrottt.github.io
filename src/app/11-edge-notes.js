@@ -1087,14 +1087,14 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
   };
   const ring = lay('edge-note-along-ring');
   const ink = lay('edge-note-along' + (pos === 'on' ? ' on-line' : ''));
-  const inkH = noteAlongInk(words, ink.t);
+  const measured = noteAlongMeasure(words, ink.t);
+  const inkH = measured.ink;
   [ring, ink].forEach(w=> w.span.setAttribute('dy', ((inkH.up - inkH.down) / 2).toFixed(2)));
   if(paint) ink.t.style.fill = paint;
   if(bg) ring.t.style.stroke = bg;
   /* Held inside the line: a note slid near an end ran its words off it,
      and a path drops the letters it has no room for. */
-  let half = 0;
-  try{ half = ink.t.getComputedTextLength() / 2; }catch(e){}
+  const half = measured.len / 2;
   if(half * 2 >= total) at = total / 2;
   else at = Math.max(half, Math.min(total - half, at));
   ring.tp.setAttribute('startOffset', at.toFixed(2));
@@ -1180,11 +1180,31 @@ function drawNoteAlong(g, text, pts, f, m, px, py, pos, paint, bg, style){
 function noteFramed(style){
   return !!style && (style.noteFrame !== false || style.noteAlongFrame === true);
 }
-function noteAlongInk(words, t){
+/* What a note's words measure along a line, remembered by the words and
+   the face they are set in (faceOf): the ink above and below the baseline
+   and across, and the length the line lays them out to. That length is
+   the advance of the words, whatever the line — a path too short for them
+   drops letters from the drawing, not from the length — so it is the same
+   on every frame of a carry, and asking it of the layout each time laid
+   out the whole page each time. Emptied with the other measures when a
+   face arrives (fontsLanded). */
+const noteAlongCache = new Map();
+function noteAlongMeasure(words, t){
+  const face = faceOf(t);
+  const key = words + '\u0000' + face.font + '\u0000' + face.spacing;
+  const hit = noteAlongCache.get(key);
+  if(hit) return hit;
+  let len = 0;
+  try{ len = t.getComputedTextLength(); }catch(e){}
+  const out = {ink: noteAlongInk(words, face), len};
+  if(noteAlongCache.size >= MEASURE_CACHE_MAX) noteAlongCache.clear();
+  noteAlongCache.set(key, out);
+  return out;
+}
+function noteAlongInk(words, face){
   const fallback = {up: EDGE_NOTE_FS * 0.72, down: EDGE_NOTE_FS * 0.21};
-  if(!inkCtx || !words || !t) return fallback;
-  const cs = getComputedStyle(t);
-  inkCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${(parseFloat(cs.fontSize) || EDGE_NOTE_FS) * INK_SCALE}px ${cs.fontFamily}`;
+  if(!inkCtx || !words || !face) return fallback;
+  inkCtx.font = `${face.style} ${face.weight} ${(face.size || EDGE_NOTE_FS) * INK_SCALE}px ${face.family}`;
   const m = inkCtx.measureText(words);
   if(!Number.isFinite(m.actualBoundingBoxAscent) || !(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > 0)) return fallback;
   /* …and across: where the letters' ink starts and ends against the

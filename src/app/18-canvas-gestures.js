@@ -1371,15 +1371,18 @@ window.addEventListener('mouseup', ()=>{
   qEdges('.bead-carried').forEach(c=> c.classList.remove('bead-carried'));
   // A frame still owing from the drag would draw over what settling the
   // drag is about to draw, from a state that no longer exists.
-  if(dragRedrawFrame || dragRedrawTimer){
+  /* But the drawing it owed is what tells the callouts on these
+     connectors where their anchors ended up, and that has to be written
+     down before the chart is rebuilt from the entries — a rebuild starts
+     the anchors again from what the entries say. So the frame is not
+     dropped: a drop that moved anything draws the connectors afresh
+     below, before the rebuild, and that is the frame; only a carry that
+     came back to where it started takes it here. Taken in both, it was
+     the same drawing twice in a row — a sixth of a drop on a phone. */
+  const owed = !!(dragRedrawFrame || dragRedrawTimer);
+  if(owed){
     cancelAnimationFrame(dragRedrawFrame); dragRedrawFrame = 0;
     clearTimeout(dragRedrawTimer); dragRedrawTimer = 0;
-    /* But the drawing it owed is what tells the callouts on these
-       connectors where their anchors ended up, and that has to be written
-       down before the chart is rebuilt from the entries — a rebuild starts
-       the anchors again from what the entries say. So the frame is not
-       dropped, it is taken now. */
-    if(st.moved) redrawEdges();
   }
   st.g.classList.remove('dragging');
   clearGuides();
@@ -1397,6 +1400,7 @@ window.addEventListener('mouseup', ()=>{
   if(st.node.x===st.originX && st.node.y===st.originY){
     // Snapped back to where it started — and the bends with it, and any
     // bar the carry fixed, since nothing has been done.
+    if(owed) redrawEdges();
     carryBends(st, 0, 0);
     unfixAmalgamBars(st.barsFixed);
     return;
