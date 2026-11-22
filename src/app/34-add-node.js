@@ -1224,11 +1224,12 @@ function buildFigureMenu(){
   tiles.push(up);
   const count = Math.max(1, Math.ceil(tiles.length / FIGURE_PAGE));
   figurePage = Math.min(Math.max(0, figurePage), count - 1);
+  /* The arrows on a row of their own over the heading, in the middle
+     (the owner's word of 22.11, evening). */
   const top = document.createElement('div');
   top.className = 'add-fab-figures-head figure-pager';
-  const name = document.createElement('span');
-  name.textContent = 'Templates';
-  top.appendChild(name);
+  head('Templates');
+  const name = card.lastElementChild;
   const view = document.createElement('div');
   view.className = 'figure-pages';
   const track = document.createElement('div');
@@ -1257,7 +1258,7 @@ function buildFigureMenu(){
     top.appendChild(at);
     top.appendChild(turn(1, 'The next page', 'M9 6.5v11l6.5-5.5z'));
   }
-  card.appendChild(top);
+  if(count > 1) card.insertBefore(top, name);
   card.appendChild(view);
   showFigurePage(false);
 }

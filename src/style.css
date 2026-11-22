@@ -2258,8 +2258,7 @@
   .add-fab-figures .node-style-btn{background:var(--panel-2);position:relative;width:50px;padding:4px 1px 3px;gap:2px;}
   .add-fab-figures .node-style-icon{width:32px;height:24px;}
   .add-fab-figures .node-style-cap{font-size:7.5px;letter-spacing:-0.2px;max-width:100%;overflow:hidden;}
-  .figure-pager{display:flex;align-items:center;gap:4px;}
-  .figure-pager > span:first-child{flex:1 1 auto;}
+  .figure-pager{display:flex;align-items:center;justify-content:center;gap:4px;padding-top:4px;}
   .figure-page-at{min-width:30px;text-align:center;}
   .figure-turn{
     width:20px;height:18px;padding:0;border:1px solid var(--line);border-radius:4px;
