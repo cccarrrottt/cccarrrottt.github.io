@@ -288,10 +288,73 @@ function syncField(carried){
   const f = fieldOf(carried);
   const was = chartField;
   chartField = f;
+  syncBackdrop();
   if(was && was.x0 === f.x0 && was.x1 === f.x1 && was.y0 === f.y0 && was.y1 === f.y1) return;
   const box = {x: f.x0, y: f.y0, width: f.x1 - f.x0, height: f.y1 - f.y0};
   [fieldRect].concat([...alignGrid.querySelectorAll('rect')]).forEach(r=>
     Object.keys(box).forEach(k=> r.setAttribute(k, box[k])));
+}
+/* ---- The field's own ground: a colour, a picture ----------------------
+ *
+ * SETTINGS.background (the owner's list of 22.11, night): {color} paints
+ * the field's pages in place of the paper, {image} lays a picture over
+ * them — `fit` 'cover' fills the field with it, cut to its shape, and
+ * 'tile' repeats it at its own size — and the grid is still ruled over
+ * both. Part of the chart, so every reader sees it; in the chart's own
+ * coordinates, so it pans and zooms with the drawing. A double line's
+ * gap is the paper (.dbl-inner), so the colour is handed to the canvas
+ * as --field too, and the gap takes it; over a picture it stays the
+ * colour, as a gap has to be one colour. */
+var backdropKey = null, backdropEl = null;
+function syncBackdrop(){
+  const f = chartField;
+  const bg = SETTINGS.background && typeof SETTINGS.background === 'object' ? SETTINGS.background : {};
+  const color = isHexColor(bg.color) ? bg.color : '';
+  const image = typeof bg.image === 'string' && pictureSrcOk(bg.image) ? bg.image : '';
+  const fit = bg.fit === 'tile' ? 'tile' : 'cover';
+  const key = [color, image.length, image.slice(-64), fit, f ? [f.x0, f.y0, f.x1, f.y1].join(',') : ''].join('|');
+  if(key === backdropKey) return;
+  backdropKey = key;
+  fieldRect.style.fill = color;
+  if(color) svg.style.setProperty('--field', color); else svg.style.removeProperty('--field');
+  if(!image || !f){
+    if(backdropEl){ backdropEl.remove(); backdropEl = null; }
+    const pat = document.getElementById('chart-backdrop-tile');
+    if(pat) pat.remove();
+    return;
+  }
+  const box = {x: f.x0, y: f.y0, width: f.x1 - f.x0, height: f.y1 - f.y0};
+  const want = fit === 'tile' ? 'rect' : 'image';
+  if(!backdropEl || backdropEl.tagName !== want){
+    if(backdropEl) backdropEl.remove();
+    backdropEl = el(want, {id: 'chartBackdrop', class: 'chart-backdrop'}, fieldLayer);
+    fieldRect.after(backdropEl);
+  }
+  Object.keys(box).forEach(k=> backdropEl.setAttribute(k, box[k]));
+  if(fit === 'cover'){
+    backdropEl.setAttribute('href', image);
+    backdropEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    const pat = document.getElementById('chart-backdrop-tile');
+    if(pat) pat.remove();
+    return;
+  }
+  /* Repeated at the picture's own size, one pixel to a unit, from the
+     origin, so it does not slide as pages are laid on or taken off. */
+  let pat = document.getElementById('chart-backdrop-tile');
+  if(!pat){
+    pat = el('pattern', {id: 'chart-backdrop-tile', patternUnits: 'userSpaceOnUse', x: 0, y: 0, width: 1, height: 1}, svgDefs);
+    el('image', {x: 0, y: 0, width: 1, height: 1, preserveAspectRatio: 'none'}, pat);
+  }
+  const img = pat.firstChild;
+  img.setAttribute('href', image);
+  backdropEl.setAttribute('fill', 'url(#chart-backdrop-tile)');
+  const probe = new Image();
+  probe.onload = ()=>{
+    if(img.getAttribute('href') !== image) return;
+    const w = probe.naturalWidth || 1, h = probe.naturalHeight || 1;
+    [pat, img].forEach(n=>{ n.setAttribute('width', w); n.setAttribute('height', h); });
+  };
+  probe.src = image;
 }
 /* The middle of the view stays on the field. Asked by the hand's moves —
    a pan, the wheel, a pinch — and not by a view set in so many words (a

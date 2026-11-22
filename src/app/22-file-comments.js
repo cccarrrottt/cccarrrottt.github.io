@@ -331,6 +331,9 @@ function importChartFromText(text){
        are the chart's as well (46-hand-tools.js, 47-scenarios.js). */
     const presetsIn = cleanPresets(settingsIn && settingsIn.presets);
     if(Object.keys(presetsIn).length) SETTINGS.presets = presetsIn; else delete SETTINGS.presets;
+    if(settingsIn && settingsIn.hops === false) SETTINGS.hops = false; else delete SETTINGS.hops;
+    const backgroundIn = cleanBackground(settingsIn && settingsIn.background);
+    if(backgroundIn) SETTINGS.background = backgroundIn; else delete SETTINGS.background;
     const scenariosIn = cleanScenarios(settingsIn && settingsIn.scenarios);
     if(scenariosIn.length) SETTINGS.scenarios = scenariosIn; else delete SETTINGS.scenarios;
     /* The legend's words belong to the chart they describe: brought in

@@ -11,9 +11,20 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.26.4';
+const APP_VERSION = '0.26.5';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.26.5', date:'2026-11-22', title:'Over and under', notes:[
+'A note on a curved connector stays where it was put along the curve when an end of it moves, instead of flying off far from the line.',
+'Where two connectors cross, the hop is part of the line itself, so the line runs into it and out of it without a gap or a notch, a double line hops with both its rails, and dashes run on over it. A wavy line hops too, laid flat for half a wave either side.',
+'A button beside the guides turns the hops off and on for the chart; it is kept with the chart and undone as an edit.',
+'The blur under an entry marked 18+ stays on while a finger moves the chart.',
+'The list of how citations are written is only as wide as its widest choice; the footnote is written ¹.',
+'The language is chosen from a menu: each language by its flag and its own name, the one spoken ticked.',
+'A kind\'s preset card opens level with the button whose gear opened it, rather than at the foot of the column.',
+'About has the history of the chart\'s edits, as a wiki page has: each edit by when, by whom and what it was called, with what it changed, everything since, and the chart as it stood, on GitHub.',
+'The field can have a colour of its own, or a picture laid on it to fill it or repeated: Background, in the menu over open paper.'
+  ]},
   {v:'0.26.4', date:'2026-11-22', title:'Picked by the area', notes:[
 'The language buttons wear the same flag emoji as an entry\'s language tabs.',
 'On a phone the top bar is laid out as on a computer: the working keys on the left, in two rows, and the account, Save and the language on the right. The toolbar under it is a row of its own across the screen.',

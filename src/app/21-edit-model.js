@@ -638,12 +638,28 @@ function serializeSettings(o){
   // What the chart does as it is read (47-scenarios.js).
   const scenarios = cleanScenarios(o.scenarios);
   if(scenarios.length) extra.scenarios = scenarios;
+  // Connectors that cross drawn straight through (drawHops), and the field's ground (syncBackdrop).
+  if(o.hops === false) extra.hops = false;
+  const background = cleanBackground(o.background);
+  if(background) extra.background = background;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
   const extraPart = Object.keys(extra).map(k=> `, ${k}: ${k === 'legendNames' || k === 'tagColors' || k === 'legendIcons' ? quoted(extra[k]) : jsVal(extra[k])}`).join('');
   // Which form the file's entries are written in: see DATA_FORMAT.
   return `const SETTINGS = {format: ${DATA_FORMAT}, refColor: ${jsStr(o.refColor || DEFAULT_REF_COLOR)}${legendPart}${extraPart}};`;
+}
+/* The field's ground: a colour, a picture and how it is laid, each only
+   when it is one; nothing at all when neither is set. */
+function cleanBackground(v){
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  if(isHexColor(v.color)) out.color = v.color.toLowerCase();
+  if(typeof v.image === 'string' && pictureSrcOk(v.image)){
+    out.image = v.image;
+    if(v.fit === 'tile') out.fit = 'tile';
+  }
+  return Object.keys(out).length ? out : null;
 }
 const LEGEND_KEY_RE = /^(shape|border|tag|line|mark):/;
 function cleanTagColors(v){

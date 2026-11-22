@@ -126,6 +126,8 @@ APP_PARTS = [
     '45-clouds.js',
     '46-hand-tools.js',
     '47-scenarios.js',
+    '48-history.js',
+    '49-background.js',
 ]
 # The editing parts, which the published site does not hand a reader.
 #

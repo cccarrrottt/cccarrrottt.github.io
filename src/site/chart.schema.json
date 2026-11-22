@@ -201,6 +201,8 @@
                           "properties": {"pts": {"type": "array", "items": {"type": "number"}, "minItems": 4},
                                          "w": {"type": "number", "exclusiveMinimum": 0, "maximum": 40}}},
                 "description": "Notes pencilled by hand over the field (0.26.1): each stroke the world points it passes through, x and y in turn, and its width when it is not the pencil's own 2."},
+        "background": {"type": "object", "additionalProperties": false, "properties": {"color": {"$ref": "#/definitions/hex"}, "image": {"type": "string"}, "fit": {"enum": ["cover", "tile"]}}, "description": "The field's ground: a colour, and a picture laid to fill it or repeated (0.26.5)."},
+        "hops": {"type": "boolean", "description": "false: connectors that cross are drawn straight through each other, with no hop (0.26.5)."},
         "fonts": {"type": "array",
                   "items": {"type": "object", "required": ["key", "src"], "additionalProperties": false,
                             "properties": {"key": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$"},

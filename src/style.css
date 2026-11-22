@@ -499,6 +499,7 @@
   svg#canvas{--desk:#eef1f5;}
   :root[data-theme="dark"] svg#canvas{--desk:#f6f7f9;}
   .chart-field{fill:var(--paper);stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;}
+  .chart-backdrop{pointer-events:none;}
   svg#canvas{
     display:block;width:100%;height:100%;
     background:var(--desk);
@@ -1107,6 +1108,11 @@
   body.touch-input.view-moving #viewport .card-img-backdrop > image{filter:var(--card-blur) !important;}
   :root[data-theme="dark"] body.touch-input.view-moving #viewport .card-img-backdrop > image{
     filter:var(--card-blur) invert(1) hue-rotate(180deg) !important;}
+  /* …and neither is the veil over an entry marked 18+: it is what keeps
+     the entry from being read, and with the shadows it came off for as
+     long as a finger moved the chart (the owner's list of 22.11, night). */
+  body.read-only.touch-input.view-moving #viewport .node.nsfw:not(.nsfw-open) > :not(.nsfw-veil),
+  body.read-only.touch-input.view-moving #viewport .nsfw-scenery:not(.nsfw-open){filter:url(#nsfw-blur) !important;}
   .connector-rubber{
     fill:none;stroke:var(--accent);stroke-width:1.8;stroke-dasharray:5 4;
     pointer-events:none;
@@ -1184,9 +1190,9 @@
   /* The same band and gutter an entry's double border is drawn with —
      DOUBLE_BAND_W and DOUBLE_GAP_W; the two have to move together. */
   .edge.struct.dbl-outer{stroke-width:3.8;}
-  .edge.struct.dbl-inner{stroke-width:1.3;stroke:var(--paper);opacity:1;}
+  .edge.struct.dbl-inner{stroke-width:1.3;stroke:var(--field,var(--paper));opacity:1;}
   .edge.struct.dbl-outer.lit{stroke-width:5;}
-  .edge.struct.dbl-inner.lit{stroke-width:1.8;stroke:var(--paper);}
+  .edge.struct.dbl-inner.lit{stroke-width:1.8;stroke:var(--field,var(--paper));}
   .edge.struct.dbl-inner.dim{opacity:0.05;}
   /* The merged bar reads as one solid line, so its segments are drawn a
      little heavier than a lone connector and butt together squarely. */
@@ -2331,6 +2337,21 @@
   }
   .touch-menu button + button{border-left:1px solid var(--line);}
   .touch-menu button.danger{color:var(--accent);}
+  /* The field's ground (49-background.js): a little card where the menu
+     was asked for, a colour and a picture, each with its way back. */
+  .bg-menu{
+    position:absolute;z-index:98;display:flex;flex-direction:column;gap:6px;min-width:220px;
+    padding:8px 10px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);font-size:12px;color:var(--ink);
+  }
+  .bg-menu[hidden]{display:none;}
+  .bg-menu-head{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.6px;text-transform:uppercase;color:var(--ink-faint);}
+  .bg-menu-row{display:flex;align-items:center;gap:6px;}
+  .bg-menu-label{flex:0 0 52px;font-size:11px;color:var(--ink-dim);}
+  .bg-menu-row > .hex-field{flex:1 1 auto;}
+  .bg-menu .bg-pick{margin:0;padding:3px 8px;font-size:11.5px;}
+  .bg-menu .bg-fit{flex:1 1 auto;}
+  .bg-menu .hex-reset:disabled{opacity:0.3;cursor:default;}
 
   .coord{
     /* Clear of the tabs at the left edge; the drawers end above it. */
@@ -2436,6 +2457,21 @@
   .fault-drop{grid-row:1;grid-column:2;border:none;background:none;color:var(--ink-faint);cursor:pointer;font-size:13px;padding:0 2px;}
   .fault-drop:hover{color:var(--accent);}
   .text-view-card{width:min(640px, 92vw);}
+  /* The chart's history (48-history.js): each edit by when and by whom,
+     what it was called under that, and the three ways to look at it. */
+  .history-card{width:min(560px, 92vw);}
+  .about-actions{display:flex;flex-wrap:wrap;gap:8px;}
+  .history-list{list-style:none;margin:0;padding:0;}
+  .history-item{padding:8px 0;border-top:1px solid var(--line);}
+  .history-item:first-child{border-top:none;}
+  .history-head{display:flex;gap:8px;align-items:baseline;font-size:11.5px;color:var(--ink-faint);}
+  .history-who{color:var(--ink-dim);font-weight:600;}
+  .history-what{color:var(--ink);font-size:12.5px;margin:2px 0 3px;overflow-wrap:anywhere;}
+  .history-links{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;}
+  .history-links a, .history-foot a{color:var(--accent);text-decoration:none;}
+  .history-links a:hover, .history-foot a:hover{text-decoration:underline;}
+  .history-note{color:var(--ink-dim);}
+  .history-foot{display:flex;align-items:center;gap:12px;margin:12px 0 0;font-size:12px;}
   .text-view-body .tv-count{color:var(--ink-faint);}
   .tv-list{list-style:none;margin:0;padding:0;}
   .tv-list .tv-list{margin:6px 0 0 4px;padding-left:12px;border-left:1px solid var(--line);}
@@ -2689,17 +2725,21 @@
     display:none;flex-direction:column;gap:8px;
   }
   .file-popover.open{display:flex;}
-  /* The language: the flag of the one spoken, and a menu of the others'
-     flags (the owner's list of 21.11), each named in its own words to a
-     screen reader. */
+  /* The language: the flag of the one spoken, and a menu of them all,
+     each by its flag and its own name (the owner's lists of 21.11 and
+     22.11, night). */
   .icon-btn.lang-toggle{display:inline-flex;align-items:center;justify-content:center;}
   /* A flag, the emoji an entry's language tab wears, in the emoji face. */
   .lang-flag{display:inline-block;font-family:var(--emoji);font-size:17px;line-height:1;}
-  .lang-menu{flex-direction:row;gap:4px;padding:6px;}
-  .lang-option{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;border:0;border-radius:5px;
-    background:none;cursor:pointer;}
+  .lang-menu{flex-direction:column;gap:2px;padding:5px;min-width:150px;}
+  .lang-option{display:flex;align-items:center;gap:9px;width:100%;padding:6px 26px 6px 8px;border:0;border-radius:5px;
+    background:none;cursor:pointer;position:relative;text-align:left;
+    font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12.5px;color:var(--ink);}
   .lang-option:hover{background:var(--panel-2);}
-  .lang-option.active{box-shadow:inset 0 0 0 1.5px var(--accent);}
+  /* The one spoken, ticked, as a menu marks its choice. */
+  .lang-option.active{color:var(--accent);font-weight:600;}
+  .lang-option.active::after{content:"";position:absolute;right:9px;top:50%;width:8px;height:4.5px;margin-top:-4px;
+    border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(-45deg);}
   .file-popover .editor-status{margin:0;}
   /* A little smaller than they were (the owner's ask, 22.10). Four now,
      spread across the width five of them took, so the buttons below keep

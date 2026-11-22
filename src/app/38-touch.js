@@ -71,6 +71,16 @@ if(guideToggle) guideToggle.addEventListener('click', ()=>{
   touchGuides = !touchGuides;
   guideToggle.setAttribute('aria-pressed', touchGuides ? 'true' : 'false');
 });
+/* Hops, beside the guides: whether a level connector arches over the
+   upright one it crosses (drawHops). It belongs to the chart, not to the
+   one looking at it — SETTINGS.hops, saved, an edit like any other and
+   undone like one — so a reader sees the chart the way its owner set it.
+   The button is kept in step from the drawing (syncHopsToggle), which is
+   what an undo goes through too. */
+const hopsToggle = document.getElementById('hopsToggle');
+if(hopsToggle) hopsToggle.addEventListener('click', ()=>{
+  applyEdit(()=>{ if(SETTINGS.hops === false) delete SETTINGS.hops; else SETTINGS.hops = false; });
+});
 /* The button stands on the toolbar now, where a mouse reaches it too, and
    it means the same under a mouse: a carry made while it is lit is made
    with Shift held. Again the moves and the release only, and only with
@@ -113,7 +123,7 @@ const touchMenu = (()=>{
   m.hidden = true;
   m.setAttribute('role', 'menu');
   [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['array', 'Array'],
-   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['split', 'Split'], ['branch', 'New line'], ['delete', 'Delete']].forEach(([act, label])=>{
+   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['split', 'Split'], ['branch', 'New line'], ['background', 'Background'], ['delete', 'Delete']].forEach(([act, label])=>{
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.act = act;
@@ -148,6 +158,7 @@ const touchMenu = (()=>{
       if(id){ selectNode(id); beginSplitBranch(id); }
     }
     else if(act === 'branch' && selectedId) beginSplitBranch(selectedId);
+    else if(act === 'background') openBackgroundMenu(touchMenu.at.x, touchMenu.at.y);
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
@@ -160,8 +171,9 @@ const touchMenu = (()=>{
    and anything else only Paste. The merged arrow is not deleted on its
    own; Unmerge is how it goes. */
 function openTouchMenu(x, y, kind, byMouse){
+  /* Open paper offers Paste, and the field's ground (49-background.js). */
   let offers = (kind === true || kind === 'selection') ? ['cut', 'copy', 'paste', 'array', 'delete']
-    : kind === 'edge' ? [] : ['paste'];
+    : kind === 'edge' ? [] : ['paste', 'background'];
   if(kind === 'edge'){
     const t = currentEdgeStyleTarget;
     const can = t ? mergeOffersFor(t.from, t.to) : {};

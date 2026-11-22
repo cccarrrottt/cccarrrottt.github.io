@@ -959,7 +959,7 @@ async function main(){
     const samples = sampleRounded([{x:0,y:0},{x:120,y:0}], EDGE_CORNER_R, EDGE_WAVE_LEN / WAVE_STEP_DIV);
     const total = samples[samples.length-1].s;
     const lam = waveLambda(total, EDGE_WAVE_LEN);
-    const d = wavyFromSamples(samples, EDGE_WAVE_PEAK, lam, 0, total, false);
+    const d = smoothPath(waveOffsetPoints(samples, EDGE_WAVE_PEAK, lam, 0, total, false), false);
     const nums = d.replace(/[ML]/g, ' ').trim().split(/[\s,]+/).map(Number);
     const ys = [];
     for(let i = 1; i < nums.length; i += 2) ys.push(nums[i]);
@@ -5064,8 +5064,10 @@ async function main(){
         if(st && st.routing === 'straight') return;      // a slant is the point of these
         if(st && st.routing === 'curve') return;         // and a curve is drawn as a fine polyline
         if(el.classList.contains('amalgam-out')) return; // and of a merge's own arrow
-        if(el.classList.contains('hop')) return;         // and a hop's arch over a crossing
-        const toks = el.getAttribute('d').match(/[MLQ][^MLQZ]*/g) || [];
+        /* A hop over a crossing is the one curve in such a line (C, see
+           seatHops): it is passed over, and the line either side of it
+           must still be level or upright. */
+        const toks = (el.getAttribute('d').match(/[MLQC][^MLQCZ]*/g) || []).filter(t=> t[0] !== 'C');
         const pts = [];
         toks.forEach(t=>{
           const n = (t.slice(1).match(/-?\d+(\.\d+)?/g)||[]).map(Number);
@@ -14399,7 +14401,7 @@ async function main(){
       const x = document.getElementById('aboutClose').getBoundingClientRect();
       const hit = document.elementFromPoint(x.left + x.width/2, x.top + x.height/2);
       const help = [...document.querySelectorAll('#aboutOverlay .about-body > p')]
-        .filter(p=> !p.classList.contains('about-version')).map(p=> p.textContent).join(' ');
+        .filter(p=> !p.classList.contains('about-version') && !p.classList.contains('about-actions')).map(p=> p.textContent).join(' ');
       return {inside: card.top >= ov.top - 0.5 && card.bottom <= ov.bottom + 0.5 &&
                       card.left >= 0 && card.right <= innerWidth,
               closable: !!hit && !!hit.closest('#aboutClose') && x.width >= 36,
@@ -16293,9 +16295,9 @@ async function main(){
     const sRedo = await tapIn('#touchTools [data-act="redo"]');
     const flow = [s0, sMenu, sCanvas, sPaste, sDel, sUndo, sRedo];
     check('on a phone undo and redo are one button in two halves', s0.tools === 'undo,redo', s0.tools);
-    check('a long press on the selection brings up cut, copy, paste and delete; on canvas, paste',
+    check('a long press on the selection brings up cut, copy, paste and delete; on canvas, paste and the ground',
           s0.sel === 'tkA' && sMenu.menu && sMenu.items === 'cut,copy,paste,delete' && sMenu.sel === 'tkA' &&
-          sCanvas.menu && sCanvas.items === 'paste' &&
+          sCanvas.menu && sCanvas.items === 'paste,background' &&
           sPaste.n === s0.n + 1 && !sPaste.menu && sDel.n === sPaste.n - 1 && sDel.sel !== 'tkA',
           JSON.stringify(flow));
     check('and the undo button takes the delete back, the redo button does it again',
@@ -18987,7 +18989,7 @@ async function main(){
   await wait(150);
   const m3 = await page.evaluate(()=>{ const m = document.getElementById('touchMenu');
     return {shown: !m.hidden, acts: [...m.querySelectorAll('button')].filter(b=> !b.hidden).map(b=> b.dataset.act)}; });
-    check('on open paper a right click offers Paste', m3.shown && m3.acts.join() === 'paste', JSON.stringify(m3));
+    check('on open paper a right click offers Paste, and the field\'s ground', m3.shown && m3.acts.join() === 'paste,background', JSON.stringify(m3));
   await page.mouse.click(320, 720);
   await wait(100);
   check('a press elsewhere puts it away', await page.evaluate(()=> document.getElementById('touchMenu').hidden));
@@ -20128,12 +20130,12 @@ async function main(){
     const out = {};
     const X = 74000, Y = 74000;
     try{
-      /* Undo, redo and the guides: small, on the toolbar's second row
-         under the first (the owner's sketch of 22.11), for whoever edits —
+      /* Undo, redo, the guides and the hops (22.11, night): small, on the
+         toolbar's second row under the first (the owner's sketch of 22.11), for whoever edits —
          a mouse included — and for nobody else. */
       const first = document.getElementById('themeToggle').getBoundingClientRect();
       const tools = [...document.querySelectorAll('.topbar-tools button')].map(b=> b.getBoundingClientRect());
-      out.toolsUnderCounts = tools.length === 3 && tools.every(t=> t.top >= first.bottom - 0.5 && t.height > 0 && t.height <= 28) &&
+      out.toolsUnderCounts = tools.length === 4 && tools.every(t=> t.top >= first.bottom - 0.5 && t.height > 0 && t.height <= 28) &&
                              !!document.querySelector('.topbar-tools').closest('#toolRow');
       out.inTopbar = !!document.getElementById('guideToggle').closest('.topbar') &&
                      !!document.getElementById('touchTools').closest('.topbar');
@@ -24550,7 +24552,13 @@ async function main(){
       out.button = !!btn && flagOf(btn) === 'en' && btn.getAttribute('aria-label') === 'English';
       btn.click(); await wait(50);
       const menu = document.getElementById('langMenu');
-      out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> flagOf(b) + ':' + b.getAttribute('aria-label')).join('|') === 'en:English|ru:Русский';
+      /* A menu, each language by its flag and its own name, one under the
+         other, the one spoken ticked (22.11, night: not a row of flags). */
+      const opts = [...menu.querySelectorAll('[data-lang]')];
+      out.menu = menu.classList.contains('open') && opts.map(b=> flagOf(b) + ':' + b.querySelector('.lang-name').textContent).join('|') === 'en:English|ru:Русский' &&
+                 opts[1].getBoundingClientRect().top >= opts[0].getBoundingClientRect().bottom - 1 &&
+                 opts[0].getAttribute('aria-checked') === 'true' && getComputedStyle(opts[0], '::after').content !== 'none' &&
+                 getComputedStyle(opts[1], '::after').content === 'none';
       menu.classList.remove('open');
       const kept = LANG_TABLES.ru;
       LANG_TABLES.ru = {name: 'Русский', strings: {
@@ -25376,15 +25384,25 @@ async function main(){
       workingNodes.push(['hpB', 'Upright to', 'hpT', null, null, null, {pos:[X + 400, Y + 420]}]);
     });
     await wait(120);
-    const arches = ()=> [...edgeLayer.querySelectorAll('.edge.hop')];
+    /* The hop is in the line's own path (the owner's list of 22.11,
+       night): no arch beside it, no hole cut in it. */
+    const lineTo = to=> edgeLayer.querySelector('path.edge.struct:not(.dbl-inner)[data-from][data-to="' + to + '"]');
     const out = {};
-    const a0 = arches().filter(a=> a.dataset.overTo === 'hpB' || a.dataset.to === 'hpB');
-    out.count = a0.length;
-    out.levelHops = a0.length === 1 && a0[0].dataset.to === 'hpR' && a0[0].dataset.overTo === 'hpB';
-    const line = edgeLayer.querySelector('path.edge.struct:not(.hop)[data-to="hpR"]');
-    out.masked = !!(line && line.getAttribute('mask'));
-    out.uprightPlain = !edgeLayer.querySelector('path.edge.struct:not(.hop)[data-to="hpB"]').getAttribute('mask');
-    if(a0[0]){ const b = a0[0].getBBox(); out.above = b.height > 2 && b.width > 6; }
+    const L = lineTo('hpR'), U = lineTo('hpB');
+    out.count = Number(L.dataset.hops || 0);
+    out.levelHops = out.count === 1 && L.dataset.hopsOver === 'hpB' && !U.dataset.hops;
+    out.onePath = !edgeLayer.querySelector('.hop') && !edgeDefs.querySelector('mask[id^="hop-mask"]') &&
+                  !L.getAttribute('mask') && !U.getAttribute('mask');
+    out.uprightPlain = !U.dataset.hops && !/C/.test(U.getAttribute('d'));
+    /* Over the top: the path rises the hop's height above the level leg. */
+    const route = [...drawnRoutes.values()].find(x=> x.to === 'hpR').pts;
+    const levelY = route.filter((p, i)=> i && Math.abs(p.y - route[i-1].y) < 0.01).map(p=> p.y);
+    {
+      const m = L.getAttribute('d').match(/ L([-\d.]+),([-\d.]+) C/);
+      const x0 = +m[1], y0 = +m[2];
+      const top = Math.min(...flattenPathD(L.getAttribute('d')).filter(p=> p.x >= x0 - 0.1 && p.x <= x0 + 4 * HOP_R).map(p=> p.y));
+      out.above = Math.abs(y0 - top - HOP_R) < 0.3;
+    }
     /* The rule itself, on lines laid by hand: a crossing a little way
        past a turn is hopped, one on the turn is not. */
     const keep = new Map(drawnRoutes), probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -25392,28 +25410,49 @@ async function main(){
     const hopsFor = (turnX)=>{
       drawnRoutes.clear();
       drawnRoutes.set('crossed', {from: 'cA', to: 'cB', pts: [{x: 200, y: -200}, {x: 200, y: 200}]});
-      const before = edgeLayer.querySelectorAll('.hop').length;
+      delete probe.dataset.hops;
+      probe.setAttribute('d', 'M0,-100 L' + turnX + ',-100 L' + turnX + ',0 L400,0');
       drawHops([{from: 'jA', to: 'jB', style: Object.assign({}, DEFAULT_EDGE_STYLE, {arrow: false}), el: probe, inner: null, cornerR: 6, paint: '#000',
                  pts: [{x: 0, y: -100}, {x: turnX, y: -100}, {x: turnX, y: 0}, {x: 400, y: 0}]}]);
-      return edgeLayer.querySelectorAll('.hop').length - before;
+      return Number(probe.dataset.hops || 0);
     };
     out.farFromTurn = hopsFor(150);
     out.onTurn = hopsFor(196);
     drawnRoutes.clear(); keep.forEach((v, k)=> drawnRoutes.set(k, v)); probe.remove();
-    // A double line: two rails, two arches.
+    rebuildChart(); await wait(60);
+    // A double line: both rails take the hop, as one path each.
     applyEdit(()=>{ EDGE_STYLES.push({from: 'hpL', to: 'hpR', dash: 'double'}); });
     await wait(120);
-    out.doubleArches = arches().filter(a=> a.dataset.to === 'hpR').length;
-    // The upright hidden by its tag: the arch goes, the hole closes.
+    const D = lineTo('hpR'), inner = D.nextElementSibling;
+    out.doubleBoth = D.dataset.hops === '1' && inner.classList.contains('dbl-inner') && inner.getAttribute('d') === D.getAttribute('d');
+    // The upright hidden by its tag: the hop is taken out, and comes back.
+    const plainD = ()=> !/C/.test(lineTo('hpR').getAttribute('d'));
     hiddenTags.add('hop-probe'); applyVisibility(); await wait(60);
-    out.hiddenArch = arches().filter(a=> a.dataset.to === 'hpR').every(a=> a.style.display === 'none');
-    out.hiddenHole = [...edgeDefs.querySelectorAll('.hop-hole')].filter(h=> h.dataset.overTo === 'hpB').every(h=> h.style.display === 'none');
+    out.hiddenGone = lineTo('hpR').dataset.hops === '0' && plainD();
     hiddenTags.delete('hop-probe'); applyVisibility(); await wait(60);
-    out.back = arches().filter(a=> a.dataset.to === 'hpR').every(a=> a.style.display === '');
-    // A wavy line does not hop.
-    applyEdit(()=>{ EDGE_STYLES.find(s=> s.from === 'hpL' && s.to === 'hpR').sinusoid = true; });
+    out.back = lineTo('hpR').dataset.hops === '1' && !plainD();
+    /* A wavy line hops too (22.11, night), laid flat either side, and
+       its ripple runs on past the hop. */
+    applyEdit(()=>{ const st = EDGE_STYLES.find(s=> s.from === 'hpL' && s.to === 'hpR'); st.sinusoid = true; delete st.dash; });
     await wait(120);
-    out.wavyNone = arches().filter(a=> a.dataset.to === 'hpR').length;
+    const W = lineTo('hpR');
+    out.wavyHops = W.dataset.hops === '1';
+    {
+      const pts = flattenPathD(W.getAttribute('d'));
+      const x0 = Number(W.getAttribute('d').match(/ L([-\d.]+),[-\d.]+ C/)[1]);
+      const y0 = levelY[levelY.length - 1];
+      const near = pts.filter(p=> p.x > x0 - 2.4 && p.x < x0 - 0.1);
+      const far = pts.filter(p=> p.x < x0 - 12 && p.x > x0 - 40);
+      out.wavyFlat = near.every(p=> Math.abs(p.y - y0) < 0.05) && far.some(p=> Math.abs(p.y - y0) > 1);
+    }
+    /* And the button beside the guides turns them off for the chart, as
+       an edit, and is kept with it. */
+    document.getElementById('hopsToggle').click(); await wait(120);
+    out.offButton = SETTINGS.hops === false && document.getElementById('hopsToggle').getAttribute('aria-pressed') === 'false' &&
+                    !lineTo('hpR').dataset.hops && /hops: false/.test(serializeSettings(SETTINGS));
+    undoLastEdit(); await wait(120);
+    out.undone = SETTINGS.hops === undefined && document.getElementById('hopsToggle').getAttribute('aria-pressed') === 'true' &&
+                 lineTo('hpR').dataset.hops === '1';
     applyEdit(()=>{
       workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
       EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
@@ -25421,11 +25460,12 @@ async function main(){
     return out;
   });
   check('the level line arches over the upright where they cross', r.count === 1 && r.levelHops && r.above, JSON.stringify(r));
-  check('…the hole is cut in the level line, and the upright runs on whole', r.masked && r.uprightPlain, JSON.stringify(r));
+  check('…the hop is the line\'s own path, with no hole cut and no arch laid beside it, and the upright runs on whole', r.onePath && r.uprightPlain, JSON.stringify(r));
   check('a crossing on a line\'s turn is not hopped, one clear of it is', r.onTurn === 0 && r.farFromTurn === 1, JSON.stringify(r));
-  check('a double line arches as two rails', r.doubleArches === 2, JSON.stringify(r));
-  check('a line hidden by its tags takes its arches with it, and gives them back', r.hiddenArch && r.hiddenHole && r.back, JSON.stringify(r));
-  check('a wavy line does not hop', r.wavyNone === 0, JSON.stringify(r));
+  check('a double line hops with both its rails, as one path each', r.doubleBoth, JSON.stringify(r));
+  check('a line hidden by its tags takes its hops with it, and gives them back', r.hiddenGone && r.back, JSON.stringify(r));
+  check('a wavy line hops too, laid flat as it comes to the hop and rippling past it', r.wavyHops && r.wavyFlat, JSON.stringify(r));
+  check('the button beside the guides turns the hops off for the chart, kept with it and undone as an edit', r.offButton && r.undone, JSON.stringify(r));
   });
 
   await scenario("the owner's list of 22.11: the toolbar in two rows, the hand tools, presets and scenarios", async () => {
@@ -25818,6 +25858,136 @@ async function main(){
       await ctx.close();
     }
   }
+  });
+
+  await scenario("the owner's list of 22.11, night: a note on a curve, a veil that holds, a narrow list, a preset by its button, the history, the field's ground", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const X = 9200, Y = 9200, out = {};
+    try {
+      /* 1. A note on a curve keeps its share of the way when an end moves:
+         it is placed along the curve as drawn, so it stays on the line. */
+      applyEdit(()=>{
+        workingNodes.push(['cvA', 'Curve from', null, null, null, null, {pos:[X, Y]}]);
+        workingNodes.push(['cvB', 'Curve to', 'cvA', null, null, null, {pos:[X + 400, Y + 300]}]);
+        EDGE_STYLES.push({from: 'cvA', to: 'cvB', routing: 'curve', note: 'on the curve', noteAt: 0.3});
+      });
+      await wait(80);
+      applyEdit(()=>{ workingNodes.find(x=> x[0] === 'cvB')[6].pos = [X + 420, Y + 320]; });
+      await wait(80);
+      const st = edgeStyleFor('cvA', 'cvB');
+      const note = document.querySelector('.edge-note[data-from="cvA"][data-to="cvB"]');
+      const line = flattenPathD(document.querySelector('path.edge.struct[data-from="cvA"][data-to="cvB"]').getAttribute('d'));
+      let near = Infinity;
+      if(note){
+        const b = note.getBBox(), c = {x: b.x + b.width / 2, y: b.y + b.height / 2};
+        line.forEach(p=> near = Math.min(near, Math.hypot(p.x - c.x, p.y - c.y)));
+      }
+      out.curveNote = {at: st.noteAt, near: Math.round(near)};
+      /* 3. The veil over an entry marked 18+ stays while a finger moves the
+         chart, when the shadows come off. */
+      applyEdit(()=> workingNodes.push(['nvA', 'Veiled', null, null, null, null, {pos:[X, Y + 600], tags:['NSFW', HUB_TAG, FANFIC_TAG], size:[200, 80]}]));
+      await wait(80);
+      const b = document.body, had = ['read-only', 'touch-input', 'view-moving'].filter(c=> !b.classList.contains(c));
+      had.forEach(c=> b.classList.add(c));
+      const g = document.querySelector('.node[data-id="nvA"]');
+      out.veilMoving = !!g && getComputedStyle(g.querySelector('rect')).filter.includes('nsfw-blur') &&
+                       [...document.querySelectorAll('.nsfw-scenery')].every(e=> e.classList.contains('nsfw-open') || getComputedStyle(e).filter.includes('nsfw-blur'));
+      had.forEach(c=> b.classList.remove(c));
+      /* 4. The citation style list is as wide as its widest choice, which
+         is three characters now: the footnote is ¹. */
+      setSideTab(refsPanel, true); await wait(60);
+      const sel = document.getElementById('refStyleSelect');
+      out.refSelect = {w: Math.round(sel.getBoundingClientRect().width), longest: Math.max(...[...sel.options].map(o=> o.textContent.length))};
+      setSideTab(refsPanel, false);
+      /* 6. A kind's preset opens level with its own button. */
+      addFab.classList.add('open');
+      await wait(300);                   // the column rises into place first
+      out.preset = [];
+      for(const gear of document.querySelectorAll('.add-fab-preset')){
+        openPresetMenu(gear.dataset.kind);
+        await wait(300);
+        const c = addFabPresets.getBoundingClientRect(), row = gear.closest('.add-fab-row').getBoundingClientRect();
+        const room = c.top >= 7 && c.bottom <= innerHeight - 7;
+        out.preset.push(Math.abs((c.top + c.bottom) / 2 - (row.top + row.bottom) / 2) < 1.5 || (room && (c.top <= 8.5 || c.bottom >= innerHeight - 8.5)));
+      }
+      openPresetMenu(null); addFab.classList.remove('open');
+      /* 7. The chart's history, from GitHub's list of the file's commits. */
+      const realFetch = window.fetch, asked = [];
+      window.fetch = async (url, o)=>{
+        if(!/api\.github\.com/.test(String(url))) return realFetch(url, o);
+        asked.push(String(url));
+        return new Response(JSON.stringify([
+          {sha: 'a'.repeat(40), commit: {message: 'Save from the site\n\nwith more', committer: {date: '2026-11-22T18:07:06Z'}}, author: {login: 'someone'}},
+          {sha: 'b'.repeat(40), commit: {message: 'An older save', committer: {date: '2026-11-21T10:00:00Z'}}, author: {login: 'someone'}}]),
+          {status: 200, headers: {'Content-Type': 'application/json'}});
+      };
+      try {
+        document.getElementById('historyToggle').click();
+        await wait(120);
+        const items = [...document.querySelectorAll('#historyList .history-item')];
+        const links = items[0] ? [...items[0].querySelectorAll('.history-links a')].map(a=> a.getAttribute('href')) : [];
+        out.history = {open: historyOverlay.classList.contains('open'), n: items.length,
+                       asks: asked.length === 1 && asked[0].includes('/repos/' + SITE_REPO + '/commits?path=src/chart.json'),
+                       first: items[0] && items[0].querySelector('.history-what').textContent,
+                       who: items[0] && items[0].querySelector('.history-who').textContent,
+                       links: links.join(' '), more: document.getElementById('historyMore').hidden};
+        window.fetch = async ()=>{ throw new Error('offline'); };
+        closeHistory();
+        document.getElementById('historyToggle').click();
+        await wait(80);
+        out.offline = document.getElementById('historyNote').hidden === false && !document.querySelectorAll('#historyList li').length &&
+                      document.getElementById('historyAll').getAttribute('href') === 'https://github.com/' + SITE_REPO + '/commits/main/src/chart.json';
+        closeHistory();
+      } finally { window.fetch = realFetch; }
+      /* 8. The field's ground: a colour and a picture, offered over open
+         paper, kept with the chart and undone as edits. */
+      const paper = svg.getBoundingClientRect();
+      svg.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: paper.right - 30, clientY: paper.bottom - 30}));
+      const offered = [...document.querySelectorAll('#touchMenu button')].filter(x=> !x.hidden).map(x=> x.dataset.act);
+      document.querySelector('#touchMenu [data-act="background"]').click();
+      out.bgOffered = offered.includes('background') && !bgMenu.hidden;
+      setBackground({color: '#fdf3d7'}); await wait(60);
+      out.bgColor = getComputedStyle(fieldRect).fill === 'rgb(253, 243, 215)' &&
+                    getComputedStyle(svg).getPropertyValue('--field').trim() === '#fdf3d7' &&
+                    /background: \{color:'#fdf3d7'\}/.test(serializeSettings(SETTINGS));
+      const c = document.createElement('canvas'); c.width = c.height = 8;
+      c.getContext('2d').fillRect(0, 0, 4, 4);
+      const pic = c.toDataURL('image/png');
+      setBackground({image: pic}); await wait(60);
+      const im = document.getElementById('chartBackdrop');
+      const f = chartField;
+      out.bgPicture = !!im && im.tagName === 'image' && im.getAttribute('href') === pic && im.getAttribute('preserveAspectRatio') === 'xMidYMid slice' &&
+                      +im.getAttribute('width') === f.x1 - f.x0 && im.previousElementSibling === fieldRect;
+      setBackground({fit: 'tile'}); await wait(120);
+      const tiled = document.getElementById('chartBackdrop');
+      out.bgTile = tiled.tagName === 'rect' && tiled.getAttribute('fill') === 'url(#chart-backdrop-tile)' &&
+                   document.querySelector('#chart-backdrop-tile image').getAttribute('href') === pic;
+      undoLastEdit(); undoLastEdit(); await wait(60);
+      out.bgUndone = SETTINGS.background && SETTINGS.background.color === '#fdf3d7' && !SETTINGS.background.image && !document.getElementById('chartBackdrop');
+      closeBackgroundMenu();
+    } finally {
+      applyEdit(()=>{
+        workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+        EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+        Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, wasSettings);
+      });
+    }
+    out.bgGone = !document.getElementById('chartBackdrop') && getComputedStyle(fieldRect).fill !== 'rgb(253, 243, 215)';
+    return out;
+  });
+  check('a note on a curve keeps its share of the way when an end moves, and stays on the line', r.curveNote.at === 0.3 && r.curveNote.near < 30, JSON.stringify(r.curveNote));
+  check('the veil over an entry marked 18+ stays on while a finger moves the chart', r.veilMoving, JSON.stringify(r));
+  check('the citation style list is only as wide as its widest choice', r.refSelect.longest <= 3 && r.refSelect.w <= 60, JSON.stringify(r.refSelect));
+  check('a kind\'s preset opens level with its own button', r.preset.length >= 2 && r.preset.every(Boolean), JSON.stringify(r.preset));
+  check('About opens the chart\'s history: each edit by when, by whom and what it was called, with its change, what came since, and the version itself',
+        r.history.open && r.history.n === 2 && r.history.asks && r.history.first === 'Save from the site' && r.history.who === 'someone' &&
+        /\/commit\/a{40} .*\/compare\/a{40}\.\.\.main .*\/blob\/a{40}\/src\/chart\.json/.test(r.history.links) && r.history.more, JSON.stringify(r.history));
+  check('…and with no way to GitHub it says so and still offers the history there', r.offline, JSON.stringify(r));
+  check('open paper offers the field\'s ground, a colour on the pages and in a double line\'s gap, kept with the chart', r.bgOffered && r.bgColor, JSON.stringify(r));
+  check('…a picture laid to fill the field, or repeated, and both undone as edits', r.bgPicture && r.bgTile && r.bgUndone && r.bgGone, JSON.stringify(r));
   });
 
   await scenario("nothing threw along the way", async () => {

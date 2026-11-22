@@ -1478,6 +1478,24 @@ function buildPresetMenu(){
   if(keys.includes('align')) row('Words', 'align', select('align',
     [['left', 'Left', 'left'], ['center', 'Centred', undefined], ['right', 'Right', 'right']], p.align || 'center'));
   card.addEventListener('mousedown', ev=> ev.stopPropagation());
+  seatPresetCard();
+}
+/* The card stands level with the button whose gear opened it, its middle
+   on that button's middle, and only as far from that as the screen's
+   edges make it (the owner's list of 22.11, night). It stood at the foot
+   of the column for every kind, so the card for the top button opened a
+   whole column away from it. It is to the left of the column, so it
+   covers none of the column's buttons whatever its height. */
+function seatPresetCard(){
+  const gear = presetKind && addFabStyles.querySelector('.add-fab-preset.on');
+  if(!gear) return;
+  const row = gear.closest('.add-fab-row') || gear;
+  const fab = addFab.getBoundingClientRect(), at = row.getBoundingClientRect();
+  const h = addFabPresets.offsetHeight, room = window.innerHeight;
+  const top = Math.max(8, Math.min(room - h - 8, at.top + at.height / 2 - h / 2));
+  addFabPresets.style.bottom = 'auto';
+  addFabPresets.style.top = (top - fab.top).toFixed(1) + 'px';
+  addFabPresets.style.transformOrigin = 'right center';
 }
 /* A gear's outline: `teeth` flat-topped teeth between radii r0 and r1. */
 function gearPathD(cx, cy, r1, r0, teeth){

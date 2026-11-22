@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 48 files. **They are not modules.** The page is a single
+`src/app/` holds 50 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 164 named scenarios, and they do not depend on one another —
+The suite is 165 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -314,14 +314,28 @@ test) is not held to it.
 
 ## Where two lines cross
 
-The level line arches over the upright one (`drawHops`, `14-edges-draw.js`):
-a hole cut by a mask and an arch in the line's own paint, so it lights,
-dims and hides with its line. Only a straight leg of a line that is not
-wavy or a curve hops, at 35° or more, clear of its turns and arrowheads
-and of the crossed line's ends; crossings an arch apart share one arch;
-a line hidden by its tags takes its arches with it
-(`hopsFollowVisibility`). Computed every pass from `drawnRoutes`, never
-kept, so it changes no route.
+The level line arches over the upright one (`drawHops`, `14-edges-draw.js`).
+The hop is written into the line's own path (`seatHops`; `roundedPath`
+takes it as `cut`), so it lights, dims and hides with its line, a double
+line hops with both rails and dashes run on over it. It was a hole cut by
+a mask and an arch laid over it, and the two never met cleanly — do not
+go back to that. Only a straight leg of a line that is not a curve hops,
+at 35° or more, clear of its turns and arrowheads and of the crossed
+line's ends; a wavy line hops too, laid flat for half a wave either side;
+crossings an arch apart share one arch; a line hidden by its tags has its
+hops taken out of its path (`hopsFollowVisibility`, from the plain path
+kept in `hoppedLines`). Computed every pass from `drawnRoutes`, never
+kept, so it changes no route. `SETTINGS.hops === false` (the button
+beside the guides) draws none.
+
+## The field's ground and the chart's history
+
+`SETTINGS.background` is `{color, image, fit}`: the colour fills the
+field's pages and a double line's gap (`--field`), the picture lies on
+the field, filling it or repeated (`syncBackdrop`, `10-decor.js`); it is
+set from Background in the menu over open paper (`49-background.js`).
+About's "History of edits" lists the commits of `src/chart.json` from
+GitHub's API (`48-history.js`), with links to each change on GitHub.
 
 ## Notes in the margin
 

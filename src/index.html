@@ -92,7 +92,7 @@
     </button>
       <button class="owner-btn" id="ownerBtn" hidden aria-label="Sign in" title="Sign in with GitHub: anyone may suggest a change, and the owner edits."></button>
     </div>
-    <!-- The second row: undo, redo and the guides, then the hand tools —
+    <!-- The second row: undo, redo, the guides and the hops, then the hand tools —
          the pencil, the eraser, the eyedropper and the style brush. -->
     <div class="toolrow" id="toolRow">
       <div class="topbar-tools">
@@ -103,6 +103,10 @@
         <button type="button" class="guide-toggle" id="guideToggle" aria-pressed="false"
                 title="Guides: line up whatever is carried, as Shift does" aria-label="Guides">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="9" width="8" height="6" rx="1"/><rect x="14" y="5" width="6" height="4" rx="1"/><line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="2 2.4"/><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2.4" opacity="0.55"/></svg>
+        </button>
+        <button type="button" class="guide-toggle" id="hopsToggle" aria-pressed="true"
+                title="Hops: where two connectors cross, the level one arches over" aria-label="Hops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 15h6.5a3.5 3.5 0 0 1 7 0H22"/><line x1="12" y1="3" x2="12" y2="21" opacity="0.55"/></svg>
         </button>
       </div>
       <span class="toolrow-sep" aria-hidden="true"></span>
@@ -179,7 +183,7 @@
         <select id="refStyleSelect" class="style-select ref-style-select" title="How every citation's number is written" aria-label="How citations are written">
           <option value="square">[1]</option>
           <option value="round">(1)</option>
-          <option value="bare">¹ footnote</option>
+          <option value="bare" title="Footnote">¹</option>
         </select>
       </div>
     </div>
@@ -444,7 +448,12 @@
                is what this panel is about, and the bar is for working on it. -->
           <p class="about-actions"><button type="button" class="editor-btn" id="textViewToggle"
                title="The chart as text — every entry, under the one it comes from"
-               aria-expanded="false" aria-controls="textViewOverlay"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="12" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg><span>The chart as text</span></button></p>
+               aria-expanded="false" aria-controls="textViewOverlay"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="12" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg><span>The chart as text</span></button>
+             <!-- Every edit made to the chart, as a wiki's page history
+                  (the owner's list of 22.11, night): 48-history.js. -->
+             <button type="button" class="editor-btn" id="historyToggle"
+               title="Every edit made to the chart: when, by whom, and what changed"
+               aria-expanded="false" aria-controls="historyOverlay"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 3.5V8h4.5"/><path d="M12 7.5V12l3 2"/></svg><span>History of edits</span></button></p>
           <!-- What broke in readers' browsers, counted by the write service:
                for the owner, on the site, and nobody else (loadFaults,
                36-site-owner.js). -->
@@ -456,6 +465,24 @@
           <p>Only the owner can change the chart; everyone else gets a read-only view. This is a draft, and will have errors and omissions.</p>
           <p><b>Rights.</b> The page's code is under MIT. What the chart names and shows belongs to its owners; Transformers is Hasbro's trademark.</p>
           <div class="version-log" id="versionLog"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The chart's history: see 48-history.js, which fills it. -->
+    <div class="about-overlay" id="historyOverlay" role="dialog" aria-labelledby="historyHead">
+      <div class="about-card history-card">
+        <div class="detail-head" style="border-bottom:1px solid var(--line);">
+          <h2 class="head-type" id="historyHead">History of edits</h2>
+          <button class="detail-close" aria-label="Close" id="historyClose">✕</button>
+        </div>
+        <div class="about-body history-body">
+          <p class="history-note" id="historyNote" hidden></p>
+          <ol class="history-list" id="historyList"></ol>
+          <p class="history-foot">
+            <button type="button" class="editor-btn" id="historyMore" hidden>Older edits</button>
+            <a id="historyAll" href="#" target="_blank" rel="noopener">The whole history on GitHub</a>
+          </p>
         </div>
       </div>
     </div>
@@ -563,12 +590,14 @@
     <!-- The sticker library: a menu dropped from its button, like
          Export/Import, rather than a window in the middle of the chart. +
          adds; each tile's ✕ removes it, and Replace swaps its picture. -->
-    <!-- Each language shown by its flag (the owner's list of 21.11: English
-         by the American one), and named in its own words for a screen
-         reader, so the menu is never translated. -->
+    <!-- A menu of the languages, each by its flag (the owner's list of
+         21.11: English by the American one) and its name in its own words,
+         so the menu is never translated. A row of bare flags read as a
+         drop-down list rather than a menu (the owner's list of 22.11,
+         night). -->
     <div class="file-popover lang-menu" id="langMenu" role="menu" translate="no">
-      <button type="button" class="lang-option" role="menuitemradio" data-lang="en" title="English" aria-label="English"><span class="lang-flag" aria-hidden="true"></span></button>
-      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru" title="Русский" aria-label="Русский"><span class="lang-flag" aria-hidden="true"></span></button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="en"><span class="lang-flag" aria-hidden="true"></span><span class="lang-name">English</span></button>
+      <button type="button" class="lang-option" role="menuitemradio" data-lang="ru"><span class="lang-flag" aria-hidden="true"></span><span class="lang-name">Русский</span></button>
     </div>
     <div class="file-popover sticker-pop" id="stickerOverlay">
       <div class="edge-popover-head">
@@ -857,6 +886,8 @@
     '45-clouds.js',
     '46-hand-tools.js',
     '47-scenarios.js',
+    '48-history.js',
+    '49-background.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){
