@@ -1185,9 +1185,12 @@ function buildFigureMenu(){
     b.dataset.value = p.value;
     g1.appendChild(b);
   });
-  head('Templates');
-  const g2 = grid();
-  figureTemplatesOffered().forEach((t, i)=>{
+  /* The author's own templates go in pages of FIGURE_PAGE, turned by the
+     arrows over them (the owner's list of 22.11, evening): a chart with
+     forty templates made the card taller than the screen. The pages stand
+     side by side on one track and the track slides, so turning one is a
+     movement and not a cut. */
+  const tiles = figureTemplatesOffered().map((t, i)=>{
     const b = figureButton(t.name, figureIcon(t), ()=>{ closeAddFab(); addEntryOfFigure(Object.assign({name: t.name, d: t.d}, t.ar ? {ar: t.ar} : {})); });
     b.classList.add('figure-template');
     b.dataset.template = String(i);
@@ -1210,7 +1213,7 @@ function buildFigureMenu(){
       buildFigureMenu();
     });
     b.appendChild(x);
-    g2.appendChild(b);
+    return b;
   });
   const up = document.createElement('button');
   up.type = 'button';
@@ -1218,7 +1221,72 @@ function buildFigureMenu(){
   up.title = 'Bring in a template from an SVG file: its outline becomes a figure';
   up.innerHTML = '<span class="figure-upload-plus">' + PLUS_SVG + '</span><span class="node-style-cap">Upload SVG</span>';
   up.addEventListener('click', ev=>{ ev.stopPropagation(); figureFileInput.click(); });
-  g2.appendChild(up);
+  tiles.push(up);
+  const count = Math.max(1, Math.ceil(tiles.length / FIGURE_PAGE));
+  figurePage = Math.min(Math.max(0, figurePage), count - 1);
+  const top = document.createElement('div');
+  top.className = 'add-fab-figures-head figure-pager';
+  const name = document.createElement('span');
+  name.textContent = 'Templates';
+  top.appendChild(name);
+  const view = document.createElement('div');
+  view.className = 'figure-pages';
+  const track = document.createElement('div');
+  track.className = 'figure-track';
+  view.appendChild(track);
+  for(let i = 0; i < count; i++){
+    const g = document.createElement('div');
+    g.className = 'add-fab-figures-grid figure-page';
+    tiles.slice(i * FIGURE_PAGE, (i + 1) * FIGURE_PAGE).forEach(b=> g.appendChild(b));
+    track.appendChild(g);
+  }
+  if(count > 1){
+    const turn = (step, label, d)=>{
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'figure-turn';
+      b.dataset.step = String(step);
+      b.title = label;
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + d + '" fill="currentColor"/></svg>';
+      b.addEventListener('click', ev=>{ ev.stopPropagation(); turnFigurePage(step); });
+      return b;
+    };
+    const at = document.createElement('span');
+    at.className = 'figure-page-at';
+    top.appendChild(turn(-1, 'The page before', 'M15 6.5v11L8.5 12z'));
+    top.appendChild(at);
+    top.appendChild(turn(1, 'The next page', 'M9 6.5v11l6.5-5.5z'));
+  }
+  card.appendChild(top);
+  card.appendChild(view);
+  showFigurePage(false);
+}
+var FIGURE_PAGE = 8, figurePage = 0;
+/* Where the track stands, and which of the arrows can still be pressed.
+   `moving` false places it at once — a menu that opens on page three
+   does not slide there from page one. */
+function showFigurePage(moving){
+  const track = addFabFigures.querySelector('.figure-track');
+  if(!track) return;
+  const pages = track.children.length;
+  if(!moving){ track.style.transition = 'none'; void track.offsetWidth; }
+  track.style.transform = 'translateX(' + (-100 * figurePage) + '%)';
+  if(!moving) requestAnimationFrame(()=>{ track.style.transition = ''; });
+  [...track.children].forEach((g, i)=>{ g.inert = i !== figurePage; });
+  const at = addFabFigures.querySelector('.figure-page-at');
+  if(at) at.textContent = (figurePage + 1) + ' / ' + pages;
+  addFabFigures.querySelectorAll('.figure-turn').forEach(b=>{
+    const to = figurePage + Number(b.dataset.step);
+    b.disabled = to < 0 || to >= pages;
+  });
+}
+function turnFigurePage(step){
+  const track = addFabFigures.querySelector('.figure-track');
+  if(!track) return;
+  const to = figurePage + step;
+  if(to < 0 || to >= track.children.length) return;
+  figurePage = to;
+  showFigurePage(true);
 }
 /* The entry drawn with this template nearest the middle of the view:
    the menu shuts, the view goes to it, and it glows for a moment. */

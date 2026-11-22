@@ -87,9 +87,32 @@ function inkErase(hand, w){
   hand.list = hand.list.filter(s=> inkDistance(s, w.x, w.y) > reach + (s.w || INK_WIDTH) / 2);
   if(hand.list.length !== before){ hand.changed = true; drawInk(hand.list); }
 }
+/* Fingers on the glass while a tool is held. A second one means the
+   hand wants to move the map, not to write (the owner's list of 22.11,
+   evening): the stroke under way is let go of as if it had never been
+   started, and nothing is written until every finger has left. The
+   pinch itself is 38-touch.js's, which sees both fingers first. */
+var inkFingers = new Set(), inkPinched = false;
+function inkAbandon(){
+  const hand = inkHand;
+  inkHand = null;
+  if(!hand) return;
+  try{ svg.releasePointerCapture(hand.id); }catch(e){}
+  if(hand.path) hand.path.remove();
+  drawInk();
+}
+function inkFingerGone(ev){
+  if(ev.pointerType !== 'touch') return;
+  inkFingers.delete(ev.pointerId);
+  if(!inkFingers.size) inkPinched = false;
+}
 function inkDown(ev){
   if(!inkTool || readOnlyView) return;
   if(ev.button !== undefined && ev.button !== 0) return;
+  if(ev.pointerType === 'touch'){
+    inkFingers.add(ev.pointerId);
+    if(inkFingers.size > 1 || inkPinched){ inkPinched = true; inkAbandon(); return; }
+  }
   /* The chart does not see this press at all: not the entry under it,
      not the pan, not the marquee. */
   ev.preventDefault();
@@ -117,6 +140,7 @@ function inkMove(ev){
   } else inkErase(inkHand, w);
 }
 function inkUp(ev){
+  inkFingerGone(ev);
   if(!inkHand || ev.pointerId !== inkHand.id) return;
   ev.preventDefault();
   const hand = inkHand;

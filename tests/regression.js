@@ -13534,11 +13534,17 @@ async function main(){
       const btns = [...document.querySelectorAll('.topbar > .icon-btn')].filter(e=> getComputedStyle(e).display !== 'none');
       return {off, scroll: document.documentElement.scrollWidth, width: innerWidth,
               rows: new Set(btns.map(b=> Math.round(b.getBoundingClientRect().top))).size,
+              /* The working keys on the left, the account, Save and the
+                 language on the right (the owner's list of 22.11, evening). */
+              left: Math.max(...btns.map(b=> b.getBoundingClientRect().right)) <=
+                    Math.min(...['.tb-account', '.save-btn'].map(q=> document.querySelector(q))
+                      .filter(e=> e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0)
+                      .map(e=> e.getBoundingClientRect().left)) + 0.5,
               search: document.getElementById('searchInput').getBoundingClientRect().width};
     });
     check('every control in the bar is on the screen', bar.off.length === 0, bar.off.join(', '));
     check('the page is no wider than the phone', bar.scroll <= bar.width, `${bar.scroll} > ${bar.width}`);
-    eq('the buttons share one row', bar.rows, 1);
+    check('the working keys stand in two rows at most, left of the account and Save', bar.rows <= 2 && bar.left, JSON.stringify(bar));
     check('the search has room to be typed in', bar.search >= 120, `${bar.search}px`);
     // The view's place is shown on a phone too, on the screen and clear of the add button.
     const coord = await pp.evaluate(()=>{
@@ -16170,9 +16176,17 @@ async function main(){
         vs = z; vx = 300 - X*vs; vy = 400 - Y*vs; applyTransform(); await wait(150);
         for(const id of ['fvA', 'fvW']){
           const d = at(`.node[data-id="${id}"] .node-label-text`);
+          /* Across, by the first letter's pen on both sides: the middles
+             of the two blocks count a callout's ink differently, and the
+             letters are what the field is laid on. */
+          const pen = (()=>{ const t = [...document.querySelectorAll(`.node[data-id="${id}"] .node-label-text tspan`)].find(e=> !e.querySelector('tspan') && /\S/.test(e.textContent));
+            const i = t.textContent.search(/\S/), q = t.getStartPositionOfChar(i);
+            return new DOMPoint(q.x, q.y).matrixTransform(t.getScreenCTM()).x; })();
           openNodeEditor(id); await wait(150);
           const f = fieldAt();
-          res.push({z, id, dx: +(f.cx - d.cx).toFixed(2), dy: +(f.cy - d.cy).toFixed(2), dh: +(f.h - d.h).toFixed(2)});
+          const typedPen = (()=>{ const w = document.createTreeWalker(richFields.get('nodeEditorText').surface, NodeFilter.SHOW_TEXT); let n;
+            while((n = w.nextNode())){ const j = n.textContent.search(/\S/); if(j >= 0){ const rg = document.createRange(); rg.setStart(n, j); rg.setEnd(n, j + 1); return rg.getBoundingClientRect().left; } } })();
+          res.push({z, id, dx: +(typedPen - pen).toFixed(2), dy: +(f.cy - d.cy).toFixed(2), dh: +(f.h - d.h).toFixed(2)});
           closeNodeEditor(true); await wait(80);
         }
       }
@@ -20692,6 +20706,10 @@ async function main(){
   try{
     await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
     await wait(900);
+    /* An empty chart, so the finger carries the chart and never lands on
+       an entry or an array as the carries add up. */
+    await pp.evaluate(()=>{ applyEdit(()=>{ workingNodes.length = 0; EDGE_STYLES.length = 0; }); deselect(); });
+    await wait(200);
     const cdp = await phone.newCDPSession(pp);
     const under = (y, x)=> pp.evaluate(([y, x])=>{ const r = svg.getBoundingClientRect();
       return [+((x - r.left - vx) / vs).toFixed(1), +((y - r.top - vy) / vs).toFixed(1)]; }, [y, x == null ? 200 : x]);
@@ -20716,11 +20734,13 @@ async function main(){
                                return !!r && r.height > 0 && getComputedStyle(e).opacity === '1'; };
         const hs = window.__barHeights, lo = Math.min(...hs), hi = Math.max(...hs);
         return {gone: b.classList.contains('gone'), top: Math.round(svg.getBoundingClientRect().top),
+                gone2: b.classList.contains('gone2'), tools: shown('#toolRow'),
                 kept: shown('.brand') && shown('.search-wrap'), buttons: shown('#aboutToggle'),
                 folded: hs.some(h=> h > lo + 2 && h < hi - 2)}; });
       return {kept: Math.abs(was[0] - now[0]) < 0.6 && Math.abs(was[1] - now[1]) < 0.6, bar, was, now};
     };
     const up = await carry(-150);
+    const further = await carry(-150);
     const down = await carry(150);
     // Along a diagonal it stays as it is, whichever way.
     const slantUp = await carry(-150, 150);
@@ -20732,6 +20752,10 @@ async function main(){
           up.bar.gone && !up.bar.buttons && !down.bar.gone && down.bar.buttons && down.bar.top - up.bar.top > 25,
           JSON.stringify({up:up.bar, down:down.bar}));
     check('…and the wordmark and the search stay', up.bar.kept && down.bar.kept, JSON.stringify({up:up.bar, down:down.bar}));
+    check('…the toolbar under them stays at first, and goes too as the chart is carried on up; both come back carried down',
+          up.bar.tools && !up.bar.gone2 && further.bar.gone2 && !further.bar.tools && further.bar.kept &&
+          !down.bar.gone2 && down.bar.tools && further.bar.top < up.bar.top,
+          JSON.stringify({up:up.bar, further:further.bar, down:down.bar}));
     check('…and what is under the finger stays under it', up.kept && down.kept, JSON.stringify({up, down}));
     check('…folding away and back over several frames rather than at once', up.bar.folded && down.bar.folded,
           JSON.stringify({up:up.bar.folded, down:down.bar.folded}));
@@ -24518,10 +24542,12 @@ async function main(){
       const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
       const out = {};
       const btn = document.getElementById('langToggle');
-      /* Flags, drawn (the owner's list of 21.11): the button wears the
-         flag of the language spoken, English the American one. */
-      const flagOf = el=> { const f = el.querySelector('.lang-flag'); return f && f.querySelector('svg') ? f.dataset.flag : ''; };
-      out.button = !!btn && flagOf(btn) === 'en' && /#3c3b6e/.test(btn.innerHTML) && btn.getAttribute('aria-label') === 'English';
+      /* Flags (the owner's list of 21.11): the button wears the flag of
+         the language spoken, English the American one — the emoji an
+         entry's language tab wears, in the emoji face (22.11, evening). */
+      const flagOf = el=> { const f = el.querySelector('.lang-flag'); return f && f.textContent === flagForCode({en:'US', ru:'RU'}[f.dataset.flag]) &&
+                                                                       /Noto Color Emoji/.test(getComputedStyle(f).fontFamily) ? f.dataset.flag : ''; };
+      out.button = !!btn && flagOf(btn) === 'en' && btn.getAttribute('aria-label') === 'English';
       btn.click(); await wait(50);
       const menu = document.getElementById('langMenu');
       out.menu = menu.classList.contains('open') && [...menu.querySelectorAll('[data-lang]')].map(b=> flagOf(b) + ':' + b.getAttribute('aria-label')).join('|') === 'en:English|ru:Русский';
@@ -24533,7 +24559,7 @@ async function main(){
       applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
       await wait(100);
       menu.querySelector('[data-lang="ru"]').click(); await wait(50);
-      out.ru = document.documentElement.lang === 'ru' && flagOf(btn) === 'ru' && /#0039a6/.test(btn.innerHTML) &&
+      out.ru = document.documentElement.lang === 'ru' && flagOf(btn) === 'ru' &&
                document.getElementById('saveBtn').textContent === 'Сохранить' &&
                document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Отменить (Ctrl+Z)';
       out.stored = localStorage.getItem('rhizome.lang') === 'ru';
@@ -24993,6 +25019,15 @@ async function main(){
         return out;
       },
       typed(){
+        /* Where the field LAYS its letters: each line's lift to the
+           drawing's pixels (seatLinesOnPixels) is painting, and the
+           pixels have a check of their own (the owner's list of 22.11,
+           evening). */
+        const seat = document.getElementById('nodeEditorSeat'), kept = seat ? seat.textContent : '';
+        if(seat) seat.textContent = '';
+        try{ return this.laid(); } finally { if(seat) seat.textContent = kept; }
+      },
+      laid(){
         const surf = richFields.get('nodeEditorText').surface, out = [];
         const w = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT);
         let t;
@@ -25494,10 +25529,13 @@ async function main(){
       const ob = entryOpts(workingEntry('h22b').entry);
       out.painted = JSON.stringify(ob.colors) === '["#1e7d4f"]' && ob.fontSize === 22 && ob.border === 'dashed' && undoStack[undoStack.length - 1] !== top;
       out.selectionKept = selectedId === 'h22a';
+      // One press, and the brush is put down (the owner's list of 22.11, evening).
+      out.brushDown = handTool === null;
       undoLastEdit(); await wait(80);
       out.paintUndone = entryOpts(workingEntry('h22b').entry).colors === undefined;
+      selectNode('h22a'); setHandTool('paint');
       document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
-      out.brushDown = handTool === null;
+      out.brushDown = out.brushDown && handTool === null;
       deselect();
       // Without anything picked the brush cannot be taken up.
       setHandTool('paint');
@@ -25570,7 +25608,7 @@ async function main(){
         r.mmShown && r.mmMoved === '200,-150' && r.mmHides && r.mmBack, JSON.stringify([r.mmShown, r.mmMoved, r.mmHides, r.mmBack]));
   check('the eyedropper takes the colour pressed, keeps it in its corner and is put down',
         r.pipetteHeld && r.pipetteColour === '#1e7d4f' && r.pipetteDown, JSON.stringify([r.pipetteHeld, r.pipetteColour, r.pipetteDown]));
-  check('the style brush gives the picked entry\'s look to the one pressed, a step of undo each, and is put down by Escape',
+  check('the style brush gives the picked entry\'s look to the one pressed in a step of undo, and is put down by it or by Escape',
         r.brushHeld && r.painted && r.selectionKept && r.paintUndone && r.brushDown && r.brushNeedsPick,
         JSON.stringify([r.brushHeld, r.painted, r.selectionKept, r.paintUndone, r.brushDown, r.brushNeedsPick]));
   check('the figures open from a triangle, the gear being the preset\'s', r.figuresTriangle);
@@ -25581,6 +25619,205 @@ async function main(){
         r.readerHeld && r.studioOverPreview && r.shown && r.resetHolds && r.backToEditing,
         JSON.stringify([r.readerHeld, r.studioOverPreview, r.shown, r.resetHolds, r.backToEditing]));
   check('…and it is kept with the chart, as are the presets and how references are written', r.scenarioSaved);
+  });
+
+  await scenario("the owner's list of 22.11, evening: fifths of the edge, figures in pages, two fingers over the pencil, a brush and a tag over an area, a field to the pixel", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const out = {};
+    const X = 71000, Y = 71000;
+    const toClient = (x, y)=>{ const b = svg.getBoundingClientRect(); return {x: b.left + x * vs + vx, y: b.top + y * vs + vy}; };
+    try{
+      /* Four drawers, each the fifth of the edge it had when there were five. */
+      const column = document.getElementById('tagsPanel').parentElement.getBoundingClientRect().height;
+      const gap = parseFloat(getComputedStyle(document.getElementById('tagsPanel')).getPropertyValue('--side-tab-gap')) || 0;
+      const hs = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'].map(id=> document.getElementById(id).getBoundingClientRect().height);
+      out.fifths = hs.every(h=> Math.abs(h - (column - gap * 4) / 5) < 1) ? 'ok' : JSON.stringify([column, gap, hs]);
+
+      /* The figures: a smaller card, the author's own in pages turned by
+         arrows, and the page sliding rather than cut to. */
+      SETTINGS.figures = Array.from({length: 13}, (_, i)=> ({name: 'P' + i, d: 'M0 0L100 0L100 100L0 100Z'}));
+      openAddFab(); openFigureMenu(true); await wait(260);
+      const card = document.querySelector('#addFabFigures .add-fab-figures-card').getBoundingClientRect();
+      out.cardWidth = Math.round(card.width);
+      const pages = document.querySelectorAll('#addFabFigures .figure-page');
+      const tiles = figureTemplatesOffered().length + 1;
+      out.pages = pages.length === Math.ceil(tiles / 8) && [...pages].every((p, i)=> p.querySelectorAll('.node-style-btn').length === Math.min(8, tiles - i * 8)) &&
+                  pages[pages.length - 1].lastElementChild.classList.contains('figure-upload')
+        ? 'ok' : pages.length + ':' + [...pages].map(p=> p.querySelectorAll('.node-style-btn').length).join(',');
+      const track = document.querySelector('#addFabFigures .figure-track');
+      const prev = document.querySelector('#addFabFigures .figure-turn[data-step="-1"]');
+      const next = document.querySelector('#addFabFigures .figure-turn[data-step="1"]');
+      out.firstPage = prev.disabled && !next.disabled && pages[1].inert && !pages[0].inert;
+      next.click();
+      await wait(60);
+      const mid = new DOMMatrix(getComputedStyle(track).transform).m41;
+      await wait(500);
+      const end = new DOMMatrix(getComputedStyle(track).transform).m41;
+      const pageW = pages[0].getBoundingClientRect().width;
+      out.slides = mid < -1 && mid > -pageW + 1 && Math.abs(end + pageW) < 1 && !prev.disabled && !pages[1].inert && pages[0].inert;
+      { const at = document.querySelector('#addFabFigures .figure-page-at').textContent; out.pageAt = at === '2 / ' + pages.length ? 'ok' : at; }
+      // The triangle turns towards the card, and both cards rise rather than appear.
+      const tri = getComputedStyle(document.querySelector('.add-fab-customize svg'));
+      out.triangleTurns = new DOMMatrix(tri.transform).b > 0.99 && /transform/.test(tri.transitionProperty);
+      const figs = getComputedStyle(document.getElementById('addFabFigures'));
+      const pres = getComputedStyle(document.getElementById('addFabPresets'));
+      out.rises = /opacity/.test(figs.transitionProperty) && /transform/.test(figs.transitionProperty) &&
+                  /opacity/.test(pres.transitionProperty) && pres.visibility === 'hidden';
+      openFigureMenu(false); closeAddFab();
+      delete SETTINGS.figures;
+
+      applyEdit(()=>{
+        workingNodes.push(['e22a', 'Model', null, null, null, null, {pos: [X, Y], colors: ['#7a1fa2'], border: 'dotted'}]);
+        workingNodes.push(['e22b', 'One', null, null, null, null, {pos: [X + 300, Y]}]);
+        workingNodes.push(['e22c', 'Two', null, null, null, null, {pos: [X + 600, Y]}]);
+        workingNodes.push(['e22d', 'Outside', null, null, null, null, {pos: [X + 300, Y + 600]}]);
+      });
+      vs = 1; { const rv = svg.getBoundingClientRect(); vx = rv.width / 2 - (X + 450); vy = rv.height / 2 - (Y + 100); applyTransform(); }
+      await wait(150);
+
+      /* The brush drawn round two entries gives the look to both, in one
+         step of undo, and is put down. */
+      selectNode('e22a'); setHandTool('paint');
+      const depth = undoStack.length, top = undoStack[undoStack.length - 1];
+      const from = toClient(X + 250, Y - 80), to = toClient(X + 900, Y + 200);
+      svg.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, clientX: from.x, clientY: from.y, button: 0, pointerType: 'mouse'}));
+      window.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: (from.x + to.x) / 2, clientY: (from.y + to.y) / 2, pointerType: 'mouse'}));
+      out.areaShown = marqueeRect.style.display !== 'none';
+      window.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: to.x, clientY: to.y, pointerType: 'mouse'}));
+      await wait(100);
+      const look = id=> { const o = entryOpts(workingEntry(id).entry); return (o.colors || []).join() + '/' + (o.border || ''); };
+      out.areaPainted = look('e22b') === '#7a1fa2/dotted' && look('e22c') === '#7a1fa2/dotted' && look('e22d') === '/';
+      out.oneStep = undoStack[undoStack.length - 1] !== top && (undoStack.length === depth + 1 || undoStack.length === depth);
+      out.areaDown = handTool === null && marqueeRect.style.display === 'none';
+      undoLastEdit(); await wait(80);
+      out.areaUndone = look('e22b') === '/' && look('e22c') === '/';
+
+      /* A tag carried out of the drawer onto the chart goes on every entry
+         picked. */
+      setSelection(['e22b', 'e22c'], 'e22b');
+      const over = toClient(X + 450, Y + 300);
+      beginListDrag({button: 0, target: document.body, preventDefault(){}, clientX: 30, clientY: 300}, 'tag', 'e22 tag', 'e22 tag');
+      window.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: over.x - 40, clientY: over.y, pointerType: 'mouse'}));
+      window.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: over.x, clientY: over.y, pointerType: 'mouse'}));
+      const ghost = document.querySelector('.list-drag-ghost');
+      out.ghost = ghost ? ghost.textContent : 'none';
+      out.chartTakes = svg.classList.contains('drop-onto');
+      const tagDepth = undoStack.length;
+      window.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: over.x, clientY: over.y, pointerType: 'mouse'}));
+      await wait(100);
+      const tags = id=> (entryOpts(workingEntry(id).entry).tags || []).join();
+      out.tagged = tags('e22b') === 'e22 tag' && tags('e22c') === 'e22 tag' && tags('e22d') === '' && undoStack.length === tagDepth + 1
+        ? true : [tags('e22b'), tags('e22c'), tags('e22d'), undoStack.length - tagDepth].join('|');
+      out.markGone = !svg.classList.contains('drop-onto') && !document.querySelector('.list-drag-ghost');
+      deselect();
+
+      /* Two fingers on the chart with the pencil in hand: no line, and
+         the chart is free to be moved. */
+      setInkTool('pen');
+      const inkBefore = inkStrokes().length;
+      const p1 = toClient(X + 100, Y + 300), p2 = toClient(X + 200, Y + 350);
+      const touch = (type, id, pt)=> svg.dispatchEvent(new PointerEvent(type, {bubbles: true, cancelable: true, clientX: pt.x, clientY: pt.y, button: 0, pointerId: id, pointerType: 'touch', isPrimary: id === 41}));
+      touch('pointerdown', 41, p1);
+      touch('pointermove', 41, {x: p1.x + 6, y: p1.y + 4});
+      out.wetFirst = !!document.querySelector('.ink-wet');
+      touch('pointerdown', 42, p2);
+      out.wetGone = !document.querySelector('.ink-wet');
+      touch('pointermove', 41, {x: p1.x + 40, y: p1.y + 30});
+      touch('pointerup', 42, p2);
+      touch('pointermove', 41, {x: p1.x + 60, y: p1.y + 50});
+      touch('pointerup', 41, {x: p1.x + 60, y: p1.y + 50});
+      out.noLine = inkStrokes().length === inkBefore && !document.querySelector('.ink-wet');
+      touch('pointerdown', 43, p1);
+      touch('pointermove', 43, {x: p1.x + 30, y: p1.y + 10});
+      touch('pointerup', 43, {x: p1.x + 30, y: p1.y + 10});
+      out.oneFingerDraws = inkStrokes().length === inkBefore + 1;
+      setInkTool(null);
+    } finally {
+      setHandTool(null);
+      if(typeof setInkTool === 'function') setInkTool(null);
+      applyEdit(()=>{
+        workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+        EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+        Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, wasSettings);
+      });
+    }
+    return out;
+  });
+  check('the drawers still take a fifth of the edge each, though there are four', r.fifths === 'ok', r.fifths);
+  check('the figures\' card is smaller, its templates in pages of eight with the upload last',
+        r.cardWidth <= 240 && r.pages === 'ok' && r.firstPage, JSON.stringify([r.cardWidth, r.pages, r.firstPage]));
+  check('…turned by an arrow, the page sliding across rather than cut to', r.slides && r.pageAt === 'ok', JSON.stringify([r.slides, r.pageAt]));
+  check('…the triangle turns towards the card, and the figures and the preset rise into place', r.triangleTurns && r.rises,
+        JSON.stringify([r.triangleTurns, r.rises]));
+  check('the style brush drawn round entries gives the look to every one wholly inside, in one step of undo, and is put down',
+        r.areaShown && r.areaPainted && r.oneStep && r.areaDown && r.areaUndone,
+        JSON.stringify([r.areaShown, r.areaPainted, r.oneStep, r.areaDown, r.areaUndone]));
+  check('a tag carried onto the chart goes on every entry picked, in one step, the ghost counting them',
+        r.chartTakes && r.ghost === 'e22 tag \u2192 2' && r.tagged === true && r.markGone, JSON.stringify([r.chartTakes, r.ghost, r.tagged, r.markGone]));
+  check('a second finger on the chart puts the pencil\'s line away and draws nothing; one finger still draws',
+        r.wetFirst && r.wetGone && r.noLine && r.oneFingerDraws, JSON.stringify([r.wetFirst, r.wetGone, r.noLine, r.oneFingerDraws]));
+
+  /* The field over an entry paints its words on the very pixels the entry
+     paints them on, line by line, at the densities where that is settled. */
+  for(const dpr of [1, 2]){
+    const ctx = await browser.newContext({viewport: {width: 1100, height: 760}, deviceScaleFactor: dpr});
+    await ctx.route('https://fonts.googleapis.com/**', noFonts);
+    await ctx.route('https://fonts.gstatic.com/**', noFonts);
+    const pg = await ctx.newPage();
+    pg.on('pageerror', e => errors.push('field pixels: ' + e.message));
+    try{
+      await pg.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil: 'networkidle'});
+      await wait(700);
+      await pg.addStyleTag({content: '.node[data-id^="pz"] > :not(text){opacity:0 !important} .node[data-id^="pz"]{filter:none !important} #nodeEditorBar{visibility:hidden !important}'});
+      const apart = [];
+      for(const [k, label] of [['a', 'Alpha Prime'], ['b', 'one\ntwo lines']]){
+        for(const zoom of [1, 2]){
+          const clip = await pg.evaluate(async ([k, label, zoom])=>{
+            closeNodeEditor(false);
+            applyEdit(()=>{ workingNodes = workingNodes.filter(x=> !/^pz/.test(x[0])); workingNodes.push(['pz' + k, label, null, null, null, null, {pos: [9000, 9000]}]); });
+            rebuildChart();
+            const n = nodes.get('pz' + k), rect = svg.getBoundingClientRect();
+            vs = zoom; vx = Math.round(-(n.x + n.w/2) * vs + rect.width/2) + 0.3; vy = Math.round(-(n.y + n.h/2) * vs + rect.height/2) + 0.37; applyTransform();
+            setSelection(['pz' + k], 'pz' + k);
+            await new Promise(ok=> setTimeout(ok, 200));
+            return {x: Math.round(rect.left + n.x * vs + vx - 8), y: Math.round(rect.top + n.y * vs + vy - 8), width: Math.round(n.w * vs + 16), height: Math.round(n.h * vs + 16)};
+          }, [k, label, zoom]);
+          await pg.mouse.move(2, 750);
+          const drawn = await pg.screenshot({clip});
+          await pg.evaluate(async (k)=>{ openNodeEditor('pz' + k); await new Promise(ok=> setTimeout(ok, 250));
+            richFields.get('nodeEditorText').surface.style.caretColor = 'transparent'; window.getSelection().removeAllRanges(); }, k);
+          await wait(80);
+          const typed = await pg.screenshot({clip});
+          const same = await pg.evaluate(async ([a, b])=>{
+            const pix = async (b64)=>{ const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode();
+              const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+              const x = c.getContext('2d'); x.drawImage(im, 0, 0); return x.getImageData(0, 0, c.width, c.height).data; };
+            /* Where the ink stands, by its weight: the same glyphs on the
+               same rows agree to a hundredth; a line a pixel off moves it
+               by a pixel times its share of the ink. Across, both are set
+               to a fraction of a pixel and shaded a little apart there, so
+               the place is compared rather than each shade. */
+            const cen = (D, W)=>{ let sx = 0, sy = 0, sw = 0;
+              for(let i = 0; i < D.length; i += 4){ const v = 255 - D[i + 1]; if(v > 10){ const p = i / 4; sx += (p % W) * v; sy += Math.floor(p / W) * v; sw += v; } }
+              return [sx / sw, sy / sw]; };
+            const A = await pix(a), B = await pix(b);
+            const im = new Image(); im.src = 'data:image/png;base64,' + a; await im.decode();
+            const ca = cen(A, im.width), cb = cen(B, im.width);
+            return Math.max(Math.abs(ca[0] - cb[0]), Math.abs(ca[1] - cb[1])).toFixed(2);
+          }, [drawn.toString('base64'), typed.toString('base64')]);
+          apart.push(k + zoom + ':' + same);
+          await pg.evaluate(()=> closeNodeEditor(false));
+        }
+      }
+      check(`the field paints an entry's words on the pixels the entry does, every line, at a density of ${dpr}`,
+            apart.every(x=> +x.split(':')[1] <= 0.15), apart.join(' '));
+    } finally {
+      await ctx.close();
+    }
+  }
   });
 
   await scenario("nothing threw along the way", async () => {

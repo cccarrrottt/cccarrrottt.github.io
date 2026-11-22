@@ -6,6 +6,18 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.26.4 — "Picked by the area" (2026-11-22)
+
+- The language buttons wear the same flag emoji as an entry's language tabs.
+- On a phone the top bar is laid out as on a computer: the working keys on the left, in two rows, and the account, Save and the language on the right. The toolbar under it is a row of its own across the screen.
+- The drawers on the left each take a fifth of the edge again, though there are four of them now.
+- On a phone the top bar goes in two steps as the chart is carried up: its upper keys first, and the toolbar under them once the chart is carried on further. Carried down, both come back. The wordmark and the search stay.
+- The card of figures beside Default is smaller, and the author's own templates are in pages of eight, turned by arrows over them; the page slides across. The triangle that opens the card turns towards it as it rises into place, and a kind's preset card rises the same way.
+- With the pencil or the eraser in hand, a second finger on the chart puts away the line being drawn and moves the chart instead.
+- The style brush is put down after one press. Pressed beside the entries rather than on one, it draws an area, and gives the look to every entry wholly inside it, or every connector with both ends inside it, in one step of undo.
+- A tag carried out of the Tags drawer onto the chart while entries are picked goes on every one of them, in one step of undo; the tag under the pointer says how many.
+- The words in the field over an entry are painted on the same pixels as the entry's own, line by line, at a screen density of one and of two; at other densities they are at most one device pixel apart.
+
 ## 0.26.3 — "As it is drawn" (2026-11-21)
 
 - An entry's words look the same while they are being written as when they are drawn, letter for letter: the readings over words, underlines and strikes, a larger word in a line, several lines, lists and dividers all stand where the drawing puts them, and the field is laid on the drawing by its first letter.

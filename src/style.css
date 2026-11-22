@@ -1324,17 +1324,18 @@
        drawers should take a click. */
     pointer-events:none;
   }
-  /* Each drawer's quarter of the edge. The tab sits at the top of it; the
-     drawer, when open, fills it beside the tab. The overview was a fifth
-     drawer until it became a button on the bar (22.11). */
+  /* Each drawer's fifth of the edge, though there are four (the owner's
+     list of 22.11, evening: the overview went up to the bar, and the
+     drawers keep the size they had). The tab sits at the top of it; the
+     drawer, when open, fills it beside the tab. */
   .side-tab{
     position:absolute;left:0;
-    height:calc((100% - var(--side-tab-gap) * 3) / 4);
+    height:calc((100% - var(--side-tab-gap) * 4) / 5);
   }
   #tagsPanel{top:0;}
-  #refsPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 + var(--side-tab-gap));}
-  #keyPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 2 + var(--side-tab-gap) * 2);}
-  #mediaPanel{top:calc((100% - var(--side-tab-gap) * 3) / 4 * 3 + var(--side-tab-gap) * 3);}
+  #refsPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 + var(--side-tab-gap));}
+  #keyPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 2 + var(--side-tab-gap) * 2);}
+  #mediaPanel{top:calc((100% - var(--side-tab-gap) * 4) / 5 * 3 + var(--side-tab-gap) * 3);}
   /* A reader has all four drawers, the legend's too since the owner's
      list of 20.11 — read, with nothing to edit or add — so the edge is
      cut the same way for both. */
@@ -2200,7 +2201,10 @@
     background:var(--panel);border:1px solid var(--line);color:var(--ink-dim);
     cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;
   }
-  .add-fab-customize svg{width:16px;height:16px;display:block;}
+  /* It turns to point where its menu opens, as the menu rises (the
+     owner's list of 22.11, evening). */
+  .add-fab-customize svg{width:16px;height:16px;display:block;transition:transform 0.2s ease;}
+  .add-fab.open.figures .add-fab-customize svg{transform:rotate(90deg);}
   .add-fab-customize:hover, .add-fab.figures .add-fab-customize{border-color:var(--accent);color:var(--accent);}
   /* The figures stand to the left of the column, inside the same widget,
      so the pointer crossing to them has not left it; the padding on the
@@ -2208,10 +2212,18 @@
      the column's width): since the gear moved on to Default's corner, a
      gap of thirty pixels was left between them, the pointer left the
      widget in it and the menu shut (the owner's list of 2.11, evening). */
-  .add-fab-figures{
-    position:absolute;right:62px;bottom:52px;padding-right:16px;display:none;
+  /* Both cards rise into place rather than appear, and sink as they go
+     (the owner's list of 22.11, evening); hidden, they take no pointer,
+     so the widget's edge is where it was. */
+  .add-fab-figures, .add-fab-presets{
+    position:absolute;right:62px;bottom:52px;padding-right:16px;
+    opacity:0;visibility:hidden;transform:translateY(10px) scale(0.97);transform-origin:right bottom;
+    transition:opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
   }
-  .add-fab.open.figures .add-fab-figures{display:block;}
+  .add-fab.open.figures .add-fab-figures, .add-fab.open.presets .add-fab-presets{
+    opacity:1;visibility:visible;transform:none;
+    transition:opacity 0.18s ease, transform 0.2s cubic-bezier(.2,.8,.2,1);
+  }
   /* A kind's preset: a gear on the top right corner of its button, and
      its card where the figures' card stands (the owner's list of 22.11). */
   .add-fab-preset{
@@ -2222,8 +2234,6 @@
   }
   .add-fab-preset svg{width:16px;height:16px;display:block;}
   .add-fab-preset:hover, .add-fab-preset.on{border-color:var(--accent);color:var(--accent);}
-  .add-fab-presets{position:absolute;right:62px;bottom:52px;padding-right:16px;display:none;}
-  .add-fab.open.presets .add-fab-presets{display:block;}
   .preset-card{min-width:250px;gap:6px;}
   .preset-row{display:flex;align-items:center;gap:6px;}
   .preset-label{flex:0 0 84px;font-size:11px;color:var(--ink-dim);}
@@ -2241,8 +2251,26 @@
     font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.6px;text-transform:uppercase;
     color:var(--ink-faint);padding:2px 2px 0;
   }
-  .add-fab-figures-grid{display:grid;grid-template-columns:repeat(4, 62px);gap:4px;}
-  .add-fab-figures .node-style-btn{background:var(--panel-2);position:relative;}
+  /* Smaller than the column's buttons (the owner's list of 22.11,
+     evening): the card is a palette to pick from, not the first thing a
+     press finds. */
+  .add-fab-figures-grid{display:grid;grid-template-columns:repeat(4, 50px);gap:4px;}
+  .add-fab-figures .node-style-btn{background:var(--panel-2);position:relative;width:50px;padding:4px 1px 3px;gap:2px;}
+  .add-fab-figures .node-style-icon{width:32px;height:24px;}
+  .add-fab-figures .node-style-cap{font-size:7.5px;letter-spacing:-0.2px;max-width:100%;overflow:hidden;}
+  .figure-pager{display:flex;align-items:center;gap:4px;}
+  .figure-pager > span:first-child{flex:1 1 auto;}
+  .figure-page-at{min-width:30px;text-align:center;}
+  .figure-turn{
+    width:20px;height:18px;padding:0;border:1px solid var(--line);border-radius:4px;
+    background:var(--panel-2);color:var(--ink-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .figure-turn svg{width:14px;height:14px;display:block;}
+  .figure-turn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  .figure-turn:disabled{opacity:0.35;cursor:default;}
+  .figure-pages{overflow:hidden;width:212px;}
+  .figure-track{display:flex;transition:transform 0.32s cubic-bezier(.3,.7,.2,1);}
+  .figure-page{flex:0 0 100%;align-content:start;}
   /* A template is named after the file it came from, and a file's name can
      be a sentence: one line, cut with an ellipsis, the whole of it in the
      tooltip (the owner's note of 19.11). */
@@ -2666,11 +2694,8 @@
      flags (the owner's list of 21.11), each named in its own words to a
      screen reader. */
   .icon-btn.lang-toggle{display:inline-flex;align-items:center;justify-content:center;}
-  /* A flag, 3:2, with a hairline round it so the white of either one is
-     not lost on a white bar. */
-  .lang-flag{display:inline-block;width:21px;height:14px;border-radius:2px;overflow:hidden;
-    box-shadow:0 0 0 1px var(--line);line-height:0;}
-  .lang-flag svg{width:100%;height:100%;display:block;}
+  /* A flag, the emoji an entry's language tab wears, in the emoji face. */
+  .lang-flag{display:inline-block;font-family:var(--emoji);font-size:17px;line-height:1;}
   .lang-menu{flex-direction:row;gap:4px;padding:6px;}
   .lang-option{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px;border:0;border-radius:5px;
     background:none;cursor:pointer;}
@@ -3729,6 +3754,8 @@
     box-shadow:inset 0 0 0 1.5px var(--accent);
     border-radius:4px;
   }
+  /* A tag over the chart with entries picked: the chart says it will take it. */
+  #canvas.drop-onto{outline:2px dashed var(--accent);outline-offset:-4px;}
   .ref-item.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
   .ref-item.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
 
@@ -3946,59 +3973,54 @@
      tempt a finger into it. */
   @media (max-width: 720px){
     body, .app{height:100dvh;}
-    .topbar{flex-wrap:wrap;gap:6px 6px;padding:7px 10px;}
-    /* The row of buttons is put away while the chart is carried up, and
-       back when it is carried down (followWithPhoneBar). The wordmark and
-       the search stay: they are where a reader is and how they get
-       anywhere (the owner's list of 24.10, evening). The whole bar used to
-       slide up out of sight, and until it had gone and given its rows up,
-       what it uncovered was the page behind the chart — a white band the
-       drawing had not reached. The row fades where it stands instead, the
-       bar behind it still the bar, and then gives its height up. */
+    /* As on a wide screen (the owner's list of 22.11, evening): the keys
+       that work on the chart on the left, two rows of them, and the
+       language, the account and Save on the right; the wordmark and the
+       search over them, the toolbar under them, its whole width. A grid,
+       so the right-hand column stays a column whichever keys there are. */
+    .topbar{display:grid;grid-template-columns:repeat(5, 34px) minmax(0, 1fr) auto;gap:6px;padding:7px 10px;align-items:center;}
+    /* The bar is put away in two steps while the chart is carried up, and
+       comes back when it is carried down (followWithPhoneBar): its upper
+       keys and the account first, then the toolbar. The wordmark and the
+       search stay: they are where a reader is and how they get anywhere
+       (the owner's list of 24.10, evening). A step fades where it stands,
+       the bar behind it still the bar, and then gives its height up. */
     .topbar > *{transition:opacity 0.15s ease;}
-    .topbar.slid > :not(.brand):not(.search-wrap){opacity:0;pointer-events:none;}
-    .topbar.gone > :not(.brand):not(.search-wrap), .topbar.gone::after{display:none !important;}
+    .topbar.slid > :not(.brand):not(.search-wrap):not(.toolrow){opacity:0;pointer-events:none;}
+    .topbar.gone > :not(.brand):not(.search-wrap):not(.toolrow){display:none !important;}
+    .topbar.slid2 > .toolrow{opacity:0;pointer-events:none;}
+    .topbar.gone2 > .toolrow{display:none !important;}
     .topbar.folding{overflow:hidden;}
-    .brand{order:0;margin-right:2px;}
+    .brand{grid-row:1;grid-column:1 / span 4;margin-right:2px;min-width:0;}
     .brand .mark{font-size:19px;}
-    .search-wrap{order:1;flex:1 1 120px;min-width:0;}
-    /* The break between the two rows. Without it the first button or two
-       climbed up beside the search whenever there was room, and which ones
-       did depended on the width of the phone. */
-    .topbar::after{content:'';order:2;flex:0 0 100%;height:0;}
+    .search-wrap{grid-row:1;grid-column:5 / -1;min-width:0;}
     .search-wrap input{font-size:16px;padding:6px 8px 6px 28px;}
     .search-wrap svg{top:9px;}
-    .topbar > .icon-btn{order:3;}
     .topbar > .icon-btn{width:34px;height:34px;}
-    /* The tools are a toolbar of their own, as on a wide screen: the
-       bar's last row, its whole width, under a hairline (the owner's word
-       of 22.11). The account and Save are the row above it. */
-    .toolrow{order:10;flex:0 0 calc(100% + 20px);margin:1px -10px -7px;padding:5px 10px;gap:3px;min-width:0;
-      border-top:1px solid var(--line);}
-    .tool-btn{width:30px;height:28px;}
-    .toolrow-sep{margin:0 2px;}
-    .tb-account{order:6;flex-direction:row;}
-    /* The second row starts at the left like the first — undo, redo, the
-       guides — and Save keeps to its right end, just before the account
-       (the owner's list of 11.11): it stood in the middle of the row with
-       the tools after it. A reader has no Save, so the account takes the
-       end on its own. */
-    .save-btn, .view-badge{order:7;margin-left:auto;}
-    .owner-avatar, .owner-btn{order:6;margin-left:0;}
-    body.read-only .owner-avatar, body.read-only .owner-avatar[hidden] + .owner-btn{margin-left:auto;}
+    /* The gap between the keys and the account, held so the keys keep to
+       five a row rather than spilling into it. */
+    .topbar::after{content:'';grid-row:2 / 4;grid-column:6 / 7;}
+    /* The right-hand column: the language and the way in or out, and
+       under them Save — or, for a reader, the badge. */
+    .tb-account{grid-row:2;grid-column:-2 / -1;flex-direction:row;justify-self:end;}
+    .owner-avatar{grid-row:2;grid-column:6 / 7;justify-self:end;margin-left:0;}
+    .save-btn, .view-badge{grid-row:3;grid-column:-2 / -1;justify-self:end;margin-left:0;}
     /* On the site a reader has both the badge and the owner's way in, and
        beside the buttons there is room for one. The badge goes: no Save
        button already says the same thing. */
-    body.read-only .view-badge:has(~ .owner-btn:not([hidden])){display:none;}
+    body.read-only .view-badge:has(~ .tb-account .owner-btn:not([hidden])){display:none;}
     /* The status pill says why a save or an edit was refused, so it is
        given a row of its own while it has something to say rather than
        being cut to fit beside the buttons. */
-    .save-state{order:8;flex:1 1 100%;margin-left:0;white-space:normal;}
+    .save-state{grid-column:1 / -1;margin-left:0;white-space:normal;justify-self:start;}
     .topbar-stats{display:none;}
-    /* The counts go; undo, redo and the guides stay, a fingertip's size,
-       at the start of the row the account sits at the end of — that row
-       was the empty space a row of their own left under it (the owner's
-       list of 24.10). */
+    /* The tools are a toolbar of their own, as on a wide screen: the
+       bar's last row, its whole width, under a hairline (the owner's word
+       of 22.11). */
+    .toolrow{grid-column:1 / -1;margin:1px -10px -7px;padding:5px 10px;gap:3px;min-width:0;
+      border-top:1px solid var(--line);}
+    .tool-btn{width:30px;height:28px;}
+    .toolrow-sep{margin:0 2px;}
     .toolrow .topbar-tools button{height:28px;}
     .toolrow .touch-tools button, .toolrow .guide-toggle{width:30px;}
     .toolrow .topbar-tools svg{width:16px;height:16px;}
@@ -4028,7 +4050,6 @@
     .detail-head::before{content:'';position:absolute;top:6px;left:50%;width:36px;height:4px;
       margin-left:-18px;border-radius:2px;background:var(--line);}
     .add-fab{right:12px;bottom:12px;}
-    .add-fab-figures-grid{grid-template-columns:repeat(3, 62px);}
     /* Under the open sheet there is nowhere for it to stand. */
     .add-fab.shifted{display:none;}
     /* The view's place stays on a phone too — it is how a reader says

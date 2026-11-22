@@ -452,7 +452,10 @@ document.addEventListener('touchstart', ev=>{
     if(st.kind !== 'now' || !svg.contains(st.target)) return;
     ev.preventDefault();
     if(st.pressed && !st.pinch){
-      if(!dragging) return;              // carrying an entry, a connector, a corner
+      /* Carrying an entry, a connector, a corner — unless a pencil or an
+         eraser is in the hand, when the first finger was writing, and a
+         second means the map is to move instead (44-ink.js). */
+      if(!dragging && !(typeof inkTool !== 'undefined' && inkTool)) return;
       touchMouse('mouseup', touchTargetAt(st.x, st.y), st.x, st.y, st.mods);
     }
     clearTimeout(st.holdTimer);

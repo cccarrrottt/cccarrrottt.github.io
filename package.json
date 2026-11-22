@@ -1,6 +1,6 @@
 {
   "name": "rhizome-project",
-  "version": "0.26.3",
+  "version": "0.26.4",
   "private": true,
   "license": "MIT",
   "description": "An interactive, editable chart of Transformers G1 continuity, built as one self-contained page.",
