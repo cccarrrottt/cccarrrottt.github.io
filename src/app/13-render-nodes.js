@@ -2275,22 +2275,26 @@ const drawOne = (n)=>{
     if(nsfwOpen.has(n.id)) g.classList.add('nsfw-open');
     const r = h/2, cx = n.x + w/2, cy = n.y + h/2;
     const veil = el('g', {class:'nsfw-veil'}, g);
-    /* As the road sign has it (the owner's reference, 22.11): a heavy red
-       ring a fifth of the radius wide, white inside, the figures black. */
-    el('circle', {class:'nsfw-disc', cx: cx.toFixed(2), cy: cy.toFixed(2),
-                  r: (r - r*0.1).toFixed(2), 'stroke-width': (r*0.2).toFixed(2)}, veil);
-    /* The figures are drawn, not set: no face every reader has is as heavy
-       as the sign's, and a fallback came out thin and too wide. Laid out
-       with a cap height of 100 about the middle, then scaled to six tenths
-       of the radius. */
-    const k = r*0.006;
-    const mark = el('g', {class:'nsfw-mark',
-      transform:`translate(${(cx + 2*k).toFixed(2)},${cy.toFixed(2)}) scale(${k.toFixed(4)})`}, veil);
-    el('polygon', {points:'-55,-50 -75,-50 -98,-30 -98,-10 -75,-27 -75,50 -55,50'}, mark);
-    el('ellipse', {class:'nsfw-ring', cx:-8, cy:-25, rx:19, ry:15.5, 'stroke-width':19}, mark);
-    el('ellipse', {class:'nsfw-ring', cx:-8, cy:22, rx:23, ry:18.5, 'stroke-width':20}, mark);
-    el('rect', {x:36, y:-9, width:58, height:18}, mark);
-    el('rect', {x:56, y:-29, width:18, height:58}, mark);
+    /* The owner's reference of 22.11, as it is, point for point: drawn in
+       its own pixels — a circle of radius 84 about (129.5, 129.5), the ring
+       17 wide — and scaled so the circle is as tall as the entry. The
+       figures are shapes, not a face: no face every reader has is as heavy,
+       and the emoji (🔞) is another sign, struck through, and every system
+       draws its own. */
+    const k = r/84;
+    const sign = el('g', {class:'nsfw-mark',
+      transform:`translate(${(cx - 129.5*k).toFixed(2)},${(cy - 129.5*k).toFixed(2)}) scale(${k.toFixed(4)})`}, veil);
+    el('circle', {class:'nsfw-disc', cx:129.5, cy:129.5, r:75.5, 'stroke-width':17}, sign);
+    // A rounded box as path data (joined, so tools/i18n.js does not take it for words).
+    const box = (x0, y0, x1, y1, q)=>{
+      const turn = (x, y)=> ['A', q, q, 0, 0, 1, x, y].join(' ');
+      return ['M', x0+q, y0, 'H', x1-q, turn(x1, y0+q), 'V', y1-q, turn(x1-q, y1),
+              'H', x0+q, turn(x0, y1-q), 'V', y0+q, turn(x0+q, y0), 'Z'].join(' ');
+    };
+    el('path', {d:'M103 101.5L92 101.5L80 109.5L80 116.5L86 117.5L89 119L89 158.5L103 158.5Z'}, sign);
+    el('path', {'fill-rule':'evenodd', d: box(110, 101, 141.5, 126.5, 10) + box(109, 126.5, 142.5, 158.5, 12) +
+                box(123.5, 108, 128.5, 122, 2.5) + box(123.5, 132.5, 128.5, 150, 2.5)}, sign);
+    el('path', {d:'M147 126.5H180V134H169V146H160V134H147ZM160 112.5H169V126.5H160Z'}, sign);
     /* …and its scenery and ground with it, which stand in layers of their
        own where the entry's class cannot reach them: an echo or a weave
        left sharp round a blurred box showed the shape of what was hidden

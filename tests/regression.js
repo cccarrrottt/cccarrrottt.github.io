@@ -25079,7 +25079,8 @@ async function main(){
       const look = ()=>{
         const veil = g().querySelector('.nsfw-veil'), disc = g().querySelector('.nsfw-disc');
         const d = disc.getBoundingClientRect(), b = g().querySelector('rect').getBoundingClientRect();
-        const sw = +disc.getAttribute('stroke-width');
+        // The ring's outer edge: the circle drawn at 75.5 of 84, its stroke half of 17 past it.
+        const sw = d.height * 8.5 / 75.5;
         return {op: +getComputedStyle(veil).opacity, shown: getComputedStyle(veil).display !== 'none',
                 hits: getComputedStyle(veil).pointerEvents !== 'none',
                 blur: getComputedStyle(g().querySelector('rect')).filter.includes('nsfw-blur'),
