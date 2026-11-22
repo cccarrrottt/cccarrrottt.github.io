@@ -27,7 +27,7 @@ const textViewToggle = document.getElementById('textViewToggle');
 var textViewStale = true;
 
 function textViewListed(n){
-  return !!n && !isArrayNode(n) && !isFreeShape(n.shape) && (n.shape || '') !== 'callout' && !isSplitNode(n);
+  return !!n && !isArrayNode(n) && !isFreeShape(n.shape) && (n.shape || '') !== 'callout' && !isSplitNode(n) && !scenarioHeld(n);
 }
 function textViewName(n){
   const own = stripMarkup(n.label || '').replace(/\s+/g, ' ').trim();

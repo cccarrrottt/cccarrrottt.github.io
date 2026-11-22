@@ -207,6 +207,7 @@ function applyVisibility(opts){
     fadeForTags(g, !!hide);
   });
   hopsFollowVisibility();
+  scenarioHoldSync();
 }
 
 /* ---------------------------------------------------------------------
@@ -286,6 +287,7 @@ function applyTransform(){
   showCoord(`x${Math.round(mid.x)} · y${Math.round(mid.y)}`);
   rememberView();
   syncMinimap();
+  scenariosInView();
 }
 /* The coordinates in the corner, rewritten on every frame of a pan.
 

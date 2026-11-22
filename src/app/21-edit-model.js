@@ -630,6 +630,14 @@ function serializeSettings(o){
   // The chart's own faces (fontOptions, 05-render-text.js).
   const fonts = cleanFonts(o.fonts);
   if(fonts.length) extra.fonts = fonts;
+  // How the citations' numbers are written (refNumberText, 03-markup.js).
+  if(REF_STYLES.includes(o.refStyle) && o.refStyle !== 'square') extra.refStyle = o.refStyle;
+  // What the + menu puts down (46-hand-tools.js).
+  const presets = cleanPresets(o.presets);
+  if(Object.keys(presets).length) extra.presets = presets;
+  // What the chart does as it is read (47-scenarios.js).
+  const scenarios = cleanScenarios(o.scenarios);
+  if(scenarios.length) extra.scenarios = scenarios;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;

@@ -327,6 +327,12 @@ function importChartFromText(text){
     // How its numbers are written belongs to the chart too.
     if(settingsIn && REF_STYLES.includes(settingsIn.refStyle) && settingsIn.refStyle !== 'square') SETTINGS.refStyle = settingsIn.refStyle;
     else delete SETTINGS.refStyle;
+    /* What the + menu puts down, and what the chart does when it is read,
+       are the chart's as well (46-hand-tools.js, 47-scenarios.js). */
+    const presetsIn = cleanPresets(settingsIn && settingsIn.presets);
+    if(Object.keys(presetsIn).length) SETTINGS.presets = presetsIn; else delete SETTINGS.presets;
+    const scenariosIn = cleanScenarios(settingsIn && settingsIn.scenarios);
+    if(scenariosIn.length) SETTINGS.scenarios = scenariosIn; else delete SETTINGS.scenarios;
     /* The legend's words belong to the chart they describe: brought in
        with it, and not left over from the chart it replaced. */
     const legendIn = cleanLegend(settingsIn && settingsIn.legend);

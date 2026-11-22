@@ -385,6 +385,17 @@
       <div class="minimap-grip" id="minimapGrip" title="Drag to move the overview — it goes back to its corner when shown again"><svg viewBox="0 0 12 8" aria-hidden="true"><g fill="currentColor"><circle cx="2" cy="2" r="1"/><circle cx="6" cy="2" r="1"/><circle cx="10" cy="2" r="1"/><circle cx="2" cy="6" r="1"/><circle cx="6" cy="6" r="1"/><circle cx="10" cy="6" r="1"/></g></svg></div>
       <canvas id="minimapCanvas" class="minimap-canvas"></canvas>
     </div>
+    <!-- The studio: scenarios, what the chart does as it is read
+         (47-scenarios.js). -->
+    <div class="studio-panel" id="studioPanel" hidden>
+      <div class="studio-head"><span class="studio-title">Scenarios</span><button type="button" class="scn-x" id="studioClose" title="Close the studio">✕</button></div>
+      <div class="studio-list" id="studioList"></div>
+      <div class="studio-foot">
+        <button type="button" class="scn-add" id="studioAdd">+ Scenario</button>
+        <button type="button" class="scn-play" id="studioPlay" title="See the chart as a reader does, from the beginning">▶ Play</button>
+        <button type="button" class="scn-reset" id="studioReset" title="Start the reading over">⟲ Reset</button>
+      </div>
+    </div>
     <div class="coord"><span id="coord">x0 · y0</span><button type="button" class="coord-home" id="coordHome" title="Go to the origin — x 0, y 0 in the middle of the view">⌖</button></div>
     <!-- Making an entry: one round button in the corner. Pointed at, the
          styles stand up above it; picking one puts that entry on the
@@ -845,6 +856,7 @@
     '44-ink.js',
     '45-clouds.js',
     '46-hand-tools.js',
+    '47-scenarios.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){

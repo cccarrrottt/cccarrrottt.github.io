@@ -14061,11 +14061,12 @@ async function main(){
       return !!(at && at.closest('#' + id));
     };
     out.noToolbarButton = !document.getElementById('legendToggle') && !document.getElementById('legend');
-    /* Four drawers down the left edge, the overview the lowest: the tabs
+    /* Four drawers down the left edge, Media the lowest (the overview is a
+       button on the toolbar since the owner's list of 22.11): the tabs
        stand still whatever is open, every drawer is the same size, any of
        them can be open at once, and no two ever overlap. */
-    const tabIds = ['tagsTab', 'refsTab', 'keyTab', 'minimapTab'];
-    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'].map(id=> document.getElementById(id));
+    const tabIds = ['tagsTab', 'refsTab', 'keyTab', 'mediaTab'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'].map(id=> document.getElementById(id));
     const tabRects = ()=> tabIds.map(id=>{ const r = rect(document.getElementById(id)); return [r.top, r.height].map(v=> Math.round(v)); });
     const shutRects = JSON.stringify(tabRects());
     const overlap = (a, b)=> a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -14097,7 +14098,7 @@ async function main(){
         return {svg: !!b.querySelector('svg'), text: b.textContent.trim(), label: b.getAttribute('aria-label')}; });
       out.tabSigns = JSON.stringify(signs);
       out.tabsBySign = signs.every(t=> t.svg && !t.text && t.label) &&
-        signs.map(t=> t.label).join() === 'Tags,References,Legend,Overview';
+        signs.map(t=> t.label).join() === 'Tags,References,Legend,Media';
       const cite = document.querySelector('.mini-toolbar .tb-ref-btn');
       out.citeIsSign = !!cite && !!cite.querySelector('svg') && !cite.textContent.trim();
       buildSideTabs();
@@ -18781,7 +18782,7 @@ async function main(){
     /* The drawers end above the coordinates box, which stays put. */
     const coordBox = ()=> document.querySelector('.coord').getBoundingClientRect();
     const coordAt = coordBox().left;
-    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'minimapPanel'];
+    const panels = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'];
     panels.forEach(id=> setSideTab(document.getElementById(id), true));
     await pause(250);
     const lowest = Math.max(...panels.map(id=> document.querySelector('#' + id + ' .side-tab-body').getBoundingClientRect().bottom));
@@ -20004,12 +20005,13 @@ async function main(){
     const out = {};
     const X = 74000, Y = 74000;
     try{
-      /* Undo, redo and the guides: small, on the toolbar under the counts,
-         for whoever edits — a mouse included — and for nobody else. */
-      const stats = document.querySelector('.topbar-stats').getBoundingClientRect();
+      /* Undo, redo and the guides: small, on the toolbar's second row
+         under the first (the owner's sketch of 22.11), for whoever edits —
+         a mouse included — and for nobody else. */
+      const first = document.getElementById('themeToggle').getBoundingClientRect();
       const tools = [...document.querySelectorAll('.topbar-tools button')].map(b=> b.getBoundingClientRect());
-      out.toolsUnderCounts = tools.length === 3 && tools.every(t=> t.top >= stats.bottom - 0.5 && t.height > 0 && t.height <= 20 &&
-                                                         t.right <= stats.right + 0.5);
+      out.toolsUnderCounts = tools.length === 3 && tools.every(t=> t.top >= first.bottom - 0.5 && t.height > 0 && t.height <= 28) &&
+                             !!document.querySelector('.topbar-tools').closest('#toolRow');
       out.inTopbar = !!document.getElementById('guideToggle').closest('.topbar') &&
                      !!document.getElementById('touchTools').closest('.topbar');
       markReadOnly(); await wait(150);
@@ -20121,7 +20123,7 @@ async function main(){
     }
     return out;
   });
-  check('undo, redo and the guides are small buttons under the counts on the toolbar',
+  check('undo, redo and the guides are small buttons on the toolbar\'s second row',
         r.toolsUnderCounts && r.inTopbar, JSON.stringify({under:r.toolsUnderCounts, bar:r.inTopbar}));
   check('…and a reader has none of them', r.readerNoTools);
   check('…and undo lights after an edit made with a mouse', r.undoLit);
@@ -20432,9 +20434,9 @@ async function main(){
   check('a sticker in the in-entry field is the height it is in the entry', p.stickerEm > 0.6 && p.stickerEm < 0.9,
         String(p.stickerEm));
 
-  /* 4. On a phone, undo, redo and the guides share the row of the
-     sign-in button, which the site always shows, rather than taking a
-     row of their own under it. */
+  /* 4. On a phone, undo, redo and the guides start the row of tools,
+     and the sign-in button, which the site always shows, is on the row
+     under it (the owner's sketch of 22.11: seven tools leave no room). */
   const phone = await browser.newContext({viewport:{width:390, height:844},
     deviceScaleFactor:2, isMobile:true, hasTouch:true});
   await phone.route('https://fonts.googleapis.com/**', noFonts);
@@ -20449,14 +20451,15 @@ async function main(){
       const sb = document.getElementById('ownerBtn').getBoundingClientRect();
       const tools = document.querySelector('.topbar-tools').getBoundingClientRect();
       const bar = document.querySelector('.topbar').getBoundingClientRect();
-      const out = {sameRow: tools.height > 0 && tools.top < sb.bottom && tools.bottom > sb.top,
-                   leftOfIt: tools.right <= sb.left + 0.5, fits: bar.right <= innerWidth + 0.5,
+      const row = document.getElementById('toolRow').getBoundingClientRect();
+      const out = {sameRow: tools.height > 0 && tools.top >= row.top - 0.5 && tools.bottom <= row.bottom + 0.5 && sb.top >= row.bottom - 0.5,
+                   leftOfIt: Math.abs(tools.left - row.left) < 1 && Math.abs(sb.left - row.left) < 40, fits: bar.right <= innerWidth + 0.5 && row.right <= innerWidth + 0.5,
                    tools:[tools.left, tools.top, tools.right, tools.bottom].map(Math.round),
                    sign:[sb.left, sb.top, sb.right, sb.bottom].map(Math.round)};
       document.getElementById('ownerBtn').hidden = true;
       return out;
     });
-    check('on a phone, undo, redo and the guides sit on the sign-in button’s row', ph.sameRow && ph.leftOfIt && ph.fits,
+    check('on a phone, undo, redo and the guides start the row of tools, the sign-in button under it', ph.sameRow && ph.leftOfIt && ph.fits,
           JSON.stringify(ph));
   } finally {
     await phone.close();
@@ -22779,14 +22782,15 @@ async function main(){
 
       /* 6. A reader's edge is the drawers they have, with no gaps: three
             then, four since the Media drawer is theirs (15.11), all five
-            since the legend is too (20.11). */
+            since the legend is too (20.11), and four again since the
+            overview went up to the toolbar (22.11). */
       setReaderPreview(true);
       await wait(150);
       {
         const box = id=> document.getElementById(id).getBoundingClientRect();
-        const t = box('tagsPanel'), f = box('refsPanel'), k = box('keyPanel'), d = box('mediaPanel'), m = box('minimapPanel');
-        r.reader = [t.height, f.height, k.height, d.height, m.height].map(v=> +v.toFixed(1))
-          .concat([+(f.top - t.bottom).toFixed(1), +(k.top - f.bottom).toFixed(1), +(d.top - k.bottom).toFixed(1), +(m.top - d.bottom).toFixed(1)]);
+        const t = box('tagsPanel'), f = box('refsPanel'), k = box('keyPanel'), d = box('mediaPanel');
+        r.reader = [t.height, f.height, k.height, d.height].map(v=> +v.toFixed(1))
+          .concat([+(f.top - t.bottom).toFixed(1), +(k.top - f.bottom).toFixed(1), +(d.top - k.bottom).toFixed(1)]);
       }
       setReaderPreview(false);
       await wait(150);
@@ -22825,9 +22829,9 @@ async function main(){
         JSON.stringify([out.cutBefore, out.cropTurnsCutOff, out.cutTurnsCropOff, out.bothIsCrop]));
   check('the entry\'s panel carries no help under the picture or the colours, no medium preview, and its facts stepped in and smaller',
         out.helpGone && out.noPreview && out.factIn, JSON.stringify([out.helpGone, out.noPreview, out.factIn]));
-  check('a reader\'s edge is shared by the five drawers they have',
-        out.reader[0] > 100 && [1, 2, 3, 4].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
-        out.reader[5] < 20 && out.reader[5] >= 0 && [6, 7, 8].every(i=> Math.abs(out.reader[i] - out.reader[5]) < 1), JSON.stringify(out.reader));
+  check('a reader\'s edge is shared by the four drawers they have',
+        out.reader[0] > 100 && [1, 2, 3].every(i=> Math.abs(out.reader[i] - out.reader[0]) < 1) &&
+        out.reader[4] < 20 && out.reader[4] >= 0 && [5, 6].every(i=> Math.abs(out.reader[i] - out.reader[4]) < 1), JSON.stringify(out.reader));
   });
 
   await scenario("the owner's list of 7.11: a figure on card layout, a card's things kept, faded lines, a ruled space, one tick, a lit reader's eye, a link that darkens, a line round a box", async () => {
@@ -23855,7 +23859,7 @@ async function main(){
     const others = kids.filter(e=> !e.matches('#saveBtn, .owner-avatar, .owner-btn, .save-state')).map(e=> e.getBoundingClientRect());
     return {lefts: lefts.map(v=> Math.round(v)), rows: rows.size,
             saveRight: save.right >= Math.max(...others.filter(b=> Math.abs(b.top - save.top) < 12).map(b=> b.right), 0),
-            saveLow: others.every(b=> b.top <= save.top + 1),
+            saveLow: others.every(b=> b.top < save.bottom - 1),
             saveNearEnd: top.getBoundingClientRect().right - save.right < 70};
   });
   await page.setViewportSize({width: 1500, height: 950});
@@ -23941,7 +23945,7 @@ async function main(){
       const list = document.getElementById('mediaList');
       r.readerTab = getComputedStyle(panel).display !== 'none' && !!list.querySelector('.media-kind');
       r.readerBare = !list.querySelector('.plus-mini, .media-fold, .media-x, .media-field, .media-add-field');
-      const tabs = ['tagsPanel', 'refsPanel', 'mediaPanel', 'minimapPanel'].map(id=> document.getElementById(id).getBoundingClientRect());
+      const tabs = ['tagsPanel', 'refsPanel', 'keyPanel', 'mediaPanel'].map(id=> document.getElementById(id).getBoundingClientRect());
       r.readerStacked = tabs.every((b, i)=> i === 0 || b.top >= tabs[i - 1].bottom - 1);
       setReaderPreview(false); await wait(150);
       buildMediaTab();
@@ -25270,6 +25274,196 @@ async function main(){
   check('a double line arches as two rails', r.doubleArches === 2, JSON.stringify(r));
   check('a line hidden by its tags takes its arches with it, and gives them back', r.hiddenArch && r.hiddenHole && r.back, JSON.stringify(r));
   check('a wavy line does not hop', r.wavyNone === 0, JSON.stringify(r));
+  });
+
+  await scenario("the owner's list of 22.11: the toolbar in two rows, the hand tools, presets and scenarios", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const out = {};
+    const X = 61000, Y = 61000;
+    const centreOf = id=>{ const g = document.querySelector('.node[data-id="' + id + '"]'); const b = g.getBoundingClientRect(); return {x: b.x + b.width / 2, y: b.y + b.height / 2}; };
+    const pressAt = (pt)=> svg.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, clientX: pt.x, clientY: pt.y, button: 0, pointerType: 'mouse'}));
+    try{
+      /* References written three ways, chosen beside their colour. */
+      const sel = document.getElementById('refStyleSelect');
+      out.refSelect = !!sel && [...sel.options].map(o=> o.value).join() === 'square,round,bare';
+      SETTINGS.refStyle = 'round'; const round = refNumberText(3);
+      SETTINGS.refStyle = 'bare'; const bare = refNumberText(3);
+      delete SETTINGS.refStyle; const square = refNumberText(3);
+      out.refTexts = [square, round, bare].join(' ');
+
+      /* NSFW is in Special before any entry wears it; every tag that can
+         be carried has the six dots, and Untagged keeps their room. */
+      buildSideTabs();
+      setSideTab(document.getElementById('tagsPanel'), true); await wait(250);
+      out.nsfwListed = [...document.querySelectorAll('#tagsList .legend-item')].some(row=> row.textContent.includes(NSFW_TAG));
+      const rows = [...document.querySelectorAll('#tagsList .legend-item.draggable-row')];
+      out.gripsOnRows = rows.length > 0 && rows.every(row=> row.querySelector(':scope > .tag-grip:not(.tag-grip-room)'));
+      setSideTab(document.getElementById('tagsPanel'), false);
+
+      applyEdit(()=>{
+        workingNodes.push(['h22a', 'Painter', null, null, null, null, {pos: [X, Y], colors: ['#1e7d4f'], fontSize: 22, border: 'dashed'}]);
+        workingNodes.push(['h22b', 'Painted', null, null, null, null, {pos: [X + 400, Y]}]);
+        workingNodes.push(['h22c', 'Held back', null, null, null, null, {pos: [X + 800, Y]}]);
+      });
+      await wait(150);
+
+      /* The counts leave out what is not an entry of the chart's story. */
+      const count = ()=> +document.getElementById('statNodes').textContent;
+      const c0 = count();
+      applyEdit(()=>{
+        workingNodes.push(['h22t', 'Words', null, null, null, 'textbox', {pos: [X, Y + 400]}]);
+        workingNodes.push(['h22l', '', null, null, null, 'link', {pos: [X + 300, Y + 400]}]);
+      });
+      await wait(100);
+      out.countsSkip = count() === c0;
+      applyEdit(()=>{ workingNodes.splice(workingNodes.findIndex(x=> x[0] === 'h22t'), 1); workingNodes.splice(workingNodes.findIndex(x=> x[0] === 'h22l'), 1); });
+
+      /* The tools are a second row under the first. */
+      const first = document.getElementById('themeToggle').getBoundingClientRect();
+      const rowBox = document.getElementById('toolRow').getBoundingClientRect();
+      out.secondRow = rowBox.top >= first.bottom - 0.5 &&
+        ['touchTools', 'guideToggle', 'inkPen', 'inkEraser', 'pipetteTool', 'stylePaintTool'].every(id=> document.getElementById(id).closest('#toolRow'));
+
+      /* The overview: a button; shown, it stands over the coordinates at
+         the bottom left, is carried by its dots, and comes back to its
+         corner when shown again. */
+      const mm = document.getElementById('minimapPanel'), coord = document.querySelector('.coord');
+      document.getElementById('minimapToggle').click(); await wait(100);
+      const a = mm.getBoundingClientRect(), cb = coord.getBoundingClientRect();
+      out.mmShown = !mm.hidden && a.bottom <= cb.top + 0.5 && Math.abs(a.left - cb.left) < 40;
+      const grip = document.getElementById('minimapGrip').getBoundingClientRect();
+      const gx = grip.x + grip.width / 2, gy = grip.y + grip.height / 2;
+      const grab = document.getElementById('minimapGrip');
+      grab.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, clientX: gx, clientY: gy, button: 0, pointerId: 3, pointerType: 'mouse'}));
+      window.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      grab.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      window.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      grab.dispatchEvent(new PointerEvent('pointerup', {bubbles: true, clientX: gx + 200, clientY: gy - 150, pointerId: 3, pointerType: 'mouse'}));
+      await wait(50);
+      const moved = mm.getBoundingClientRect();
+      out.mmMoved = Math.round(moved.left - a.left) + ',' + Math.round(moved.top - a.top);
+      document.getElementById('minimapToggle').click(); await wait(50);
+      out.mmHides = mm.hidden;
+      document.getElementById('minimapToggle').click(); await wait(50);
+      const back = mm.getBoundingClientRect();
+      out.mmBack = Math.abs(back.left - a.left) < 1 && Math.abs(back.top - a.top) < 1;
+      document.getElementById('minimapToggle').click();
+
+      /* The eyedropper copies what is drawn where it is pressed, and is put
+         down by the press. */
+      vs = 1; const rv = svg.getBoundingClientRect(); vx = rv.width / 2 - (X + 400); vy = rv.height / 2 - (Y + 20); applyTransform();
+      await wait(150);
+      setHandTool('pipette');
+      out.pipetteHeld = handTool === 'pipette' && document.getElementById('pipetteTool').classList.contains('active');
+      const g = document.querySelector('.node[data-id="h22a"]');
+      const ring = [...g.querySelectorAll('rect, path')].find(e=> hexOfPaint(getComputedStyle(e).stroke) === '#1e7d4f');
+      out.pipetteColour = ring ? colourAtTarget(ring) : 'no ring';
+      pressAt(centreOf('h22a'));
+      await wait(50);
+      const sw = document.getElementById('pipetteSwatch');
+      out.pipetteDown = handTool === null && !sw.hidden;
+
+      /* The brush takes the picked entry's look and gives it to the next
+         entry pressed, one step of undo for each. */
+      selectNode('h22a');
+      setHandTool('paint');
+      out.brushHeld = handTool === 'paint' && paintLook && paintLook.kind === 'node';
+      const top = undoStack[undoStack.length - 1];
+      pressAt(centreOf('h22b'));
+      await wait(100);
+      const ob = entryOpts(workingEntry('h22b').entry);
+      out.painted = JSON.stringify(ob.colors) === '["#1e7d4f"]' && ob.fontSize === 22 && ob.border === 'dashed' && undoStack[undoStack.length - 1] !== top;
+      out.selectionKept = selectedId === 'h22a';
+      undoLastEdit(); await wait(80);
+      out.paintUndone = entryOpts(workingEntry('h22b').entry).colors === undefined;
+      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+      out.brushDown = handTool === null;
+      deselect();
+      // Without anything picked the brush cannot be taken up.
+      setHandTool('paint');
+      out.brushNeedsPick = handTool === null;
+
+      /* Presets: what Default puts down, and its figures with it; each
+         field has its way back, and an empty preset is not kept. */
+      setPresetField('rect', 'colors', ['#aa3300']);
+      setPresetField('rect', 'align', 'left');
+      const made = addEntryOfStyle('rect'); closeNodeEditor(false);
+      const mo = entryOpts(workingEntry(made).entry);
+      out.presetUsed = JSON.stringify(mo.colors) === '["#aa3300"]' && mo.align === 'left';
+      const fig = addEntryOfFigure('diamond'); closeNodeEditor(false);
+      out.figureUsed = !!fig && JSON.stringify(entryOpts(workingEntry(fig).entry).colors) === '["#aa3300"]';
+      openAddFab();
+      openPresetMenu('rect');
+      const resetAlign = document.querySelector('.preset-row[data-key="align"] .preset-reset');
+      const resetBorder = document.querySelector('.preset-row[data-key="border"] .preset-reset');
+      out.resetLive = !!resetAlign && !resetAlign.disabled && !!resetBorder && resetBorder.disabled;
+      resetAlign.click();
+      document.querySelector('.preset-row[data-key="colors"] .preset-reset').click();
+      out.presetGone = SETTINGS.presets === undefined;
+      openPresetMenu(null);
+      closeAddFab();
+      { const more = document.querySelector('.add-fab-customize svg path'); out.figuresTriangle = !!more && /z$/i.test(more.getAttribute('d')) && more.getAttribute('d').split(/[hHzZ]/).length <= 4; }
+
+      /* Scenarios: pressing one entry shows another, which a reader does
+         not see, find or have in the text version until then; the editor
+         sees it all along. */
+      applyEdit(()=>{ SETTINGS.scenarios = [{id: 'h22s', when: {type: 'press', node: 'h22a'}, then: [{do: 'show', node: 'h22c'}, {do: 'anim', node: 'h22c', anim: 'pulse'}]}]; });
+      await wait(80);
+      out.editorSees = !scenarioHeld(nodes.get('h22c')) && !document.querySelector('.node[data-id="h22c"]').classList.contains('scn-held');
+      document.getElementById('studioToggle').click(); await wait(80);
+      out.studioRows = document.querySelectorAll('#studioList .scn-card').length === 1 &&
+                       document.querySelectorAll('#studioList .scn-action').length === 2;
+      document.getElementById('studioPlay').click(); await wait(200);
+      const held = ()=> document.querySelector('.node[data-id="h22c"]').classList.contains('scn-held');
+      out.readerHeld = readOnlyView && held() && !searchHits('held back').some(h=> h.n.id === 'h22c') && !textViewListed(nodes.get('h22c'));
+      out.studioOverPreview = !document.getElementById('studioPanel').hidden && getComputedStyle(document.getElementById('studioPanel')).display !== 'none';
+      scenariosPressed('h22a'); await wait(60);
+      out.shown = !held() && searchHits('held back').some(h=> h.n.id === 'h22c') &&
+                  document.querySelector('.node[data-id="h22c"]').classList.contains('scn-pulse');
+      document.getElementById('studioReset').click(); await wait(60);
+      out.resetHolds = held();
+      document.getElementById('studioPlay').click(); await wait(200);
+      out.backToEditing = !readOnlyView && !held();
+      document.getElementById('studioClose').click();
+      // Kept with the chart, and read back by Import.
+      SETTINGS.refStyle = 'round'; setPresetField('link', 'colors', ['#3355aa']);
+      { const kept = JSON.parse(chartFileText()).settings;
+        out.scenarioSaved = Array.isArray(kept.scenarios) && kept.scenarios.length === 1 && kept.refStyle === 'round' &&
+                            JSON.stringify(kept.presets) === '{"link":{"colors":["#3355aa"]}}'; }
+    } finally {
+      if(typeof readerPreview !== 'undefined' && readerPreview) setReaderPreview(false);
+      setHandTool(null);
+      applyEdit(()=>{
+        workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+        EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+        Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, wasSettings);
+      });
+    }
+    return out;
+  });
+  check('references are written [1], (1) or 1, picked beside their colour', r.refSelect && r.refTexts === '[3] (3) 3', JSON.stringify(r));
+  check('NSFW stands in Special before anything wears it', r.nsfwListed);
+  check('every tag that can be carried has the six dots', r.gripsOnRows);
+  check('the counts leave out words, links and pictures', r.countsSkip);
+  check('the tools are a row of their own under the first', r.secondRow);
+  check('the overview is a button: shown over the coordinates, carried by its dots, back in its corner when shown again',
+        r.mmShown && r.mmMoved === '200,-150' && r.mmHides && r.mmBack, JSON.stringify([r.mmShown, r.mmMoved, r.mmHides, r.mmBack]));
+  check('the eyedropper takes the colour pressed, keeps it in its corner and is put down',
+        r.pipetteHeld && r.pipetteColour === '#1e7d4f' && r.pipetteDown, JSON.stringify([r.pipetteHeld, r.pipetteColour, r.pipetteDown]));
+  check('the style brush gives the picked entry\'s look to the one pressed, a step of undo each, and is put down by Escape',
+        r.brushHeld && r.painted && r.selectionKept && r.paintUndone && r.brushDown && r.brushNeedsPick,
+        JSON.stringify([r.brushHeld, r.painted, r.selectionKept, r.paintUndone, r.brushDown, r.brushNeedsPick]));
+  check('the figures open from a triangle, the gear being the preset\'s', r.figuresTriangle);
+  check('a preset is what Default puts down, figures included, and each field has its way back',
+        r.presetUsed && r.figureUsed && r.resetLive && r.presetGone, JSON.stringify([r.presetUsed, r.figureUsed, r.resetLive, r.presetGone]));
+  check('a scenario: the editor sees everything, the studio lists it', r.editorSees && r.studioRows, JSON.stringify([r.editorSees, r.studioRows]));
+  check('…a reader does not see, find or read what it shows until it is pressed, and Reset holds it back again',
+        r.readerHeld && r.studioOverPreview && r.shown && r.resetHolds && r.backToEditing,
+        JSON.stringify([r.readerHeld, r.studioOverPreview, r.shown, r.resetHolds, r.backToEditing]));
+  check('…and it is kept with the chart, as are the presets and how references are written', r.scenarioSaved);
   });
 
   await scenario("nothing threw along the way", async () => {

@@ -519,7 +519,8 @@ const searchResults = document.getElementById('searchResults');
 function searchHits(q){
   const hits = [];
   nodes.forEach(n=>{
-    if(isArrayNode(n)) return;
+    // What a scenario has not shown yet is not found either.
+    if(isArrayNode(n) || scenarioHeld(n)) return;
     const tabs = (n.multiLang && Array.isArray(n.langTabs)) ? n.langTabs : [];
     const texts = [{tab:null, text:n.label}].concat(tabs.map((t, i)=>({tab:i, text:t && t.text})));
     texts.forEach(({tab, text})=>{

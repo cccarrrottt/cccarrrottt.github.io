@@ -175,6 +175,12 @@
       "properties": {
         "refColor": {"$ref": "#/definitions/hex"},
         "refStyle": {"enum": ["square", "round", "bare"]},
+        "presets": {"type": "object", "properties": {"rect": {"type": "object", "properties": {"colors": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "bg": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "border": {"enum": ["solid","dashed","dotted","dashdot","double","wavy"]}, "square": {"type": "boolean"}, "font": {"type": "string"}, "fontSize": {"type": "number"}, "align": {"enum": ["left","right"]}}}, "ellipse": {"type": "object", "properties": {"colors": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "bg": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "border": {"enum": ["solid","dashed","dotted","dashdot","double","wavy"]}, "square": {"type": "boolean"}, "font": {"type": "string"}, "fontSize": {"type": "number"}, "align": {"enum": ["left","right"]}}}, "link": {"type": "object", "properties": {"colors": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "bg": {"type": "array", "items": {"type": "string"}, "maxItems": 4}, "border": {"enum": ["solid","dashed","dotted","dashdot","double","wavy"]}, "square": {"type": "boolean"}, "font": {"type": "string"}, "fontSize": {"type": "number"}, "align": {"enum": ["left","right"]}}}}},
+        "scenarios": {"type": "array", "items": {"type": "object", "required": ["when", "then"], "properties": {
+          "id": {"type": "string"},
+          "when": {"type": "object", "properties": {"type": {"enum": ["press", "inView"]}, "node": {"type": "string"}}},
+          "then": {"type": "array", "items": {"type": "object", "required": ["do"], "properties": {"do": {"enum": ["show", "hide", "fly", "anim"]}, "node": {"type": "string"}, "anim": {"enum": ["pulse", "glow", "shake"]}}}}
+        }}},
         "legend": {"type": "object", "additionalProperties": {"type": "string"}},
         "legendNames": {"type": "object", "additionalProperties": {"type": "string"}},
         "legendHidden": {"type": "array", "items": {"type": "string"}},

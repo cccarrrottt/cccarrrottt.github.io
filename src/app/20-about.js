@@ -21,7 +21,16 @@ const VERSION_LOG = [
 'Every + that adds something is the same drawn plus, centred in its square, rather than a typed character.',
 'The browser suite draws a chart of its own, tests/fixtures/chart.json, in place of the owner\'s, so a chart changed by Save, or a copy with a chart of its own, never turns a check red.',
 'The code of the page is under the MIT licence (LICENSE), and NOTICE says what it does not cover: the chart\'s own content, its franchises and brands, pictures, video and fonts, which belong to their owners. About says the same in a paragraph of its own.',
-'A special tag, NSFW, for an entry whose media are not for minors. A reader sees such an entry, its scenery and its ground lightly blurred under a round 18+ badge as tall as the entry; one press lifts the veil, and the entry can then be picked as any other. Once it is out of sight it is veiled again. To the author the badge is only as faint as a hidden entry.'
+'A special tag, NSFW, for an entry whose media are not for minors. A reader sees such an entry, its scenery and its ground lightly blurred under a round 18+ badge as tall as the entry; one press lifts the veil, and the entry can then be picked as any other. Once it is out of sight it is veiled again. To the author the badge is only as faint as a hidden entry.',
+'The top bar is two rows. The first holds the theme, the grid over the patches, the overview, reader mode, the scenarios studio, My files, Export, About, the search, the counts, Save, and the language over the way in or out. The second, a thin row under it, holds undo, redo and the guides, then the pencil, the eraser, the eyedropper and the style brush.',
+'The eyedropper copies the colour of whatever it presses: the fill where there is one, the line where there is not. The code goes to the clipboard, and the button keeps a square of it in its corner.',
+'The style brush takes the look of the picked entry or connector, and gives it to every entry or connector pressed after it: borders, ground, corners, face, size and alignment for an entry, and line, ends, path and colour for a connector. Each press is one step of undo. Escape or its button puts it down.',
+'The overview is a button on the top bar instead of the fifth drawer on the left. Shown, it stands at the bottom left over the coordinates and can be carried by its dots; it goes back to its corner each time it is shown again.',
+'The counts on the top bar leave out captions, links and pictures, and the links between them.',
+'In the + menu, Default, Character and Link each have a gear that says what a new entry of that kind starts as: the border colour, the ground, the kind of border, the corners, the face, the size and the alignment, each with a way back to the page\'s default. Default\'s preset is what its figures and templates start as too. The figures open from a triangle where the gear was.',
+'References can be written [1], (1) or as a bare 1, picked in the References drawer beside their colour.',
+'NSFW stands in the Special category of the Tags drawer even before any entry wears it, and every tag that can be carried has the six dots that media fields have.',
+'The scenarios studio, its first step. A scenario is an entry pressed, or an entry coming into view, and what follows: show an entry, hide one, fly the view to one, or make one pulse, glow or shake. An entry a scenario shows is held back from a reader until then: not on the chart, not in the search and not in the text version. The author always sees every entry. Play in the studio shows the chart as a reader reads it, from the beginning, and Reset starts it over. Scenarios are saved with the chart.'
   ]},
   {v:'0.26.2', date:'2026-11-20', title:'From the drives', notes:[
 'An entry\'s words are written the way a note\'s are: Enter starts a new line, and the field is let go of with a click anywhere else, with Escape, with Ctrl+Enter or with the ✓ on its toolbar, which a desk now has too. The field has no frame and no ground of its own: the words are typed straight onto the entry, its card, its figure or the note\'s plate, and the words drawn there step aside while they are being written.',
@@ -891,8 +900,10 @@ const saveStateTextEl = document.getElementById('saveStateText');
 let saveStateTimer = null;
 function setSaveState(kind, msg){
   clearTimeout(saveStateTimer);
-  if(!kind){ saveStateEl.className = 'save-state'; saveStateTextEl.textContent = ''; return; }
+  if(!kind){ saveStateEl.className = 'save-state'; saveStateTextEl.textContent = ''; saveStateEl.removeAttribute('title'); return; }
   saveStateEl.className = 'save-state show ' + kind;
   saveStateTextEl.textContent = msg;
+  // Cut short when the bar is narrow; whole here.
+  saveStateEl.title = msg;
 }
 

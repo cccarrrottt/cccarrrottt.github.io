@@ -125,6 +125,7 @@ APP_PARTS = [
     '44-ink.js',
     '45-clouds.js',
     '46-hand-tools.js',
+    '47-scenarios.js',
 ]
 # The editing parts, which the published site does not hand a reader.
 #

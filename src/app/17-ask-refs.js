@@ -552,5 +552,7 @@ function nodeHidden(n){
      left every fan-fiction entry that also carried another tag sitting
      there, which reads as the switch not working. */
   if(n.mediaType && hiddenMediaKinds.has(n.mediaType)) return true;
+  // Held back from a reader until a scenario shows it (47-scenarios.js).
+  if(scenarioHeld(n)) return true;
   return effectiveTags(n).some(t=> hiddenTags.has(t));
 }

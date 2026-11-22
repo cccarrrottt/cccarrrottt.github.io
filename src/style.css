@@ -394,7 +394,7 @@
   @media (min-width: 721px){
     .topbar{flex-wrap:wrap;gap:8px 10px;padding:10px 18px 0;}
     .topbar > .icon-btn{width:40px;height:40px;border-radius:8px;
-      box-shadow:0 1px 2px rgba(20, 24, 31, 0.06);transition:border-color .12s, color .12s, background .12s;}
+      box-shadow:0 1px 2px rgba(20, 24, 31, 0.06);transition:border-color .12s, color .12s;}
     .topbar > .icon-btn svg{width:19px;height:19px;}
     /* The keys stand in groups: how it looks, what is read, what is made,
        the files, and about. */
@@ -404,6 +404,14 @@
     .search-wrap svg{left:12px;top:12px;}
     .topbar-stats{display:flex;flex-direction:column;align-items:flex-start;line-height:1.35;}
     .owner-avatar{width:40px;height:40px;margin-left:2px;}
+    /* A message in the pill stands at the end of the tool row, out of
+       the first row's way: in it, a long one pushed Save and the account
+       onto a line of their own and the whole chart down by a row while it
+       was shown. Cut short if it must be; the whole of it is its title. */
+    .topbar{position:relative;}
+    .save-state{position:absolute;right:18px;bottom:5px;max-width:55%;padding:2px 10px;overflow:hidden;}
+    .save-state .save-text{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+    body.read-only .save-state{position:static;max-width:none;padding:5px 11px;}
   }
   /* The grid and the patches: two halves of one key, one over the other. */
   .tb-stack{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;}
@@ -421,7 +429,7 @@
     border-top:1px solid var(--line);background:var(--panel);
   }
   body.read-only .toolrow{display:none;}
-  body.read-only #studioToggle{display:none;}
+  body.read-only:not(.reader-preview) #studioToggle{display:none;}
   .toolrow-sep{width:1px;height:16px;background:var(--line);margin:0 6px;flex:0 0 auto;}
   .tool-btn{
     position:relative;width:26px;height:24px;padding:0;flex:0 0 auto;
@@ -1808,7 +1816,10 @@
   .media-grip svg{width:6px;height:9px;}
   .media-field:hover .media-grip{opacity:1;}
   .legend-item:hover > .tag-grip{opacity:1;}
-  .legend-item > .tag-grip{margin-right:-2px;}
+  /* In the row's own padding, out of the flow, so the eyes stand in one
+     column with the categories' (16-tags.js). */
+  .legend-item:has(> .tag-grip){position:relative;}
+  .legend-item > .tag-grip{position:absolute;left:-3px;top:50%;transform:translateY(-50%);}
   .media-field.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
   .media-field.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
   /* The line the kind writes, under its fields: each fact a chip by its
@@ -3964,8 +3975,11 @@
     .topbar > .icon-btn, .topbar > .tb-stack{order:3;}
     .topbar > .icon-btn{width:34px;height:34px;}
     .icon-btn.tb-half{width:20px;height:16px;}
-    /* The tool row is the start of the third row, the account at its end. */
-    .toolrow{order:4;flex:0 1 auto;margin:0;padding:0;border:none;gap:3px;min-width:0;}
+    /* The tools are the third row, all of it; the account and Save the
+       fourth, under them (the owner's sketch of 22.11 has seven tools
+       where there were three, and a phone has no room for Save beside
+       them). */
+    .toolrow{order:4;flex:1 1 100%;margin:0;padding:0;border:none;gap:3px;min-width:0;}
     .tool-btn{width:30px;height:28px;}
     .toolrow-sep{margin:0 2px;}
     .tb-account{order:6;flex-direction:row;}
@@ -3974,7 +3988,7 @@
        (the owner's list of 11.11): it stood in the middle of the row with
        the tools after it. A reader has no Save, so the account takes the
        end on its own. */
-    .save-btn, .view-badge{order:5;margin-left:auto;}
+    .save-btn, .view-badge{order:7;margin-left:auto;}
     .owner-avatar, .owner-btn{order:6;margin-left:0;}
     body.read-only .owner-avatar, body.read-only .owner-avatar[hidden] + .owner-btn{margin-left:auto;}
     /* On the site a reader has both the badge and the owner's way in, and
@@ -3984,7 +3998,7 @@
     /* The status pill says why a save or an edit was refused, so it is
        given a row of its own while it has something to say rather than
        being cut to fit beside the buttons. */
-    .save-state{order:7;flex:1 1 100%;margin-left:0;white-space:normal;}
+    .save-state{order:8;flex:1 1 100%;margin-left:0;white-space:normal;}
     .topbar-stats{display:none;}
     /* The counts go; undo, redo and the guides stay, a fingertip's size,
        at the start of the row the account sits at the end of — that row
@@ -4113,3 +4127,47 @@
   .swatch-strip .swatch-pick:hover{box-shadow:0 0 0 1.5px var(--accent);}
   .swatch-strip .swatch-blank.swatch-pick:hover{border-color:var(--accent);box-shadow:none;}
   .key-own-colour{display:flex;align-items:center;}
+
+/* ---- The studio (47-scenarios.js) ---- */
+.studio-panel{
+  position:absolute;right:16px;top:12px;z-index:27;width:400px;max-width:calc(100% - 32px);
+  max-height:calc(100% - 90px);display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+  font-size:13px;color:var(--ink);
+}
+.studio-panel[hidden]{display:none;}
+/* Beside the entry drawer, not under it: both stand on the right. */
+.main:has(.detail.open) .studio-panel{right:350px;}
+body.read-only:not(.reader-preview) .studio-panel{display:none;}
+body.reader-preview .studio-list{opacity:.55;pointer-events:none;}
+body.reader-preview .studio-foot .scn-add{display:none;}
+.studio-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 6px;border-bottom:1px solid var(--line);}
+.studio-title{font-weight:600;}
+.studio-list{overflow:auto;padding:8px 10px;display:flex;flex-direction:column;gap:8px;}
+.scn-empty{color:var(--ink-faint);line-height:1.4;}
+.scn-card{border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:5px;}
+.scn-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.scn-action{padding-left:14px;}
+.scn-word{color:var(--ink-faint);}
+.scn-select{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 4px;}
+.scn-chip{font:inherit;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:2px 9px;cursor:pointer;}
+.scn-chip.empty, .scn-chip.picking{border-style:dashed;color:var(--accent);}
+.scn-x{font:inherit;margin-left:auto;background:none;border:0;color:var(--ink-faint);cursor:pointer;padding:2px 4px;}
+.scn-x:hover{color:var(--ink);}
+.scn-add, .scn-play, .scn-reset{font:inherit;background:none;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:3px 8px;cursor:pointer;}
+.scn-card .scn-add{align-self:flex-start;margin-left:14px;border-style:dashed;}
+.studio-foot{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line);}
+.studio-foot .scn-play{margin-left:auto;}
+body.reader-preview .scn-play{background:var(--accent);color:#fff;border-color:var(--accent);}
+body.scn-picking svg#canvas, body.scn-picking svg#canvas *{cursor:crosshair !important;}
+/* Held back until a scenario shows it: nothing, not a ghost. */
+.scn-held{opacity:0 !important;pointer-events:none !important;}
+.scn-held *{pointer-events:none !important;}
+.node.scn-pulse{animation:scn-pulse .9s ease-in-out 2;}
+.node.scn-glow{animation:scn-glow 1.4s ease-in-out 1;}
+.node.scn-shake{animation:scn-shake .5s ease-in-out 1;}
+@keyframes scn-pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+@keyframes scn-glow{0%,100%{filter:none;}50%{filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 3px var(--accent));}}
+@keyframes scn-shake{0%,100%{translate:0 0;}20%{translate:-6px 0;}40%{translate:6px 0;}60%{translate:-4px 0;}80%{translate:4px 0;}}
+@media (prefers-reduced-motion: reduce){ .node.scn-pulse, .node.scn-glow, .node.scn-shake{animation:none;} }
