@@ -11,17 +11,30 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.27.1';
+const APP_VERSION = '0.27.2';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
-  {v:'0.27.1', date:'2026-11-23', title:'Behind the door', notes:[
+  {v:'0.27.2', date:'2026-11-23', title:'Behind the door', notes:[
 'An editor\'s Save can be committed by the site\'s GitHub App itself, once the app\'s own key is among the service\'s secrets (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY): an editor then needs no access to the repository at all, and the service is the only way their edits reach it. Until now an editor had to be able to push, which let them change the code and the settings past everything the service holds back.',
 'The notes in the margin are put together stroke by stroke when two saves meet, so strokes drawn on two devices no longer collide, and an editor\'s strokes are saved with the rest of their edit instead of being left out with the settings.',
 'A picture or clip from a drive keeps working after the service\'s session secret is changed, once FILE_MARK_SECRET is set to the secret\'s old value first.',
 'Each Save from the site is named in the history by what it changed — "Chart: 2 entries added, 1 entry changed" — instead of the same line every time.',
 'The language button appears once a language other than English is mostly translated. Russian was offered with nothing translated yet, and choosing it changed nothing.',
 'Six pictures the chart no longer shows (851 KB, among them the two GIFs replaced by WebP) are no longer published with the site, and the chart check names any such file from now on.',
-'The checks hold what a reader downloads to a ceiling, and refuse any constant of the editing parts read by the rest of the program, which on the site would have thrown on a reader\'s screen; five such constants were moved to where every page has them.'
+'The checks hold what a reader downloads to a ceiling, and refuse any constant of the editing parts read by the rest of the program, which on the site would have thrown on a reader\'s screen; five such constants were moved to where every page has them.',
+'Google Drive can be picked from in Google\'s own window, once the service has the Picker\'s key and the project\'s number (GOOGLE_PICKER_KEY, GOOGLE_APP_ID): the service is then given only the files the owner picks, not the whole drive. A drive connected before asks once to be connected again.',
+'A reader downloads a twentieth less of the program: what of five parts a reader never runs — carrying an entry and its grips, writing in a text, the add menus, the style bar — now comes with the editor, only to the owner and editors.'
+  ]},
+  {v:'0.27.1', date:'2026-11-23', title:'One after another', notes:[
+'A scenario set off by an entry coming into view plays every time the entry comes into view again, not only the first time, unless it is told to play once. An entry counts as in view only when the reader can actually see it: at least half of it on the screen and not under the top bar, a drawer, the entry sheet or another entry.',
+'Scenarios set each other off: one can start when an entry finishes an animation, when an entry appears or disappears, or when the chart opens, so one entry coming into view can make a second animate and a third disappear after it.',
+'Each step of a scenario can wait so many seconds after the step above it, or after what set it off.',
+'On a phone the status of the chart (unsaved, saving, saved) stands to the right of Save.',
+'Citations can be set in bold, in italic or both, with two keys beside their colour and brackets in References.',
+'The field on an entry follows the drawing\'s letters along the whole line: where a browser spaces the letters a little differently from the widths the drawing measured, as a phone\'s can, each line of the field is spaced to lie on the drawing\'s letters.',
+'On a phone the toolbar no longer turns white while the bar above it folds away or comes back.',
+'The reader\'s view is an open book with an eye over it, and the patches from far away are a stack of layers.',
+'A connector drawn as it was keeps its drawing after an edit, as an entry already did: the browser lays out only the lines the edit changed, which on a chart of six hundred entries is a few milliseconds off an edit.'
   ]},
   {v:'0.27.0', date:'2026-11-22', title:'Anyone\'s own', notes:[
 'What the chart is called, the sentence a link to it shows and the text at the top of About are the chart\'s own now, not the platform\'s: the owner writes them in About, under «The chart\'s name and description», and they are saved, imported and exported with the chart. The name is the tab\'s title, the name a pasted link shows and the name of the app a phone keeps.',

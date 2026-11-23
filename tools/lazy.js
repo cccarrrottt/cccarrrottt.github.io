@@ -46,6 +46,10 @@ const KNOWN = {
   routeRuns: EDITING, alignGuides: EDITING, resolveExplicitParents: EDITING, deleteNodes: EDITING
 };
 
+/* Functions of a lazy part named as a value elsewhere, and why the
+   stand-in held there is never the one called. Empty, and best kept so. */
+const HELD = {};
+
 function lazyParts(){
   const build = fs.readFileSync(path.join(__dirname, '..', 'build.py'), 'utf8');
   const m = /LAZY_PARTS = \[(.*?)\]/s.exec(build);
@@ -91,8 +95,14 @@ function analyse(code, starts, lazy){
         out.push({line: id.loc.start.line, column: id.loc.start.column + 1, name: v.name, kind: 'lexical', part: home});
         continue;
       }
-      // A function: only a call whose value is used is a finding.
-      if(!(up && up.type === 'CallExpression' && up.callee === id)) continue;
+      /* A function named but not called — handed to addEventListener, kept
+         in a table — is held as it is then: on a reader's page, and on the
+         owner's until the editor comes, that is the empty stand-in, and the
+         page keeps calling the stand-in after the editor has replaced it. */
+      if(!(up && up.type === 'CallExpression' && up.callee === id)){
+        if(!HELD[v.name]) out.push({line: id.loc.start.line, column: id.loc.start.column + 1, name: v.name, kind: 'held', part: home});
+        continue;
+      }
       let call = up, above = parent.get(call);
       while(above && (above.type === 'AwaitExpression' || above.type === 'ChainExpression')){ call = above; above = parent.get(call); }
       const unused = !above || above.type === 'ExpressionStatement'

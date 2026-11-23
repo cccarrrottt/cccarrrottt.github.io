@@ -134,7 +134,7 @@ function buildRefsInto(host){
        reference written without one reading "(untitled)". */
     const body = refBodyText(r);
     row.innerHTML =
-      `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">${refNumberText(i+1)}</span>` +
+      `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())};${refFaceCss()}">${refNumberText(i+1)}</span>` +
       `<span class="ref-detail">${escapeHtml(body) || '<em>empty</em>'}</span>` +
       `<span class="ref-uses" title="How many texts cite this">${used}</span></div>` +
       (r.url ? `<a class="ref-link" href="${escapeHtml(safeUrl(r.url) || '')}" target="_blank" rel="noopener">${escapeHtml(r.url)}</a>` : '');
@@ -190,7 +190,7 @@ function buildNewRefRow(num){
   const row = document.createElement('div');
   row.className = 'ref-item ref-item-new';
   row.innerHTML =
-    `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())}">${refNumberText(num)}</span>` +
+    `<div class="ref-head"><span class="ref-num" style="color:${escapeHtml(refColor())};${refFaceCss()}">${refNumberText(num)}</span>` +
     `<span class="ref-detail ref-naming-text" contenteditable="plaintext-only" spellcheck="false"></span>` +
     `<span class="ref-uses">0</span></div>`;
   const box = row.querySelector('.ref-naming-text');
@@ -542,6 +542,20 @@ buildSideTabs();
       buildSideTabs();
     });
   }
+  /* …and in bold or italic, each a key that stays down. */
+  [['refBoldToggle', 'refBold', refBold], ['refItalicToggle', 'refItalic', refItalic]].forEach(([id, key, on])=>{
+    const b = document.getElementById(id);
+    if(!b) return;
+    b.setAttribute('aria-pressed', on() ? 'true' : 'false');
+    b.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      const next = !on();
+      applyEdit(()=>{ if(next) SETTINGS[key] = true; else delete SETTINGS[key]; });
+      b.setAttribute('aria-pressed', next ? 'true' : 'false');
+      rebuildChart();
+      buildSideTabs();
+    });
+  });
 }
 
 function nodeHidden(n){

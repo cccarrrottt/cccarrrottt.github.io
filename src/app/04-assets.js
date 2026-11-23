@@ -302,7 +302,8 @@ function stickerImgHtml(key){
    only the key is read back out — see richHtmlToMarkup. */
 function refChipHtml(key){
   const c = refColor();
-  const style = c ? ` style="color:${escapeHtml(c)}"` : '';
+  const css = (c ? `color:${c};` : '') + refFaceCss();
+  const style = css ? ` style="${escapeHtml(css)}"` : '';
   return `<span class="ref-chip" data-ref="${escapeHtml(key)}" contenteditable="false"${style} title="${escapeHtml(refTitle(key))}">${escapeHtml(refMarkText(key))}</span>`;
 }
 function refTitle(key){

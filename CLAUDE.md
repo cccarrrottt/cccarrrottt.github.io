@@ -6,7 +6,7 @@ been had.
 
 ## The one rule that everything else follows from
 
-`src/app/` holds 50 files. **They are not modules.** The page is a single
+`src/app/` holds 54 files. **They are not modules.** The page is a single
 scope, and `build.py` assembles it by writing those files out one after
 another in the order `APP_PARTS` declares. Nothing imports anything. A name
 defined in part 32 is visible in part 07.
@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 166 named scenarios, and they do not depend on one another —
+The suite is 168 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -425,6 +425,9 @@ What they decided, which is what a change has to know:
 - **An entry drawn as it was keeps its drawing** (`drawOrKeep`), and its
   grips and strips are built only when something can reach them
   (`nodeControlsWanted`; a test calls `nodeControlsOn(id)`).
+  A connector drawn as it was keeps its drawing too (`keepEdgeDrawings`,
+  `14-edges-draw.js`); a test that wants a fresh pass sets
+  `drawnEdges = new Map()`.
 - **Not worth doing, measured:** a Map for `edgeStyleFor`; the A\* lattice's
   obstacle fill (`latticeRoute` is not called on an ordinary chart);
   `applyVisibility` as a second pass; a two-phase render; incremental
@@ -452,6 +455,17 @@ fetched by `loadEditorParts` (`36-site-owner.js`) once the service has
 said the owner or an editor (`OWNERS`, `EDITORS`) is here, before anything is made editable, and kept by
 the service worker for editing with no signal. After: the reader's
 program is 194 KB gzipped, and the editor 42 KB beside it.
+
+November 23 (0.27.2): the five heaviest parts a reader half runs gave up
+the functions a reader never calls — carrying an entry and its grips,
+writing in a text, the add menus, the style bar's workings — to four
+parts of their own beside them (`18b-carry.js`, `25b-rich-text.js`,
+`34b-add-menus.js`, `37b-style-bar-edit.js`), lazy like the rest. Chosen
+by the bench's coverage, then by hand: a function every reader draws
+with (a figure's outline) stayed whatever the coverage said, and so did
+any that `tools/lazy.js` reported, which is how part 22's Import stayed
+where it was. The reader's program went from 213 KB gzipped to 203, the
+editor from 45 to 57.
 
 How it holds together, since the page is still one scope:
 

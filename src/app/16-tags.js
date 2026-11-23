@@ -267,6 +267,10 @@ function buildSideTabs(){
     colorRow.hidden = false; refsList.appendChild(colorRow);
     const st = document.getElementById('refStyleSelect');
     if(st) st.value = refStyle();
+    [['refBoldToggle', refBold], ['refItalicToggle', refItalic]].forEach(([id, on])=>{
+      const b = document.getElementById(id);
+      if(b) b.setAttribute('aria-pressed', on() ? 'true' : 'false');
+    });
   }
   else if(colorRow) colorRow.hidden = true;
   buildRefsInto(refsList);
@@ -393,7 +397,7 @@ const KEY_MARKS = [
   {key:'line:tee',     group:'Connectors', name:'Ends in a T, short of the entry', sample:()=> keyLineSample('solid', {tee:true})},
   {key:'line:open',    group:'Connectors', name:'Open arrowhead',       sample:()=> keyLineSample('solid', {open:true})},
   {key:'mark:cite',    group:'Marks', name:'Citation', meaning:'The number of a source in References.',
-   sample:()=> keySvg(`<text class="key-text" x="9" y="14">a</text><text class="key-cite" x="16" y="9" fill="${escapeHtml(refColor())}">[1]</text>`)}
+   sample:()=> keySvg(`<text class="key-text" x="9" y="14">a</text><text class="key-cite" x="16" y="9" fill="${escapeHtml(refColor())}"${refBold() ? ' font-weight="700"' : ''}${refItalic() ? ' font-style="italic"' : ''}>${escapeHtml(refNumberText(1))}</text>`)}
 ];
 function keyMeaningOf(mark){
   const own = SETTINGS.legend && typeof SETTINGS.legend[mark.key] === 'string' ? SETTINGS.legend[mark.key] : null;

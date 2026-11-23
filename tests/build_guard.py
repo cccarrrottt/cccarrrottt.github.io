@@ -343,7 +343,7 @@ def main():
     import gzip
     gz = lambda name: len(gzip.compress((tmp / 'dist' / 'site' / name).read_bytes(), 9))
     app_name = next((n for n in files if n.startswith('app.')), None)
-    CEILINGS = {'the reader\'s program': (app_name, 216_000), 'the page': ('index.html', 30_000)}
+    CEILINGS = {'the reader\'s program': (app_name, 206_000), 'the page': ('index.html', 30_000)}
     for what, (name, most) in CEILINGS.items():
         size = gz(name) if name else None
         check(f'{what} is at most {most // 1000} KB gzipped', size is not None and size <= most, f'{name}: {size}')

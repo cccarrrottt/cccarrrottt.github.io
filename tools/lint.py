@@ -125,8 +125,9 @@ def main():
         return 2
     for f in json.loads(z.stdout):
         where, line = locate(starts, f['line'])
-        what = ('is not declared on a reader\'s page' if f['kind'] == 'lexical'
-                else 'is an empty stand-in on a reader\'s page, and its answer is used here')
+        what = {'lexical': 'is not declared on a reader\'s page',
+                'held': 'is held here as a value, which is the empty stand-in until the editor comes, and stays it'
+                }.get(f['kind'], 'is an empty stand-in on a reader\'s page, and its answer is used here')
         errors += 1
         print(f'src/app/{where}:{line}:{f["column"]}  error  {f["name"]} (src/app/{f["part"]}) {what}  lazy')
 

@@ -508,7 +508,7 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
     : w.type==='ruby'
     ? runsWidth(w.baseRuns, w.size || fontSize, family)
     : w.type==='ref'
-    ? measureText(refMarkText(w.key), {fontSize:(w.size || fontSize || NODE_FS)*REF_FS_SCALE, family})
+    ? measureText(refMarkText(w.key), {fontSize:(w.size || fontSize || NODE_FS)*REF_FS_SCALE, family, bold: refBold(), italic: refItalic()})
     : measureText(w.text, {bold: !!w.bold, italic: !!w.italic,
                            fontSize: w.size || fontSize,
                            family: w.font ? fontFamilyFor(w.font) : family}));
@@ -582,6 +582,10 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
          sentence it sits in. */
       const rc = refColor();
       if(rc) t.setAttribute('style', `fill:${rc};`);
+      /* Set as it was measured: bold and italic as the chart says, and
+         otherwise the weight measureText assumes, whatever the run. */
+      t.setAttribute('font-weight', refBold() ? '700' : '500');
+      if(refItalic()) t.setAttribute('font-style', 'italic');
       t.textContent = refMarkText(w.key);
       if(refIndex(w.key) < 0) t.classList.add('ref-missing');
     } else if(w.type==='ruby'){
@@ -758,7 +762,7 @@ const blockCache = new Map();
 const BLOCK_CACHE_MAX = 4000;
 function refOrderKey(){
   /* …and how the numbers are written: (9) is not as wide as [9]. */
-  let s = refStyle() + '\u0001';
+  let s = refStyle() + (refBold() ? 'b' : '') + (refItalic() ? 'i' : '') + '\u0001';
   for(let i = 0; i < REFS.length; i++) s += (REFS[i] && REFS[i].key) + '';
   return s;
 }

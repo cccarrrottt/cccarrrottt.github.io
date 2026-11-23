@@ -6,7 +6,7 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
-## 0.27.1 — "Behind the door" (2026-11-23)
+## 0.27.2 — "Behind the door" (2026-11-23)
 
 - An editor's Save can be committed by the site's GitHub App itself, once the app's own key is among the service's secrets (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY): an editor then needs no access to the repository at all, and the service is the only way their edits reach it. Until now an editor had to be able to push, which let them change the code and the settings past everything the service holds back.
 - The notes in the margin are put together stroke by stroke when two saves meet, so strokes drawn on two devices no longer collide, and an editor's strokes are saved with the rest of their edit instead of being left out with the settings.
@@ -15,6 +15,20 @@ Releases before 0.9.0 were not numbered.
 - The language button appears once a language other than English is mostly translated. Russian was offered with nothing translated yet, and choosing it changed nothing.
 - Six pictures the chart no longer shows (851 KB, among them the two GIFs replaced by WebP) are no longer published with the site, and the chart check names any such file from now on.
 - The checks hold what a reader downloads to a ceiling, and refuse any constant of the editing parts read by the rest of the program, which on the site would have thrown on a reader's screen; five such constants were moved to where every page has them.
+- Google Drive can be picked from in Google's own window, once the service has the Picker's key and the project's number (GOOGLE_PICKER_KEY, GOOGLE_APP_ID): the service is then given only the files the owner picks, not the whole drive. A drive connected before asks once to be connected again.
+- A reader downloads a twentieth less of the program: what of five parts a reader never runs — carrying an entry and its grips, writing in a text, the add menus, the style bar — now comes with the editor, only to the owner and editors.
+
+## 0.27.1 — "One after another" (2026-11-23)
+
+- A scenario set off by an entry coming into view plays every time the entry comes into view again, not only the first time, unless it is told to play once. An entry counts as in view only when the reader can actually see it: at least half of it on the screen and not under the top bar, a drawer, the entry sheet or another entry.
+- Scenarios set each other off: one can start when an entry finishes an animation, when an entry appears or disappears, or when the chart opens, so one entry coming into view can make a second animate and a third disappear after it.
+- Each step of a scenario can wait so many seconds after the step above it, or after what set it off.
+- On a phone the status of the chart (unsaved, saving, saved) stands to the right of Save.
+- Citations can be set in bold, in italic or both, with two keys beside their colour and brackets in References.
+- The field on an entry follows the drawing's letters along the whole line: where a browser spaces the letters a little differently from the widths the drawing measured, as a phone's can, each line of the field is spaced to lie on the drawing's letters.
+- On a phone the toolbar no longer turns white while the bar above it folds away or comes back.
+- The reader's view is an open book with an eye over it, and the patches from far away are a stack of layers.
+- A connector drawn as it was keeps its drawing after an edit, as an entry already did: the browser lays out only the lines the edit changed, which on a chart of six hundred entries is a few milliseconds off an edit.
 
 ## 0.27.0 — "Anyone's own" (2026-11-22)
 
