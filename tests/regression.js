@@ -24003,7 +24003,16 @@ async function main(){
     return {lefts: lefts.map(v=> Math.round(v)), rows: rows.size,
             saveRight: save.right >= Math.max(...others.filter(b=> Math.abs(b.top - save.top) < 12).map(b=> b.right), 0),
             saveLow: others.every(b=> b.top < save.bottom - 1),
-            saveNearEnd: top.getBoundingClientRect().right - save.right < 70};
+            /* …or, while the chart's status is shown, the status stands
+               there, right of Save (the owner's list of 23.11). */
+            saveNearEnd: (()=>{
+              const st = document.getElementById('saveState'), end = top.getBoundingClientRect().right;
+              if(st.classList.contains('show') && !st.classList.contains('err')){
+                const b = st.getBoundingClientRect();
+                return b.left >= save.right - 0.5 && b.left - save.right < 16 && end - b.right < 70;
+              }
+              return end - save.right < 70;
+            })()};
   });
   await page.setViewportSize({width: 1500, height: 950});
   await page.waitForTimeout(200);
@@ -25994,6 +26003,235 @@ async function main(){
      (settings.title, settings.description, settings.about), written in
      About and carried with it — not the platform's words in index.html and
      build.py, which every copy of the platform published as its own. */
+  /* The owner's list of 23.11: scenarios that come back into view, see
+     what covers them, set each other off and wait; bold and italic
+     citations; a field spaced to the drawing's letters; the phone's
+     status beside Save, and a toolbar that does not blank while the bar
+     folds; the reader's book and the layers. */
+  await scenario("the owner's list of 23.11: scenarios in sight, in chains and on timers, citations' face, the field's spacing, the phone's bar", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS)), wasRefs = REFS.slice();
+    const wasView = {vx, vy, vs};
+    const X = 9600, Y = 9600, out = {};
+    const realRun = runScenario;
+    const fired = {};
+    try {
+      applyEdit(()=>{
+        ['ivA', 'ivC', 'ivD', 'ivE', 'ivF'].forEach((id, i)=>
+          workingNodes.push([id, 'Entry ' + id, null, null, null, null, {pos:[X + i * 300, Y]}]));
+        SETTINGS.scenarios = [
+          {id: 'iv', when: {type: 'inView', node: 'ivA'}, then: [{do: 'anim', node: 'ivA', anim: 'glow'}]},
+          {id: 'iv1', when: {type: 'inView', node: 'ivA'}, once: true, then: [{do: 'anim', node: 'ivA', anim: 'glow'}]},
+          {id: 'c1', when: {type: 'press', node: 'ivC'}, then: [{do: 'anim', node: 'ivD', anim: 'shake'}]},
+          {id: 'c2', when: {type: 'animEnd', node: 'ivD'}, then: [{do: 'hide', node: 'ivE', wait: 0.3}]},
+          {id: 'c3', when: {type: 'hidden', node: 'ivE'}, then: [{do: 'show', node: 'ivF'}]},
+          {id: 'st', when: {type: 'start'}, then: [{do: 'anim', node: 'ivC', anim: 'pulse'}]}
+        ];
+      });
+      await wait(80);
+      out.cleaned = JSON.stringify(cleanScenarios(SETTINGS.scenarios).map(s=> [s.when.type, !!s.once, s.then.map(a=> a.wait || 0).join()]));
+      runScenario = function(s, d){ fired[s.id] = (fired[s.id] || 0) + 1; return realRun(s, d); };
+      setReaderPreview(true); await wait(150);
+      scenariosReset(); applyVisibility(); scenariosStart(); await wait(60);
+      out.started = fired.st === 1 && document.querySelector('.node[data-id="ivC"]').classList.contains('scn-pulse');
+      const n = nodes.get('ivA'), rect = svg.getBoundingClientRect();
+      const look = async (sx, sy)=>{ vs = 1; vx = sx - n.x; vy = sy - n.y; applyTransform(); scenariosInView(); await wait(80); };
+      await look(-4000, -4000);
+      const away = fired.iv || 0;
+      await look(rect.width / 2, rect.height / 2);
+      const first = fired.iv || 0;
+      await look(-4000, -4000);
+      await look(rect.width / 2, rect.height / 2);
+      out.inView = [away, first, fired.iv || 0, fired.iv1 || 0].join();
+      /* Under the bar: on the screen, but not in sight. */
+      await look(-4000, -4000);
+      const bar = document.querySelector('.topbar').getBoundingClientRect();
+      await look(rect.width / 2, bar.top + 2 - rect.top);
+      out.underBar = (fired.iv || 0) === 2 && !entryInSight(n);
+      await look(rect.width / 2, rect.height / 2);
+      out.outFromUnder = fired.iv === 3;
+      /* A chain: pressed → shakes → after it, and 0.3 s more, another
+         goes → its going shows a third. */
+      const heldF = ()=> scenarioHeld(nodes.get('ivF'));
+      out.chainBefore = heldF() && !scenarioHeld(nodes.get('ivE'));
+      scenariosPressed('ivC'); await wait(40);
+      out.shook = document.querySelector('.node[data-id="ivD"]').classList.contains('scn-shake');
+      await wait(650);
+      out.waited = !scenarioHeld(nodes.get('ivE'));
+      await wait(450);
+      out.chained = scenarioHeld(nodes.get('ivE')) && !heldF();
+      /* Reset stops what is still waiting. */
+      scenariosReset(); applyVisibility();
+      scenariosPressed('ivC'); scenariosReset(); applyVisibility(); await wait(1200);
+      out.resetStops = !scenarioHeld(nodes.get('ivE'));
+      setReaderPreview(false); await wait(150);
+      runScenario = realRun;
+      /* The studio offers the new triggers, the once and the seconds. */
+      document.getElementById('studioToggle').click(); await wait(80);
+      const trig = document.querySelector('#studioList .scn-card .scn-select');
+      const cards = [...document.querySelectorAll('#studioList .scn-card')];
+      out.studio = !!trig && trig.options.length === 6 && document.querySelectorAll('#studioList .scn-secs').length === 6 &&
+                   cards.length === 6 && !cards[5].firstElementChild.querySelector('.scn-chip');
+      const secs = document.querySelectorAll('#studioList .scn-secs')[3];
+      out.secsShown = secs && secs.value === '0.3';
+      secs.value = '2.5'; secs.dispatchEvent(new Event('change'));
+      out.secsSet = SETTINGS.scenarios[3].then[0].wait === 2.5;
+      document.getElementById('studioClose').click();
+      { const kept = JSON.parse(chartFileText()).settings.scenarios;
+        out.saved = kept[1].once === true && kept[3].then[0].wait === 2.5 && kept[5].when.type === 'start' && !('node' in kept[5].when); }
+
+      /* Citations in bold and italic: drawn so, measured so, kept. */
+      refill(REFS, [{key: 'bi_r', title: 'One', detail: '', url: ''}]);
+      applyEdit(()=> workingNodes.push(['biA', 'Cites{{r:bi_r}} here', null, null, null, null, {pos:[X, Y + 400]}]));
+      await wait(60);
+      const w0 = document.querySelector('.node[data-id="biA"] .ref-mark').getComputedTextLength();
+      document.getElementById('refBoldToggle').click();
+      document.getElementById('refItalicToggle').click();
+      await wait(60);
+      const m = document.querySelector('.node[data-id="biA"] .ref-mark');
+      out.refFace = SETTINGS.refBold === true && SETTINGS.refItalic === true &&
+                    getComputedStyle(m).fontWeight === '700' && getComputedStyle(m).fontStyle === 'italic' &&
+                    document.getElementById('refBoldToggle').getAttribute('aria-pressed') === 'true' &&
+                    m.getComputedTextLength() !== w0;
+      const kept = JSON.parse(chartFileText()).settings;
+      out.refKept = kept.refBold === true && kept.refItalic === true;
+      document.getElementById('refBoldToggle').click();
+      out.refOff = SETTINGS.refBold === undefined && SETTINGS.refItalic === true;
+
+      /* The field spaced onto the drawing: where the widths the drawing
+         measured run a little wider than the browser's own letters, as a
+         phone's can, the field still lies on the drawing's letters. */
+      const realMeasure = measureText;
+      measureText = function(t, o){ return realMeasure(t, o) * 1.012; };
+      measureCache.clear(); blockCache.clear(); routeLast = null;
+      applyEdit(()=> workingNodes.push(['skA', '{{u:solid|Beast Wars: [[Up|a reading]]rising фыву and more}}', null, null, null, null, {pos:[X, Y + 800]}]));
+      rebuildChart();
+      const k = nodes.get('skA'), r2 = svg.getBoundingClientRect();
+      vs = 2.4; vx = -(k.x + k.w/2)*vs + r2.width/2; vy = -(k.y + k.h/2)*vs + r2.height/2; applyTransform();
+      const drawnAt = ()=>{
+        const xs = [];
+        document.querySelectorAll('.node[data-id="skA"] text tspan').forEach(t=>{
+          if(t.querySelector('tspan') || t.classList.contains('ruby-anno') || t.classList.contains('text-gap')) return;
+          const s = t.textContent, mm = t.getScreenCTM();
+          for(let i = 0; i < s.length; i++){ if(/\s/.test(s[i])) continue; xs.push(new DOMPoint(t.getExtentOfChar(i).x, 0).matrixTransform(mm).x); }
+        });
+        return xs;
+      };
+      let drawn = drawnAt();
+      selectedId = 'skA'; openNodeEditor('skA'); await wait(200);
+      const typedAt = ()=>{
+        const surf = richFields.get('nodeEditorText').surface, xs = [];
+        const tw = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT); let tn;
+        while((tn = tw.nextNode())){
+          if(tn.parentElement.closest('rt')) continue;
+          for(let i = 0; i < tn.textContent.length; i++){
+            if(/\s/.test(tn.textContent[i])) continue;
+            const rg = document.createRange(); rg.setStart(tn, i); rg.setEnd(tn, i + 1); xs.push(rg.getBoundingClientRect().left);
+          }
+        }
+        return xs;
+      };
+      const worst = xs=> xs.length === drawn.length ? Math.max(...xs.map((x, i)=> Math.abs(x - drawn[i]))) : -1;
+      out.stretched = +worst(typedAt()).toFixed(2);
+      const stretch = document.getElementById('nodeEditorStretch'), seat = document.getElementById('nodeEditorSeat');
+      const keptStretch = stretch.textContent, keptSeat = seat.textContent;
+      stretch.textContent = ''; seat.textContent = '';
+      out.unstretched = +worst(typedAt()).toFixed(2);
+      stretch.textContent = keptStretch; seat.textContent = keptSeat;
+      closeNodeEditor(false);
+      measureText = realMeasure; measureCache.clear(); blockCache.clear(); routeLast = null;
+      /* …and where the two agree, it stays where it was. */
+      rebuildChart(); drawn = drawnAt(); openNodeEditor('skA'); await wait(200);
+      out.agreeWorst = +worst(typedAt()).toFixed(2);
+      closeNodeEditor(false);
+
+      /* The icons: an eye over a book for the reader's view, layers for
+         the patches. */
+      out.icons = document.querySelectorAll('#lodToggle svg path').length === 3 &&
+                  !!document.querySelector('#readerToggle svg circle') && document.querySelectorAll('#readerToggle svg path').length === 3;
+    } finally {
+      runScenario = realRun;
+      if(readerPreview) setReaderPreview(false);
+      closeNodeEditor(false);
+      refill(REFS, wasRefs);
+      applyEdit(()=>{
+        workingNodes.length = 0; was.forEach(x=> workingNodes.push(x));
+        EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s));
+        Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]); Object.assign(SETTINGS, wasSettings);
+      });
+      vx = wasView.vx; vy = wasView.vy; vs = wasView.vs; applyTransform();
+      deselect(); rebuildChart();
+    }
+    return out;
+  });
+  check('a scenario is kept with its trigger, its once and its steps\' seconds',
+        r.cleaned === '[["inView",false,"0"],["inView",true,"0"],["press",false,"0"],["animEnd",false,"0.3"],["hidden",false,"0"],["start",false,"0"]]', r.cleaned);
+  check('a scenario set off by the chart opening plays when it opens', r.started);
+  check('coming into view plays every time the entry comes back into view, and once if told so', r.inView === '0,1,2,1', r.inView);
+  check('…an entry under the bar is not in view, and plays when it comes out from under it', r.underBar && r.outFromUnder, JSON.stringify([r.underBar, r.outFromUnder]));
+  check('a chain: an animation\'s end sets off the next, which waits its seconds, and an entry going shows another',
+        r.chainBefore && r.shook && r.waited && r.chained, JSON.stringify([r.chainBefore, r.shook, r.waited, r.chained]));
+  check('…and Reset stops what was still waiting', r.resetStops);
+  check('the studio offers the six triggers and a step\'s seconds, and keeps them with the chart',
+        r.studio && r.secsShown && r.secsSet && r.saved, JSON.stringify([r.studio, r.secsShown, r.secsSet, r.saved]));
+  check('citations are set in bold and italic from References, measured so, and kept', r.refFace && r.refKept && r.refOff,
+        JSON.stringify([r.refFace, r.refKept, r.refOff]));
+  check('where the drawing measured its words wider than the browser sets them, the field is spaced onto the drawing\'s letters',
+        r.stretched >= 0 && r.stretched < 0.6 && r.unstretched > 1.5, JSON.stringify([r.stretched, r.unstretched]));
+  check('…and where they agree, it stays on them', r.agreeWorst >= 0 && r.agreeWorst < 0.6, JSON.stringify(r.agreeWorst));
+  check('the reader\'s view is a book with an eye, the patches are layers', r.icons);
+
+  const phone = await browser.newContext({viewport:{width:390, height:844},
+    deviceScaleFactor:2, isMobile:true, hasTouch:true});
+  await phone.route('https://fonts.googleapis.com/**', noFonts);
+  await phone.route('https://fonts.gstatic.com/**', noFonts);
+  const pp = await phone.newPage();
+  pp.on('pageerror', e => errors.push('phone: ' + e.message));
+  try{
+    await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
+    await wait(900);
+    const ph = await pp.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const o = {};
+      applyEdit(()=>{ SETTINGS.refItalic = true; });
+      await wait(100);
+      const q = sel=> document.querySelector(sel).getBoundingClientRect();
+      const st = q('#saveState'), sv = q('#saveBtn');
+      o.status = document.getElementById('saveState').classList.contains('dirty') &&
+                 st.left >= sv.right - 0.5 && Math.abs((st.top + st.bottom)/2 - (sv.top + sv.bottom)/2) < 6 &&
+                 st.right <= window.innerWidth;
+      /* The toolbar through the fold: at every frame it is there, at the
+         bar's lower edge. */
+      document.body.classList.add('touch-input');
+      const bar = document.querySelector('.topbar'), row = document.getElementById('toolRow');
+      let seen = 0, lost = 0;
+      const t0 = performance.now();
+      setPhoneBarHidden(1);
+      await new Promise(done=>{
+        const look = ()=>{
+          if(bar.classList.contains('folding')){
+            seen++;
+            const b = bar.getBoundingClientRect(), t = row.getBoundingClientRect();
+            if(Math.abs(t.bottom - b.bottom) > 1.5 || getComputedStyle(row).opacity !== '1') lost++;
+          }
+          if(performance.now() - t0 < 700) requestAnimationFrame(look); else done();
+        };
+        requestAnimationFrame(look);
+      });
+      o.fold = {seen, lost};
+      setPhoneBarHidden(0); await wait(600);
+      return o;
+    });
+    check('on a phone the chart\'s status stands to the right of Save', ph.status, JSON.stringify(ph));
+    check('…and while the bar folds, its toolbar stays at its lower edge rather than blanking',
+          ph.fold.seen > 2 && ph.fold.lost === 0, JSON.stringify(ph.fold));
+  } finally {
+    await phone.close();
+  }
+  });
+
   await scenario("the chart's own name and description", async () => {
   const r = await page.evaluate(async ()=>{
     const wait = ms=> new Promise(ok=> setTimeout(ok, ms));

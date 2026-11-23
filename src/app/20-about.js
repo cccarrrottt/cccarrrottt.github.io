@@ -11,9 +11,19 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.27.0';
+const APP_VERSION = '0.27.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.27.1', date:'2026-11-23', title:'One after another', notes:[
+'A scenario set off by an entry coming into view plays every time the entry comes into view again, not only the first time, unless it is told to play once. An entry counts as in view only when the reader can actually see it: at least half of it on the screen and not under the top bar, a drawer, the entry sheet or another entry.',
+'Scenarios set each other off: one can start when an entry finishes an animation, when an entry appears or disappears, or when the chart opens, so one entry coming into view can make a second animate and a third disappear after it.',
+'Each step of a scenario can wait so many seconds after the step above it, or after what set it off.',
+'On a phone the status of the chart (unsaved, saving, saved) stands to the right of Save.',
+'Citations can be set in bold, in italic or both, with two keys beside their colour and brackets in References.',
+'The field on an entry follows the drawing\'s letters along the whole line: where a browser spaces the letters a little differently from the widths the drawing measured, as a phone\'s can, each line of the field is spaced to lie on the drawing\'s letters.',
+'On a phone the toolbar no longer turns white while the bar above it folds away or comes back.',
+'The reader\'s view is an open book with an eye over it, and the patches from far away are a stack of layers.'
+  ]},
   {v:'0.27.0', date:'2026-11-22', title:'Anyone\'s own', notes:[
 'What the chart is called, the sentence a link to it shows and the text at the top of About are the chart\'s own now, not the platform\'s: the owner writes them in About, under «The chart\'s name and description», and they are saved, imported and exported with the chart. The name is the tab\'s title, the name a pasted link shows and the name of the app a phone keeps.',
 'A copy of the platform may live under a path, https://<login>.github.io/<repo>, as well as at the root of an account: the page is the site at the address the config names or below it. One account can publish as many charts as it has repositories.',

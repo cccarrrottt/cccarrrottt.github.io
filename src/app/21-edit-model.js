@@ -632,6 +632,8 @@ function serializeSettings(o){
   if(fonts.length) extra.fonts = fonts;
   // How the citations' numbers are written (refNumberText, 03-markup.js).
   if(REF_STYLES.includes(o.refStyle) && o.refStyle !== 'square') extra.refStyle = o.refStyle;
+  if(o.refBold === true) extra.refBold = true;
+  if(o.refItalic === true) extra.refItalic = true;
   // What the + menu puts down (46-hand-tools.js).
   const presets = cleanPresets(o.presets);
   if(Object.keys(presets).length) extra.presets = presets;
