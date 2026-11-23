@@ -719,10 +719,10 @@ function cors(env, request){
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Max-Age': '600'};
 }
 /* A page that only ever runs our own script, and that no one can frame. */
-function page(html, status){
+function page(html, status, policy){
   return new Response('<!doctype html><meta charset="utf-8"><title>Rhizome sign-in</title>' + html,
     {status: status || 200, headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
-      'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+      'Content-Security-Policy': policy || "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
       'Referrer-Policy': 'no-referrer'}});
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -859,7 +859,8 @@ async function me(env, request, ctx){
      this session is connected to — the owner's alone, as the drives are. */
   return Object.assign({owner: s.owner, login: s.login, sha: now.sha, media: true},
                        s.editor ? {editor: true} : {},
-                       s.owner ? {clouds: {ready: cloudsReady(env), connected: Object.keys(s.clouds || {}).filter(k => CLOUDS[k])}} : {});
+                       s.owner ? {clouds: Object.assign({ready: cloudsReady(env), connected: Object.keys(s.clouds || {}).filter(k => CLOUDS[k])},
+                                                       pickerReady(env) && cloudsReady(env).includes('gdrive') ? {picker: ['gdrive']} : {})} : {});
 }
 
 async function save(env, request, ctx){
@@ -1134,6 +1135,10 @@ export async function report(env, request){
  * simply not offered: /me lists the ones that are.
  *
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY   secrets
+ *   GOOGLE_PICKER_KEY, GOOGLE_APP_ID     optional: Google's own Picker, and
+ *                                        drive.file instead of the drive
+ *   GET  /cloud/gdrive/picker   the popup with Google's Picker in it, on a
+ *                               ticket from POST /cloud/gdrive/picker-ticket
  *   YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET                   secrets
  */
 const CLOUDS = {
@@ -1145,10 +1150,14 @@ const CLOUDS = {
       u.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
       u.searchParams.set('redirect_uri', back);
       u.searchParams.set('response_type', 'code');
-      /* The whole drive: a file is looked through and then shared by
-         link, and only this scope may change who can see a file the app
-         did not make. */
-      u.searchParams.set('scope', 'https://www.googleapis.com/auth/drive');
+      /* With Google's own Picker set up (pickerReady), only the files the
+         owner picks in Google's window: drive.file reaches a file once it
+         has been picked there, sharing it included, and nothing else of
+         the drive. Without it, the whole drive, because the folders are
+         then looked through here, and only that scope may change who can
+         see a file the app did not make — a session that could be taken
+         would open every picture on the drive. */
+      u.searchParams.set('scope', pickerReady(env) ? DRIVE_FILE_SCOPE : 'https://www.googleapis.com/auth/drive');
       u.searchParams.set('access_type', 'offline');
       u.searchParams.set('prompt', 'consent');
       u.searchParams.set('state', state);
@@ -1174,6 +1183,14 @@ const CLOUDS = {
   }
 };
 const CLOUD_LIST_MAX = 200;
+const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/* Google's Picker: the owner chooses files in Google's own window, and
+   the service never looks through the drive. Needs a browser key with the
+   Picker API on (GOOGLE_PICKER_KEY, restricted to the service's address)
+   and the Cloud project's number (GOOGLE_APP_ID); both are shown to the
+   owner's browser, which is what they are for. */
+export function pickerReady(env){ return !!(String(env.GOOGLE_PICKER_KEY || '').trim() && String(env.GOOGLE_APP_ID || '').trim()); }
+const grantScopes = g => String((g && g.sc) || '').split(/\s+/).filter(Boolean);
 export function cloudsReady(env){ return Object.keys(CLOUDS).filter(k => CLOUDS[k].ready(env)); }
 function cloudOf(env, name){
   const c = CLOUDS[name];
@@ -1189,8 +1206,10 @@ async function cloudToken(url, params){
   return got;
 }
 function cloudGrant(got, old){
-  return {at: got.access_token, atExp: Date.now() + (Number(got.expires_in) || 3600) * 1000,
-          rt: got.refresh_token || (old && old.rt) || null};
+  // `sc`: what the grant reaches, as the provider said; a renewal may not say.
+  const sc = typeof got.scope === 'string' ? got.scope : (old && old.sc) || null;
+  return Object.assign({at: got.access_token, atExp: Date.now() + (Number(got.expires_in) || 3600) * 1000,
+          rt: got.refresh_token || (old && old.rt) || null}, sc ? {sc} : {});
 }
 /* The session sealed again with other drives in it. `owner` and `editor`
    are what session() worked out for this request, never kept: a session
@@ -1309,6 +1328,73 @@ async function cloudList(env, request, ctx, name){
   }
   return {items};
 }
+/* Google's window for picking, opened as a popup on this service's own
+   address rather than in the site. Its script comes from apis.google.com
+   and it holds an access token to the drive; on the site, the first would
+   be a host the site's policy lets run scripts beside the owner's session,
+   and the second a key in the page. Here the popup's own policy lets in
+   Google and nothing else, and all the site gets back is what was picked,
+   by postMessage to the origin the ticket was asked from — which then goes
+   through /pick like a file chosen in the folders.
+
+   The token is handed only for a grant that reaches no more than
+   drive.file. A drive connected before the Picker was set up reaches the
+   whole drive, and is asked to connect again rather than have that token
+   put in a browser window. */
+async function cloudPickerTicket(env, request, ctx, name){
+  if(name !== 'gdrive' || !pickerReady(env)) throw httpError(404, 'not found');
+  cloudOf(env, name);
+  const s = await session(env, request, ctx, 'owner');
+  const origin = request.headers.get('Origin') || '';
+  if(list(env.ALLOWED_ORIGINS).indexOf(origin) < 0) throw httpError(403, 'only the chart\'s own site may pick from a drive.');
+  const g = s.clouds && s.clouds[name];
+  const sc = grantScopes(g);
+  if(g && !(sc.length && sc.every(x => x === DRIVE_FILE_SCOPE || !/\/auth\/drive/.test(x)))){
+    const clouds = Object.assign({}, s.clouds); delete clouds[name];
+    ctx.session = await sealClouds(env, s, clouds);
+    throw httpError(409, 'Google Drive was connected for the whole drive; connect it again, for the files you pick.');
+  }
+  const at = await cloudAccess(env, s, name, ctx);
+  return {ticket: await seal(env, 'cloud-picker', {cloud: name, at, origin, exp: Date.now() + STATE_MINUTES * 60000})};
+}
+async function cloudPickerPage(env, url, name){
+  if(name !== 'gdrive' || !pickerReady(env)) return page('<p>Not found.</p>', 404);
+  const t = await unseal(env, 'cloud-picker', url.searchParams.get('ticket') || '');
+  if(!t || t.cloud !== name) return page('<p>This window has expired. Close it and press Google Drive again.</p>', 400);
+  const conf = JSON.stringify({token: t.at, key: String(env.GOOGLE_PICKER_KEY).trim(), app: String(env.GOOGLE_APP_ID).trim(),
+                               origin: t.origin}).replace(/</g, '\\u003c');
+  const policy = "default-src 'none'; script-src 'unsafe-inline' https://apis.google.com https://www.gstatic.com; " +
+    "frame-src https://docs.google.com https://drive.google.com https://content.googleapis.com; " +
+    "connect-src https://*.googleapis.com https://*.google.com; img-src https: data:; style-src 'unsafe-inline' https:; " +
+    "font-src https: data:; frame-ancestors 'none'";
+  return page(`<style>body{font:14px system-ui,sans-serif;margin:24px;color:#333}</style>
+<p id="say">Opening Google Drive…</p>
+<script>
+  const conf = ${conf};
+  const say = t => { document.getElementById('say').textContent = t; };
+  function done(files){
+    if(window.opener) window.opener.postMessage({rhizomePicked: {cloud: 'gdrive', files}}, conf.origin);
+    window.close();
+  }
+  function open(){
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES_AND_VIDEOS).setIncludeFolders(true);
+    new google.picker.PickerBuilder()
+      .addView(view)
+      .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+      .setOAuthToken(conf.token).setDeveloperKey(conf.key).setAppId(conf.app)
+      .setCallback(d => {
+        if(d.action === google.picker.Action.PICKED)
+          done((d.docs || []).map(f => ({id: String(f.id || ''), name: String(f.name || '')})).filter(f => f.id));
+        else if(d.action === google.picker.Action.CANCEL) window.close();
+      })
+      .build().setVisible(true);
+    say('');
+  }
+</script>
+<script src="https://apis.google.com/js/api.js" onload="gapi.load('picker', {callback: open})"
+        onerror="say('Google\\'s picker could not be loaded. Close this window and try again.')"></script>`, 200, policy);
+}
+
 /* Picked: shared by link, and named by its address on this service. */
 async function cloudPick(env, request, ctx, name){
   cloudOf(env, name);
@@ -1459,13 +1545,15 @@ export default {
       if(request.method === 'POST' && url.pathname === '/resolve') return json(withSession(await resolve(env, request, ctx)), 200, h);
       if(request.method === 'GET' && url.pathname === '/faults') return json(withSession(await faults(env, request, ctx)), 200, h);
       if(request.method === 'POST' && url.pathname === '/faults/clear') return json(withSession(await clearFaults(env, request, ctx)), 200, h);
-      const cl = /^\/cloud\/(gdrive|yadisk)\/(ticket|connect|back|attach|forget|list|pick|file)(?:\/|$)/.exec(url.pathname);
+      const cl = /^\/cloud\/(gdrive|yadisk)\/(ticket|connect|back|attach|forget|list|pick|file|picker|picker-ticket)(?:\/|$)/.exec(url.pathname);
       if(cl){
         const [, name, what] = cl;
         if(request.method === 'GET' && what === 'file') return await cloudFile(env, request, url, name);
         if(request.method === 'GET' && what === 'connect') return await cloudConnect(env, url, name);
         if(request.method === 'GET' && what === 'back') return await cloudBack(env, url, name);
-        const act = {ticket: cloudTicket, attach: cloudAttach, forget: cloudForget, list: cloudList, pick: cloudPick}[what];
+        if(request.method === 'GET' && what === 'picker') return await cloudPickerPage(env, url, name);
+        const act = {ticket: cloudTicket, attach: cloudAttach, forget: cloudForget, list: cloudList, pick: cloudPick,
+                     'picker-ticket': cloudPickerTicket}[what];
         if(request.method === 'POST' && act) return json(withSession(await act(env, request, ctx, name)), 200, h);
       }
       return json({error: 'not found'}, 404, h);

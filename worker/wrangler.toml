@@ -38,6 +38,7 @@ workers_dev = true
 # So are the cloud drives' (see CLOUDS in index.js), each optional — a
 # drive whose two or three are not set is simply not offered:
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY
+#   GOOGLE_PICKER_KEY, GOOGLE_APP_ID (Google's Picker, and drive.file)
 #   YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET
 # tests/worker.js refuses this file if any of them appears in it.
 [vars]

@@ -385,6 +385,14 @@ any file anyone has shared by link. The service still stores nothing. A drive wh
 (`/me` says which are ready), and the page shows drives only to the owner
 on the site.
 
+With `GOOGLE_PICKER_KEY` and `GOOGLE_APP_ID` set (`pickerReady`), Google
+Drive is connected for `drive.file` and picked in Google's Picker, in a
+window that is the service's page (`/cloud/gdrive/picker`, its own CSP),
+so the drive's token never reaches the site; what comes back by
+postMessage goes through `/pick` like a file from the folders. A grant
+that reaches the whole drive is never handed to that window: it is let
+go, and the owner connects again.
+
 ## The page in other languages
 
 Every text the page says — and no person typed — is a key, in English, in

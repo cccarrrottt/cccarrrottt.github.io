@@ -322,6 +322,21 @@ stores nothing.
   `https://rhizome-api.wowwodptr2.workers.dev/cloud/gdrive/back`, and an
   *API key* restricted to the Drive API. The Secrets are
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_API_KEY`.
+
+  *Better, and optional: Google's own Picker.* Without it the service asks
+  for the whole drive, since it lists folders itself. With it the owner
+  picks in Google's own window, and the service is given only the files
+  picked (`drive.file`), which also spares the app Google's review of a
+  drive-wide scope. Enable the *Google Picker API* in the same project,
+  make a second *API key* restricted to the Picker API and to the website
+  `https://rhizome-api.wowwodptr2.workers.dev/*` (the window is the
+  service's page, not the site's), and add the service's address to the
+  OAuth client's *Authorized JavaScript origins*. The Secrets are
+  `GOOGLE_PICKER_KEY` (that key) and `GOOGLE_APP_ID` (the project
+  *number*, on the project's dashboard). A drive connected before them was
+  connected for the whole drive; the first press after asks to connect it
+  again, for the files picked, and what was picked before stays on the
+  chart.
 - **Yandex Disk.** At <https://oauth.yandex.ru/client/new>, make an app
   for the web with the redirect URI
   `https://rhizome-api.wowwodptr2.workers.dev/cloud/yadisk/back` and the

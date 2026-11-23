@@ -174,7 +174,11 @@ your service. Follow the README's "The owner's cloud drives" with your
 service's address in each redirect URI:
 
 - Google: `https://rhizome-api.<subdomain>.workers.dev/cloud/gdrive/back`;
-  Secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_API_KEY`.
+  Secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_API_KEY`;
+  and, for Google's Picker (the service then reaches only the files
+  picked), `GOOGLE_PICKER_KEY` restricted to
+  `https://rhizome-api.<subdomain>.workers.dev/*` and `GOOGLE_APP_ID`, the
+  project's number.
 - Yandex: `https://rhizome-api.<subdomain>.workers.dev/cloud/yadisk/back`;
   Secrets `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET`.
 

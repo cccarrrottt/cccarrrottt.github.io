@@ -706,7 +706,7 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
                           {type: 'dir', name: 'Folder', path: 'disk:/Folder'},
                           {type: 'file', name: 'a.txt', path: 'disk:/a.txt', mime_type: 'text/plain'}],
                   published: new Map()};
-    let grants = 0;
+    let grants = 0, grantScope = null;
     const jsonRes = (b, st) => new Response(JSON.stringify(b), {status: st || 200, headers: {'Content-Type': 'application/json'}});
     const ghFetch = globalThis.fetch;
     globalThis.fetch = async (input, init) => {
@@ -717,7 +717,8 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
         asked.push(u.host + ' ' + f.get('grant_type'));
         const pre = u.host === 'oauth.yandex.ru' ? 'y' : 'g';
         if(f.get('grant_type') === 'authorization_code' && f.get('code') === 'good')
-          return jsonRes({access_token: pre + '-at-' + (++grants), expires_in: 3600, refresh_token: pre + '-rt'});
+          return jsonRes(Object.assign({access_token: pre + '-at-' + (++grants), expires_in: 3600, refresh_token: pre + '-rt'},
+                                       grantScope ? {scope: grantScope} : {}));
         if(f.get('grant_type') === 'refresh_token' && f.get('refresh_token') === pre + '-rt')
           return jsonRes({access_token: pre + '-at-' + (++grants), expires_in: 3600});
         return jsonRes({error: 'invalid_grant'}, 400);
@@ -877,6 +878,61 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     body = await r.json();
     check('a drive let go is out of the session', r.status === 200 && body.connected.join() === 'gdrive' &&
           !(await w.unseal(ENV, 'session', body.session)).clouds.yadisk);
+
+    /* Google's Picker (0.27.1): with its key and the project's number set,
+       Google Drive is connected for drive.file — the files picked — and the
+       owner picks in Google's window, which is this service's page. */
+    const PENV = {...CENV, GOOGLE_PICKER_KEY: 'p-key', GOOGLE_APP_ID: '4242'};
+    const pcall = (p, init) => svc.fetch(new Request(SVC + p, init), PENV);
+    const ppost = (p, tok, b, origin) => pcall(p, {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: origin || SITE,
+                                                   'Content-Type': 'application/json'}, body: JSON.stringify(b || {})});
+    body = await (await ccall('/me', auth(own))).json();
+    check('without the Picker\'s keys the drives offer no Picker', !body.clouds.picker, JSON.stringify(body.clouds));
+    body = await (await pcall('/me', auth(own))).json();
+    check('with them, /me says Google Drive is picked in Google\'s window', (body.clouds.picker || []).join() === 'gdrive', JSON.stringify(body.clouds));
+    r = await post('/cloud/gdrive/picker-ticket', own);
+    check('without them there is no Picker to open', r.status === 404);
+    const pt = (await (await ppost('/cloud/gdrive/ticket', own)).json()).ticket;
+    const pgo = await pcall('/cloud/gdrive/connect?ticket=' + encodeURIComponent(pt));
+    const pto = pgo.status === 302 ? new URL(pgo.headers.get('Location')) : null;
+    check('with them, connecting asks Google for drive.file, not the drive',
+          !!pto && pto.searchParams.get('scope') === 'https://www.googleapis.com/auth/drive.file', pto && pto.toString());
+    grantScope = 'https://www.googleapis.com/auth/drive.file';
+    const pback = await (await pcall('/cloud/gdrive/back?code=good&state=' + encodeURIComponent(pto.searchParams.get('state')))).text();
+    grantScope = null;
+    const pgrant = /"grant":"([^"]+)"/.exec(pback)[1];
+    body = await (await ppost('/cloud/gdrive/attach', own, {grant: pgrant})).json();
+    const small = body.session;
+    check('the grant keeps what Google said it reaches',
+          (await w.unseal(ENV, 'session', small)).clouds.gdrive.sc === 'https://www.googleapis.com/auth/drive.file');
+    r = await ppost('/cloud/gdrive/picker-ticket', small, {}, 'https://elsewhere.example');
+    check('a Picker is opened only for the chart\'s own site', r.status === 403);
+    r = await ppost('/cloud/gdrive/picker-ticket', await session('someone'));
+    check('…and only for the owner', r.status === 403);
+    r = await ppost('/cloud/gdrive/picker-ticket', tok);
+    body = await r.json();
+    const wasWhole = tok;
+    check('a drive connected for the whole drive is let go and asked for again, its token never put in a window',
+          r.status === 409 && /connect it again/.test(body.error) && !(await w.unseal(ENV, 'session', body.session)).clouds.gdrive,
+          JSON.stringify(body).slice(0, 160));
+    r = await ppost('/cloud/gdrive/picker-ticket', small);
+    body = await r.json();
+    check('a drive.file grant gets a ticket for the Picker', r.status === 200 && typeof body.ticket === 'string' && !/g-at-/.test(body.ticket));
+    const pick = await pcall('/cloud/gdrive/picker?ticket=' + encodeURIComponent(body.ticket));
+    const pickHtml = await pick.text();
+    const pickPolicy = pick.headers.get('Content-Security-Policy') || '';
+    check('the Picker\'s window lets in Google and nothing else, and no page may frame it',
+          pick.status === 200 && /script-src [^;]*https:\/\/apis\.google\.com/.test(pickPolicy) && /frame-ancestors 'none'/.test(pickPolicy) &&
+          !/script-src[^;]*\*/.test(pickPolicy), pickPolicy);
+    check('…and answers only the site the ticket was asked from, with what was picked',
+          pickHtml.includes(`"origin":"${SITE}"`) && pickHtml.includes('"key":"p-key"') && pickHtml.includes('"app":"4242"') &&
+          /postMessage\(\{rhizomePicked/.test(pickHtml));
+    const badPick = await pcall('/cloud/gdrive/picker?ticket=' + encodeURIComponent(wasWhole));
+    const badHtml = await badPick.text();
+    check('a session is not a ticket for the Picker, and its window says so without a token',
+          badPick.status === 400 && !/g-at-|"token"/.test(badHtml));
+    r = await ccall('/cloud/gdrive/picker?ticket=' + encodeURIComponent(body.ticket));
+    check('…nor is there a Picker\'s window once its keys are gone', r.status === 404);
     globalThis.fetch = ghFetch;
   }
 
@@ -1103,7 +1159,7 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
      ones. It happened once, with placeholder values. */
   const toml = fs.readFileSync(path.join(ROOT, 'worker', 'wrangler.toml'), 'utf8');
   const leaked = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET', 'FILE_MARK_SECRET', 'GITHUB_APP_PRIVATE_KEY',
-                  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_API_KEY', 'YANDEX_CLIENT_ID', 'YANDEX_CLIENT_SECRET']
+                  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_API_KEY', 'GOOGLE_PICKER_KEY', 'GOOGLE_APP_ID', 'YANDEX_CLIENT_ID', 'YANDEX_CLIENT_SECRET']
     .filter(k => new RegExp('^\\s*' + k + '\\s*=', 'm').test(toml));
   check('wrangler.toml sets none of the service\'s secrets', leaked.length === 0, leaked.join(', '));
 
