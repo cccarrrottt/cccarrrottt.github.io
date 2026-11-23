@@ -115,6 +115,21 @@ def main():
               f'(src/app/{dpart}:{dline}) before it is declared{through}, read at '
               f'src/app/{rpart}:{rline}  tdz')
 
+    # What the reader's program asks of the editing parts and must not:
+    # see tools/lazy.js. An error — on the site it throws, or answers
+    # undefined, on a reader's screen and nowhere else.
+    z = subprocess.run(['node', 'tools/lazy.js', str(ASSEMBLED), *[f'{n}:{l}' for l, n in starts]],
+                       cwd=ROOT, capture_output=True, text=True)
+    if z.returncode != 0:
+        sys.stderr.write(z.stderr)
+        return 2
+    for f in json.loads(z.stdout):
+        where, line = locate(starts, f['line'])
+        what = ('is not declared on a reader\'s page' if f['kind'] == 'lexical'
+                else 'is an empty stand-in on a reader\'s page, and its answer is used here')
+        errors += 1
+        print(f'src/app/{where}:{line}:{f["column"]}  error  {f["name"]} (src/app/{f["part"]}) {what}  lazy')
+
     total = errors + warnings
     print(f'\n{total} problem{"" if total == 1 else "s"} '
           f'({errors} error{"" if errors == 1 else "s"}, {warnings} warning'

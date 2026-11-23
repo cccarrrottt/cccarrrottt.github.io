@@ -151,7 +151,7 @@ document.getElementById('freeMenuFont').addEventListener('change', ()=> queueFre
  * The angles a caption actually wants are level, on its side, and the four
  * diagonals — the same set a callout's leader snaps to. Anything between
  * them is dialled in by eye with the key up. */
-const ROT_SNAP = 45;
+// ROT_SNAP (45°) is declared in 26-bio-crop.js: the gestures read it.
 
 let currentEdgeNaturalColor = '#20242b'; // this edge's color with no override — what "Default" resets to
 

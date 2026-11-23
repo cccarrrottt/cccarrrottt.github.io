@@ -18,8 +18,8 @@
    "off the grid" — turns them off too: one modifier for "place this
    exactly where I am putting it".
    ------------------------------------------------------------------ */
-const GUIDE_SNAP_PX = 6;      // how close counts as aligned, on screen
-const GUIDE_OVERHANG = 12;    // how far a guide runs past the boxes it joins
+// GUIDE_SNAP_PX and GUIDE_OVERHANG are declared in 26-bio-crop.js:
+// a merged arrow's drag (15-amalgam.js) draws guides with them too.
 const GUIDE_DOT_R = 3.2;      // the mark on a guide that means a PLACE, not a line
 /* The handles that bend a connector by hand. Above the drawing, because
    they are things to take hold of, and below the guides, which are only

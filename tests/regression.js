@@ -24544,6 +24544,20 @@ async function main(){
       const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
       const out = {};
       const btn = document.getElementById('langToggle');
+      /* A language is offered once most of the page is written in it
+         (0.27.1: Russian was offered with nothing translated, and choosing
+         it changed nothing). With English alone there is no button. */
+      const kept = LANG_TABLES.ru;
+      LANG_TABLES.ru = {name: 'Русский', strings: {'Save': 'Сохранить'}, total: 10};
+      syncLangOffer();
+      out.notReady = btn.hidden && !langReady('ru');
+      setPageLang('ru');
+      out.notChosen = pageLang === 'en';
+      LANG_TABLES.ru = {name: 'Русский', total: 5, strings: {
+        'Save': 'Сохранить', 'Undo (Ctrl+Z)': 'Отменить (Ctrl+Z)', 'About this project': 'О проекте',
+        'Imported {0} {1}. Press Save to keep it.': 'Импортировано: {1} — {0}. Нажмите Сохранить.'}};
+      syncLangOffer();
+      out.ready = !btn.hidden && langReady('ru');
       /* Flags (the owner's list of 21.11): the button wears the flag of
          the language spoken, English the American one — the emoji an
          entry's language tab wears, in the emoji face (22.11, evening). */
@@ -24560,10 +24574,6 @@ async function main(){
                  opts[0].getAttribute('aria-checked') === 'true' && getComputedStyle(opts[0], '::after').content !== 'none' &&
                  getComputedStyle(opts[1], '::after').content === 'none';
       menu.classList.remove('open');
-      const kept = LANG_TABLES.ru;
-      LANG_TABLES.ru = {name: 'Русский', strings: {
-        'Save': 'Сохранить', 'Undo (Ctrl+Z)': 'Отменить (Ctrl+Z)', 'About this project': 'О проекте',
-        'Imported {0} {1}. Press Save to keep it.': 'Импортировано: {1} — {0}. Нажмите Сохранить.'}};
       applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
       await wait(100);
       menu.querySelector('[data-lang="ru"]').click(); await wait(50);
@@ -24585,10 +24595,11 @@ async function main(){
       out.back = document.documentElement.lang === 'en' && document.getElementById('saveBtn').textContent === 'Save' &&
                  document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Undo (Ctrl+Z)' &&
                  said.textContent === 'Imported 3 entries. Press Save to keep it.' && localStorage.getItem('rhizome.lang') === null;
-      said.remove(); LANG_TABLES.ru = kept;
+      said.remove(); LANG_TABLES.ru = kept; syncLangOffer();
       undoLastEdit(); await wait(100);
       return out;
     });
+    check('a language nearly all untranslated is not offered, and with English alone there is no button', r.notReady && r.notChosen && r.ready, JSON.stringify(r));
     check('a language button on the top bar opens a menu of the languages, each in its own words', r.button && r.menu, JSON.stringify(r));
     check('…chosen, the page says its own words in it, and is remembered', r.ru && r.stored, JSON.stringify(r));
     check('…including what it writes later, its pieces where the translation puts them, and a title written again', r.later && r.rewritten, JSON.stringify(r));

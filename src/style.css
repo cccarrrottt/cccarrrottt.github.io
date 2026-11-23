@@ -2742,6 +2742,7 @@
      each by its flag and its own name (the owner's lists of 21.11 and
      22.11, night). */
   .icon-btn.lang-toggle{display:inline-flex;align-items:center;justify-content:center;}
+  .icon-btn.lang-toggle[hidden], .lang-menu [data-lang][hidden]{display:none;}
   /* A flag, the emoji an entry's language tab wears, in the emoji face. */
   .lang-flag{display:inline-block;font-family:var(--emoji);font-size:17px;line-height:1;}
   .lang-menu{flex-direction:column;gap:2px;padding:5px;min-width:150px;}

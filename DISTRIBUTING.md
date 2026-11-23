@@ -120,6 +120,24 @@ your site never touch anyone else's service.
 Never write any of these into `worker/wrangler.toml`: that file is public,
 and `tests/worker.js` refuses it if one appears there.
 
+4. Only if you will have editors (`EDITORS`): on the app's page, note the
+   *App ID* and *Generate a private key*, and add `GITHUB_APP_ID` and
+   `GITHUB_APP_PRIVATE_KEY` (the whole `.pem`) as two more Secrets. Editors'
+   saves are then the app's commits, and editors need no access to the
+   repository. Without them an editor must be a collaborator with *Write*,
+   which lets them change your code and workflows as well.
+
+### Keep `main` for reviewed code
+
+*Settings → Rules → Rulesets → New branch ruleset*, target the default
+branch, and turn on *Require a pull request before merging* and *Require
+status checks to pass* (pick the checks CI runs: *Build, guard and lint*,
+the *Regression* shards, *Snapshots*). Under *Bypass list* add yourself
+(Repository admin) and the GitHub App, so that Save from the site, which
+commits straight to `main`, goes on working. A one-line edit in GitHub's
+web editor then becomes a pull request whose checks run before it lands,
+rather than a red `main` that the site cannot publish.
+
 ## 5. Push, and sign in
 
 Commit steps 2–4 and push to `main`. CI builds, runs the checks, deploys the
@@ -211,7 +229,7 @@ chart and everything it names or carries; rewrite it for your own chart.
 - [ ] About contacts changed, `node tools/i18n.js` run
 - [ ] Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 - [ ] GitHub App, installed on your repository
-- [ ] Worker Secrets `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET`
+- [ ] Worker Secrets `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET` (and, with editors, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`)
 - [ ] pushed, signed in, chart made your own with Save, named in About
 - [ ] your own `src/site/og-image.png`
 - [ ] (optional) drives' Secrets, analytics variable

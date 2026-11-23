@@ -11,9 +11,18 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.27.0';
+const APP_VERSION = '0.27.1';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.27.1', date:'2026-11-23', title:'Behind the door', notes:[
+'An editor\'s Save can be committed by the site\'s GitHub App itself, once the app\'s own key is among the service\'s secrets (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY): an editor then needs no access to the repository at all, and the service is the only way their edits reach it. Until now an editor had to be able to push, which let them change the code and the settings past everything the service holds back.',
+'The notes in the margin are put together stroke by stroke when two saves meet, so strokes drawn on two devices no longer collide, and an editor\'s strokes are saved with the rest of their edit instead of being left out with the settings.',
+'A picture or clip from a drive keeps working after the service\'s session secret is changed, once FILE_MARK_SECRET is set to the secret\'s old value first.',
+'Each Save from the site is named in the history by what it changed — "Chart: 2 entries added, 1 entry changed" — instead of the same line every time.',
+'The language button appears once a language other than English is mostly translated. Russian was offered with nothing translated yet, and choosing it changed nothing.',
+'Six pictures the chart no longer shows (851 KB, among them the two GIFs replaced by WebP) are no longer published with the site, and the chart check names any such file from now on.',
+'The checks hold what a reader downloads to a ceiling, and refuse any constant of the editing parts read by the rest of the program, which on the site would have thrown on a reader\'s screen; five such constants were moved to where every page has them.'
+  ]},
   {v:'0.27.0', date:'2026-11-22', title:'Anyone\'s own', notes:[
 'What the chart is called, the sentence a link to it shows and the text at the top of About are the chart\'s own now, not the platform\'s: the owner writes them in About, under «The chart\'s name and description», and they are saved, imported and exported with the chart. The name is the tab\'s title, the name a pasted link shows and the name of the app a phone keeps.',
 'A copy of the platform may live under a path, https://<login>.github.io/<repo>, as well as at the root of an account: the page is the site at the address the config names or below it. One account can publish as many charts as it has repositories.',

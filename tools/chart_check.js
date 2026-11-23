@@ -56,6 +56,18 @@ const ROOT = path.join(__dirname, '..');
 
   for (const r of w.looseEnds(chart)) console.log(`  note ${r.region} ${r.item} names '${r.to}', which is not an entry`);
   if (w.chartText(chart) !== text) console.log('  note src/chart.json is not written one item to a line; the next Save will write it so');
+  /* A file in src/media/ that the chart no longer names is still published
+     with the site, for good. Said, not removed: an open page or a Save
+     waiting in a phone's outbox may still name it, and git keeps it anyway.
+     Taken out by hand, in a commit of its own, once that cannot be so. */
+  const named = new Set(text.match(/media\/[0-9a-f]{64}\.\w+/g) || []);
+  const dir = path.join(ROOT, 'src', 'media');
+  const spare = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /^[0-9a-f]{64}\.\w+$/.test(f) && !named.has('media/' + f)) : [];
+  if (spare.length) {
+    const bytes = spare.reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
+    console.log(`  note ${spare.length} file${spare.length === 1 ? '' : 's'} in src/media/ (${Math.round(bytes / 1024)} KB) the chart does not name:`);
+    for (const f of spare) console.log(`       ${f}`);
+  }
   const counts = ['nodes', 'edgeStyles', 'stickers', 'media', 'comments', 'tagCats', 'refs']
     .map(k => `${k} ${(chart[k] || []).length}`).join(', ');
   console.log(`src/chart.json is the chart, as the schema describes (${counts}).`);

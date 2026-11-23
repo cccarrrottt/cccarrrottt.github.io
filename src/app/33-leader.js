@@ -19,8 +19,8 @@
    go on yet — the length the dashed aim line starts at, before the pointer
    has said otherwise. */
 const CALLOUT_GAP = 34;
-const LEADER_AIM_STEP = 45;      // degrees, when Shift is held
-const LEADER_AIM_MIN = 16;       // never so short the card sits on the line
+// LEADER_AIM_STEP and LEADER_AIM_MIN are declared in 26-bio-crop.js:
+// the gestures' part aims the leader with them.
 function leaderAimAt(ev, anchor){
   const p = clientToWorld(ev.clientX, ev.clientY);
   let dx = p.x - anchor.x, dy = p.y - anchor.y;

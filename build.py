@@ -532,8 +532,12 @@ def lang_script():
             data = json.loads(read(f))
         except ValueError as e:
             sys.exit(f'build: {f.relative_to(ROOT)} is not JSON that parses: {e}')
-        strings = {k: v for k, v in (data.get('strings') or {}).items() if isinstance(v, str) and v}
-        tables[data.get('language') or f.stem] = {'name': data.get('name') or f.stem, 'strings': strings}
+        every = data.get('strings') or {}
+        strings = {k: v for k, v in every.items() if isinstance(v, str) and v}
+        # `total` lets the page offer a language only once most of it is
+        # written (langReady, 43-i18n.js).
+        tables[data.get('language') or f.stem] = {'name': data.get('name') or f.stem, 'strings': strings,
+                                                  'total': len(every)}
     body = (json.dumps(tables, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
             .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
     return f'<script type="application/json" id="i18n-data">\n{body}\n</script>'
