@@ -183,19 +183,147 @@ function carriedRoute(e, a, b, style, rec, hold){
                       result, pts: result.pts.map(q=> ({x: q.x, y: q.y})), registered: routedSegments.length > before});
   return result;
 }
+/* A connector drawn as it was keeps the drawing it had.
+ *
+ * Every pass draws every connector, and every one it draws is new to the
+ * browser, which has to style it before the next paint — and an entry's
+ * drawing was already kept this way (drawOrKeep), so after an edit that
+ * changed one entry the connectors were most of what was new. So each
+ * connector is still routed and drawn, everything about it worked out as
+ * before; at the end of the pass, once the hops are cut into the lines,
+ * what it drew is compared, as markup, with what it drew last time, and
+ * where nothing differs the new drawing is dropped before the browser has
+ * looked at it and the old one stays.
+ *
+ * A connector's drawing is everything it puts in the three layers while
+ * it is drawn — line, heads, caps, note, callout leaders, the path it is
+ * clicked by — and an amalgam's is its whole group. Its gradients and
+ * clips are in edgeDefs, which is drawn afresh every pass and holds the
+ * same ids for the same drawing, so a kept line points at the one this
+ * pass made for it. Whatever has touched an old drawing since it was
+ * drawn — a class put on it by picking or dimming is put back first —
+ * makes it drawn afresh. A listener on a kept drawing was made by the
+ * pass before; the markup it is kept by carries the route its listeners
+ * hold, so they hold the same one. */
+var drawnEdges = new Map();        // key -> {sig, pieces, attrs}
+const EDGE_LAYERS = ()=> [edgeLayer, arrowLayer, leaderHitLayer];
+function edgeDrawingSig(pieces){
+  const layers = EDGE_LAYERS();
+  return pieces.map(p=> layers.indexOf(p.parentNode) + ':' + p.outerHTML).join('\u0002');
+}
+/* Whether anything has touched a drawing since it was drawn is asked of
+   the browser, which writes down every change to the three layers: the
+   markup of every old drawing read a second time to find out cost as much
+   as the layout keeping it saves. Only a class or style on a drawing's own
+   outer element is let off, because those are put back before it is
+   compared. */
+const touchedEdgeDrawings = new Set();
+function noteEdgeMutations(records){
+  const layers = EDGE_LAYERS();
+  records.forEach(r=>{
+    let t = r.target;
+    if(layers.includes(t)) return;
+    while(t && t.parentNode && !layers.includes(t.parentNode)) t = t.parentNode;
+    if(!t || !t.parentNode) return;
+    if(r.type === 'attributes' && t === r.target && (r.attributeName === 'class' || r.attributeName === 'style')) return;
+    touchedEdgeDrawings.add(t);
+  });
+}
+const edgeMutations = new MutationObserver(noteEdgeMutations);
+let edgeDrawingsWatched = false;
+/* Not while a pass draws: what it appends is new, and what it does to
+   the drawings it keeps is put back before they are compared. */
+function watchEdgeDrawings(on){
+  edgeDrawingsWatched = on;
+  if(!on){ noteEdgeMutations(edgeMutations.takeRecords()); edgeMutations.disconnect(); return; }
+  EDGE_LAYERS().forEach(L=> edgeMutations.observe(L, {subtree: true, childList: true, attributes: true, characterData: true}));
+}
+watchEdgeDrawings(true);
+function beginEdgeDrawings(){
+  /* A mark after what the last pass drew, which nothing this pass can
+     take away from under it. */
+  /* A pass that never finished left its layers unwatched since: nothing
+     it or the one before drew can be vouched for. */
+  if(!edgeDrawingsWatched) drawnEdges = new Map();
+  watchEdgeDrawings(false);
+  return {kept: drawnEdges, owners: [], seen: new Map(),
+          start: EDGE_LAYERS().map(L=> L.appendChild(document.createComment('pass')))};
+}
+function edgeDrawing(pass, key, draw){
+  const layers = EDGE_LAYERS();
+  const marks = layers.map(L=> L.lastChild);
+  draw();
+  const pieces = [];
+  layers.forEach((L, i)=>{
+    for(let e = marks[i] ? marks[i].nextSibling : L.firstChild; e; e = e.nextSibling) pieces.push(e);
+  });
+  if(!pieces.length) return;
+  // Two connectors between the same two entries are told apart by order.
+  const n = pass.seen.get(key) || 0;
+  pass.seen.set(key, n + 1);
+  pass.owners.push({key: n ? key + '\u0001' + n : key, pieces});
+}
+function keepEdgeDrawings(pass){
+  const layers = EDGE_LAYERS();
+  const swap = new Map();          // new element -> the old one kept for it
+  drawnEdges = new Map();
+  pass.owners.forEach(o=>{
+    const old = pass.kept.get(o.key);
+    const intact = old && old.pieces.length === o.pieces.length &&
+      old.pieces.every(p=> p.isConnected && !touchedEdgeDrawings.has(p));
+    if(intact) old.pieces.forEach((p, i)=> ['class', 'style'].forEach((a, k)=>{
+      const v = old.attrs[i][k];
+      if(v === null){ if(p.hasAttribute(a)) p.removeAttribute(a); }
+      else if(p.getAttribute(a) !== v) p.setAttribute(a, v);
+    }));
+    const sig = edgeDrawingSig(o.pieces);
+    if(intact && old.sig === sig){
+      o.pieces.forEach((p, i)=> swap.set(p, old.pieces[i]));
+      drawnEdges.set(o.key, old);
+      return;
+    }
+    drawnEdges.set(o.key, {sig, pieces: o.pieces,
+      attrs: o.pieces.map(p=> [p.getAttribute('class'), p.getAttribute('style')])});
+  });
+  /* The hops hold the lines they were cut into, to take a hop out again
+     when what it crosses is hidden (hopsFollowVisibility). */
+  hoppedLines.forEach(rec=>{
+    if(swap.has(rec.line.el)) rec.line.el = swap.get(rec.line.el);
+    if(rec.line.inner && swap.has(rec.line.inner)) rec.line.inner = swap.get(rec.line.inner);
+  });
+  /* Each layer becomes what this pass drew, in the order it drew it, with
+     a kept drawing standing where its new one stood. What the last pass
+     drew and nobody keeps goes; the new drawings were appended after the
+     old ones, so it is they that move, before the browser has laid them
+     out, and a kept one moves only if the order of the connectors did. */
+  layers.forEach((L, i)=>{
+    const want = [];
+    for(let e = pass.start[i].nextSibling; e; e = e.nextSibling) want.push(swap.get(e) || e);
+    const keep = new Set(want);
+    for(let e = L.firstChild; e;){ const next = e.nextSibling; if(!keep.has(e)) L.removeChild(e); e = next; }
+    let cur = L.firstChild;
+    want.forEach(p=>{ if(p === cur) cur = cur.nextSibling; else L.insertBefore(p, cur); });
+  });
+  // What this pass did to its own drawings is what they are now.
+  touchedEdgeDrawings.clear();
+  watchEdgeDrawings(true);
+}
 function redrawEdges(){
   /* The connectors this pass draws without the bends they were given;
      read by the bend handles and by dropIgnoredBends. */
   redrawEdges.ignored = new Set();
   silenceEdgeFade();
-  while(edgeLayer.firstChild) edgeLayer.removeChild(edgeLayer.firstChild);
-  while(leaderHitLayer.firstChild) leaderHitLayer.removeChild(leaderHitLayer.firstChild);
+  /* What the last pass drew stays where it is until this one has drawn
+     the same connectors again and compared (see keepEdgeDrawings). */
+  const pass = beginEdgeDrawings();
   // Every gradient/marker made below is re-created fresh each call, so the
   // group holding them is cleared first — otherwise every live-preview
   // edit (routing/color/etc. change while the popover is open) would leak
   // another orphaned <linearGradient>/<marker> into the defs forever.
-  while(arrowLayer.firstChild) arrowLayer.removeChild(arrowLayer.firstChild);
+  /* …and they are counted from nought, so a connector drawn as it was
+     names the gradient it named before, and can keep its drawing. */
   while(edgeDefs.firstChild) edgeDefs.removeChild(edgeDefs.firstChild);
+  edgeGradSeq = 0;
   // The clips live in edgeDefs, so the cache goes with them.
   outsideClips.clear();
   ringCapClips.clear();
@@ -267,7 +395,7 @@ function redrawEdges(){
   });
   if(sideOverrides.size) ports = resolvePorts(structEdges, sideOverrides);
 
-  structEdges.forEach(e=>{
+  structEdges.forEach(e=> edgeDrawing(pass, 'e\u0001' + e.from + '\u0001' + e.to, ()=>{
     if(merged.has(e)) return;
     const a = nodes.get(e.from), b = nodes.get(e.to);
     if(!a||!b) return;
@@ -402,15 +530,18 @@ function redrawEdges(){
     // Every callout hanging off this connector, now that its route is known.
     drawCalloutLeaders(e.from, e.to, onLine, paint, pts);
     edgeHit(d, e.from, e.to);
-  });
+  }));
 
-  amalgamGroups.forEach(list=>{ if(list.length > 1) drawAmalgam(list, ports); });
+  amalgamGroups.forEach((list, key)=>{
+    if(list.length > 1) edgeDrawing(pass, 'a\u0001' + key, ()=> drawAmalgam(list, ports));
+  });
   // Every line is down, so every crossing is known.
   /* The chart can do without them: the button beside the guides turns
      them off for everyone who reads it (SETTINGS.hops). */
   drawHops(SETTINGS.hops === false ? [] : hopLines);
   syncHopsToggle();
   endRoutePass();
+  keepEdgeDrawings(pass);
   flushPendingCallouts();
   // The bend handles stand on the route that has just been drawn.
   drawBendHandles();

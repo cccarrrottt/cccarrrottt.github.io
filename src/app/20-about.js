@@ -22,7 +22,8 @@ const VERSION_LOG = [
 'Citations can be set in bold, in italic or both, with two keys beside their colour and brackets in References.',
 'The field on an entry follows the drawing\'s letters along the whole line: where a browser spaces the letters a little differently from the widths the drawing measured, as a phone\'s can, each line of the field is spaced to lie on the drawing\'s letters.',
 'On a phone the toolbar no longer turns white while the bar above it folds away or comes back.',
-'The reader\'s view is an open book with an eye over it, and the patches from far away are a stack of layers.'
+'The reader\'s view is an open book with an eye over it, and the patches from far away are a stack of layers.',
+'A connector drawn as it was keeps its drawing after an edit, as an entry already did: the browser lays out only the lines the edit changed, which on a chart of six hundred entries is a few milliseconds off an edit.'
   ]},
   {v:'0.27.0', date:'2026-11-22', title:'Anyone\'s own', notes:[
 'What the chart is called, the sentence a link to it shows and the text at the top of About are the chart\'s own now, not the platform\'s: the owner writes them in About, under «The chart\'s name and description», and they are saved, imported and exported with the chart. The name is the tab\'s title, the name a pasted link shows and the name of the app a phone keeps.',

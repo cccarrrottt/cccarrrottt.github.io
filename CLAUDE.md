@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 167 named scenarios, and they do not depend on one another —
+The suite is 168 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -574,7 +574,19 @@ the chain with a label on every fourth connector, an edit is ~92 ms, and
 what drawing the connectors afresh costs beyond routing them is ~15 of it
 in script and ~6 in the layout that follows — about a sixth at best, for a
 second copy of the mechanism above over code that draws arrowheads,
-labels and bends. Left until a chart that needs it.
+labels and bends. The owner asked for it anyway (To do, 23.11), and it is
+done (`keepEdgeDrawings`, `14-edges-draw.js`): each connector — an
+amalgam, its whole group — is drawn between two marks, and once the hops
+are cut in, its drawing is compared as markup with the last pass's. What
+is kept is told apart from what was touched by a MutationObserver on the
+three layers, not by reading the old markup again, which cost as much as
+the layout it saved. Gradients and clips stay in `edgeDefs`, drawn afresh
+with ids counted from nought each pass, so a kept line names the sweep
+this pass made for it. At 600 entries the layout after an edit
+(`buildSideTabs`) went from ~17–25 ms to ~9–12, and `redrawEdges` paid
+~5 ms more for the comparing: a few per cent of an edit, as predicted.
+The suite holds kept to fresh ("an edit redraws only the connectors it
+changed"); a test that wants a fresh pass sets `drawnEdges = new Map()`.
 
 ### What a reader waits for before the chart is drawn
 

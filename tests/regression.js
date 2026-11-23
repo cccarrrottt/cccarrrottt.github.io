@@ -17913,6 +17913,75 @@ async function main(){
   check('what is kept is, entry by entry, what a pass that keeps nothing draws',
         Object.values(r.same).every(Boolean), JSON.stringify(r.same));
   });
+  await scenario("an edit redraws only the connectors it changed", async () => {
+  /* The connectors' half of the scenario above (keepEdgeDrawings): every
+     connector is still routed and drawn each pass, and one whose drawing
+     comes out as it was keeps the element it had. Checked: an edit that
+     moves nothing keeps every line but the ones it changed, and what is
+     kept is, element for element, the markup a pass that keeps nothing
+     draws — with gradients, notes, double lines and hops among them. */
+  const r = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.map(x=> x.slice()), beforeStyles = EDGE_STYLES.map(x=> Object.assign({}, x));
+    const out = {kept: {}, same: {}};
+    const lines = ()=> [...edgeLayer.querySelectorAll(':scope > path.edge.struct:not(.dbl-inner)')];
+    const markup = ()=> [edgeLayer, arrowLayer, leaderHitLayer].map(L=> [...L.childNodes]
+      .filter(e=> e.nodeType === 1).map(e=> e.outerHTML).join('\n')).join('\n--\n');
+    try{
+      applyEdit(()=>{
+        workingNodes.length = 0;
+        for(let i = 0; i < 60; i++) workingNodes.push(['ek' + i, 'Entry ' + i, i ? 'ek' + Math.floor((i - 1) / 2) : null, null, null, null,
+          {pos:[(i % 8)*190, Math.floor(i / 8)*130], tags: i % 6 === 0 ? ['probe'] : undefined}]);
+        EDGE_STYLES.length = 0;
+        EDGE_STYLES.push({from:'ek1', to:'ek3', gradient:['#2f9a4a', '#2b54c8']},
+                         {from:'ek2', to:'ek5', note:'a note', notePos:'above'},
+                         {from:'ek4', to:'ek9', dash:'double'},
+                         {from:'ek6', to:'ek13', routing:'straight'});
+      });
+      const opt = id=> { const it = workingNodes.find(x=> x[0] === id); it[6] = Object.assign({}, it[6]); return it[6]; };
+      // A note's plate is styled once its words have landed; the chart settles first.
+      await new Promise(res=> setTimeout(res, 50));
+      applyEdit(()=>{});
+      const EDITS = {
+        recolour: [[], ()=> { opt('ek40').colors = ['#22aa22']; }],
+        note: [[], ()=> { workingNodes.find(x=> x[0] === 'ek41')[4] = 'A note of its own'; }],
+        line: [['ek4|ek9'], ()=> { EDGE_STYLES.find(s=> s.to === 'ek9').dash = 'dashed'; }],
+        // A sweep is in edgeDefs, drawn afresh: the line keeps its element and wears the new one.
+        gradient: [[], ()=> { EDGE_STYLES.find(s=> s.to === 'ek3').gradient = ['#cc2222', '#2222cc']; }]
+      };
+      for(const [k, [changed, edit]] of Object.entries(EDITS)){
+        const was = new Map(lines().map(p=> [p.dataset.from + '|' + p.dataset.to, {el: p, html: p.outerHTML}]));
+        applyEdit(edit);
+        await new Promise(res=> setTimeout(res, 50));
+        const now = lines();
+        const key = p=> p.dataset.from + '|' + p.dataset.to;
+        out.kept[k] = {asWas: now.filter(p=> was.get(key(p)) && was.get(key(p)).html === p.outerHTML).length,
+                       /* A line drawn as it was, but whose head or cap at the entry the
+           edit touched is not, goes with them: a connector is kept whole. */
+                       lost: now.filter(p=> was.get(key(p)) && was.get(key(p)).html === p.outerHTML && was.get(key(p)).el !== p
+                                            && !(k === 'recolour' && p.dataset.to === 'ek40')).length,
+                       changed: changed.every(c=> { const p = now.find(q=> key(q) === c); return p && p !== was.get(c).el; }),
+                       total: now.length};
+        if(k === 'gradient'){
+          const p = now.find(q=> key(q) === 'ek1|ek3');
+          const g = document.getElementById(((p && p.getAttribute('stroke')) || '').replace(/^url\(#|\)$/g, ''));
+          out.sweep = g ? [...g.querySelectorAll('stop')].map(st=> st.getAttribute('stop-color')).join(' ') : null;
+        }
+        const warm = markup();
+        drawnEdges = new Map(); redrawEdges();
+        out.same[k] = warm === markup() && warm.length > 1000;
+      }
+    } finally {
+      applyEdit(()=>{ workingNodes.length = 0; beforeNodes.forEach(x=> workingNodes.push(x));
+                      EDGE_STYLES.length = 0; beforeStyles.forEach(x=> EDGE_STYLES.push(x)); });
+    }
+    return out;
+  });
+  check('an edit keeps every connector\'s drawing but those it changed, and draws those anew',
+        Object.values(r.kept).every(k=> k.lost === 0 && k.asWas >= k.total - 3 && k.changed && k.total >= 59), JSON.stringify(r.kept));
+  check('a kept line wears the sweep its connector has now', r.sweep === '#cc2222 #2222cc', r.sweep);
+  check('what is kept is what a pass that keeps nothing draws, connector for connector',
+        Object.values(r.same).every(Boolean), JSON.stringify(r.same));
+  });
   await scenario("an entry's controls are built when something reaches them", async () => {
   /* The grips, the turning handle and the connector strips are built the
      first time the pointer, a selection or a connector drag reaches an

@@ -16,6 +16,7 @@ Releases before 0.9.0 were not numbered.
 - The field on an entry follows the drawing's letters along the whole line: where a browser spaces the letters a little differently from the widths the drawing measured, as a phone's can, each line of the field is spaced to lie on the drawing's letters.
 - On a phone the toolbar no longer turns white while the bar above it folds away or comes back.
 - The reader's view is an open book with an eye over it, and the patches from far away are a stack of layers.
+- A connector drawn as it was keeps its drawing after an edit, as an entry already did: the browser lays out only the lines the edit changed, which on a chart of six hundred entries is a few milliseconds off an edit.
 
 ## 0.27.0 — "Anyone's own" (2026-11-22)
 
