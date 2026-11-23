@@ -327,6 +327,7 @@ function importChartFromText(text){
     // How its numbers are written belongs to the chart too.
     if(settingsIn && REF_STYLES.includes(settingsIn.refStyle) && settingsIn.refStyle !== 'square') SETTINGS.refStyle = settingsIn.refStyle;
     else delete SETTINGS.refStyle;
+    ['refBold', 'refItalic'].forEach(k=>{ if(settingsIn && settingsIn[k] === true) SETTINGS[k] = true; else delete SETTINGS[k]; });
     /* What the + menu puts down, and what the chart does when it is read,
        are the chart's as well (46-hand-tools.js, 47-scenarios.js). */
     const presetsIn = cleanPresets(settingsIn && settingsIn.presets);

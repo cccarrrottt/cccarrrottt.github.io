@@ -335,6 +335,7 @@ function alignEditorOnInk(){
       : qNode(`.node[data-id="${cssEscape(n.id)}"]`);
     if(g) drawn = [...g.querySelectorAll(':scope > .node-label-text, :scope .node-label-text')];
   }
+  stretchLinesToDrawing(rec.surface, drawn);
   /* A sticker in the words is drawn beside the text, not in it (an
      <image> cannot live in a <text>), so the line's ink runs on past the
      text to the last sticker. Measured from the text alone, the line's
@@ -407,6 +408,114 @@ function alignEditorOnInk(){
   nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(3) + 'px';
   seatLinesOnPixels(rec.surface, drawn);
 }
+/* Across a line, the field's letters and the drawing's can drift apart
+ * as the line goes on (the owner's screenshots of 23.11, a phone: the
+ * first letter of the line on its letter and the last a couple of pixels
+ * short). The drawing sets each word where the widths it MEASURED put it,
+ * at the size the chart is drawn at; the field lets the browser advance
+ * its letters at the size the zoom has made them. On this machine the two
+ * agree to a fiftieth of a pixel. On a phone's Chrome they need not: a
+ * face is hinted, or its advances rounded, differently at different sizes,
+ * and the difference is the same sign at every letter, so it adds up along
+ * the line.
+ *
+ * So each line of the field is given the letter- and word-spacing that lay its
+ * letters best on the drawing's — found, not assumed: the line is laid out
+ * once as it is and once with a twentieth of an em of spacing, which says how far each
+ * letter moves per pixel (a reading's word, a sticker and a centred line
+ * included), and the spacing is what fits the drawing's letters, by least
+ * squares, relative to the line's first letter. Where they already agree
+ * it comes out as nothing and no rule is written. */
+var nodeEditorStretch = null;
+function stretchLinesToDrawing(surface, drawn){
+  if(!nodeEditorStretch){
+    nodeEditorStretch = document.createElement('style');
+    nodeEditorStretch.id = 'nodeEditorStretch';
+    document.head.appendChild(nodeEditorStretch);
+  }
+  nodeEditorStretch.textContent = '';
+  stretchLinesToDrawing.last = null;
+  if(!surface || !drawn || !drawn.length) return;
+  const drawnX = [];
+  drawn.flatMap(e=> [...e.querySelectorAll('tspan')])
+    .filter(e=> !e.querySelector('tspan') && !e.classList.contains('ruby-anno') && !e.classList.contains('text-gap'))
+    .forEach(el=>{
+      const t = el.textContent;
+      let m = null;
+      for(let i = 0; i < t.length; i++){
+        if(!/\S/.test(t[i])) continue;
+        let x = NaN;
+        try{ m = m || el.getScreenCTM(); x = new DOMPoint(el.getExtentOfChar(i).x, 0).matrixTransform(m).x; }catch(err){}
+        drawnX.push(x);
+      }
+    });
+  /* The field's letters, by line, in the order the drawing's are listed. */
+  const typed = [];
+  const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+  let tn;
+  while((tn = walker.nextNode())){
+    if(tn.parentElement && tn.parentElement.closest('rt')) continue;
+    let line = tn.parentNode;
+    while(line && line.parentNode !== surface && line !== surface) line = line.parentNode;
+    const t = tn.textContent;
+    for(let j = 0; j < t.length; j++) if(/\S/.test(t[j])) typed.push({tn, j, line: line !== surface ? line : null});
+  }
+  if(typed.length !== drawnX.length || typed.length < 3) return;
+  const at = ()=> typed.map(p=>{
+    const rg = document.createRange();
+    rg.setStart(p.tn, p.j); rg.setEnd(p.tn, p.j + 1);
+    const q = rg.getBoundingClientRect();
+    return {x: q.left, y: q.bottom};
+  });
+  const lines = [...surface.children];
+  /* In ems, so a larger run and a reading over its word, measured at
+     their own sizes on the drawing, are spaced in proportion to them. */
+  const rule = (n, ls, ws)=> `#nodeEditor .rich-surface > :nth-child(${n + 1}){letter-spacing:${ls}em;word-spacing:${ws}em;}`;
+  const before = at();
+  nodeEditorStretch.textContent = lines.map((l, n)=> rule(n, 0.05, 0)).join('\n');
+  const byLetter = at();
+  nodeEditorStretch.textContent = lines.map((l, n)=> rule(n, 0, 0.05)).join('\n');
+  const bySpace = at();
+  nodeEditorStretch.textContent = '';
+  const rules = [];
+  lines.forEach((line, n)=>{
+    const idx = [];
+    typed.forEach((p, i)=>{ if(p.line === line && Number.isFinite(drawnX[i])) idx.push(i); });
+    if(idx.length < 3) return;
+    /* One row of letters: a line the field has wrapped is left alone. */
+    if(idx.some(i=> Math.abs(before[i].y - before[idx[0]].y) > 2)) return;
+    /* Two ways to move a letter — a little after every letter, and a
+       little after every space, since the drawing places each WORD by
+       its measured width and lets the face space the letters inside it —
+       fitted together: the least-squares answer of two unknowns. */
+    const o = idx[0];
+    let aa = 0, ab = 0, bb = 0, ae = 0, be = 0, off = 0;
+    idx.forEach(i=>{
+      const base = before[i].x - before[o].x;
+      const e = (drawnX[i] - drawnX[o]) - base;
+      const a = (byLetter[i].x - byLetter[o].x) - base, b = (bySpace[i].x - bySpace[o].x) - base;
+      aa += a*a; ab += a*b; bb += b*b; ae += a*e; be += b*e; off = Math.max(off, Math.abs(e));
+    });
+    if(off < 0.25) return;
+    let ls = 0, ws = 0;
+    const det = aa*bb - ab*ab;
+    if(bb > 1e-6 && Math.abs(det) > 1e-9 * aa * bb){ ls = (ae*bb - be*ab) / det; ws = (aa*be - ab*ae) / det; }
+    else if(aa > 0) ls = ae / aa;
+    if(!Number.isFinite(ls) || !Number.isFinite(ws)) return;
+    /* Written only where it moves some letter by a fifth of a pixel: less
+       is the two sides agreeing, and a rule would only be noise. */
+    let most = 0;
+    idx.forEach(i=>{
+      const base = before[i].x - before[o].x;
+      most = Math.max(most, Math.abs(ls * ((byLetter[i].x - byLetter[o].x) - base) + ws * ((bySpace[i].x - bySpace[o].x) - base)));
+    });
+    ls *= 0.05; ws *= 0.05;
+    if(most < 0.2 || Math.abs(ls) > 0.08 || Math.abs(ws) > 0.3) return;
+    rules.push(rule(n, +ls.toFixed(5), +ws.toFixed(5)));
+  });
+  nodeEditorStretch.textContent = rules.join('\n');
+  stretchLinesToDrawing.last = {drawnX, typed};
+}
 /* Laid one on the other, the two baselines agree to a hundredth of a
  * pixel — and the words still showed a whole pixel apart (the owner's list
  * of 22.11, evening: "not a pixel between them"). That pixel is the
@@ -454,11 +563,34 @@ function seatLinesOnPixels(surface, drawn){
       lines.set(line, {tn, j, at});
     }
   }
+  /* Across, each line onto the drawing's letters as a whole: the field
+     is placed by the first letter of its first line, and a line below it
+     is wherever its centring put it, which follows the widths each side
+     measured (stretchLinesToDrawing). By the mean of its letters' misses,
+     a part of a pixel at most where the two agree. */
+  const across = new Map();
+  const st = stretchLinesToDrawing.last;
+  if(st && st.typed.length === st.drawnX.length){
+    const sum = new Map();
+    st.typed.forEach((p, i)=>{
+      if(!p.line || p.tn.parentNode == null || !Number.isFinite(st.drawnX[i])) return;
+      const rg = document.createRange();
+      rg.setStart(p.tn, p.j); rg.setEnd(p.tn, p.j + 1);
+      const s0 = sum.get(p.line) || [0, 0];
+      s0[0] += st.drawnX[i] - rg.getBoundingClientRect().left; s0[1]++;
+      sum.set(p.line, s0);
+    });
+    sum.forEach((v, line)=>{ const dx = v[0] / v[1]; if(Math.abs(dx) > 0.02 && Math.abs(dx) <= 4) across.set(line, dx); });
+  }
   const rules = [];
   [...surface.children].forEach((line, n)=>{
     const one = lines.get(line);
     const d = one && letters[one.at];
-    if(!d || d.ch !== one.tn.textContent[one.j]) return;
+    const dx = across.get(line) || 0;
+    const put = lift=>{
+      if(Math.abs(lift) > 1e-3 || dx) rules.push(`#nodeEditor .rich-surface > :nth-child(${n + 1}){translate:${dx.toFixed(4)}px ${lift.toFixed(4)}px;}`);
+    };
+    if(!d || d.ch !== one.tn.textContent[one.j]){ put(0); return; }
     try{
       const m = d.el.getScreenCTM(), pen = d.el.getStartPositionOfChar(d.i), e = d.el.getExtentOfChar(d.i);
       const bs = new DOMPoint(pen.x, pen.y).matrixTransform(m).y;
@@ -467,9 +599,8 @@ function seatLinesOnPixels(surface, drawn){
       rg.setStart(one.tn, one.j); rg.setEnd(one.tn, one.j + 1);
       const bh = rg.getBoundingClientRect().bottom - below;
       const lift = (dpr === 1 ? Math.floor(bs + 1e-3) : Math.round(bs * dpr) / dpr) + 1 / dpr - Math.round(bh);
-      if(Math.abs(lift) > 1e-3 && Math.abs(lift) <= 1.5)
-        rules.push(`#nodeEditor .rich-surface > :nth-child(${n + 1}){translate:0 ${lift.toFixed(4)}px;}`);
-    }catch(err){ /* a letter the drawing cannot place: the line stands as laid out */ }
+      put(Math.abs(lift) <= 1.5 ? lift : 0);
+    }catch(err){ put(0); /* a letter the drawing cannot place: the line stands as laid out up and down */ }
   });
   nodeEditorSeat.textContent = rules.join('\n');
 }
@@ -866,6 +997,7 @@ function closeNodeEditor(keep){
   if(nodeEditorCommitTimer){ clearTimeout(nodeEditorCommitTimer); nodeEditorCommitTimer = 0; }
   if(noteEditorPaintFrame){ cancelAnimationFrame(noteEditorPaintFrame); noteEditorPaintFrame = 0; }
   if(nodeEditorSeat) nodeEditorSeat.textContent = '';
+  if(nodeEditorStretch) nodeEditorStretch.textContent = '';
   const wasNote = nodeEditorTarget.kind === 'note';
   if(keep !== false) commitNodeEditorText();
   endLabelPreview(keep !== false);

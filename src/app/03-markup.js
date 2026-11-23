@@ -426,6 +426,14 @@ const REF_STYLES = ['square', 'round', 'bare'];
 function refStyle(){
   return (SETTINGS && REF_STYLES.includes(SETTINGS.refStyle)) ? SETTINGS.refStyle : 'square';
 }
+/* …and in what face (the owner's list of 23.11): bold, italic, both or
+   neither, beside the colour and the brackets. Absent is neither. */
+function refBold(){ return !!(SETTINGS && SETTINGS.refBold === true); }
+function refItalic(){ return !!(SETTINGS && SETTINGS.refItalic === true); }
+/* The same face as CSS, for every place a number is written in HTML. */
+function refFaceCss(){
+  return (refBold() ? 'font-weight:700;' : '') + (refItalic() ? 'font-style:italic;' : '');
+}
 function refNumberText(num){
   const st = refStyle();
   return st === 'round' ? '(' + num + ')' : st === 'bare' ? String(num) : '[' + num + ']';
@@ -469,7 +477,7 @@ function lineWidth(words, fontOpts){
       : w.type==='ruby'
       ? runsWidth(w.baseRuns, w.size || fontSize, family)
       : w.type==='ref'
-      ? measureText(refMarkText(w.key), {fontSize:(w.size || fontSize || NODE_FS)*REF_FS_SCALE, family})
+      ? measureText(refMarkText(w.key), {fontSize:(w.size || fontSize || NODE_FS)*REF_FS_SCALE, family, bold: refBold(), italic: refItalic()})
       : measureText(w.text, {bold: !!w.bold, italic: !!w.italic,
                              fontSize: w.size || fontSize,
                              family: w.font ? fontFamilyFor(w.font) : family});
