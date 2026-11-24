@@ -3477,7 +3477,13 @@
         const drawn = ()=> [...document.querySelectorAll(`.node[data-id="${id}"] .node-label-text`)];
         const surf = richFields.get('nodeEditorText').surface;
         const frame = getComputedStyle(surf, '::before').content;
-        const veiled = drawn().every(e=> getComputedStyle(e).opacity === '0');
+        /* One copy of the words is seen, never two: the drawn ones veiled
+           under the field's, or — over an entry, since 24.11 — the drawn
+           ones seen through a field whose own ink is clear. */
+        const through = document.getElementById('nodeEditor').classList.contains('ink-from-drawing');
+        const veiled = through
+          ? drawn().every(e=> getComputedStyle(e).opacity !== '0') && getComputedStyle(surf).color === 'rgba(0, 0, 0, 0)'
+          : drawn().every(e=> getComputedStyle(e).opacity === '0');
         closeNodeEditor(true);
         await wait(30);
         const back = drawn().every(e=> getComputedStyle(e).opacity !== '0');
@@ -3536,7 +3542,7 @@
         JSON.stringify({behind: rW.picBehind, front: rW.picFront}));
   check('a picture turns to any angle by its handle, and keeps its sides',
         rW.pictureTurned, 'turned to ' + rW.pictureAngle);
-  check('the inline field has no frame, and the words drawn under it are out of sight until it closes, at any zoom and turned or not',
+  check('the inline field has no frame, and only one copy of its words is seen until it closes, at any zoom and turned or not',
         !rW.editorTooBig.length, rW.editorTooBig.slice(0, 4).join(' | '));
   });
 

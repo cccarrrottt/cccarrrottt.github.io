@@ -227,8 +227,12 @@ function buildMediaTab(){
     if(!readOnlyView) top.title = open ? 'Fold this kind away' : 'Unfold this kind: its fields';
     const toggle = ()=>{
       const set = mediaKindsOpen();
-      if(set.has(kind.id)) set.delete(kind.id); else set.add(kind.id);
-      buildMediaTab();
+      const shutting = set.has(kind.id);
+      /* Folding moves, as a tag category's does (the owner's list of 24.11). */
+      foldWithMotion(box, shutting, ()=>{
+        if(shutting) set.delete(kind.id); else set.add(kind.id);
+        buildMediaTab();
+      }, ()=> [...document.querySelectorAll('#mediaList .media-kind')].find(b=> b.dataset.kind === kind.id));
     };
     /* The heading folds, as a category's does; the ▸ stands between the
        name and the count, where the tags panel has it. */

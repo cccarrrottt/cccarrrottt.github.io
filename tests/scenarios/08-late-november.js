@@ -1,4 +1,4 @@
-/* tests/scenarios/08-late-november.js — scenarios 151 to 166 of the suite.
+/* tests/scenarios/08-late-november.js — scenarios 151 to 167 of the suite.
  *
  * From 20.11 on: the page in another language, the field, the chart's own
  * fonts, the cloud drives, the field on an entry as the drawing, NSFW, the
@@ -1289,8 +1289,10 @@
     return out;
   });
   check('the drawers still take a fifth of the edge each, though there are four', r.fifths === 'ok', r.fifths);
-  check('the figures\' card is smaller, its templates in pages of eight with the upload last',
-        r.cardWidth <= 240 && r.pages === 'ok' && r.firstPage, JSON.stringify([r.cardWidth, r.pages, r.firstPage]));
+  /* Made smaller on 22.11, and larger again on a computer on 24.11: tiles
+     a pointer can aim at, still eight to a page. */
+  check('the figures\' card is a size a pointer aims at, its templates in pages of eight with the upload last',
+        r.cardWidth > 240 && r.cardWidth <= 320 && r.pages === 'ok' && r.firstPage, JSON.stringify([r.cardWidth, r.pages, r.firstPage]));
   check('…turned by an arrow, the page sliding across rather than cut to', r.slides && r.pageAt === 'ok', JSON.stringify([r.slides, r.pageAt]));
   check('…the triangle turns towards the card, and the figures and the preset rise into place', r.triangleTurns && r.rises,
         JSON.stringify([r.triangleTurns, r.rises]));
@@ -1806,4 +1808,159 @@
         JSON.stringify([r.imported, r.importedNone]));
   check('a reader reads them and has nothing to fill in', r.readerNoForm);
   check('the page is on the site at the site\'s address or below it, and only there', r.atSite);
+  });
+
+  await scenario("the owner's list of 24.11: the text bar's own controls, folds that move, a closer overview, carried in, a scenario's own gestures, a GIF's motion, a see-through border", async () => {
+  const GIF = 'data:image/gif;base64,' + fs.readFileSync(path.join(FIXTURE_DIR, 'media',
+    '6e0523cdee2b91dd3614a252a3b474e4473e1359acafa5b6de3daa574299b9ec.gif')).toString('base64');
+  const r = await page.evaluate(async (GIF)=>{
+    const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+    const was = workingNodes.map(x=> x.slice()), wasStyles = EDGE_STYLES.map(s=> Object.assign({}, s));
+    const wasSettings = JSON.parse(JSON.stringify(SETTINGS));
+    const out = {};
+    const X = 9600, Y = 9600;
+    try {
+      applyEdit(()=>{
+        workingNodes.push(['lt1', 'Words', null, null, null, null, {pos: [X, Y]}]);
+        workingNodes.push(['lt2', 'Gif', null, null, null, null, {pos: [X + 400, Y], image: GIF}]);
+        workingNodes.push(['lt3', 'See-through', null, null, null, null, {pos: [X, Y + 400], colors: ['#1e5ac866']}]);
+        workingNodes.push(['lt4', 'Below', 'lt3', null, null, null, {pos: [X, Y + 700]}]);
+      });
+      rebuildChart(); await wait(120);
+
+      /* 3, 4: the face, the size and the rules of the text bar. */
+      selectedId = 'lt1';
+      openNodeEditor('lt1'); await wait(250);
+      const bar = document.getElementById('nodeEditorBar');
+      const face = bar.querySelector('.tb-face-btn'), size = bar.querySelector('.tb-size-field');
+      out.controls = !!face && !!size && !!bar.querySelector('.tb-size-reset')
+        && !!bar.querySelector('.tb-split-under .tb-split-caret') && !!bar.querySelector('.tb-split-strike .tb-split-caret')
+        && getComputedStyle(bar.querySelector('.tb-font.tb-native')).display === 'none';
+      out.sizeNumber = /^\d+(\.\d+)?$/.test(size.value) && size.readOnly;
+      face.click(); await wait(60);
+      const items = [...document.querySelectorAll('.tb-drop:not([hidden]) .tb-drop-item')];
+      out.faceList = items.length > 3 && items.every(b=> !/…|clear|\(/i.test(b.textContent))
+        && items.some(b=> b.firstElementChild && b.firstElementChild.style.fontFamily);
+      out.faceOn = items.filter(b=> b.classList.contains('on')).length === 1;
+      closeTbDrop();
+      size.click(); await wait(60);
+      const sizes = [...document.querySelectorAll('.tb-drop:not([hidden]) .tb-drop-item')].map(b=> b.textContent.trim());
+      out.sizeList = sizes.length > 4 && sizes.every(t=> /^\d+(\.\d+)?$/.test(t));
+      closeTbDrop();
+      size.dispatchEvent(new MouseEvent('dblclick', {bubbles: true})); await wait(30);
+      out.typeable = !size.readOnly;
+      closeNodeEditor(); await wait(150);
+
+      /* 8: a category folds by its height, not at once. */
+      const sec = document.createElement('div');
+      sec.innerHTML = '<div style="height:20px">head</div><div style="height:200px">body</div>';
+      document.body.appendChild(sec);
+      let changed = false;
+      foldWithMotion(sec, true, ()=>{ changed = true; });
+      await wait(FOLD_MS / 2);
+      const midway = sec.offsetHeight;
+      out.folds = !changed && midway > 20 && midway < 220;
+      await wait(FOLD_MS + 80);
+      out.foldDone = changed;
+      sec.remove();
+
+      /* 9: the wheel over the overview brings it closer and leaves the view. */
+      setMinimap(true); await wait(60);
+      const cv = document.getElementById('minimapCanvas'), cr = cv.getBoundingClientRect();
+      const view = [vx, vy, vs].join();
+      cv.dispatchEvent(new WheelEvent('wheel', {bubbles: true, cancelable: true, deltaY: -300,
+        clientX: cr.left + cr.width / 2, clientY: cr.top + cr.height / 2}));
+      await wait(60);
+      out.closer = minimapZoom.k > 1 && [vx, vy, vs].join() === view;
+      setMinimap(false);
+      out.zoomReset = minimapZoom.k === 1;
+
+      /* 11: a menu over an entry and away again is not its coming into view. */
+      centreViewOn(X + 60, Y + 30, 1); await wait(60);
+      const n1 = nodes.get('lt1');
+      out.inSight = entryInSight(n1) === true;
+      const cover = document.createElement('div');
+      cover.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff';
+      document.body.appendChild(cover);
+      out.covered = entryInSight(n1) === 'covered';
+      cover.remove();
+      scnPickedAt = performance.now();
+      out.pickSwallows = scnPickSwallows() && openNodeEditor('lt1') === false && document.getElementById('nodeEditor').hidden;
+      scnPickedAt = -1e9;
+      out.pickLetGo = !scnPickSwallows();
+
+      /* 12: the words being typed are the drawing's own, seen through the field. */
+      openNodeEditor('lt1'); await wait(250);
+      out.inkFromDrawing = document.getElementById('nodeEditor').classList.contains('ink-from-drawing');
+      closeNodeEditor(); await wait(150);
+
+      /* 14: a moving picture's motion is pressed round in My files. */
+      document.getElementById('filesToggle').click(); await wait(150);
+      const cellOf = ()=> [...document.querySelectorAll('#filesGrid .file-cell')].find(c=> (c.querySelector('img') || {}).src === GIF);
+      const anim = cellOf() && cellOf().querySelector('.file-anim');
+      out.animShown = !!anim && anim.dataset.value === 'play';
+      if(anim){ anim.click(); await wait(60); }
+      const lt2 = workingEntry('lt2');
+      out.animTurned = !!lt2 && entryOpts(lt2.entry).anim === 'still'
+        && (cellOf().querySelector('.file-anim') || {dataset: {}}).dataset.value === 'still';
+      stickerOverlay.classList.remove('open');
+
+      /* 17: a bare end stops at the middle of a see-through border. */
+      const st = edgeStyleFor('lt3', 'lt4');
+      out.bareCut = bareEndCut(st || {}, null, 'lt3') > 0 && bareEndCut(st || {}, null, 'lt1') === 0;
+    } finally {
+      closeTbDrop(); closeNodeEditor(); endPlacing(); closeAddFab();
+      applyEdit(()=>{ workingNodes = was; EDGE_STYLES.length = 0; wasStyles.forEach(s=> EDGE_STYLES.push(s)); });
+      Object.keys(SETTINGS).forEach(k=> delete SETTINGS[k]);
+      Object.assign(SETTINGS, wasSettings);
+      rebuildChart();
+    }
+    return out;
+  }, GIF);
+  check('the text bar has a face button, a size field with its reset, and underline and strike with a caret each',
+        r.controls && r.sizeNumber, JSON.stringify([r.controls, r.sizeNumber]));
+  check('the face list writes each face in itself, without "Face…", "clear" or a (kind), and marks the one in use',
+        r.faceList && r.faceOn, JSON.stringify([r.faceList, r.faceOn]));
+  check('the size list is numbers, and a double click lets a size of one\'s own be typed', r.sizeList && r.typeable,
+        JSON.stringify([r.sizeList, r.typeable]));
+  check('a fold goes by its height and changes the list when it is shut', r.folds && r.foldDone, JSON.stringify([r.folds, r.foldDone]));
+  check('the wheel over the overview brings it closer without moving the chart, and closing it lets go',
+        r.closer && r.zoomReset, JSON.stringify([r.closer, r.zoomReset]));
+  check('an entry under a menu is covered, neither in sight nor out of it', r.inSight && r.covered, JSON.stringify([r.inSight, r.covered]));
+  check('picking an entry for a scenario opens no text, and lets go afterwards', r.pickSwallows && r.pickLetGo,
+        JSON.stringify([r.pickSwallows, r.pickLetGo]));
+  check('an entry\'s words are typed over its own drawing', r.inkFromDrawing);
+  check('a GIF an entry wears is set moving, still or on hover from My files', r.animShown && r.animTurned,
+        JSON.stringify([r.animShown, r.animTurned]));
+  check('a headless end stops at the middle of a see-through border, and only there', r.bareCut);
+
+  /* 10, 15: pinned by a click, and carried to where the pointer puts it. */
+  const fab = await page.evaluate(()=>{ const b = document.getElementById('addFabBtn').getBoundingClientRect();
+    return {x: b.left + b.width / 2, y: b.top + b.height / 2}; });
+  await page.mouse.move(fab.x, fab.y); await page.mouse.click(fab.x, fab.y); await page.waitForTimeout(150);
+  const pinned = await page.evaluate(()=> document.getElementById('addFab').classList.contains('pinned'));
+  await page.mouse.move(fab.x - 300, fab.y - 300); await page.waitForTimeout(150);
+  const held = await page.evaluate(()=> document.getElementById('addFab').classList.contains('open'));
+  const rect = await page.evaluate(()=>{ const b = document.querySelector('#addFabStyles .node-style-btn[data-value="rect"]').getBoundingClientRect();
+    return {x: b.left + b.width / 2, y: b.top + b.height / 2}; });
+  await page.mouse.move(rect.x, rect.y); await page.mouse.click(rect.x, rect.y); await page.waitForTimeout(100);
+  const at = {x: 420, y: 360};
+  await page.mouse.move(at.x, at.y); await page.waitForTimeout(60);
+  const ghost = await page.evaluate(()=> document.body.classList.contains('placing') && !placeGhost.hidden);
+  const before = await page.evaluate(()=> workingNodes.length);
+  await page.mouse.click(at.x, at.y); await page.waitForTimeout(300);
+  const put = await page.evaluate(({x, y, before})=>{
+    const added = workingNodes.length === before + 1 ? workingNodes[workingNodes.length - 1] : null;
+    const n = added && nodes.get(added[0]);
+    const w = clientToWorld(x, y);
+    const res = {added: !!n, near: !!n && Math.abs(n.x + n.w / 2 - w.x) <= GRID && Math.abs(n.y + n.h / 2 - w.y) <= GRID,
+                 done: !document.body.classList.contains('placing')};
+    closeNodeEditor();
+    if(added) applyEdit(()=>{ workingNodes = workingNodes.filter(e=> e[0] !== added[0]); });
+    closeAddFab(); rebuildChart();
+    return res;
+  }, {x: at.x, y: at.y, before});
+  check('a click on + pins its menu open until the next one', pinned && held, JSON.stringify([pinned, held]));
+  check('an entry picked with a mouse rides under the pointer and is put down where it is pressed',
+        ghost && put.added && put.near && put.done, JSON.stringify([ghost, put]));
   });

@@ -1444,7 +1444,8 @@ function drawBarBeads(m, colors){
 /* How much of a lineage's start its own end gives up: an arrowhead's or a
    T's worth, as on any connector (see redrawEdges), or nothing. */
 function mergeMemberCutIn(style, port, fromId){
-  if(!style.arrowIn) return 0;
+  // A bare end stops at a see-through border's outer edge — see bareEndCut.
+  if(!style.arrowIn) return bareEndCut(style, port, fromId);
   return endCutFor(style.teeIn, style.openIn, port, fromId);
 }
 /* A lineage's two ends: the one at its entry, which is an ordinary end,

@@ -1124,6 +1124,41 @@ function makeEyeButton(shut, title){
   return b;
 }
 
+/* A fold in a drawer opens and shuts as a movement, not a jump (the
+ * owner's list of 24.11): what is under a heading grows out of it and goes
+ * back into it.
+ *
+ * The drawers build their sections afresh on every change, so the motion
+ * is put on the section as it stands either side of the change. Shutting,
+ * the section closes over its rows down to its heading first and the
+ * change comes after, so the rows are seen going; opening, the change
+ * comes first and the new section grows from its heading's height to its
+ * own. `again` finds the section the change left behind. */
+const FOLD_MS = 180;
+function foldWithMotion(section, shutting, change, again){
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(still || !section || !section.isConnected || typeof section.animate !== 'function'){ change(); return; }
+  const head = section.firstElementChild;
+  const cs = getComputedStyle(section);
+  const shutH = (head ? head.offsetHeight : 0) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) +
+                parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  if(shutting){
+    const from = section.offsetHeight;
+    if(from <= shutH + 1){ change(); return; }
+    section.style.overflow = 'hidden';
+    const a = section.animate([{height: from + 'px'}, {height: shutH + 'px'}], {duration: FOLD_MS, easing: 'ease-in-out'});
+    a.onfinish = a.oncancel = ()=>{ section.style.overflow = ''; change(); };
+    return;
+  }
+  change();
+  const s = again ? again() : section;
+  if(!s || !s.isConnected) return;
+  const to = s.offsetHeight;
+  if(to <= shutH + 1) return;
+  s.style.overflow = 'hidden';
+  const a = s.animate([{height: shutH + 'px'}, {height: to + 'px'}], {duration: FOLD_MS, easing: 'ease-out'});
+  a.onfinish = a.oncancel = ()=>{ s.style.overflow = ''; };
+}
 /* Which categories are folded shut, and what the reader is looking for.
  *
  * Both belong to the session rather than to the chart: they are how
@@ -1182,9 +1217,11 @@ function buildCategoryBlock(group){
        first is the wrong answer to it. */
     headDblTimer = setTimeout(()=>{
       headDblTimer = 0;
-      if(collapsedCats.has(group.name)) collapsedCats.delete(group.name);
-      else collapsedCats.add(group.name);
-      buildSideTabs();
+      const shutting = !collapsedCats.has(group.name);
+      foldWithMotion(wrap, shutting, ()=>{
+        if(shutting) collapsedCats.add(group.name); else collapsedCats.delete(group.name);
+        buildSideTabs();
+      }, ()=> [...document.querySelectorAll('#tagsList .legend-group')].find(g=> g.dataset.cat === group.name));
     }, DOUBLE_CLICK_GRACE);
   });
   /* Renaming is a double click on the name, like every other name on this

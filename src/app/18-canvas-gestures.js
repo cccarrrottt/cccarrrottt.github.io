@@ -665,7 +665,7 @@ svg.addEventListener('wheel', e=>{ chartCarriedAt = performance.now(); chartWhee
    wheel turned over one did nothing at all, so a zoom stopped dead
    whenever the pointer crossed a panel on its way. What in a menu scrolls
    still scrolls, as far as it goes. */
-const WHEEL_OVER_MENUS = '#styleBar, #edgePopover, #freeMenu, #touchMenu, #nodeEditor, .sticker-picker, #editTagsMenu, #picturePlayer';
+const WHEEL_OVER_MENUS = '#styleBar, #edgePopover, #freeMenu, #touchMenu, #nodeEditor, .sticker-picker, #editTagsMenu, #picturePlayer, .tb-drop';
 document.addEventListener('wheel', e=>{
   const t = e.target;
   if(!t || !t.closest || svg.contains(t)) return;

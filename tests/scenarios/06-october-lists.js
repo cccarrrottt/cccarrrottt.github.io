@@ -3139,7 +3139,9 @@
       });
       applyEdit(()=>{ const f = workingEntry('ol_b'); f.entry[2] = 'ol_a'; putEntry(f.index, f.entry, entryOpts(f.entry)); });
       rebuildChart();
-      const inkOf = (id)=>{ openNodeEditor(id, {focus:false}); const c = getComputedStyle(richFields.get('nodeEditorText').surface).color; closeNodeEditor(false); return c; };
+      const inkOf = (id)=>{ openNodeEditor(id, {focus:false}); const cs = getComputedStyle(richFields.get('nodeEditorText').surface);
+        /* Seen through to the drawing (24.11), the field's ink is its caret's. */
+        const c = document.getElementById('nodeEditor').classList.contains('ink-from-drawing') ? cs.caretColor : cs.color; closeNodeEditor(false); return c; };
       out.inks = [inkOf('ol_e'), inkOf('ol_k')];
       vs = 3; applyTransform(); rebuildChart();
       openNodeEditor('ol_r', {focus:false});

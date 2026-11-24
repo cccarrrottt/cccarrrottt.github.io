@@ -73,7 +73,7 @@
     </button>
     <div class="search-wrap">
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="searchInput" type="text" aria-label="Search the chart" placeholder="Search realities, titles, characters…" autocomplete="off">
+      <input id="searchInput" type="text" aria-label="Search the chart" placeholder="Search…" autocomplete="off">
       <div class="search-results" id="searchResults"></div>
     </div>
     
@@ -370,11 +370,11 @@
             <button class="detail-note-btn" id="detailNoteEdit" title="Edit this note">✎</button>
           </div>
           <div class="mini-toolbar" id="detailNoteToolbar" style="display:none;">
-            <button type="button" data-wrap-target="detailNoteInput" data-wrap="bold">B</button>
-            <button type="button" data-wrap-target="detailNoteInput" data-wrap="italic">I</button>
+            <button type="button" data-wrap-target="detailNoteInput" data-wrap="bold" title="Bold" translate="no">B</button>
+            <button type="button" data-wrap-target="detailNoteInput" data-wrap="italic" title="Italic" translate="no">I</button>
             <button type="button" class="tb-list-btn" data-wrap-target="detailNoteInput" data-wrap="ul" title="A bulleted list"><svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><g fill="currentColor"><circle cx="1.6" cy="2" r="1.4"/><circle cx="1.6" cy="6" r="1.4"/><circle cx="1.6" cy="10" r="1.4"/></g><g stroke="currentColor" stroke-width="1.4"><path d="M5 2H16M5 6H16M5 10H16"/></g></svg></button>
             <button type="button" class="tb-list-btn" data-wrap-target="detailNoteInput" data-wrap="ol" title="A numbered list"><svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true"><g fill="currentColor" font-family="IBM Plex Mono,monospace" font-size="4.6" font-weight="700"><text x="0" y="3.6">1</text><text x="0" y="7.6">2</text><text x="0" y="11.6">3</text></g><g stroke="currentColor" stroke-width="1.4"><path d="M5 2H16M5 6H16M5 10H16"/></g></svg></button>
-            <button type="button" data-wrap-target="detailNoteInput" data-wrap="ruby">Ruby</button>
+            <button type="button" class="tb-ruby-btn" data-wrap-target="detailNoteInput" data-wrap="ruby" title="A reading over the selected words" translate="no"><ruby>ruby<rt>abc</rt></ruby></button>
             <input type="text" class="tb-hex" data-hex-for="detailNoteInput" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="detailNoteInput" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
           </div>
           <textarea id="detailNoteInput" rows="3" spellcheck="false" placeholder="No note yet."></textarea>
@@ -819,9 +819,9 @@
          anywhere else. -->
     <div class="node-editor" id="nodeEditor" hidden>
       <div class="mini-toolbar" id="nodeEditorBar">
-        <button type="button" data-wrap-target="nodeEditorText" data-wrap="bold">B</button>
-        <button type="button" data-wrap-target="nodeEditorText" data-wrap="italic">I</button>
-        <button type="button" data-wrap-target="nodeEditorText" data-wrap="ruby">Ruby</button>
+        <button type="button" data-wrap-target="nodeEditorText" data-wrap="bold" title="Bold" translate="no">B</button>
+        <button type="button" data-wrap-target="nodeEditorText" data-wrap="italic" title="Italic" translate="no">I</button>
+        <button type="button" class="tb-ruby-btn" data-wrap-target="nodeEditorText" data-wrap="ruby" title="A reading over the selected words" translate="no"><ruby>ruby<rt>abc</rt></ruby></button>
         <input type="text" class="tb-hex" data-hex-for="nodeEditorText" value="#20242b" maxlength="9" spellcheck="false" title="Hex colour applied by the A button"><button type="button" class="hex-reset" data-hex-reset="nodeEditorText" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
         <span class="tb-sep"></span>
         <button type="button" class="tb-done" id="nodeEditorDone" title="Done — keep what is written" aria-label="Done"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M3.4 8.4l3 3 6.2-6.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>

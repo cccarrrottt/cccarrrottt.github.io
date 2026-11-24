@@ -41,6 +41,16 @@ function curveHeads(pts, headIn, headOut){
   const deg = (a, b)=> Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
   return {out: deg(cut[cut.length - 1], c[c.length - 1]), in: deg(cut[0], c[0])};
 }
+/* How far short of its port a headless end stops: half the border, when
+   the border it meets is see-through and is its only ring. */
+function bareEndCut(style, port, id){
+  if(style.sinusoid || style.routing === 'curve') return 0;
+  const n = nodes.get(id);
+  if(!n || (port && port.ring) || (n.colors && n.colors.length > 1) || isFreeShape(n.shape || '')) return 0;
+  const ink = portRingColor(n, 0);
+  if(typeof ink !== 'string' || rgbaOf(ink).a >= 1) return 0;
+  return borderStyleOf(n) === 'double' ? DOUBLE_BAND_W / 2 : isWavyBorder(n) ? 0 : NODE_BORDER_W / 2;
+}
 function edgeHit(d, from, to){
   const hit = el('path', {class:'edge-hit', d, 'data-from':from, 'data-to':to}, edgeLayer);
   hit.addEventListener('click', ev=>{
@@ -425,10 +435,20 @@ function redrawEdges(){
        ripple is laid out on the full geometry and stays put; see wavyPath. */
     const rec = ports.get(e) || {};
     const teeIn = headIn && style.teeIn, teeOut = headOut && style.teeOut;
-    const cutIn = !headIn ? 0 : endCutFor(teeIn, style.openIn, rec.p1, e.from);
-    const cutOut = !headOut ? 0 : endCutFor(teeOut, style.openOut, rec.p2, e.to);
+    /* An end with no head stops at the border's OUTER edge when the border
+       is see-through (the owner's screenshot 7 of 24.11). It used to run on
+       to the middle of the border, where the border drawn over it is
+       painted on the line instead of on the page: a see-through colour
+       laid on its own colour came out as a dark spot across the border's
+       outer half. An opaque border hides that stretch, so it is left as it
+       was; and a wave or a curve, whose shape is laid out from its ends,
+       is left as it was too. */
+    const bareIn = !headIn ? bareEndCut(style, rec.p1, e.from) : 0;
+    const bareOut = !headOut ? bareEndCut(style, rec.p2, e.to) : 0;
+    const cutIn = !headIn ? bareIn : endCutFor(teeIn, style.openIn, rec.p1, e.from);
+    const cutOut = !headOut ? bareOut : endCutFor(teeOut, style.openOut, rec.p2, e.to);
     const drawPts = style.sinusoid ? pts
-      : trimForHeads(pts, headIn, headOut, rec.p1, rec.p2, cutIn, cutOut);
+      : trimForHeads(pts, headIn || bareIn > 0, headOut || bareOut > 0, rec.p1, rec.p2, cutIn, cutOut);
     const drawD = style.sinusoid ? wavyPath(pts, cutIn, cutOut, false, edgeCornerR(style))
       : drawPts === pts ? d
       /* A curve is cut where its heads begin by measuring along the CURVE,

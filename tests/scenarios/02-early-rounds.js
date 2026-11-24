@@ -3192,9 +3192,15 @@
     setRichValue(document.getElementById('nodeEditorText'), '[[w|{{#c23b22|**a**}}]]');
     await new Promise(r=> setTimeout(r, 220));
     const rtEl = surf.querySelector('rt');
+    /* Over an entry the field lets the drawing show through it (24.11), so
+       its own ink is read with that let go: it is still the field a note
+       is typed in, and what a note's field shows. */
+    const ed = document.getElementById('nodeEditor'), through = ed.classList.contains('ink-from-drawing');
+    ed.classList.remove('ink-from-drawing');
     const cs = rtEl ? getComputedStyle(rtEl.querySelector('b') || rtEl) : null;
     out.fieldShowsBold = !!cs && +cs.fontWeight >= 700;
     out.fieldShowsColour = !!cs && /199|c23b22|rgb\(194, 59, 34\)|rgb\(194,59,34\)/.test(cs.color);
+    ed.classList.toggle('ink-from-drawing', through);
     /* A selection inside ONE half is formatted on its own; one that
        straddles the two is still widened to the whole reading. */
     setRichValue(document.getElementById('nodeEditorText'), '[[base|anno]]');
@@ -5236,13 +5242,14 @@
     out.foldable = !!erasHead;
     const rowsBefore = document.querySelectorAll('.legend-item').length;
     if(erasHead) erasHead.dispatchEvent(new MouseEvent('click', {bubbles:true}));
-    await wait(300);
+    // The fold moves (24.11): the rows go once it has shut.
+    await wait(DOUBLE_CLICK_GRACE + FOLD_MS + 100);
     out.foldedAway = document.querySelectorAll('.legend-item').length === rowsBefore - 2 &&
                      !!document.querySelector('.legend-group.collapsed');
     const erasAgain = [...document.querySelectorAll('.legend-group-head.foldable')]
       .find(h=> /Eras/.test(h.textContent));
     if(erasAgain) erasAgain.dispatchEvent(new MouseEvent('click', {bubbles:true}));
-    await wait(300);
+    await wait(DOUBLE_CLICK_GRACE + FOLD_MS + 100);
     {
       const inp = document.getElementById('legendFilter');
       inp.value = 'era-a'; inp.dispatchEvent(new Event('input', {bubbles:true}));
