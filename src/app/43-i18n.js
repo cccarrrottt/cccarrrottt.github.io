@@ -30,8 +30,21 @@ const LANG_TABLES = (()=>{
     return t && typeof t === 'object' ? t : {};
   }catch(err){ return {}; }
 })();
+/* A language is offered once most of the page can speak it. The menu
+   offered Russian from the day the texts were gathered, with not one of
+   them translated: choosing it changed nothing, a button that does not
+   work. A half-translated page is still allowed, as the note above says —
+   only not one that is nearly all English. The build counts every text
+   (`total`) beside the ones written. */
+const LANG_READY = 0.8;
+function langReady(lang){
+  if(lang === 'en') return true;
+  const t = LANG_TABLES[lang];
+  if(!LANG_NAMES[lang] || !t || !t.strings || !(t.total > 0)) return false;
+  return Object.keys(t.strings).length / t.total >= LANG_READY;
+}
 let pageLang = 'en';
-try{ const was = localStorage.getItem(LANG_KEY); if(was && LANG_NAMES[was]) pageLang = was; }catch(e){}
+try{ const was = localStorage.getItem(LANG_KEY); if(was && LANG_NAMES[was] && langReady(was)) pageLang = was; }catch(e){}
 
 const I18N_ATTRS = ['title', 'aria-label', 'placeholder', 'alt'];
 let i18nExact = null, i18nShaped = [], i18nObserver = null;
@@ -179,7 +192,7 @@ function i18nStop(){
   i18nExact = null; i18nShaped = [];
 }
 function setPageLang(lang){
-  if(!LANG_NAMES[lang] || lang === pageLang) return;
+  if(!LANG_NAMES[lang] || !langReady(lang) || lang === pageLang) return;
   i18nStop();
   pageLang = lang;
   try{ if(lang === 'en') localStorage.removeItem(LANG_KEY); else localStorage.setItem(LANG_KEY, lang); }catch(e){}
@@ -204,7 +217,19 @@ function wearFlag(holder, lang){
   if(f && f.dataset.flag !== lang){ f.textContent = flagForCode(LANG_FLAG_CODES[lang] || '') || ''; f.dataset.flag = lang; }
 }
 if(langMenu) langMenu.querySelectorAll('[data-lang]').forEach(b=> wearFlag(b, b.dataset.lang));
+/* The menu holds the languages ready to speak; with English the only one,
+   there is nothing to choose and the button is not shown. */
+function syncLangOffer(){
+  let offered = 0;
+  if(langMenu) langMenu.querySelectorAll('[data-lang]').forEach(b=>{
+    const ready = langReady(b.dataset.lang);
+    b.hidden = !ready;
+    if(ready) offered++;
+  });
+  if(langToggle) langToggle.hidden = offered < 2;
+}
 function syncLangButton(){
+  syncLangOffer();
   if(!langToggle) return;
   wearFlag(langToggle, pageLang);
   langToggle.dataset.lang = pageLang;

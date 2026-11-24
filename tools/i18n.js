@@ -117,7 +117,7 @@ const NAME_PROPS = new Set(['className', 'id', 'type', 'href', 'src', 'rel', 'ta
   'tagName', 'nodeName', 'role', 'name', 'lang', 'dir', 'contentEditable', 'inputMode', 'autocomplete', 'accept',
   'mode', 'method', 'credentials', 'cache', 'encoding', 'kind', 'shape', 'routing', 'dash', 'border', 'value']);
 function readProgram(){
-  const parts = fs.readdirSync(path.join(SRC, 'app')).filter(f => /^\d\d-.*\.js$/.test(f)).sort();
+  const parts = fs.readdirSync(path.join(SRC, 'app')).filter(f => /^\d\d[a-z]?-.*\.js$/.test(f)).sort();
   for(const part of parts){
     const code = fs.readFileSync(path.join(SRC, 'app', part), 'utf-8');
     const ast = espree.parse(code, {ecmaVersion: 2022, sourceType: 'script', range: true});

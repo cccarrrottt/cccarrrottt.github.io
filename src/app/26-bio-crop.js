@@ -679,3 +679,13 @@ let leaderJustPlaced = false;
 const bendLayer = el('g', {id:'bendLayer'}, viewport);
 const guideLayer = el('g', {id:'guideLayer', style:'pointer-events:none;'}, viewport);
 const leaderPickLayer = el('g', {id:'leaderPickLayer', style:'pointer-events:none;'}, viewport);
+/* Constants of the editing parts that the gestures (18-canvas-gestures.js)
+   and a merged arrow's drag (15-amalgam.js) read as well. Only ever on an
+   editing path, but a const that is not declared is a ReferenceError
+   whichever path reads it, and tools/lazy.js asks for none to be left in
+   a lazy part. */
+const ROT_SNAP = 45;             // a caption's angle, with Shift: level, upright, the diagonals
+const GUIDE_SNAP_PX = 6;         // how close counts as aligned, on screen
+const GUIDE_OVERHANG = 12;       // how far a guide runs past the boxes it joins
+const LEADER_AIM_STEP = 45;      // a leader's aim, in degrees, when Shift is held
+const LEADER_AIM_MIN = 16;       // never so short the card sits on the line

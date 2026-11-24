@@ -31,9 +31,14 @@ workers_dev = true
 # under [vars] collides with the secret of the same name — the deploy either
 # fails or the service runs with what stands here instead of the real thing.
 # They are set once in the Cloudflare dashboard, as Secrets.
+# So, when they are used, are GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY
+# (editors' saves, below) and FILE_MARK_SECRET (see fileMark in index.js:
+# set it to SESSION_SECRET's current value before ever changing that one,
+# or every picture from a drive stops answering).
 # So are the cloud drives' (see CLOUDS in index.js), each optional — a
 # drive whose two or three are not set is simply not offered:
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY
+#   GOOGLE_PICKER_KEY, GOOGLE_APP_ID (Google's Picker, and drive.file)
 #   YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET
 # tests/worker.js refuses this file if any of them appears in it.
 [vars]
@@ -42,9 +47,16 @@ BRANCH = "main"
 OWNERS = "cccarrrottt"
 # Who writes the chart with the owner: GitHub logins, comma-separated. An
 # editor saves entries, connectors and pictures as the owner does, but not
-# the chart's settings, and does not close suggestions; see index.js. Each
-# also has to be able to push to the repository (Settings, Collaborators,
-# with Write), because the commit is made with their own token.
+# the chart's settings, and does not close suggestions; see index.js.
+#
+# Before the first editor, give the service the app's own key, as two
+# Secrets in the Cloudflare dashboard (never here): GITHUB_APP_ID, the
+# app's number on its settings page, and GITHUB_APP_PRIVATE_KEY, a private
+# key generated there (the whole .pem). The app then commits an editor's
+# save itself, and the editor needs no access to the repository. Without
+# them an editor has to be a collaborator with Write, and Write lets them
+# change the code and the workflows too — everything this service holds
+# back from an editor would be held back only by the page.
 EDITORS = ""
 ALLOWED_ORIGINS = "https://cccarrrottt.github.io"
 

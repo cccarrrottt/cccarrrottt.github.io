@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.27.1** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.27.2** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -66,7 +66,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 50 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 54 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -271,11 +271,18 @@ logins, the editors' and the site's address.
 ### Editors
 
 Someone the owner writes the chart with goes in `EDITORS` in
-`worker/wrangler.toml` — a GitHub login, or several, comma-separated — and,
-because the commit is made with their own GitHub token, the repository has
-to let them push: *Settings → Collaborators*, with *Write*. They press the
-same **Sign in**, and the page becomes the editor for them as it does for
-the owner. What stays the owner's:
+`worker/wrangler.toml` — a GitHub login, or several, comma-separated. Before
+the first one, give the service the GitHub App's own key: on the app's
+settings page, note its *App ID* and *Generate a private key*, and add both
+to the Worker as Secrets, `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (the
+whole `.pem`). An editor's Save is then committed by the app, with a token
+that writes the repository's contents and nothing else, and the editor
+needs no access to the repository at all. Without the key the commit is
+made with the editor's own token, so the repository has to let them push
+(*Settings → Collaborators*, *Write*) — and Write lets them change the code,
+the workflows and the settings directly, past everything below. They press
+the same **Sign in**, and the page becomes the editor for them as it does
+for the owner. What stays the owner's:
 
 - **the chart's settings** — the legend, tag colours, media templates,
   figures, the colour of references. An editor's Save keeps whatever
@@ -294,11 +301,14 @@ A picture picked from a drive is shared by link (a reader has to be able to
 see it), and the chart names it by the service's address,
 `/cloud/gdrive/file/<id>` or `/cloud/yadisk/file?key=<public key>`, which
 answers every reader from the drive. The address also carries a mark only
-the service can make (`&mark=…`, from `SESSION_SECRET`), so it answers for
-a file the owner picked and for no other file shared by link: the service
-is not a free way through to anyone's drive. Changing `SESSION_SECRET`
-therefore stops the drive pictures already on the chart, which are picked
-again to get a new mark. The owner's own grant to the drive is
+the service can make (`&mark=…`, from `FILE_MARK_SECRET`, or
+`SESSION_SECRET` while that is not set), so it answers for a file the owner
+picked and for no other file shared by link: the service is not a free way
+through to anyone's drive. Before ever changing `SESSION_SECRET`, add
+`FILE_MARK_SECRET` with its current value; otherwise the change stops every
+drive picture already on the chart, which would have to be picked again.
+A picked file stays shared by link after it leaves the chart: unsharing it
+is done in the drive. The owner's own grant to the drive is
 kept inside the owner's session, as the GitHub token is; the service still
 stores nothing.
 
@@ -312,6 +322,21 @@ stores nothing.
   `https://rhizome-api.wowwodptr2.workers.dev/cloud/gdrive/back`, and an
   *API key* restricted to the Drive API. The Secrets are
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_API_KEY`.
+
+  *Better, and optional: Google's own Picker.* Without it the service asks
+  for the whole drive, since it lists folders itself. With it the owner
+  picks in Google's own window, and the service is given only the files
+  picked (`drive.file`), which also spares the app Google's review of a
+  drive-wide scope. Enable the *Google Picker API* in the same project,
+  make a second *API key* restricted to the Picker API and to the website
+  `https://rhizome-api.wowwodptr2.workers.dev/*` (the window is the
+  service's page, not the site's), and add the service's address to the
+  OAuth client's *Authorized JavaScript origins*. The Secrets are
+  `GOOGLE_PICKER_KEY` (that key) and `GOOGLE_APP_ID` (the project
+  *number*, on the project's dashboard). A drive connected before them was
+  connected for the whole drive; the first press after asks to connect it
+  again, for the files picked, and what was picked before stays on the
+  chart.
 - **Yandex Disk.** At <https://oauth.yandex.ru/client/new>, make an app
   for the web with the redirect URI
   `https://rhizome-api.wowwodptr2.workers.dev/cloud/yadisk/back` and the
@@ -549,6 +574,11 @@ tag with no entries simply vanished; a category that names it keeps it alive, wh
 
 Which tags are *hidden* is deliberately NOT part of this. That is a view preference, per browser,
 and it stays in `hiddenTags` where it always was.
+
+The special tag **NSFW** draws an entry blurred under an 18+ badge until a reader presses it. It is
+a veil, not a lock: the entry and its pictures are in the published `chart.json` and in the page
+like every other, and anyone can read them there. It keeps a picture from being seen by accident;
+it does not keep it from anyone who looks.
 
 ## Waves
 

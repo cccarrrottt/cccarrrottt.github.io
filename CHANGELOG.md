@@ -6,6 +6,18 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.27.2 — "Behind the door" (2026-11-23)
+
+- An editor's Save can be committed by the site's GitHub App itself, once the app's own key is among the service's secrets (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY): an editor then needs no access to the repository at all, and the service is the only way their edits reach it. Until now an editor had to be able to push, which let them change the code and the settings past everything the service holds back.
+- The notes in the margin are put together stroke by stroke when two saves meet, so strokes drawn on two devices no longer collide, and an editor's strokes are saved with the rest of their edit instead of being left out with the settings.
+- A picture or clip from a drive keeps working after the service's session secret is changed, once FILE_MARK_SECRET is set to the secret's old value first.
+- Each Save from the site is named in the history by what it changed — "Chart: 2 entries added, 1 entry changed" — instead of the same line every time.
+- The language button appears once a language other than English is mostly translated. Russian was offered with nothing translated yet, and choosing it changed nothing.
+- Six pictures the chart no longer shows (851 KB, among them the two GIFs replaced by WebP) are no longer published with the site, and the chart check names any such file from now on.
+- The checks hold what a reader downloads to a ceiling, and refuse any constant of the editing parts read by the rest of the program, which on the site would have thrown on a reader's screen; five such constants were moved to where every page has them.
+- Google Drive can be picked from in Google's own window, once the service has the Picker's key and the project's number (GOOGLE_PICKER_KEY, GOOGLE_APP_ID): the service is then given only the files the owner picks, not the whole drive. A drive connected before asks once to be connected again.
+- A reader downloads a twentieth less of the program: what of five parts a reader never runs — carrying an entry and its grips, writing in a text, the add menus, the style bar — now comes with the editor, only to the owner and editors.
+
 ## 0.27.1 — "One after another" (2026-11-23)
 
 - A scenario set off by an entry coming into view plays every time the entry comes into view again, not only the first time, unless it is told to play once. An entry counts as in view only when the reader can actually see it: at least half of it on the screen and not under the top bar, a drawer, the entry sheet or another entry.

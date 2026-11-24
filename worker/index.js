@@ -43,12 +43,17 @@
    write. Nothing the page does or says can change either answer.
 
    An EDITOR is a login in EDITORS: someone the owner writes the chart
-   with. An editor saves the chart as the owner does — the commit made with
-   their own token, so GitHub refuses it unless they can push to the
-   repository — but the chart's settings (its legend, tag colours, media
-   templates, figures) stay the owner's: a save of theirs keeps whatever
-   settings the repository holds, and says so. Closing a suggestion is the
-   owner's too. Like OWNERS, the list is read on every request.
+   with. An editor saves the chart as the owner does, but the chart's
+   settings (its legend, tag colours, media templates, figures) stay the
+   owner's: a save of theirs keeps whatever settings the repository holds,
+   and says so — all but the notes in the margin, which are writing on the
+   chart. Closing a suggestion is the owner's too. Like OWNERS, the list is
+   read on every request. With the app's own key set (GITHUB_APP_ID,
+   GITHUB_APP_PRIVATE_KEY) an editor's commit is the app's, and the editor
+   needs no access to the repository; without it, the commit is made with
+   the editor's own token and GitHub refuses it unless they can push —
+   which also lets them change everything else, so set the key before the
+   first editor (see appToken).
 
    A READER who signs in to suggest gets a session too, marked as a
    reader's. It opens /me, /suggestions and /suggest and nothing else:
@@ -80,6 +85,10 @@
      EDITORS                                  GitHub logins, comma-separated;
                                               may be empty
      ALLOWED_ORIGINS                          the site's origin(s), comma-separated
+     GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY    optional, secret: editors' saves
+                                              committed by the app (appToken)
+     FILE_MARK_SECRET                         optional, secret: what drive files'
+                                              marks are made from (fileMark)
 */
 
 const DATA_PATH = 'src/chart.json';
@@ -198,10 +207,24 @@ export async function unseal(env, purpose, token){
    requests and the owner's Google key: a free proxy for whoever finds
    it. A mark, not a seal, because the address is written into the chart
    for good — it has no time to run out — and an HMAC of what it names
-   is all a reader's browser needs to bring back. */
+   is all a reader's browser needs to bring back.
+
+   Made from FILE_MARK_SECRET when there is one, and from SESSION_SECRET
+   when there is not. They are two because they are kept for different
+   times: SESSION_SECRET is the one to change after a leak, and changing it
+   ends every session — which is what it is for — but a mark made from it
+   is written into the chart for good, and every picture and clip from a
+   drive would go dark with the sessions. To change SESSION_SECRET without
+   that, set FILE_MARK_SECRET to its CURRENT value first: the marks already
+   written go on answering, and the session secret is free to change. */
+function fileMarkSecret(env){
+  const own = String(env.FILE_MARK_SECRET || '');
+  return own.length >= 32 ? own : String(env.SESSION_SECRET || '');
+}
 export async function fileMark(env, name, ref){
-  if(!env.SESSION_SECRET || String(env.SESSION_SECRET).length < 32) return null;
-  const raw = await crypto.subtle.digest('SHA-256', enc.encode('cloud-file:' + env.SESSION_SECRET));
+  const secret = fileMarkSecret(env);
+  if(secret.length < 32) return null;
+  const raw = await crypto.subtle.digest('SHA-256', enc.encode('cloud-file:' + secret));
   const key = await crypto.subtle.importKey('raw', raw, {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
   const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(name + '\u0000' + ref)));
   return b64url(mac.subarray(0, 18));
@@ -357,8 +380,37 @@ function mergeRecord(part, b, t, m, say){
   const out = {};
   const fields = [...Object.keys(t), ...Object.keys(m).filter(k => !(k in t)), ...Object.keys(b).filter(k => !(k in t) && !(k in m))];
   for(const k of fields){
-    const v = mergeOne(b[k], t[k], m[k], () => say({region: part, item: k}));
+    const strokes = part === 'settings' && k === 'ink' && [b[k], t[k], m[k]].every(v => v === undefined || Array.isArray(v));
+    const v = strokes && !same(m[k], b[k]) && !same(m[k], t[k]) && !same(t[k], b[k])
+      ? mergeStrokes(b[k], t[k], m[k])
+      : mergeOne(b[k], t[k], m[k], () => say({region: part, item: k}));
     if(v !== undefined) out[k] = v;
+  }
+  return out;
+}
+/* The notes in the margin (settings.ink) are strokes, and a stroke is
+   only ever drawn or rubbed out whole — never changed — so a stroke is
+   named by what it is. Merged as one value, like the rest of a setting,
+   two devices that each drew one stroke collided; merged by stroke, what
+   one side drew and the other rubbed out is simply both. Counted, not
+   just named: two strokes exactly alike are two strokes. */
+const strokeName = s => JSON.stringify(s);
+export function mergeStrokes(b, t, m){
+  const counts = list => (list || []).reduce((c, s) => c.set(strokeName(s), (c.get(strokeName(s)) || 0) + 1), new Map());
+  const B = counts(b), M = counts(m);
+  // What mine rubbed out: as many of each as base had more than mine.
+  const gone = new Map([...B].map(([k, n]) => [k, n - (M.get(k) || 0)]).filter(([, n]) => n > 0));
+  const out = [];
+  for(const s of t || []){
+    const k = strokeName(s);
+    if(gone.get(k) > 0){ gone.set(k, gone.get(k) - 1); continue; }
+    out.push(s);
+  }
+  // What mine drew: as many of each as mine has more than base.
+  const drawn = new Map([...M].map(([k, n]) => [k, n - (B.get(k) || 0)]).filter(([, n]) => n > 0));
+  for(const s of m || []){
+    const k = strokeName(s);
+    if(drawn.get(k) > 0){ drawn.set(k, drawn.get(k) - 1); out.push(s); }
   }
   return out;
 }
@@ -529,11 +581,104 @@ async function readBlob(env, token, sha){
   return dec.decode(unb64(String(blob.content).replace(/\s+/g, '')));
 }
 
+/* What a save changed, as the first line of its commit. Every commit used
+   to say "Save the chart from the site", so About's history of edits was a
+   column of one line, and a commit could only be told from the next by
+   opening it. Counted from the two files as values, the way the merge
+   reads them; a file that will not read is simply not counted. */
+const SAVE_WORDS = {nodes: ['entry', 'entries'], edgeStyles: ['connector', 'connectors'], stickers: ['sticker', 'stickers'],
+                    media: ['picture', 'pictures'], comments: ['comment', 'comments'], tagCats: ['tag group', 'tag groups'],
+                    refs: ['reference', 'references']};
+export function saveTitle(before, after, pictures){
+  let a, b;
+  try{ a = readChart(before); b = readChart(after); }catch(e){ return 'Save the chart from the site'; }
+  const bits = [];
+  for(const k of Object.keys(CHART_LISTS)){
+    const A = new Map((a[k] || []).map(x => [itemName(k, x), x])), B = new Map((b[k] || []).map(x => [itemName(k, x), x]));
+    let added = 0, changed = 0, gone = 0;
+    for(const [key, x] of B){ if(!A.has(key)) added++; else if(!same(A.get(key), x)) changed++; }
+    for(const key of A.keys()) if(!B.has(key)) gone++;
+    const parts = [[added, 'added'], [changed, 'changed'], [gone, 'removed']].filter(([c]) => c)
+      .map(([c, w]) => `${c} ${SAVE_WORDS[k][c === 1 ? 0 : 1]} ${w}`);
+    if(parts.length) bits.push(parts.join(', '));
+  }
+  const sa = a.settings || {}, sb = b.settings || {};
+  if(!same(sa.ink, sb.ink)) bits.push('notes in the margin');
+  const others = [...new Set([...Object.keys(sa), ...Object.keys(sb)])].filter(k => k !== 'ink' && !same(sa[k], sb[k]));
+  if(others.length) bits.push('settings (' + others.join(', ') + ')');
+  if(!bits.length && pictures) bits.push(pictures === 1 ? 'a picture' : pictures + ' pictures');
+  if(!bits.length) return 'Save the chart from the site';
+  const line = 'Chart: ' + bits.join('; ');
+  return line.length > 100 ? line.slice(0, 99) + '…' : line;
+}
+
+/* ---- an editor's commit, made by the app ---------------------------- */
+
+/* An editor's save used to be committed with the editor's own token, so
+   GitHub refused it unless the editor could push to the repository — and
+   an account that can push can change the code, the workflows and through
+   them the deploy's secrets, with this service never asked. What the
+   service holds back from an editor (the settings, closing suggestions)
+   was then only manners.
+
+   With GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY set, an editor's save is
+   committed by the app itself, with a token for its installation on REPO
+   that can write contents and nothing else, good for an hour. The editor
+   needs no access to the repository at all, and this service is the one
+   door. Without them it is as it was, and an editor still needs Write.
+   The owner's own saves stay the owner's: their commits are theirs.
+
+   The key is the one GitHub hands as a .pem ("BEGIN RSA PRIVATE KEY",
+   PKCS#1). WebCrypto reads only PKCS#8, so a PKCS#1 key is wrapped in the
+   few bytes that make it one; a PKCS#8 key is taken as it is. */
+export function appReady(env){ return !!(String(env.GITHUB_APP_ID || '').trim() && String(env.GITHUB_APP_PRIVATE_KEY || '').trim()); }
+function derLength(n){
+  if(n < 0x80) return [n];
+  const out = [];
+  for(; n; n >>= 8) out.unshift(n & 0xff);
+  return [0x80 | out.length, ...out];
+}
+export function pkcs8Of(pem){
+  const pkcs1 = /BEGIN RSA PRIVATE KEY/.test(pem);
+  const body = unb64(String(pem).replace(/-----[^-]+-----/g, '').replace(/\s+/g, ''));
+  if(!pkcs1) return body;
+  // PrivateKeyInfo: version 0, rsaEncryption with NULL parameters, the key.
+  const alg = [0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00];
+  const octets = [0x04, ...derLength(body.length)];
+  const inner = 3 + alg.length + octets.length + body.length;
+  const head = [0x30, ...derLength(inner), 0x02, 0x01, 0x00, ...alg, ...octets];
+  const out = new Uint8Array(head.length + body.length);
+  out.set(head); out.set(body, head.length);
+  return out;
+}
+async function appJwt(env){
+  const key = await crypto.subtle.importKey('pkcs8', pkcs8Of(String(env.GITHUB_APP_PRIVATE_KEY).replace(/\\n/g, '\n')),
+    {name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256'}, false, ['sign']);
+  const now = Math.floor(Date.now() / 1000);
+  // A minute back, for a clock a little ahead of GitHub's; ten is GitHub's most.
+  const part = v => b64url(enc.encode(JSON.stringify(v)));
+  const head = part({alg: 'RS256', typ: 'JWT'}) + '.' + part({iat: now - 60, exp: now + 540, iss: String(env.GITHUB_APP_ID).trim()});
+  const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, enc.encode(head)));
+  return head + '.' + b64url(sig);
+}
+export async function appToken(env){
+  let jwt;
+  try{ jwt = await appJwt(env); }
+  catch(e){ throw httpError(503, 'GITHUB_APP_PRIVATE_KEY is not a private key this service can read.'); }
+  const refused = 'the app is not installed on the repository, or may not write its contents.';
+  const inst = await gh(jwt, `/repos/${env.REPO}/installation`, undefined, refused);
+  const name = String(env.REPO).split('/')[1];
+  const got = await gh(jwt, `/app/installations/${inst.id}/access_tokens`, {method: 'POST',
+    body: JSON.stringify({repositories: [name], permissions: {contents: 'write'}})}, refused);
+  if(!got || typeof got.token !== 'string') throw httpError(502, 'GitHub did not hand the app a token.');
+  return got.token;
+}
+
 /* One commit, made with the Git Data API rather than the contents endpoint:
    a chart with its pictures inside could run past a megabyte, which that
    endpoint will not take, and the ref update is a fast-forward only —
    a push that landed in between makes it fail rather than be overwritten. */
-async function commitData(env, token, now, text, login, media){
+async function commitData(env, token, now, text, login, media, was){
   const blob = await gh(token, `/repos/${env.REPO}/git/blobs`, {method: 'POST', body: JSON.stringify({content: text, encoding: 'utf-8'})});
   const entries = [{path: DATA_PATH, mode: '100644', type: 'blob', sha: blob.sha}];
   for(const f of media || []){
@@ -544,7 +689,7 @@ async function commitData(env, token, now, text, login, media){
     base_tree: now.tree, tree: entries
   })});
   const commit = await gh(token, `/repos/${env.REPO}/git/commits`, {method: 'POST', body: JSON.stringify({
-    message: `Save the chart from the site\n\nSaved by ${login} through the chart's own Save button.`,
+    message: `${saveTitle(was, text, (media || []).length)}\n\nSaved by ${login} through the chart's own Save button.`,
     tree: tree.sha, parents: [now.head]
   })});
   const res = await fetch(`https://api.github.com/repos/${env.REPO}/git/refs/heads/${env.BRANCH}`, {
@@ -574,10 +719,10 @@ function cors(env, request){
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Max-Age': '600'};
 }
 /* A page that only ever runs our own script, and that no one can frame. */
-function page(html, status){
+function page(html, status, policy){
   return new Response('<!doctype html><meta charset="utf-8"><title>Rhizome sign-in</title>' + html,
     {status: status || 200, headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
-      'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+      'Content-Security-Policy': policy || "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'",
       'Referrer-Policy': 'no-referrer'}});
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -714,7 +859,8 @@ async function me(env, request, ctx){
      this session is connected to — the owner's alone, as the drives are. */
   return Object.assign({owner: s.owner, login: s.login, sha: now.sha, media: true},
                        s.editor ? {editor: true} : {},
-                       s.owner ? {clouds: {ready: cloudsReady(env), connected: Object.keys(s.clouds || {}).filter(k => CLOUDS[k])}} : {});
+                       s.owner ? {clouds: Object.assign({ready: cloudsReady(env), connected: Object.keys(s.clouds || {}).filter(k => CLOUDS[k])},
+                                                       pickerReady(env) && cloudsReady(env).includes('gdrive') ? {picker: ['gdrive']} : {})} : {});
 }
 
 async function save(env, request, ctx){
@@ -732,8 +878,10 @@ async function save(env, request, ctx){
   let mine;
   try{ mine = readChart(body.chart); }
   catch(e){ throw httpError(400, `the save is not the chart: ${e.message}.`); }
-  const now = await currentData(env, s.gh);
-  const file = await readBlob(env, s.gh, now.sha);
+  // An editor's save is the app's to write, when the app can (appToken).
+  const writer = s.editor && appReady(env) ? await appToken(env) : s.gh;
+  const now = await currentData(env, writer);
+  const file = await readBlob(env, writer, now.sha);
   /* An editor's save takes the settings the repository has, whatever it
      sent: they are the owner's. Taken from the repository's chart rather
      than refused, so the rest of the edit is saved, and the answer carries
@@ -758,7 +906,7 @@ async function save(env, request, ctx){
   let merged = null;
   if(now.sha !== body.base){
     const read = async sha => {
-      try{ return readChart(await readBlob(env, s.gh, sha)); }catch(e){ return null; }
+      try{ return readChart(await readBlob(env, writer, sha)); }catch(e){ return null; }
     };
     const base = /^[0-9a-f]{40}$/.test(body.base) ? await read(body.base) : null;
     let theirs = null;
@@ -779,7 +927,7 @@ async function save(env, request, ctx){
     media = await checkMedia(body.media, next, file, now.media);
     if(next === file && !media.length) return say({sha: now.sha, unchanged: true, merged: true, chart: merged});
   }
-  const done = await commitData(env, s.gh, now, next, s.login, media);
+  const done = await commitData(env, writer, now, next, s.login, media, file);
   return say(merged ? Object.assign(done, {merged: true, chart: merged}) : done);
 }
 
@@ -793,9 +941,16 @@ export function keepSettings(mine, file){
   // the same settings, and an editor is not told theirs were left out.
   const canon = v => Array.isArray(v) ? v.map(canon)
     : isRecord(v) ? Object.keys(v).sort().reduce((o, k)=> (o[k] = canon(v[k]), o), {}) : v;
-  if(same(canon(mine.settings), canon(theirs.settings))) return false;
-  if(theirs.settings === undefined) delete mine.settings;
-  else mine.settings = theirs.settings;
+  /* Except the notes in the margin: they live in the settings, but they
+     are writing on the chart, not a choice about it, and an editor's
+     strokes are as much the chart as an editor's entries. They go on with
+     the save, and a merge below puts them together stroke by stroke. */
+  const ink = mine.settings && mine.settings.ink;
+  const without = v => { const o = Object.assign({}, v || {}); delete o.ink; return o; };
+  if(same(canon(without(mine.settings)), canon(without(theirs.settings)))) return false;
+  const next = theirs.settings === undefined ? {} : Object.assign({}, theirs.settings);
+  if(ink === undefined) delete next.ink; else next.ink = ink;
+  if(Object.keys(next).length) mine.settings = next; else delete mine.settings;
   return true;
 }
 
@@ -980,6 +1135,10 @@ export async function report(env, request){
  * simply not offered: /me lists the ones that are.
  *
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_API_KEY   secrets
+ *   GOOGLE_PICKER_KEY, GOOGLE_APP_ID     optional: Google's own Picker, and
+ *                                        drive.file instead of the drive
+ *   GET  /cloud/gdrive/picker   the popup with Google's Picker in it, on a
+ *                               ticket from POST /cloud/gdrive/picker-ticket
  *   YANDEX_CLIENT_ID, YANDEX_CLIENT_SECRET                   secrets
  */
 const CLOUDS = {
@@ -991,10 +1150,14 @@ const CLOUDS = {
       u.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
       u.searchParams.set('redirect_uri', back);
       u.searchParams.set('response_type', 'code');
-      /* The whole drive: a file is looked through and then shared by
-         link, and only this scope may change who can see a file the app
-         did not make. */
-      u.searchParams.set('scope', 'https://www.googleapis.com/auth/drive');
+      /* With Google's own Picker set up (pickerReady), only the files the
+         owner picks in Google's window: drive.file reaches a file once it
+         has been picked there, sharing it included, and nothing else of
+         the drive. Without it, the whole drive, because the folders are
+         then looked through here, and only that scope may change who can
+         see a file the app did not make — a session that could be taken
+         would open every picture on the drive. */
+      u.searchParams.set('scope', pickerReady(env) ? DRIVE_FILE_SCOPE : 'https://www.googleapis.com/auth/drive');
       u.searchParams.set('access_type', 'offline');
       u.searchParams.set('prompt', 'consent');
       u.searchParams.set('state', state);
@@ -1020,6 +1183,14 @@ const CLOUDS = {
   }
 };
 const CLOUD_LIST_MAX = 200;
+const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+/* Google's Picker: the owner chooses files in Google's own window, and
+   the service never looks through the drive. Needs a browser key with the
+   Picker API on (GOOGLE_PICKER_KEY, restricted to the service's address)
+   and the Cloud project's number (GOOGLE_APP_ID); both are shown to the
+   owner's browser, which is what they are for. */
+export function pickerReady(env){ return !!(String(env.GOOGLE_PICKER_KEY || '').trim() && String(env.GOOGLE_APP_ID || '').trim()); }
+const grantScopes = g => String((g && g.sc) || '').split(/\s+/).filter(Boolean);
 export function cloudsReady(env){ return Object.keys(CLOUDS).filter(k => CLOUDS[k].ready(env)); }
 function cloudOf(env, name){
   const c = CLOUDS[name];
@@ -1035,8 +1206,10 @@ async function cloudToken(url, params){
   return got;
 }
 function cloudGrant(got, old){
-  return {at: got.access_token, atExp: Date.now() + (Number(got.expires_in) || 3600) * 1000,
-          rt: got.refresh_token || (old && old.rt) || null};
+  // `sc`: what the grant reaches, as the provider said; a renewal may not say.
+  const sc = typeof got.scope === 'string' ? got.scope : (old && old.sc) || null;
+  return Object.assign({at: got.access_token, atExp: Date.now() + (Number(got.expires_in) || 3600) * 1000,
+          rt: got.refresh_token || (old && old.rt) || null}, sc ? {sc} : {});
 }
 /* The session sealed again with other drives in it. `owner` and `editor`
    are what session() worked out for this request, never kept: a session
@@ -1155,6 +1328,73 @@ async function cloudList(env, request, ctx, name){
   }
   return {items};
 }
+/* Google's window for picking, opened as a popup on this service's own
+   address rather than in the site. Its script comes from apis.google.com
+   and it holds an access token to the drive; on the site, the first would
+   be a host the site's policy lets run scripts beside the owner's session,
+   and the second a key in the page. Here the popup's own policy lets in
+   Google and nothing else, and all the site gets back is what was picked,
+   by postMessage to the origin the ticket was asked from — which then goes
+   through /pick like a file chosen in the folders.
+
+   The token is handed only for a grant that reaches no more than
+   drive.file. A drive connected before the Picker was set up reaches the
+   whole drive, and is asked to connect again rather than have that token
+   put in a browser window. */
+async function cloudPickerTicket(env, request, ctx, name){
+  if(name !== 'gdrive' || !pickerReady(env)) throw httpError(404, 'not found');
+  cloudOf(env, name);
+  const s = await session(env, request, ctx, 'owner');
+  const origin = request.headers.get('Origin') || '';
+  if(list(env.ALLOWED_ORIGINS).indexOf(origin) < 0) throw httpError(403, 'only the chart\'s own site may pick from a drive.');
+  const g = s.clouds && s.clouds[name];
+  const sc = grantScopes(g);
+  if(g && !(sc.length && sc.every(x => x === DRIVE_FILE_SCOPE || !/\/auth\/drive/.test(x)))){
+    const clouds = Object.assign({}, s.clouds); delete clouds[name];
+    ctx.session = await sealClouds(env, s, clouds);
+    throw httpError(409, 'Google Drive was connected for the whole drive; connect it again, for the files you pick.');
+  }
+  const at = await cloudAccess(env, s, name, ctx);
+  return {ticket: await seal(env, 'cloud-picker', {cloud: name, at, origin, exp: Date.now() + STATE_MINUTES * 60000})};
+}
+async function cloudPickerPage(env, url, name){
+  if(name !== 'gdrive' || !pickerReady(env)) return page('<p>Not found.</p>', 404);
+  const t = await unseal(env, 'cloud-picker', url.searchParams.get('ticket') || '');
+  if(!t || t.cloud !== name) return page('<p>This window has expired. Close it and press Google Drive again.</p>', 400);
+  const conf = JSON.stringify({token: t.at, key: String(env.GOOGLE_PICKER_KEY).trim(), app: String(env.GOOGLE_APP_ID).trim(),
+                               origin: t.origin}).replace(/</g, '\\u003c');
+  const policy = "default-src 'none'; script-src 'unsafe-inline' https://apis.google.com https://www.gstatic.com; " +
+    "frame-src https://docs.google.com https://drive.google.com https://content.googleapis.com; " +
+    "connect-src https://*.googleapis.com https://*.google.com; img-src https: data:; style-src 'unsafe-inline' https:; " +
+    "font-src https: data:; frame-ancestors 'none'";
+  return page(`<style>body{font:14px system-ui,sans-serif;margin:24px;color:#333}</style>
+<p id="say">Opening Google Drive…</p>
+<script>
+  const conf = ${conf};
+  const say = t => { document.getElementById('say').textContent = t; };
+  function done(files){
+    if(window.opener) window.opener.postMessage({rhizomePicked: {cloud: 'gdrive', files}}, conf.origin);
+    window.close();
+  }
+  function open(){
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES_AND_VIDEOS).setIncludeFolders(true);
+    new google.picker.PickerBuilder()
+      .addView(view)
+      .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+      .setOAuthToken(conf.token).setDeveloperKey(conf.key).setAppId(conf.app)
+      .setCallback(d => {
+        if(d.action === google.picker.Action.PICKED)
+          done((d.docs || []).map(f => ({id: String(f.id || ''), name: String(f.name || '')})).filter(f => f.id));
+        else if(d.action === google.picker.Action.CANCEL) window.close();
+      })
+      .build().setVisible(true);
+    say('');
+  }
+</script>
+<script src="https://apis.google.com/js/api.js" onload="gapi.load('picker', {callback: open})"
+        onerror="say('Google\\'s picker could not be loaded. Close this window and try again.')"></script>`, 200, policy);
+}
+
 /* Picked: shared by link, and named by its address on this service. */
 async function cloudPick(env, request, ctx, name){
   cloudOf(env, name);
@@ -1305,13 +1545,15 @@ export default {
       if(request.method === 'POST' && url.pathname === '/resolve') return json(withSession(await resolve(env, request, ctx)), 200, h);
       if(request.method === 'GET' && url.pathname === '/faults') return json(withSession(await faults(env, request, ctx)), 200, h);
       if(request.method === 'POST' && url.pathname === '/faults/clear') return json(withSession(await clearFaults(env, request, ctx)), 200, h);
-      const cl = /^\/cloud\/(gdrive|yadisk)\/(ticket|connect|back|attach|forget|list|pick|file)(?:\/|$)/.exec(url.pathname);
+      const cl = /^\/cloud\/(gdrive|yadisk)\/(ticket|connect|back|attach|forget|list|pick|file|picker|picker-ticket)(?:\/|$)/.exec(url.pathname);
       if(cl){
         const [, name, what] = cl;
         if(request.method === 'GET' && what === 'file') return await cloudFile(env, request, url, name);
         if(request.method === 'GET' && what === 'connect') return await cloudConnect(env, url, name);
         if(request.method === 'GET' && what === 'back') return await cloudBack(env, url, name);
-        const act = {ticket: cloudTicket, attach: cloudAttach, forget: cloudForget, list: cloudList, pick: cloudPick}[what];
+        if(request.method === 'GET' && what === 'picker') return await cloudPickerPage(env, url, name);
+        const act = {ticket: cloudTicket, attach: cloudAttach, forget: cloudForget, list: cloudList, pick: cloudPick,
+                     'picker-ticket': cloudPickerTicket}[what];
         if(request.method === 'POST' && act) return json(withSession(await act(env, request, ctx, name)), 200, h);
       }
       return json({error: 'not found'}, 404, h);

@@ -333,6 +333,20 @@ def main():
           len(files) == 2 and all(
               hashlib.sha256((tmp / 'dist' / 'site' / n).read_bytes()).hexdigest()[:16] == n.split('.')[1]
               for n in files), str(files))
+    # What a reader downloads has a ceiling (the page as built, before
+    # tools/prerender.js adds its drawing), so that growing is a decision
+    # written here rather than something nobody saw. The editor split took
+    # the reader's program to 194 KB gzipped on 21.11; by 0.27.0 it was 210,
+    # heavier than the whole program of 0.23.2. Raise a number only on
+    # purpose, with the reason in the commit; tools/bench-reader-code.js
+    # says what a reader runs, and so what could go to LAZY_PARTS instead.
+    import gzip
+    gz = lambda name: len(gzip.compress((tmp / 'dist' / 'site' / name).read_bytes(), 9))
+    app_name = next((n for n in files if n.startswith('app.')), None)
+    CEILINGS = {'the reader\'s program': (app_name, 206_000), 'the page': ('index.html', 30_000)}
+    for what, (name, most) in CEILINGS.items():
+        size = gz(name) if name else None
+        check(f'{what} is at most {most // 1000} KB gzipped', size is not None and size <= most, f'{name}: {size}')
     # What the files hold is the program and the stylesheet minified, and
     # nothing else: esbuild's output for the same sources, byte for byte,
     # and the line that names the program's source map.

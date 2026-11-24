@@ -97,13 +97,15 @@ APP_PARTS = [
     '16-tags.js',
     '17-ask-refs.js',
     '18-canvas-gestures.js',
+    '18b-carry.js',
     '19-selection-search.js',
     '20-about.js',
     '21-edit-model.js',
     '22-file-comments.js',
-    '23-quick-edit.js',
+        '23-quick-edit.js',
     '24-rich-fields.js',
     '25-figures.js',
+    '25b-rich-text.js',
     '26-bio-crop.js',
     '27-sticker-ui.js',
     '28-media-ui.js',
@@ -113,9 +115,11 @@ APP_PARTS = [
     '32-guides-bends.js',
     '33-leader.js',
     '34-add-node.js',
+    '34b-add-menus.js',
     '35-draw-out.js',
     '36-site-owner.js',
     '37-style-bar.js',
+    '37b-style-bar-edit.js',
     '38-touch.js',
     '39-lod.js',
     '40-arrays.js',
@@ -158,6 +162,10 @@ LAZY_PARTS = [
     '33-leader.js',
     '35-draw-out.js',
     '45-clouds.js',
+    '18b-carry.js',
+        '25b-rich-text.js',
+    '34b-add-menus.js',
+    '37b-style-bar-edit.js',
 ]
 # Where a lazy part stood in the site's program, and where it starts in the
 # editor's file. Legal comments, so esbuild keeps them; inlineSiteFiles
@@ -532,8 +540,12 @@ def lang_script():
             data = json.loads(read(f))
         except ValueError as e:
             sys.exit(f'build: {f.relative_to(ROOT)} is not JSON that parses: {e}')
-        strings = {k: v for k, v in (data.get('strings') or {}).items() if isinstance(v, str) and v}
-        tables[data.get('language') or f.stem] = {'name': data.get('name') or f.stem, 'strings': strings}
+        every = data.get('strings') or {}
+        strings = {k: v for k, v in every.items() if isinstance(v, str) and v}
+        # `total` lets the page offer a language only once most of it is
+        # written (langReady, 43-i18n.js).
+        tables[data.get('language') or f.stem] = {'name': data.get('name') or f.stem, 'strings': strings,
+                                                  'total': len(every)}
     body = (json.dumps(tables, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c')
             .replace('\u2028', '\\u2028').replace('\u2029', '\\u2029'))
     return f'<script type="application/json" id="i18n-data">\n{body}\n</script>'

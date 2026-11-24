@@ -706,7 +706,7 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
                           {type: 'dir', name: 'Folder', path: 'disk:/Folder'},
                           {type: 'file', name: 'a.txt', path: 'disk:/a.txt', mime_type: 'text/plain'}],
                   published: new Map()};
-    let grants = 0;
+    let grants = 0, grantScope = null;
     const jsonRes = (b, st) => new Response(JSON.stringify(b), {status: st || 200, headers: {'Content-Type': 'application/json'}});
     const ghFetch = globalThis.fetch;
     globalThis.fetch = async (input, init) => {
@@ -717,7 +717,8 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
         asked.push(u.host + ' ' + f.get('grant_type'));
         const pre = u.host === 'oauth.yandex.ru' ? 'y' : 'g';
         if(f.get('grant_type') === 'authorization_code' && f.get('code') === 'good')
-          return jsonRes({access_token: pre + '-at-' + (++grants), expires_in: 3600, refresh_token: pre + '-rt'});
+          return jsonRes(Object.assign({access_token: pre + '-at-' + (++grants), expires_in: 3600, refresh_token: pre + '-rt'},
+                                       grantScope ? {scope: grantScope} : {}));
         if(f.get('grant_type') === 'refresh_token' && f.get('refresh_token') === pre + '-rt')
           return jsonRes({access_token: pre + '-at-' + (++grants), expires_in: 3600});
         return jsonRes({error: 'invalid_grant'}, 400);
@@ -877,6 +878,61 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     body = await r.json();
     check('a drive let go is out of the session', r.status === 200 && body.connected.join() === 'gdrive' &&
           !(await w.unseal(ENV, 'session', body.session)).clouds.yadisk);
+
+    /* Google's Picker (0.27.1): with its key and the project's number set,
+       Google Drive is connected for drive.file — the files picked — and the
+       owner picks in Google's window, which is this service's page. */
+    const PENV = {...CENV, GOOGLE_PICKER_KEY: 'p-key', GOOGLE_APP_ID: '4242'};
+    const pcall = (p, init) => svc.fetch(new Request(SVC + p, init), PENV);
+    const ppost = (p, tok, b, origin) => pcall(p, {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: origin || SITE,
+                                                   'Content-Type': 'application/json'}, body: JSON.stringify(b || {})});
+    body = await (await ccall('/me', auth(own))).json();
+    check('without the Picker\'s keys the drives offer no Picker', !body.clouds.picker, JSON.stringify(body.clouds));
+    body = await (await pcall('/me', auth(own))).json();
+    check('with them, /me says Google Drive is picked in Google\'s window', (body.clouds.picker || []).join() === 'gdrive', JSON.stringify(body.clouds));
+    r = await post('/cloud/gdrive/picker-ticket', own);
+    check('without them there is no Picker to open', r.status === 404);
+    const pt = (await (await ppost('/cloud/gdrive/ticket', own)).json()).ticket;
+    const pgo = await pcall('/cloud/gdrive/connect?ticket=' + encodeURIComponent(pt));
+    const pto = pgo.status === 302 ? new URL(pgo.headers.get('Location')) : null;
+    check('with them, connecting asks Google for drive.file, not the drive',
+          !!pto && pto.searchParams.get('scope') === 'https://www.googleapis.com/auth/drive.file', pto && pto.toString());
+    grantScope = 'https://www.googleapis.com/auth/drive.file';
+    const pback = await (await pcall('/cloud/gdrive/back?code=good&state=' + encodeURIComponent(pto.searchParams.get('state')))).text();
+    grantScope = null;
+    const pgrant = /"grant":"([^"]+)"/.exec(pback)[1];
+    body = await (await ppost('/cloud/gdrive/attach', own, {grant: pgrant})).json();
+    const small = body.session;
+    check('the grant keeps what Google said it reaches',
+          (await w.unseal(ENV, 'session', small)).clouds.gdrive.sc === 'https://www.googleapis.com/auth/drive.file');
+    r = await ppost('/cloud/gdrive/picker-ticket', small, {}, 'https://elsewhere.example');
+    check('a Picker is opened only for the chart\'s own site', r.status === 403);
+    r = await ppost('/cloud/gdrive/picker-ticket', await session('someone'));
+    check('…and only for the owner', r.status === 403);
+    r = await ppost('/cloud/gdrive/picker-ticket', tok);
+    body = await r.json();
+    const wasWhole = tok;
+    check('a drive connected for the whole drive is let go and asked for again, its token never put in a window',
+          r.status === 409 && /connect it again/.test(body.error) && !(await w.unseal(ENV, 'session', body.session)).clouds.gdrive,
+          JSON.stringify(body).slice(0, 160));
+    r = await ppost('/cloud/gdrive/picker-ticket', small);
+    body = await r.json();
+    check('a drive.file grant gets a ticket for the Picker', r.status === 200 && typeof body.ticket === 'string' && !/g-at-/.test(body.ticket));
+    const pick = await pcall('/cloud/gdrive/picker?ticket=' + encodeURIComponent(body.ticket));
+    const pickHtml = await pick.text();
+    const pickPolicy = pick.headers.get('Content-Security-Policy') || '';
+    check('the Picker\'s window lets in Google and nothing else, and no page may frame it',
+          pick.status === 200 && /script-src [^;]*https:\/\/apis\.google\.com/.test(pickPolicy) && /frame-ancestors 'none'/.test(pickPolicy) &&
+          !/script-src[^;]*\*/.test(pickPolicy), pickPolicy);
+    check('…and answers only the site the ticket was asked from, with what was picked',
+          pickHtml.includes(`"origin":"${SITE}"`) && pickHtml.includes('"key":"p-key"') && pickHtml.includes('"app":"4242"') &&
+          /postMessage\(\{rhizomePicked/.test(pickHtml));
+    const badPick = await pcall('/cloud/gdrive/picker?ticket=' + encodeURIComponent(wasWhole));
+    const badHtml = await badPick.text();
+    check('a session is not a ticket for the Picker, and its window says so without a token',
+          badPick.status === 400 && !/g-at-|"token"/.test(badHtml));
+    r = await ccall('/cloud/gdrive/picker?ticket=' + encodeURIComponent(body.ticket));
+    check('…nor is there a Picker\'s window once its keys are gone', r.status === 404);
     globalThis.fetch = ghFetch;
   }
 
@@ -999,12 +1055,111 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
   check('an editor signing in gets a session, sealed as a reader\'s so that it is only ever as much as the lists say',
         r.status === 200 && !!edSealed && edSealed.login === 'someone' && edSealed.as === 'reader', r.status + ' ' + edHtml.slice(0, 200));
 
+  /* An editor's save made by the app (0.27.1): an editor with no access to
+     the repository, a token for the installation that writes contents and
+     nothing else, and the owner's saves still the owner's. The key is the
+     PKCS#1 .pem GitHub hands out, which WebCrypto does not read as it is. */
+  {
+    const {privateKey, publicKey} = nodeCrypto.generateKeyPairSync('rsa', {modulusLength: 2048});
+    const pem = privateKey.export({type: 'pkcs1', format: 'pem'});
+    check('a PKCS#1 key is read as the PKCS#8 it is wrapped into',
+          Buffer.from(w.pkcs8Of(pem)).equals(privateKey.export({type: 'pkcs8', format: 'der'})));
+    const AENV = {...EENV, GITHUB_APP_ID: '12345', GITHUB_APP_PRIVATE_KEY: pem.replace(/\n/g, '\\n')};
+    const plain = globalThis.fetch;
+    const asked = [];
+    globalThis.fetch = async (url, init) => {
+      const u = new URL(url), auth = ((init && init.headers && init.headers.Authorization) || '').replace('Bearer ', '');
+      if(u.pathname === '/repos/owner/site/installation' || /^\/app\/installations\//.test(u.pathname)){
+        const [h, b, sig] = auth.split('.');
+        const good = !!sig && nodeCrypto.verify('sha256', Buffer.from(h + '.' + b), publicKey, Buffer.from(sig, 'base64url'));
+        const claims = good ? JSON.parse(Buffer.from(b, 'base64url')) : {};
+        asked.push({path: u.pathname, good, iss: claims.iss, body: init && init.body ? JSON.parse(init.body) : null});
+        if(!good || claims.iss !== '12345' || claims.exp - claims.iat > 600) return new Response('{}', {status: 401});
+        if(u.pathname.endsWith('/installation')) return new Response(JSON.stringify({id: 77}), {status: 200});
+        return new Response(JSON.stringify({token: 'tok-app'}), {status: 201});
+      }
+      if(u.pathname === '/repos/owner/site/git/refs/heads/main') asked.push({path: 'ref', by: auth});
+      return plain(url, init);
+    };
+    gh.users['tok-app'] = 'rhizome[bot]';
+    const before = gh.dataAt(gh.head);
+    r = await svc.fetch(new Request(SVC + '/save', {method: 'POST', headers: {Authorization: 'Bearer ' + ed, Origin: SITE,
+      'Content-Type': 'application/json'}, body: JSON.stringify({base: gitSha(before), chart: edit(before, c => c.refs.push({key: 'by-app', title: 'Through the app'}))})}), AENV);
+    body = await r.json();
+    const tokAsk = asked.find(a => /access_tokens$/.test(a.path));
+    check('an editor\'s save is committed with the app\'s installation token',
+          r.status === 200 && gh.dataAt(gh.head).includes('Through the app') && asked.some(a => a.path === 'ref' && a.by === 'tok-app'),
+          r.status + ' ' + JSON.stringify(body).slice(0, 200) + ' ' + JSON.stringify(asked));
+    check('a token for this repository alone, that writes its contents and nothing else',
+          !!tokAsk && tokAsk.path === '/app/installations/77/access_tokens' && JSON.stringify(tokAsk.body) === JSON.stringify({repositories: ['site'], permissions: {contents: 'write'}}),
+          JSON.stringify(tokAsk));
+    asked.length = 0;
+    const now2 = gh.dataAt(gh.head);
+    r = await svc.fetch(new Request(SVC + '/save', {method: 'POST', headers: {Authorization: 'Bearer ' + s, Origin: SITE,
+      'Content-Type': 'application/json'}, body: JSON.stringify({base: gitSha(now2), chart: edit(now2, c => c.refs.push({key: 'by-owner-app', title: 'The owner, as ever'}))})}), AENV);
+    check('the owner\'s save is still made with the owner\'s own token',
+          r.status === 200 && asked.some(a => a.path === 'ref' && a.by === 'tok-owner') && !asked.some(a => /installation/.test(a.path)),
+          r.status + ' ' + JSON.stringify(asked));
+    const now3 = gh.dataAt(gh.head);
+    r = await svc.fetch(new Request(SVC + '/save', {method: 'POST', headers: {Authorization: 'Bearer ' + ed, Origin: SITE,
+      'Content-Type': 'application/json'}, body: JSON.stringify({base: gitSha(now3), chart: now3 + ' '})}), {...AENV, GITHUB_APP_PRIVATE_KEY: 'not a key'});
+    body = await r.json();
+    check('a key the service cannot read is named, not reported as a failure', r.status === 503 && /GITHUB_APP_PRIVATE_KEY/.test(body.error), JSON.stringify(body));
+    globalThis.fetch = plain;
+  }
+
+  /* The marks on a drive file's address outlive a change of SESSION_SECRET
+     once FILE_MARK_SECRET holds its old value. */
+  {
+    const old = await w.fileMark(ENV, 'gdrive', 'pic1');
+    const moved = {...ENV, SESSION_SECRET: 'a-wholly-new-session-secret-after-a-leak', FILE_MARK_SECRET: ENV.SESSION_SECRET};
+    check('a mark made before is still good after SESSION_SECRET changes, with FILE_MARK_SECRET set to the old one',
+          await w.fileMarkOk(moved, 'gdrive', 'pic1', old));
+    check('and without it, it is not', !(await w.fileMarkOk({...moved, FILE_MARK_SECRET: ''}, 'gdrive', 'pic1', old)));
+  }
+
+  /* Notes in the margin, stroke by stroke. */
+  {
+    const S = n => ({pts: [n, n, n + 1, n + 1]});
+    const got = w.mergeStrokes([S(1), S(2)], [S(1), S(2), S(3)], [S(2), S(4)]);
+    check('strokes merge one by one: theirs drawn, mine drawn, mine rubbed out',
+          JSON.stringify(got) === JSON.stringify([S(2), S(3), S(4)]), JSON.stringify(got));
+    check('two strokes exactly alike are two strokes',
+          w.mergeStrokes([S(1)], [S(1), S(1)], [S(1)]).length === 2 && w.mergeStrokes([S(1), S(1)], [S(1), S(1)], [S(1)]).length === 1);
+    const base = JSON.parse(DATA);
+    base.settings = Object.assign({}, base.settings, {ink: [S(1)]});
+    const theirs = JSON.parse(JSON.stringify(base)); theirs.settings.ink.push(S(2));
+    const mine = JSON.parse(JSON.stringify(base)); mine.settings.ink.push(S(3));
+    let merged = null, refused = null;
+    try{ merged = w.mergeCharts(base, theirs, mine); }catch(e){ refused = e; }
+    check('two devices that each drew a stroke do not collide',
+          !refused && JSON.stringify(merged.settings.ink) === JSON.stringify([S(1), S(2), S(3)]), refused ? JSON.stringify(refused.conflicts) : '');
+    const mineEd = JSON.parse(JSON.stringify(base)); mineEd.settings.refColor = '#123456'; mineEd.settings.ink.push(S(9));
+    const kept = w.keepSettings(mineEd, w.chartText(base));
+    check('an editor\'s strokes go on with the save, while the rest of the settings stay the repository\'s',
+          kept === true && mineEd.settings.refColor === base.settings.refColor && mineEd.settings.ink.length === 2,
+          JSON.stringify(mineEd.settings).slice(0, 200));
+    const onlyInk = JSON.parse(JSON.stringify(base)); onlyInk.settings.ink.push(S(9));
+    check('and a save that changed only strokes is not told its settings were kept', w.keepSettings(onlyInk, w.chartText(base)) === false);
+  }
+
+  /* A save says what it changed, so the history of edits says something. */
+  {
+    const c = JSON.parse(DATA);
+    c.nodes[0] = Object.assign({}, c.nodes[0], {label: 'renamed'});
+    c.nodes.push({id: 'new-one', label: 'New'}, {id: 'new-two', label: 'Newer'});
+    check('a commit is named by what it changed',
+          w.saveTitle(DATA, w.chartText(c), 0) === 'Chart: 2 entries added, 1 entry changed', w.saveTitle(DATA, w.chartText(c), 0));
+    check('and a save of only a picture says so', w.saveTitle(DATA, DATA, 1) === 'Chart: a picture');
+    check('a file that does not read is named as it always was', w.saveTitle('nonsense', DATA, 0) === 'Save the chart from the site');
+  }
+
   /* The configuration. The three secrets live in Cloudflare; written into
      wrangler.toml they would be public, and would collide with the real
      ones. It happened once, with placeholder values. */
   const toml = fs.readFileSync(path.join(ROOT, 'worker', 'wrangler.toml'), 'utf8');
-  const leaked = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET',
-                  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_API_KEY', 'YANDEX_CLIENT_ID', 'YANDEX_CLIENT_SECRET']
+  const leaked = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET', 'FILE_MARK_SECRET', 'GITHUB_APP_PRIVATE_KEY',
+                  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_API_KEY', 'GOOGLE_PICKER_KEY', 'GOOGLE_APP_ID', 'YANDEX_CLIENT_ID', 'YANDEX_CLIENT_SECRET']
     .filter(k => new RegExp('^\\s*' + k + '\\s*=', 'm').test(toml));
   check('wrangler.toml sets none of the service\'s secrets', leaked.length === 0, leaked.join(', '));
 

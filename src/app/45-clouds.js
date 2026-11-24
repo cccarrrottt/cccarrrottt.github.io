@@ -16,7 +16,7 @@
  * --------------------------------------------------------------------- */
 /* `var`, all three: the owner's page asks the service who it is as it
    starts (checkSiteOwner, part 36), and the answer is drawn from here. */
-var siteClouds = {ready: [], connected: []};
+var siteClouds = {ready: [], connected: [], picker: []};
 var CLOUD_NAMES = {gdrive: 'Google Drive', yadisk: 'Yandex Disk'};
 /* Each drive's own mark, drawn small, so what came from one says which. */
 var CLOUD_MARKS = {
@@ -72,7 +72,7 @@ function renderCloudRow(){
       c.textContent = 'Connect';
       b.appendChild(c);
     }
-    b.addEventListener('click', ev=>{ ev.stopPropagation(); on ? openCloudBrowser(name) : connectCloud(name); });
+    b.addEventListener('click', ev=>{ ev.stopPropagation(); on ? (cloudHasPicker(name) ? openCloudPicker(name) : openCloudBrowser(name)) : connectCloud(name); });
     row.appendChild(b);
     if(on){
       const off = document.createElement('button');
@@ -89,7 +89,8 @@ function renderCloudRow(){
 }
 function setCloudsFromService(c){
   siteClouds = {ready: Array.isArray(c && c.ready) ? c.ready.slice() : [],
-                connected: Array.isArray(c && c.connected) ? c.connected.slice() : []};
+                connected: Array.isArray(c && c.connected) ? c.connected.slice() : [],
+                picker: Array.isArray(c && c.picker) ? c.picker.slice() : []};
   renderCloudRow();
 }
 const cloudPost = (path, body)=> siteRequest(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -126,8 +127,61 @@ window.addEventListener('message', ev=>{
     siteClouds.connected = (body.connected || []).slice();
     clearStickerStatus();
     renderCloudRow();
-    openCloudBrowser(got.cloud);
+    /* Not the Picker here: a window opened now would be one no click
+       opened, and the browser would refuse it. The drive's button opens it. */
+    if(cloudHasPicker(got.cloud)) setStickerStatus('ok', `${CLOUD_NAMES[got.cloud]} is connected; press it to pick files.`);
+    else openCloudBrowser(got.cloud);
   }).catch(()=> setStickerStatus('err', 'The write service could not be reached.'));
+});
+
+/* ---- Google's own Picker (when the service is set up for it) ---------
+   With the Picker, Google Drive is connected for drive.file: the service
+   reaches only the files the owner picks in Google's window, not the whole
+   drive — and so cannot list a folder either, which is why the drive's
+   button opens the Picker instead of the folders. The window is the
+   service's page (/cloud/gdrive/picker), so the site's policy and the
+   site's scripts never see the drive's token; what comes back, by
+   postMessage, is only what was picked, which then goes through /pick
+   exactly as a file chosen in the folders does. */
+function cloudHasPicker(name){ return (siteClouds.picker || []).indexOf(name) >= 0; }
+function openCloudPicker(name){
+  const w = window.open('', 'rhizome-picker', 'width=1050,height=700');
+  setStickerStatus('', `Opening ${CLOUD_NAMES[name]}…`);
+  cloudPost(`/cloud/${name}/picker-ticket`).then(({res, body})=>{
+    if(!res.ok || !body || !body.ticket){
+      if(w) w.close();
+      /* A drive connected for the whole drive, before the Picker: the
+         service has let go of it, and asks for it again. */
+      if(res.status === 409 || res.status === 401){
+        siteClouds.connected = siteClouds.connected.filter(k=> k !== name);
+        renderCloudRow();
+      }
+      setStickerStatus('err', (body && body.error) || `${CLOUD_NAMES[name]} could not be opened.`);
+      return;
+    }
+    const to = SITE_API + `/cloud/${name}/picker?ticket=` + encodeURIComponent(body.ticket);
+    if(w){ w.location.href = to; clearStickerStatus(); }
+    else setStickerStatus('err', 'The browser stopped the window with the drive in it; allow pop-ups for this site and press again.');
+  }).catch(()=>{
+    if(w) w.close();
+    setStickerStatus('err', 'The write service could not be reached.');
+  });
+}
+window.addEventListener('message', async ev=>{
+  if(!ON_SITE || ev.origin !== siteApiOrigin()) return;
+  const got = ev.data && ev.data.rhizomePicked;
+  if(!got || !cloudHasPicker(got.cloud) || !Array.isArray(got.files) || readOnlyView) return;
+  const files = got.files.filter(f=> f && typeof f.id === 'string' && f.id).slice(0, 50);
+  let put = 0, last = '';
+  for(const f of files){
+    setStickerStatus('', `Sharing ${String(f.name || 'the file')} by link…`);
+    const r = await shareCloudFile(got.cloud, {id: f.id, name: String(f.name || '')});
+    if(r.kind === 'err'){ setStickerStatus('err', r.msg); return; }
+    if(r.kind === 'ok' && r.added) put++;
+    last = r.msg;
+  }
+  if(files.length === 1) setStickerStatus('ok', last);
+  else if(files.length) setStickerStatus('ok', `${put} of ${files.length} files are now in My files, on their way to the chart with the next Save.`);
 });
 function forgetCloud(name){
   cloudPost(`/cloud/${name}/forget`).then(({res, body})=>{
@@ -223,25 +277,31 @@ function cloudItemCell(item){
 }
 async function pickCloudFile(item, cell){
   if(!cloudAt || readOnlyView) return;
-  const name = cloudAt.name;
   cell.disabled = true;
   setCloudStatus('', `Sharing ${item.name} by link…`);
+  const r = await shareCloudFile(cloudAt.name, item);
+  cell.disabled = false;
+  if(r.added) cell.classList.add('picked');
+  setCloudStatus(r.kind, r.msg);
+}
+/* Shares one file by link and puts it in My files: the folders' click and
+   the Picker's answer both come here. Says how it went rather than saying
+   it, as the two show it in different places. */
+async function shareCloudFile(name, item){
+  if(readOnlyView) return {kind: 'err', msg: ''};
   let answer;
   try{ answer = await cloudPost(`/cloud/${name}/pick`, {id: item.id}); }
-  catch(e){ cell.disabled = false; setCloudStatus('err', 'The write service could not be reached.'); return; }
-  cell.disabled = false;
+  catch(e){ return {kind: 'err', msg: 'The write service could not be reached.'}; }
   const {res, body} = answer;
-  if(!res.ok || !body || typeof body.src !== 'string' || cloudOfSrc(body.src) !== name || !mediaSrcOk(body.src)){
-    setCloudStatus('err', (body && body.error) || `${CLOUD_NAMES[name]} did not share the file.`);
-    return;
-  }
+  if(!res.ok || !body || typeof body.src !== 'string' || cloudOfSrc(body.src) !== name || !mediaSrcOk(body.src))
+    return {kind: 'err', msg: (body && body.error) || `${CLOUD_NAMES[name]} did not share the file.`};
+  const shown = String(body.name || item.name || 'the file');
   /* Picked twice, it is still one file of the chart. */
-  if(MEDIA.some(m=> m.src === body.src)){ setCloudStatus('ok', `${item.name} is in My files already.`); return; }
+  if(MEDIA.some(m=> m.src === body.src)) return {kind: 'ok', msg: `${shown} is in My files already.`};
   const label = String(body.name || item.name || 'figure').replace(/\.[a-z0-9]+$/i, '').slice(0, 40) || 'figure';
   applyMediaEdit(()=> MEDIA.push({key: uniqueMediaKey(label), name: label, kind: body.kind === 'video' ? 'video' : 'image', src: body.src}));
   renderStickerLibrary();
-  cell.classList.add('picked');
-  setCloudStatus('ok', `${item.name} is in My files, and on its way to the chart with the next Save.`);
+  return {kind: 'ok', added: true, msg: `${shown} is in My files, and on its way to the chart with the next Save.`};
 }
 if(cloudOverlay){
   cloudOverlay.addEventListener('click', ev=> ev.stopPropagation());

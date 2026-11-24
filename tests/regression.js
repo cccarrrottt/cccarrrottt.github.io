@@ -24622,6 +24622,20 @@ async function main(){
       const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
       const out = {};
       const btn = document.getElementById('langToggle');
+      /* A language is offered once most of the page is written in it
+         (0.27.1: Russian was offered with nothing translated, and choosing
+         it changed nothing). With English alone there is no button. */
+      const kept = LANG_TABLES.ru;
+      LANG_TABLES.ru = {name: 'Русский', strings: {'Save': 'Сохранить'}, total: 10};
+      syncLangOffer();
+      out.notReady = btn.hidden && !langReady('ru');
+      setPageLang('ru');
+      out.notChosen = pageLang === 'en';
+      LANG_TABLES.ru = {name: 'Русский', total: 5, strings: {
+        'Save': 'Сохранить', 'Undo (Ctrl+Z)': 'Отменить (Ctrl+Z)', 'About this project': 'О проекте',
+        'Imported {0} {1}. Press Save to keep it.': 'Импортировано: {1} — {0}. Нажмите Сохранить.'}};
+      syncLangOffer();
+      out.ready = !btn.hidden && langReady('ru');
       /* Flags (the owner's list of 21.11): the button wears the flag of
          the language spoken, English the American one — the emoji an
          entry's language tab wears, in the emoji face (22.11, evening). */
@@ -24638,10 +24652,6 @@ async function main(){
                  opts[0].getAttribute('aria-checked') === 'true' && getComputedStyle(opts[0], '::after').content !== 'none' &&
                  getComputedStyle(opts[1], '::after').content === 'none';
       menu.classList.remove('open');
-      const kept = LANG_TABLES.ru;
-      LANG_TABLES.ru = {name: 'Русский', strings: {
-        'Save': 'Сохранить', 'Undo (Ctrl+Z)': 'Отменить (Ctrl+Z)', 'About this project': 'О проекте',
-        'Imported {0} {1}. Press Save to keep it.': 'Импортировано: {1} — {0}. Нажмите Сохранить.'}};
       applyEdit(()=> workingNodes.push(['l19_a', 'Save', null, null, null, null, {pos:[191000, 191000]}]));
       await wait(100);
       menu.querySelector('[data-lang="ru"]').click(); await wait(50);
@@ -24663,10 +24673,11 @@ async function main(){
       out.back = document.documentElement.lang === 'en' && document.getElementById('saveBtn').textContent === 'Save' &&
                  document.querySelector('#touchTools [data-act="undo"]').getAttribute('title') === 'Undo (Ctrl+Z)' &&
                  said.textContent === 'Imported 3 entries. Press Save to keep it.' && localStorage.getItem('rhizome.lang') === null;
-      said.remove(); LANG_TABLES.ru = kept;
+      said.remove(); LANG_TABLES.ru = kept; syncLangOffer();
       undoLastEdit(); await wait(100);
       return out;
     });
+    check('a language nearly all untranslated is not offered, and with English alone there is no button', r.notReady && r.notChosen && r.ready, JSON.stringify(r));
     check('a language button on the top bar opens a menu of the languages, each in its own words', r.button && r.menu, JSON.stringify(r));
     check('…chosen, the page says its own words in it, and is remembered', r.ru && r.stored, JSON.stringify(r));
     check('…including what it writes later, its pieces where the translation puts them, and a title written again', r.later && r.rewritten, JSON.stringify(r));
@@ -24980,14 +24991,20 @@ async function main(){
                   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
     const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
     if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
-    if(u.pathname === '/cloud/gdrive/file/pic1'){ api.fileAsked++; return r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'image/png', body: TINY_PNG}); }
+    if(/^\/cloud\/gdrive\/file\/pic[12]$/.test(u.pathname)){ api.fileAsked++; return r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'}, contentType: 'image/png', body: TINY_PNG}); }
     if(u.pathname === '/cloud/gdrive/connect'){
       api.asked.push('connect ' + u.searchParams.get('ticket'));
       return r.fulfill({status: 200, contentType: 'text/html', body:
         `<script>opener.postMessage({rhizomeCloud:{cloud:'gdrive', grant:'the-grant'}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
     }
+    if(u.pathname === '/cloud/gdrive/picker'){
+      api.asked.push('picker ' + u.searchParams.get('ticket'));
+      return r.fulfill({status: 200, contentType: 'text/html', body:
+        `<script>opener.postMessage({rhizomePicked:{cloud:'gdrive', files:[{id:'pic2', name:'Bumblebee.png'}]}}, ${JSON.stringify(SITE_ORIGIN)}); close();</script>`});
+    }
     if(q.headers()['authorization'] !== 'Bearer good-session') return reply(401, {error: 'not signed in.'});
     api.asked.push(u.pathname + ' ' + (q.postData() || ''));
+    if(u.pathname === '/cloud/gdrive/picker-ticket') return reply(200, {ticket: 'ptk'});
     if(u.pathname === '/me') return reply(200, {owner: true, login: 'the-owner', sha: dataSha, media: true,
                                                 clouds: {ready: ['gdrive', 'yadisk'], connected: api.connected}});
     if(u.pathname === '/cloud/gdrive/ticket') return reply(200, {ticket: 'tkt'});
@@ -25002,7 +25019,10 @@ async function main(){
         ? [{id: 'pic1', name: 'Optimus.png', kind: 'image', mime: 'image/png', thumb: null}]
         : [{id: 'fold1', name: 'Pictures', kind: 'folder'}, {id: 'vid1', name: 'Clip.mp4', kind: 'video', mime: 'video/mp4'}]});
     }
-    if(u.pathname === '/cloud/gdrive/pick') return reply(200, {src: SITE_API + '/cloud/gdrive/file/pic1', name: 'Optimus.png', kind: 'image'});
+    if(u.pathname === '/cloud/gdrive/pick'){
+      const id = JSON.parse(q.postData()).id;
+      return reply(200, {src: SITE_API + '/cloud/gdrive/file/' + id, name: id === 'pic2' ? 'Bumblebee.png' : 'Optimus.png', kind: 'image'});
+    }
     if(u.pathname === '/cloud/gdrive/forget'){ api.connected = []; return reply(200, {connected: []}); }
     return reply(404, {error: 'not found'});
   });
@@ -25053,6 +25073,17 @@ async function main(){
       row: [...document.querySelectorAll('#filesClouds .cloud-btn')].map(b => b.dataset.cloud + (b.classList.contains('connected') ? '+' : '-')).join(),
       kept: MEDIA.some(m => /\/cloud\/gdrive\/file\/pic1$/.test(m.src))
     }));
+    /* With Google's Picker set up (/me's `picker`), the connected drive's
+       button opens Google's window on the service instead of the folders,
+       and what was picked there comes back to be shared like a file from them. */
+    await site.evaluate(() => setCloudsFromService({ready: ['gdrive', 'yadisk'], connected: ['gdrive'], picker: ['gdrive']}));
+    await site.click('#filesClouds .cloud-btn[data-cloud="gdrive"]');
+    await site.waitForFunction(() => MEDIA.some(m => /\/cloud\/gdrive\/file\/pic2$/.test(m.src)), null, {timeout: 8000});
+    const viaPicker = await site.evaluate(() => ({
+      name: (MEDIA.find(m => /pic2$/.test(m.src)) || {}).name,
+      folders: document.getElementById('cloudOverlay').classList.contains('open')
+    }));
+    await site.evaluate(() => setCloudsFromService({ready: ['gdrive', 'yadisk'], connected: [], picker: []}));
     const reader = await site.evaluate(async () => {
       setReaderPreview(true); await new Promise(ok => setTimeout(ok, 150));
       openStickerLibrary();
@@ -25072,6 +25103,10 @@ async function main(){
           picked.mark && picked.open && picked.dirty && /already/.test(picked.status), JSON.stringify(picked));
     check('…a drive let go is offered to connect again, and what came from it stays',
           after.row === 'gdrive-,yadisk-' && after.kept, JSON.stringify(after));
+    check('…with Google\'s Picker, the drive opens Google\'s window on a ticket, and what is picked there is shared into My files',
+          api.asked.some(a => /^\/cloud\/gdrive\/picker-ticket /.test(a)) && api.asked.includes('picker ptk') &&
+          api.asked.some(a => /^\/cloud\/gdrive\/pick \{"id":"pic2"\}/.test(a)) && viaPicker.name === 'Bumblebee' && !viaPicker.folders,
+          JSON.stringify({asked: api.asked, viaPicker}));
     check('…and a reader is offered no drive', reader.hidden, JSON.stringify(reader));
     check('nothing the cloud drives do is refused by the site\'s own policy, or throws', errs.length === 0, errs.slice(0, 3).join(' | '));
   } finally {
