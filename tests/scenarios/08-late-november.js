@@ -1935,9 +1935,20 @@
   check('a headless end stops at the middle of a see-through border, and only there', r.bareCut);
 
   /* 10, 15: pinned by a click, and carried to where the pointer puts it. */
-  const fab = await page.evaluate(()=>{ const b = document.getElementById('addFabBtn').getBoundingClientRect();
+  /* Pointed at first, and pressed once the menu the pointer opened has
+     settled and the button is what a press there reaches: on a slower
+     runner a press made at once could land while the menu was still
+     coming out (CI, 24.11). */
+  const fabAt = ()=> page.evaluate(()=>{ const b = document.getElementById('addFabBtn').getBoundingClientRect();
     return {x: b.left + b.width / 2, y: b.top + b.height / 2}; });
-  await page.mouse.move(fab.x, fab.y); await page.mouse.click(fab.x, fab.y); await page.waitForTimeout(150);
+  let fab = await fabAt();
+  await page.mouse.move(fab.x, fab.y); await page.waitForTimeout(300);
+  fab = await fabAt();
+  await page.waitForFunction(({x, y})=>{ const e = document.elementFromPoint(x, y);
+    return !!e && document.getElementById('addFabBtn').contains(e); }, fab, {timeout: 3000}).catch(()=>{});
+  const fabSeen = await page.evaluate(({x, y})=>{ const e = document.elementFromPoint(x, y);
+    return [e ? e.tagName + '.' + e.className : null, document.getElementById('addFab').className].join(' | '); }, fab);
+  await page.mouse.click(fab.x, fab.y); await page.waitForTimeout(150);
   const pinned = await page.evaluate(()=> document.getElementById('addFab').classList.contains('pinned'));
   await page.mouse.move(fab.x - 300, fab.y - 300); await page.waitForTimeout(150);
   const held = await page.evaluate(()=> document.getElementById('addFab').classList.contains('open'));
@@ -1960,7 +1971,7 @@
     closeAddFab(); rebuildChart();
     return res;
   }, {x: at.x, y: at.y, before});
-  check('a click on + pins its menu open until the next one', pinned && held, JSON.stringify([pinned, held]));
+  check('a click on + pins its menu open until the next one', pinned && held, JSON.stringify([pinned, held, fabSeen]));
   check('an entry picked with a mouse rides under the pointer and is put down where it is pressed',
         ghost && put.added && put.near && put.done, JSON.stringify([ghost, put]));
   });
