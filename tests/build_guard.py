@@ -630,7 +630,8 @@ def main():
     # them back. The number is counted from the suite's own source rather
     # than asked of it: --list sets up the page before it names anything,
     # and this job has no browser to set it up with.
-    suite = (ROOT / 'tests' / 'regression.js').read_text(encoding='utf-8')
+    suite = ''.join(f.read_text(encoding='utf-8') for f in
+                    [ROOT / 'tests' / 'regression.js', *sorted((ROOT / 'tests' / 'scenarios').glob('*.js'))])
     n = len(re.findall(r'^\s*await scenario\(', suite, re.M))
     if not n:
         check('the suite says how many scenarios it has', False, 'no scenario( calls found')

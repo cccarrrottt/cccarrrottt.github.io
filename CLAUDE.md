@@ -127,7 +127,12 @@ says nothing about the other; run both.
 The suite is 168 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
-two lines per scenario and moved no bodies.
+two lines per scenario and moved no bodies. They do not depend on one
+another's leavings either: every scenario after the first starts on the
+page opened again, with its storage emptied (`freshPage`). Until 24.11 they
+shared one page as each left it, and a whole run in order failed five
+checks that every shard passed — a chart, settings, a drawer or the view
+left behind by a scenario dozens before.
 
 ```bash
 node tests/regression.js --list           what there is to run
@@ -156,8 +161,16 @@ A plain `node tests/regression.js` still runs everything in order and still
 takes about six minutes; the shards are for when you want the answer now. CI
 runs the shards.
 
-Adding behaviour means adding a named check to `tests/regression.js`, inside
-the scenario it belongs to. When a claim turns out to be wrong — including
+`tests/regression.js` is the harness — the server, the browser, `check`,
+the flags — and the scenarios are in `tests/scenarios/`, eight files by
+the stretch of the suite's history they come from, run in the order
+`SCENARIO_FILES` gives (the order they always ran in). Each is run by a
+direct `eval` inside the harness's `main()`, so it sees the one scope the
+scenarios were written against; they were moved there without a byte of
+a body changed (24.11.2026), and a file the list does not name stops the
+suite. Adding behaviour means adding a named check inside the scenario it
+belongs to, in its file, or a new scenario at the end of the newest
+file. When a claim turns out to be wrong — including
 one this file makes — the fix is a check that would have caught it, not a
 note.
 
@@ -498,7 +511,7 @@ How it holds together, since the page is still one scope:
 
 The cache is only allowed to exist because nothing can tell it is there, and
 that is checked rather than asserted: see the named checks in
-`tests/regression.js`. The one piece of state its arguments do not carry is
+`tests/scenarios/`. The one piece of state its arguments do not carry is
 the order of `REFS` — a citation draws as the number its reference has in the
 list, so moving one changes `[1]` to `[11]` and the width of every text that
 cites it. The key carries that order, and only for texts that cite anything.

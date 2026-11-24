@@ -869,6 +869,10 @@ waited through:
 An `--only` that matches nothing exits 2, not 0: a mistyped scenario name
 used to look exactly like a run that passed.
 
+`tests/regression.js` is the harness; the scenarios themselves are in
+`tests/scenarios/`, eight files in the order they run, each by the stretch
+of the project's history its checks come from.
+
     node tests/snapshots.js              the look, compared by the pixel
     node tests/snapshots.js --update     draw the pictures again, to commit
 
