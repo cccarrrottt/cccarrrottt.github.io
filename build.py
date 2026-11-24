@@ -118,6 +118,7 @@ APP_PARTS = [
     '34b-add-menus.js',
     '35-draw-out.js',
     '36-site-owner.js',
+    '36b-place.js',
     '37-style-bar.js',
     '37b-style-bar-edit.js',
     '38-touch.js',
@@ -166,6 +167,7 @@ LAZY_PARTS = [
         '25b-rich-text.js',
     '34b-add-menus.js',
     '37b-style-bar-edit.js',
+    '36b-place.js',
 ]
 # Where a lazy part stood in the site's program, and where it starts in the
 # editor's file. Legal comments, so esbuild keeps them; inlineSiteFiles
@@ -348,6 +350,31 @@ def chart_file():
     return Path(named) if named else SRC / 'chart.json'
 
 
+# A place with no chart in it yet — a fork's data/chart.json before its
+# first Save — is drawn as a chart with nothing in it, and named by git's id
+# for nothing. The write service says the same of it (NO_CHART and
+# EMPTY_CHART_TEXT in worker/index.js), so the first Save is made on what
+# the service finds there, and makes the file.
+NO_CHART = '0' * 40
+EMPTY_CHART_TEXT = '{\n  "nodes": []\n}\n'
+
+
+def chart_text():
+    """The chart's text, or the empty chart where there is no file yet."""
+    f = chart_file()
+    return read(f) if f.is_file() else EMPTY_CHART_TEXT
+
+
+def chart_sha():
+    """Which chart.json the page is made from, as git names it — the blob id
+    of the file's bytes — or NO_CHART for none."""
+    f = chart_file()
+    if not f.is_file():
+        return NO_CHART
+    raw = f.read_bytes()
+    return hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
+
+
 def site_origin():
     """The published site's address, as the program names it: an origin, or
     an origin and a path when Pages serves the repository under one
@@ -364,7 +391,7 @@ def chart_words():
     platform published as its own until somebody found it. Absent, the
     platform's name, and no sentence."""
     try:
-        settings = json.loads(read(chart_file())).get('settings') or {}
+        settings = json.loads(chart_text()).get('settings') or {}
     except (ValueError, AttributeError):
         settings = {}
     def word(key):
@@ -714,7 +741,7 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
     # and a picture it names by path is a file beside it, as on the page.
     published = re.sub(r'("\$schema":\s*")[^"]*(/chart\.schema\.json")',
                        lambda m: m.group(1) + origin + m.group(2),
-                       read(chart_file()), count=1)
+                       chart_text(), count=1)
     (out / 'chart.json').write_text(published, encoding='utf-8')
     if not (out / OG_IMAGE).exists():
         sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')
@@ -810,7 +837,7 @@ def build():
     body = slice_between(index, '<!-- @@BODY:BEGIN@@ -->', '<!-- @@BODY:END@@ -->',
                          'src/index.html body block').rstrip('\n')
     css = read(SRC / 'style.css')
-    chart = chart_script(read(chart_file())) + '\n' + lang_script()
+    chart = chart_script(chart_text()) + '\n' + lang_script()
     app_js = read_app()
 
     # Markers around everything the page is made of.
@@ -850,8 +877,7 @@ def build():
     # into the program it would make the program different after every Save,
     # and on the site the program is a file named by its hash, kept by every
     # reader's browser for exactly as long as it does not change.
-    raw = chart_file().read_bytes()
-    data_sha = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
+    data_sha = chart_sha()
     if f"CHART_ELEMENT_ID = '{CHART_ID}'" not in app_js:
         sys.exit(f'build: the program does not read the chart from #{CHART_ID}; see CHART_ELEMENT_ID in src/app/01-store.js')
     if SHA_META not in app_js:

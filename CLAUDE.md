@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 168 named scenarios, and they do not depend on one another —
+The suite is 169 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies. They do not depend on one
@@ -287,6 +287,18 @@ site") and `build_guard`:
   Kept in another repository, CI fetches it and names it to the build
   (`RHIZOME_CHART`, also read by `tools/chart_check.js`). It is still one
   home: a repository of its own is not a second copy of the chart.
+  A fork's default is `data/chart.json`, absent until its first Save: the
+  build draws the empty chart and writes `NO_CHART` (forty zeros) as
+  `DATA_SHA`, and the service says the same of a place with no file
+  (`NO_CHART`, `EMPTY_CHART_TEXT`), so the first Save is made on what it
+  finds. The owner chooses the place from the page (`36b-place.js`, a
+  lazy part: asked at the first Save, kept in About): `POST /place`
+  writes the site repository's variable `RHIZOME_DATA`, which the service
+  reads again on every request with the owner's token (`livePlace`) and
+  CI reads to publish, and dispatches CI (`service: true`, so the service
+  is redeployed with the new `DATA` for editors and readers, whose tokens
+  cannot read the variable). A Save to another repository dispatches CI
+  too; a dispatch with no code changed is a data-only run.
 - **What the chart is called is the chart's**, not the platform's:
   `settings.title`, `settings.description` and `settings.about`, written in
   About (`showChartWords`, `20-about.js`), carried by Save, Import and

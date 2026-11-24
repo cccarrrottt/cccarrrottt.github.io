@@ -13,7 +13,7 @@ What you end up with is what the original has:
 | the site | `https://<you>.github.io`, or `https://<you>.github.io/<repo>`, published by GitHub Pages from your repository |
 | the write service | a Cloudflare Worker on your account, `https://rhizome-api.<your subdomain>.workers.dev` |
 | who edits | the GitHub logins you list in `OWNERS` (and `EDITORS`) |
-| where the chart lives | `src/chart.json` in your repository; Save on the site commits to it |
+| where the chart lives | wherever you choose at the first Save: `data/chart.json` in your repository, or any file in any repository your app may write to |
 | cloud drives | optional; your own Google and Yandex apps |
 
 The README explains each part; this file is the order to do them in. It
@@ -53,7 +53,7 @@ them, and "Sync fork" never meets a line of ours you changed:
 | the site | `https://<you>.github.io`, or `https://<you>.github.io/<repo>` | `RHIZOME_SITE` (a domain of your own) |
 | the service | `https://rhizome-api.<subdomain>.workers.dev` on your Cloudflare account (step 3); none without Cloudflare | `RHIZOME_API` |
 | who edits | you, the repository's owner | `RHIZOME_OWNERS`, and `RHIZOME_EDITORS` beside them |
-| the chart | `src/chart.json` in your repository | `RHIZOME_DATA` (see "Where the chart is kept") |
+| the chart | `data/chart.json` in your repository, empty until the first Save | `RHIZOME_DATA`, which the page sets when you choose a place (see "Where the chart is kept") |
 
 Variables are under *Settings → Secrets and variables → Actions →
 Variables*. A fork does not copy them, so a fork of yours never inherits
@@ -99,11 +99,23 @@ your site never touch anyone else's service.
    - Homepage: your site.
    - Callback URL: `https://rhizome-api.<subdomain>.workers.dev/callback`.
    - Keep *Expire user authorization tokens* on. Webhook off.
-   - Repository permissions: **Contents — Read and write** and
-     **Issues — Read and write**, nothing else.
+   - Repository permissions: **Contents**, **Issues**, **Variables** and
+     **Actions**, each **Read and write**, nothing else. Contents and Issues
+     are the chart and the suggestions; Variables is where the site keeps
+     where the chart is (`RHIZOME_DATA`), which the page sets when you
+     choose; Actions lets the service ask the site to publish again after
+     a Save to another repository.
    - Installable only on your account.
-2. Generate a client secret, then **Install** the app on your repository
-   only.
+2. Generate a client secret, then **Install** the app on your repository,
+   and on any other repository you mean to keep the chart in (it can be
+   let into more later, from the page).
+
+   An app made before 0.28.0 has only Contents and Issues: add Variables
+   and Actions (*Read and write*) on its page, then accept the new
+   permissions where it is installed (*Settings → Applications →
+   Installed GitHub Apps → the app*, the banner at the top). Until then
+   choosing a place from the page is refused, with a word naming the
+   permission.
 3. Give the service the app's client id and secret, in either place:
    - in GitHub, as Actions **secrets** `RHIZOME_GITHUB_CLIENT_ID` and
      `RHIZOME_GITHUB_CLIENT_SECRET` (GitHub refuses secret names that begin
@@ -146,26 +158,33 @@ page becomes the editor for the login in `OWNERS`.
 
 ## 6. Your own chart
 
-The fork carries the original's chart. Start yours **from the site**, once
-you are signed in: take out what you do not want (select, Delete), add your
-own, and press **Save**. That commit changes only `src/chart.json`, so it is
-published at once without waiting for the checks.
+A fork does not carry the original's chart: yours is kept in
+`data/chart.json`, which is not there yet, so your site opens empty.
+Sign in, draw, and press **Save**. The first Save asks where the chart is
+to be kept — this repository, at `data/chart.json` or any other file, or
+any repository the app is installed on — and then makes the file there.
+A Save that changes only the chart and its pictures is published at once,
+without waiting for the checks.
 
-You may also replace `src/chart.json` in a commit of code: the browser
-suite draws a chart of its own, `tests/fixtures/chart.json` with its
-pictures in `tests/fixtures/media/`, and never reads yours. That is why
-a code push comes out green whatever your chart holds, and why bringing
-in the original's code later does not depend on it either.
+Change it later in *About → Where the chart is kept*: **Move the chart
+there** takes it, pictures and all, to a place that holds no chart yet,
+and **Open the chart kept there** switches to a chart already kept
+somewhere (one another site of yours keeps, say). Either way the site is
+published again from the new place in a minute or two.
+
+The browser suite draws a chart of its own, `tests/fixtures/chart.json`
+with its pictures in `tests/fixtures/media/`, and never reads yours. That
+is why a code push comes out green whatever your chart holds, and why
+bringing in the original's code later does not depend on it either.
+(`src/chart.json`, the original's chart, is still in your copy of the
+code until the original keeps its chart elsewhere; nothing of yours reads
+it.)
 
 Then give it its own name: *About → The chart's name and description*.
 The name is the tab's title and what a link to your site shows, with the
 sentence under it; the text below is the top of About. They are saved with
-the chart (`settings.title`, `settings.description`, `settings.about` in
-`src/chart.json`), and a link's preview follows them at the next publish.
-
-The original's chart brings a font of its own (`settings.fonts`, Autobot
-Characters). Remove it under *My files → Fonts* once nothing is set in it,
-unless you have checked that you may use it.
+the chart (`settings.title`, `settings.description`, `settings.about`),
+and a link's preview follows them at the next publish.
 
 ## 7. Optional: cloud drives
 
@@ -195,7 +214,7 @@ site counts nothing.
 
 A site everybody reads, with no Cloudflare account, no GitHub App and no
 secrets. Nobody signs in on it, the owner included, and there are no
-suggestions; the chart changes by a commit of `src/chart.json`.
+suggestions; the chart changes by a commit of `data/chart.json`.
 
 1. Step 1 as above.
 2. Add no Cloudflare secrets. With none, CI names no service and deploys
@@ -205,15 +224,16 @@ suggestions; the chart changes by a commit of `src/chart.json`.
 To change the chart, open your copy anywhere but the site and edit it
 there: *Export/Import → the page* on the site saves a copy of it that
 opens from a disk and edits into that browser. When it is as you want it,
-*Export the contents* gives a `chart.json`; put it in place of
-`src/chart.json` (on GitHub, *Add file → Upload files* into `src/`). A
+*Export the contents* gives a `chart.json`; commit it as
+`data/chart.json` (on GitHub, *Add file → Upload files* into `data/`). A
 commit that changes only the chart is published without waiting for the
 checks. To add the service later, follow steps 3–5.
 
 ## Where the chart is kept
 
-In your repository, as `src/chart.json` with its pictures in `src/media/`,
-unless the variable `RHIZOME_DATA` says otherwise:
+In your repository, as `data/chart.json` with its pictures in `data/media/`,
+unless the variable `RHIZOME_DATA` says otherwise (the page writes it when
+you choose a place; you may also set it by hand):
 `<owner>/<repo>/<path>/chart.json@<branch>` — for instance
 `you/my-charts/chart.json@main`, a repository of its own holding only the
 chart and a `media/` folder beside it. Save then commits there, About's
@@ -222,9 +242,12 @@ issues. Install your GitHub App on that repository too. If it is private,
 add an Actions secret `DATA_TOKEN`, a token that may read it, for CI to
 fetch the chart with; the chart is public all the same once published.
 
-A chart kept elsewhere is published when this repository's CI runs: a
-Save does not start it yet, so run the workflow (*Actions → CI → Run
-workflow*) after saving.
+A chart kept elsewhere is published when this repository's CI runs, and
+the service starts that run after each Save (the app's Actions
+permission). Without the permission the Save still lands, and the page
+says the site follows at its next publish; *Actions → CI → Run workflow*
+publishes it by hand. The repository that holds the chart needs at least
+one commit (a README will do) before the first Save there.
 
 ## The chart as data
 
@@ -246,8 +269,8 @@ chart and everything it names or carries; rewrite it for your own chart.
 - [ ] (only if they differ from what CI works out) variables `RHIZOME_SITE`, `RHIZOME_API`, `RHIZOME_OWNERS`, `RHIZOME_EDITORS`, `RHIZOME_DATA`
 - [ ] About contacts changed, `node tools/i18n.js` run
 - [ ] Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-- [ ] GitHub App, installed on your repository
+- [ ] GitHub App with Contents, Issues, Variables and Actions (read and write), installed on your repository and wherever the chart is to be kept
 - [ ] the app's id and secret: Actions secrets `RHIZOME_GITHUB_CLIENT_ID`, `RHIZOME_GITHUB_CLIENT_SECRET`, or Worker Secrets without the prefix (and, with editors, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`)
-- [ ] pushed, signed in, chart made your own with Save, named in About
+- [ ] pushed, signed in, a place chosen at the first Save, the chart named in About
 - [ ] your own `src/site/og-image.png`
 - [ ] (optional) drives' Secrets, analytics variable

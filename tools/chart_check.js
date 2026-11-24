@@ -37,6 +37,9 @@ const ROOT = path.join(__dirname, '..');
      `data` names, when that is another (RHIZOME_CHART, as build.py takes it). */
   const file = process.env.RHIZOME_CHART ? path.resolve(process.env.RHIZOME_CHART) : path.join(ROOT, 'src', 'chart.json');
   const name = path.relative(process.cwd(), file) || file;
+  // No file yet is a fork's chart before its first Save: the page draws an
+  // empty chart and the service makes the file then (NO_CHART).
+  if (!fs.existsSync(file)) { console.log(`chart check: ${name} is not there yet, which is an empty chart.`); process.exit(0); }
   const text = fs.readFileSync(file, 'utf8');
   let chart;
   try { chart = w.readChart(text); }

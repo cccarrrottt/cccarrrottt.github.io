@@ -669,6 +669,23 @@ def main():
     check('and the same chart published as data beside the site',
           r.returncode == 0 and json.loads((tmp / 'dist' / 'site' / 'chart.json').read_text(encoding='utf-8'))['settings'].get('title') == 'Kept elsewhere')
 
+    # A fork's chart before its first Save is no file at all (data/chart.json
+    # in a repository that has never saved): the page draws an empty chart
+    # and says it was built from nothing, which is what the service finds.
+    r = run(tmp, extra_env={'RHIZOME_CHART': str(tmp / 'never' / 'chart.json')})
+    nexus = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    published = (tmp / 'dist' / 'site' / 'chart.json').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    check('a chart that is not there yet builds as the empty chart, built from nothing',
+          f'name="rhizome-data-sha" content="{"0" * 40}"' in nexus and json.loads(published) == {'nodes': []}
+          and not (tmp / 'never').exists(), r.stdout + r.stderr)
+    worker_src = (ROOT / 'worker' / 'index.js').read_text(encoding='utf-8')
+    check('and the service says the same of a place with no chart',
+          "export const NO_CHART = '0'.repeat(40);" in worker_src
+          and "export const EMPTY_CHART_TEXT = '{\\n  \"nodes\": []\\n}\\n';" in worker_src)
+    r = subprocess.run(['node', str(ROOT / 'tools' / 'chart_check.js')], capture_output=True, text=True,
+                       env=dict(os.environ, RHIZOME_CHART=str(tmp / 'never' / 'chart.json')))
+    check('and the chart check lets it through', r.returncode == 0, r.stdout + r.stderr)
+
     # tools/where.py, which tells CI those things. This repository is what
     # its files say; a fork is what it can see of itself, and its variables.
     def where(**env):
@@ -681,9 +698,10 @@ def main():
           code == 0 and own.get('upstream') == 'true' and own.get('site') == config.get('site') and own.get('api') == config.get('api')
           and own.get('owners') == wrangler.get('OWNERS') and own.get('data_here') == 'true', str(own) + err)
     code, fork, err = where(GITHUB_REPOSITORY='Alice/rhizome', GITHUB_REPOSITORY_OWNER='Alice')
-    check('a fork lives where Pages serves it, is edited by its owner, and keeps its chart in itself',
+    check('a fork lives where Pages serves it, is edited by its owner, and keeps its chart in itself, in data/',
           code == 0 and fork.get('upstream') == 'false' and fork.get('site') == 'https://alice.github.io/rhizome'
-          and fork.get('owners') == 'Alice' and fork.get('data') == 'Alice/rhizome/src/chart.json@main'
+          and fork.get('owners') == 'Alice' and fork.get('data') == 'Alice/rhizome/data/chart.json@main'
+          and fork.get('media_dir') == 'data/media'
           and fork.get('origins') == 'https://alice.github.io', str(fork) + err)
     check('with no Cloudflare of its own, a fork has no service, and deploys none',
           fork.get('api') == '' and fork.get('deploy') == 'false')

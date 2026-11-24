@@ -57,17 +57,27 @@ function fakeGitHub(){
   const srcTree = tree([{path: 'chart.json', type: 'blob', sha: blob(DATA)}]);
   const root = tree([{path: 'src', type: 'tree', sha: srcTree}, {path: 'README.md', type: 'blob', sha: blob('readme')}]);
   gh.head = 'c0'; gh.commits.set('c0', {tree: root});
-  gh.mediaAt = commit => {
-    const top = gh.trees.get(gh.commits.get(commit).tree);
-    const src = gh.trees.get(top.find(e => e.path === 'src').sha);
-    const dir = src.find(e => e.path === 'media');
-    return dir ? new Map(gh.trees.get(dir.sha).map(e => [e.path, gh.blobs.get(e.sha)])) : new Map();
+  // What a commit holds at a path: a blob's text (or bytes), a tree's
+  // entries, or undefined.
+  gh.at = (commit, path) => {
+    let entries = gh.trees.get(gh.commits.get(commit).tree), e = null;
+    for(const name of path.split('/')){
+      if(!entries) return undefined;
+      e = entries.find(x => x.path === name);
+      if(!e) return undefined;
+      entries = e.type === 'tree' ? gh.trees.get(e.sha) : null;
+    }
+    return e.type === 'tree' ? entries : gh.blobs.get(e.sha);
   };
-  gh.dataAt = commit => {
-    const top = gh.trees.get(gh.commits.get(commit).tree);
-    const src = gh.trees.get(top.find(e => e.path === 'src').sha);
-    return gh.blobs.get(src.find(e => e.path === 'chart.json').sha);
-  };
+  gh.mediaAt = (commit, dir) => new Map((gh.at(commit, (dir || 'src/') + 'media') || []).map(e => [e.path, gh.blobs.get(e.sha)]));
+  gh.dataAt = (commit, path) => gh.at(commit, path || 'src/chart.json');
+  // The site repository's Actions variables, and whether the token may
+  // write them (the app's Variables permission).
+  gh.variables = new Map(); gh.variablesAllowed = true;
+  gh.dispatches = []; gh.dispatchAllowed = true;
+  gh.installations = [{id: 7, html_url: 'https://github.com/settings/installations/7',
+                       repos: [{full_name: 'owner/site', default_branch: 'main', private: false},
+                               {full_name: 'TheOwner/charts', default_branch: 'trunk', private: true}]}];
   gh.fetch = async (url, init) => {
     const u = new URL(url), method = (init && init.method) || 'GET';
     const body = init && init.body ? JSON.parse(init.body) : null;
@@ -86,12 +96,39 @@ function fakeGitHub(){
               : body.code === 'code-nouser' ? {access_token: 'tok-gone'} : {error: 'bad_verification_code'});
     }
     if(!gh.users[auth]) return new Response('{}', {status: 401});
+    let m0;
     // Which repository was asked, so a test can hold the service to the
     // one DATA names (dataOf); the store itself is the same for any.
-    const asked = /^\/repos\/([^/]+\/[^/]+)/.exec(u.pathname);
-    if(asked) (gh.reposAsked = gh.reposAsked || new Set()).add(asked[1]);
+    // The site's own variables and workflow are asked of the site's
+    // repository whatever DATA says, so they are not counted.
+    const asked = /^\/repos\/([^/]+\/[^/]+)(\/actions\/)?/.exec(u.pathname);
+    if(asked && !asked[2]) (gh.reposAsked = gh.reposAsked || new Set()).add(asked[1]);
     const p = u.pathname.replace(/^\/repos\/[^/]+\/[^/]+/, '');
     if(p === '/user') return ok({login: gh.users[auth]});
+    if(p === '' && /^\/repos\//.test(u.pathname)) return ok({default_branch: 'main'});
+    if(p === '/user/installations') return ok({installations: gh.installations.map(i => ({id: i.id, html_url: i.html_url}))});
+    if((m0 = /^\/user\/installations\/(\d+)\/repositories$/.exec(p))){
+      const inst = gh.installations.find(i => String(i.id) === m0[1]);
+      return ok({repositories: inst ? inst.repos : []});
+    }
+    if(p === '/actions/workflows/ci.yml/dispatches' && method === 'POST'){
+      if(!gh.dispatchAllowed) return new Response('{}', {status: 403});
+      gh.dispatches.push(body.ref + (body.inputs && body.inputs.service === 'true' ? '+service' : ''));
+      return new Response(null, {status: 204});
+    }
+    if((m0 = /^\/actions\/variables(?:\/([^/]+))?$/.exec(p))){
+      const name = m0[1];
+      if(!gh.variablesAllowed) return new Response('{}', {status: 403});
+      if(method === 'GET') return gh.variables.has(name) ? ok({name, value: gh.variables.get(name)}) : new Response('{}', {status: 404});
+      if(method === 'PATCH'){
+        if(!gh.variables.has(name)) return new Response('{}', {status: 404});
+        gh.variables.set(name, body.value); return new Response(null, {status: 204});
+      }
+      if(method === 'POST' && !name){
+        if(gh.variables.has(body.name)) return new Response('{}', {status: 409});
+        gh.variables.set(body.name, body.value); return new Response('{}', {status: 201});
+      }
+    }
     if(p === '/git/ref/heads/main') return ok({object: {sha: gh.head}});
     let m;
     if(p === '/issues' || /^\/issues\/\d+$/.test(p)){
@@ -130,24 +167,22 @@ function fakeGitHub(){
       return ok({sha});
     }
     if(p === '/git/trees' && method === 'POST'){
-      const top = gh.trees.get(body.base_tree).map(e => ({...e}));
-      const srcEntry = top.find(e => e.path === 'src');
-      const src = gh.trees.get(srcEntry.sha).map(e => ({...e}));
-      const put = (list, name, sha, type) => {
-        const e = list.find(x => x.path === name);
-        if(e) e.sha = sha; else list.push({path: name, type, sha});
+      // Any depth, as GitHub does: each path is put into the trees along
+      // it, made where they are not there yet (a fork's data/ before its
+      // first Save).
+      const putPath = (treeSha, bits, sha) => {
+        const list = treeSha ? gh.trees.get(treeSha).map(e => ({...e})) : [];
+        const e = list.find(x => x.path === bits[0]);
+        const made = bits.length === 1 ? sha : putPath(e && e.type === 'tree' ? e.sha : null, bits.slice(1), sha);
+        if(e) e.sha = made; else list.push({path: bits[0], type: bits.length === 1 ? 'blob' : 'tree', sha: made});
+        return tree(list);
       };
+      let top = body.base_tree;
       for(const t of body.tree){
-        const bits = t.path.split('/');
-        if(bits[0] !== 'src') return new Response('{}', {status: 422});
-        if(bits.length === 2){ put(src, bits[1], t.sha, 'blob'); continue; }
-        const dir = src.find(x => x.path === bits[1]);
-        const list = dir ? gh.trees.get(dir.sha).map(e => ({...e})) : [];
-        put(list, bits[2], t.sha, 'blob');
-        put(src, bits[1], tree(list), 'tree');
+        if(t.path.split('/').some(b => !b || b === '.' || b === '..')) return new Response('{}', {status: 422});
+        top = putPath(top, t.path.split('/'), t.sha);
       }
-      srcEntry.sha = tree(src);
-      return ok({sha: tree(top)});
+      return ok({sha: top});
     }
     if(p === '/git/commits' && method === 'POST'){
       const sha = 'c' + (gh.commits.size); gh.commits.set(sha, {tree: body.tree, parents: body.parents});
@@ -1189,6 +1224,107 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
     check('a save goes to the repository DATA names, and to no other',
           res.status === 200 && other.head !== 'c0' && [...other.reposAsked].join() === 'someone/charts',
           res.status + ' ' + [...(other.reposAsked || [])].join());
+    globalThis.fetch = gh.fetch;
+  }
+
+  /* Choosing where the chart is kept (0.28.0). A fork starts with no
+     chart at all; the owner picks a place from the page, which writes the
+     site repository's RHIZOME_DATA, and from then on every save goes
+     there — at once, before any deploy carries the variable (livePlace). */
+  {
+    const g = fakeGitHub();
+    globalThis.fetch = g.fetch;
+    const tok = await w.seal(ENV, 'session', {login: 'TheOwner', gh: 'tok-owner', exp: Date.now() + 60000});
+    const ed = await w.seal(ENV, 'session', {login: 'someone', gh: 'tok-other', exp: Date.now() + 60000});
+    const H = t => ({Authorization: 'Bearer ' + t, Origin: SITE, 'Content-Type': 'application/json'});
+    const get = (p, t) => svc.fetch(new Request(SVC + p, {headers: H(t)}), ENV);
+    const send = (p, t, b) => svc.fetch(new Request(SVC + p, {method: 'POST', headers: H(t), body: JSON.stringify(b)}), ENV);
+
+    // Where a fork's chart is before its first Save: nowhere, which is a
+    // chart with nothing in it.
+    g.variables.set('RHIZOME_DATA', 'owner/site/data/chart.json@main');
+    let res = await get('/me', tok), got = await res.json();
+    check('a place with no chart yet is the empty chart, named as nothing, and /me says where it is',
+          res.status === 200 && got.sha === w.NO_CHART && got.data === 'owner/site/data/chart.json@main', JSON.stringify(got));
+    const first = w.chartText({nodes: [{id: 'a', label: 'The first entry'}]});
+    res = await send('/save', tok, {base: w.NO_CHART, chart: first});
+    got = await res.json();
+    check('the first Save there makes the file, data/ and all, and leaves src/chart.json as it was',
+          res.status === 200 && g.dataAt(g.head, 'data/chart.json') === first && g.dataAt(g.head) === DATA
+          , res.status + ' ' + JSON.stringify(got));
+    check('a commit to the site\'s own repository publishes itself, so nothing else is asked',
+          got.published === undefined && g.dispatches.length === 0);
+
+    // The list of places.
+    res = await get('/places', tok); got = await res.json();
+    check('the owner is told every repository the app may write to, and where the chart is now',
+          res.status === 200 && got.data === 'owner/site/data/chart.json@main'
+          && got.places.map(p => p.repo + '@' + p.branch).join() === 'owner/site@main,TheOwner/charts@trunk'
+          && got.places[1].private === true && /installations\/7$/.test(got.manage), JSON.stringify(got));
+    res = await get('/places', ed);
+    check('and nobody else is', res.status === 403, res.status);
+
+    // A move takes the chart and its pictures, in one commit.
+    const picture = Buffer.from('a picture, to be moved');
+    const ref = 'media/' + nodeCrypto.createHash('sha256').update(picture).digest('hex') + '.png';
+    const withPic = w.chartText({nodes: [{id: 'a', label: 'The first entry'}], media: [{key: 'p', name: 'p', kind: 'image', src: ref}]});
+    res = await send('/save', tok, {base: gitSha(first), chart: withPic, media: {[ref]: picture.toString('base64')}});
+    check('(a picture is saved beside it)', res.status === 200 && g.mediaAt(g.head, 'data/').size === 1, res.status);
+    const commits = g.commits.size;
+    res = await send('/place', tok, {data: 'owner/site/elsewhere/chart.json', mode: 'move'});
+    got = await res.json();
+    const moved = g.mediaAt(g.head, 'elsewhere/');
+    check('a move copies the chart and the pictures it names to the new place, in one commit, and says where it is now',
+          res.status === 200 && got.data === 'owner/site/elsewhere/chart.json@main' && g.commits.size === commits + 1
+          && g.dataAt(g.head, 'elsewhere/chart.json') === withPic && moved.size === 1
+          && Buffer.compare(Buffer.from(moved.values().next().value), picture) === 0 && got.sha === gitSha(withPic),
+          res.status + ' ' + JSON.stringify(got));
+    check('the site repository\'s variable now names it, and the site is asked to publish again',
+          g.variables.get('RHIZOME_DATA') === 'owner/site/elsewhere/chart.json@main' && got.published === true && g.dispatches.join() === 'main+service', g.dispatches.join());
+    res = await send('/save', tok, {base: got.sha, chart: edit(withPic, c => c.nodes.push({id: 'b', label: 'After the move'}))});
+    check('a save right after goes to the new place', res.status === 200 && /After the move/.test(g.dataAt(g.head, 'elsewhere/chart.json'))
+          && !/After the move/.test(g.dataAt(g.head, 'data/chart.json')), res.status);
+    res = await send('/place', tok, {data: 'owner/site/data/chart.json@main', mode: 'move'});
+    got = await res.json();
+    check('a move onto a place that already holds a chart is refused, and nothing is written',
+          res.status === 409 && /already holds a chart/.test(got.error) && g.variables.get('RHIZOME_DATA') === 'owner/site/elsewhere/chart.json@main',
+          res.status + ' ' + JSON.stringify(got));
+    res = await send('/place', tok, {data: 'owner/site/data/chart.json', mode: 'use'});
+    got = await res.json();
+    check('opening the chart kept there instead switches to it, and hands it over',
+          res.status === 200 && got.sha === gitSha(withPic) && got.chart === withPic && g.variables.get('RHIZOME_DATA') === 'owner/site/data/chart.json@main',
+          res.status + ' ' + JSON.stringify(got).slice(0, 200));
+    res = await send('/place', tok, {data: 'owner/site/data/chart.json@main', mode: 'use'});
+    got = await res.json();
+    check('choosing where it already is changes nothing', res.status === 200 && got.unchanged === true && g.dispatches.length === 2);
+    for(const [b, why] of [[{data: 'nowhere', mode: 'move'}, 'no place'], [{data: 'owner/site/x/chart.json', mode: 'copy'}, 'no way of moving']]){
+      res = await send('/place', tok, b);
+      check('a place that is ' + why + ' is refused', res.status === 400, res.status);
+    }
+    res = await send('/place', ed, {data: 'owner/site/x/chart.json', mode: 'use'});
+    check('only the owner may move the chart', res.status === 403, res.status);
+    g.variablesAllowed = false;
+    res = await send('/place', tok, {data: 'owner/site/y/chart.json', mode: 'use'});
+    got = await res.json();
+    check('an app without the Variables permission is told which permission it lacks',
+          res.status === 403 && /Variables permission/.test(got.error), res.status + ' ' + JSON.stringify(got));
+    check('and a token that may not read the variable saves where the service was deployed to',
+          (await w.livePlace(ENV, 'tok-owner')).DATA === undefined);
+    g.variablesAllowed = true;
+
+    // Kept in another repository, a save asks the site to publish again.
+    g.variables.set('RHIZOME_DATA', 'TheOwner/charts/chart.json@main');
+    const before = g.dispatches.length;
+    res = await send('/save', tok, {base: w.NO_CHART, chart: first});
+    got = await res.json();
+    check('a save kept in another repository asks the site to publish again, and says it did',
+          res.status === 200 && got.published === true && g.dispatches.length === before + 1 && g.dataAt(g.head, 'chart.json') === first,
+          res.status + ' ' + JSON.stringify(got));
+    g.dispatchAllowed = false;
+    res = await send('/save', tok, {base: gitSha(first), chart: edit(first, c => c.nodes.push({id: 'c', label: 'Unpublished'}))});
+    got = await res.json();
+    check('and a token that may not run the workflow still saves, and is told the site did not follow',
+          res.status === 200 && got.published === false, res.status + ' ' + JSON.stringify(got));
     globalThis.fetch = gh.fetch;
   }
 

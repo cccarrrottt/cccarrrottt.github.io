@@ -1807,3 +1807,159 @@
   check('a reader reads them and has nothing to fill in', r.readerNoForm);
   check('the page is on the site at the site\'s address or below it, and only there', r.atSite);
   });
+
+  /* ---- a fork's own site, before its first Save (0.28.0) ----
+   *
+   * The platform is forked, and the fork has no chart: tools/where.py
+   * keeps it in data/chart.json, which is not there yet, and build.py
+   * draws the empty chart and names it as nothing (NO_CHART). The owner
+   * signs in, edits, and Save first asks where the chart is to be kept —
+   * the fork, or any repository the app may write to (36b-place.js) — and
+   * then saves on top of nothing. Later, About moves the chart, or opens
+   * one kept somewhere else. Driven at the site's address, as "the page on
+   * the published site" is, with the write service answered from here. */
+  await scenario("a fork with no chart yet", async () => {
+  if(MODE === 'src'){
+    check('the site serves the built file, so there is nothing to check from src', true);
+    return;
+  }
+  const NONE = '0'.repeat(40);
+  const config = fs.readFileSync(path.join(ROOT, 'src', 'app', '00-config.js'), 'utf8');
+  const SITE_ORIGIN = /^\s*site: '([^']+)'/m.exec(config)[1];
+  const SITE_API = /^\s*api: '([^']*)'/m.exec(config)[1];
+  const SITE_BUILT = path.join(DIR, 'site');
+  const built = fs.readFileSync(path.join(SITE_BUILT, 'index.html'), 'utf8');
+  const open = '<script type="application/json" id="chart-data">\n';
+  const a = built.indexOf(open), b = built.indexOf('\n</script>', a + open.length);
+  /* What build.py writes for a chart that is not there yet. */
+  const html = (built.slice(0, a + open.length) + '{\n  "nodes": []\n}' + built.slice(b))
+    .replace(/(<meta name="rhizome-data-sha" content=")[0-9a-f]*(")/, `$1${NONE}$2`);
+  const siteFile = name => /^[\w.-]+$/.test(name) && fs.existsSync(path.join(SITE_BUILT, name)) ? fs.readFileSync(path.join(SITE_BUILT, name)) : null;
+  const kept = '{\n  "nodes": [\n    {"id":"k1","label":"Kept elsewhere"}\n  ]\n}\n';
+  const api = {sha: NONE, data: 'alice/rhizome/data/chart.json@main', saves: [], places: []};
+  const c = await browser.newContext({viewport: {width: 1400, height: 900}, serviceWorkers: 'block'});
+  const quiet = r => r.fulfill({status: 200, contentType: 'text/css', body: ''});
+  await c.route('https://fonts.googleapis.com/**', quiet);
+  await c.route('https://fonts.gstatic.com/**', quiet);
+  await c.route(/^https:\/\/github\.com\/[^/]+\.png/, r => r.fulfill({status: 200, contentType: 'image/png', body: TINY_PNG}));
+  await c.route('https://api.github.com/**', r => r.fulfill({status: 200, headers: {'Access-Control-Allow-Origin': '*'},
+    contentType: 'application/json', body: '[]'}));
+  await c.route(SITE_ORIGIN + '/**', r => {
+    const u = new URL(r.request().url());
+    const beside = /\.(js|css)$/.exec(u.pathname) && siteFile(u.pathname.slice(1));
+    if(beside) return r.fulfill({status: 200, contentType: u.pathname.endsWith('.css') ? 'text/css' : 'text/javascript', body: beside});
+    return r.fulfill({status: 200, contentType: 'text/html; charset=utf-8', body: html});
+  });
+  await c.route(SITE_API + '/**', async r => {
+    const q = r.request(), u = new URL(q.url());
+    const cors = {'Access-Control-Allow-Origin': SITE_ORIGIN, 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'};
+    const reply = (status, body) => r.fulfill({status, headers: cors, contentType: 'application/json', body: JSON.stringify(body)});
+    if(q.method() === 'OPTIONS') return r.fulfill({status: 204, headers: cors});
+    if(q.headers()['authorization'] !== 'Bearer good-session') return reply(401, {error: 'not signed in.'});
+    if(u.pathname === '/me') return reply(200, {owner: true, login: 'alice', sha: api.sha, media: true, data: api.data});
+    if(u.pathname === '/faults') return reply(200, {kept: true, faults: []});
+    if(u.pathname === '/places') return reply(200, {data: api.data, site: 'alice/rhizome', manage: 'https://github.com/settings/installations/7',
+      places: [{repo: 'alice/rhizome', branch: 'main'}, {repo: 'alice/charts', branch: 'trunk', private: true}]});
+    if(u.pathname === '/place'){
+      const body = JSON.parse(q.postData());
+      api.places.push(body);
+      if(/taken/.test(body.data)) return reply(409, {error: 'data/taken.json in alice/charts already holds a chart. Open the chart kept there, or choose another place.'});
+      api.data = body.data;
+      if(body.mode === 'use'){ api.sha = 'sha-of-kept'; return reply(200, {data: body.data, sha: api.sha, published: true, chart: kept}); }
+      return reply(200, {data: body.data, sha: api.sha, published: true});
+    }
+    if(u.pathname === '/save'){
+      const body = JSON.parse(q.postData());
+      api.saves.push({base: body.base, chart: body.chart, data: api.data});
+      if(body.base !== api.sha) return reply(409, {error: 'the repository has a newer chart.'});
+      api.sha = 'sha-after-save-' + api.saves.length;
+      return reply(200, {sha: api.sha, published: !/alice\/rhizome\//.test(api.data)});
+    }
+    return reply(404, {error: 'not found'});
+  });
+  await c.addInitScript(() => { try{ localStorage.setItem('rhizome.site.session', 'good-session'); }catch(e){} });
+  const site = await c.newPage();
+  const errors = [];
+  site.on('pageerror', e => errors.push(e.message));
+  await site.goto(SITE_ORIGIN + '/');
+  await site.waitForFunction(() => typeof readOnlyView !== 'undefined' && !readOnlyView, null, {timeout: 15000}).catch(() => {});
+  const first = await site.evaluate(() => ({readOnly: readOnlyView, nodes: NODES.length, base: siteBase,
+    place: DATA_PLACE.repo + '/' + DATA_PLACE.path + '@' + DATA_PLACE.branch}));
+  check('a fork\'s site with no chart opens empty, built from nothing, and its owner gets the editor',
+        !first.readOnly && first.nodes === 0 && first.base === NONE, JSON.stringify(first));
+  check('and the page learns where the chart is to be kept from the service', first.place === 'alice/rhizome/data/chart.json@main', first.place);
+
+  /* The first Save asks where. */
+  const asked = await site.evaluate(async () => {
+    applyEdit(()=>{ workingNodes.push(entryOfRecord({id: 'n1', label: 'The first entry'})); });
+    await saveNow();
+    await new Promise(r => setTimeout(r, 400));
+    const box = document.getElementById('aboutPlace');
+    return {open: document.getElementById('aboutOverlay').classList.contains('open'), shown: !box.hidden,
+            text: box.textContent, options: [...box.querySelectorAll('option')].map(o => o.value + '@' + o.dataset.branch),
+            path: box.querySelector('input').value, state: document.getElementById('saveState').textContent,
+            dirty: isDirty()};
+  });
+  check('the first Save of a chart with no home sends nothing and opens About on where it is to be kept',
+        api.saves.length === 0 && asked.open && asked.shown && /no home yet/.test(asked.text) && asked.dirty
+        && /Choose where the chart is kept/.test(asked.state), JSON.stringify(asked));
+  check('offering the fork and every repository the app may write to, with the file it would be',
+        asked.options.join() === 'alice/rhizome@main,alice/charts@trunk' && asked.path === 'data/chart.json', JSON.stringify(asked.options));
+
+  /* A place already holding a chart is refused, and said. */
+  const refused = await site.evaluate(async () => {
+    const box = document.getElementById('aboutPlace');
+    box.querySelector('select').value = 'alice/charts';
+    box.querySelector('input').value = 'data/taken.json';
+    box.querySelector('.place-buttons .editor-btn').click();
+    await new Promise(r => setTimeout(r, 400));
+    return {said: box.querySelector('.place-said').textContent, place: DATA_PLACE.repo};
+  });
+  check('a place that already holds a chart is refused, and the refusal is said', /already holds a chart/.test(refused.said)
+        && refused.place === 'alice/rhizome' && api.saves.length === 0, JSON.stringify(refused));
+
+  /* Another repository, chosen: the place is set, then the save is sent. */
+  const saved = await site.evaluate(async () => {
+    const box = document.getElementById('aboutPlace');
+    box.querySelector('select').value = 'alice/charts';
+    box.querySelector('input').value = 'chart.json';
+    box.querySelector('.place-buttons .editor-btn').click();
+    for(let i = 0; i < 40 && isDirty(); i++) await new Promise(r => setTimeout(r, 100));
+    return {dirty: isDirty(), place: DATA_PLACE.repo + '/' + DATA_PLACE.path + '@' + DATA_PLACE.branch, base: siteBase,
+            open: document.getElementById('aboutOverlay').classList.contains('open')};
+  });
+  const last = api.places[api.places.length - 1];
+  check('choosing another repository keeps the chart there, on its own branch, and then saves it there, on top of nothing',
+        last.data === 'alice/charts/chart.json@trunk' && last.mode === 'move' && api.saves.length === 1 && api.saves[0].base === NONE
+        && api.saves[0].data === 'alice/charts/chart.json@trunk' && /The first entry/.test(api.saves[0].chart)
+        && !saved.dirty && saved.place === 'alice/charts/chart.json@trunk' && !saved.open,
+        JSON.stringify({last, saves: api.saves.map(s => s.base + ' ' + s.data), saved}));
+
+  /* Saved, About says where it is and offers to move it or open another. */
+  const later = await site.evaluate(async () => {
+    document.getElementById('aboutToggle').click();
+    await new Promise(r => setTimeout(r, 400));
+    const box = document.getElementById('aboutPlace');
+    return {text: box.textContent, buttons: [...box.querySelectorAll('.place-buttons button')].map(b => b.textContent),
+            link: box.querySelector('p a').href};
+  });
+  check('once saved, About names the file, links it, and offers to move the chart or open another',
+        /chart\.json in alice\/charts, on trunk/.test(later.text) && later.buttons.join() === 'Move the chart there,Open the chart kept there'
+        && later.link === 'https://github.com/alice/charts/blob/trunk/chart.json', JSON.stringify(later));
+
+  const opened = await site.evaluate(async () => {
+    const box = document.getElementById('aboutPlace');
+    box.querySelector('select').value = 'alice/rhizome';
+    box.querySelector('input').value = 'data/other.json';
+    box.querySelectorAll('.place-buttons button')[1].click();
+    await new Promise(r => setTimeout(r, 500));
+    return {labels: workingNodes.map(n => n[1]), drawn: !!document.querySelector('[data-id="k1"]'), base: siteBase, dirty: isDirty(), said: box.querySelector('.place-said').textContent,
+            place: DATA_PLACE.repo + '/' + DATA_PLACE.path};
+  });
+  check('opening the chart kept elsewhere shows it, as saved, and saves go on top of it',
+        opened.labels.join() === 'Kept elsewhere' && opened.drawn && opened.base === 'sha-of-kept' && !opened.dirty
+        && opened.place === 'alice/rhizome/data/other.json' && /^Done/.test(opened.said), JSON.stringify(opened));
+  check('no uncaught page errors on a fork\'s site', errors.length === 0, errors.join(' | '));
+  await c.close();
+  });

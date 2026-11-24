@@ -25,7 +25,9 @@ here instead, and a fork changes no file of ours:
            Cloudflare with the copy's own token — or RHIZOME_API. With no
            Cloudflare secrets there is no service: '' (read-only for all)
   data     where the chart is kept, owner/name/path/chart.json@branch — the
-           variable RHIZOME_DATA, or src/chart.json in this repository
+           variable RHIZOME_DATA, or data/chart.json in this repository (in
+           the original, src/chart.json, as 00-config.js says). Not there
+           yet, it is an empty chart, and the first Save makes it
   owners   who may edit: RHIZOME_OWNERS, or the repository's owner
   editors  RHIZOME_EDITORS, or nobody
 
@@ -103,7 +105,10 @@ def where(env):
             sub = workers_subdomain(var('CLOUDFLARE_API_TOKEN'), var('CLOUDFLARE_ACCOUNT_ID'))
             if sub:
                 api = f"https://{toml_var_name()}.{sub}.workers.dev"
-        data = f'{repo}/src/chart.json@{branch}'
+        # Not src/chart.json, which is the chart of the repository forked:
+        # a fork's own chart starts as no file at all, an empty chart, and
+        # its first Save makes data/chart.json.
+        data = f'{repo}/data/chart.json@{branch}'
         owners, editors = var('GITHUB_REPOSITORY_OWNER') or repo.split('/')[0], ''
     # A variable the repository sets wins over all of the above, here too.
     site = (var('RHIZOME_SITE') or site).rstrip('/')
