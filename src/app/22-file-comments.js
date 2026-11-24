@@ -938,7 +938,7 @@ async function loadPublicSuggestions(){
   const out = [];
   try{
     for(let n = 1; n <= SUGGESTION_PAGES; n++){
-      const res = await fetch(`https://api.github.com/repos/${SITE_REPO}/issues?state=open&per_page=100&page=${n}`,
+      const res = await fetch(`https://api.github.com/repos/${DATA_PLACE.repo}/issues?state=open&per_page=100&page=${n}`,
                               {headers: {'Accept': 'application/vnd.github+json'}});
       if(!res.ok){
         renderSuggestions(res.status === 403 || res.status === 429

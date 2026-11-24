@@ -79,10 +79,19 @@ function atSite(href, site){
   return u.origin === base.origin && (u.pathname + '/').indexOf(base.pathname) === 0;
 }
 const SITE_API = SITE_CONFIG.api;
-/* The repository the site is published from, and where suggestions are
-   kept as issues. The page reads the open ones from GitHub itself, so a
-   reader who has not signed in sees them too. */
+/* The repository the site is published from. */
 const SITE_REPO = SITE_CONFIG.repo;
+/* Where the chart is kept (`data` in 00-config.js): its repository, the
+   path of the file in it and the branch. Suggestions are that repository's
+   issues, and the page reads the open ones from GitHub itself, so a reader
+   who has not signed in sees them too; the history of edits is that file's.
+   A config with no `data` keeps it where it always was. The service reads
+   the same string (dataOf, worker/index.js). */
+const DATA_PLACE = (() => {
+  const m = /^([\w.-]+\/[\w.-]+)\/((?:[^@\s/]+\/)*[^@\s/]+\.json)(?:@([^@\s]+))?$/.exec(String(SITE_CONFIG.data || '').trim());
+  return m ? {repo: m[1], path: m[2], branch: m[3] || 'main'}
+           : {repo: SITE_REPO, path: 'src/chart.json', branch: 'main'};
+})();
 const ON_SITE = atSite(location.href);
 /* What goes wrong in a reader's browser, told to the write service, which
    writes it to its log (POST /report, worker/index.js). Until now a fault

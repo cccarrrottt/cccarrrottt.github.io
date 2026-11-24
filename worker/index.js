@@ -79,8 +79,12 @@
    Configuration, set in the Cloudflare dashboard or wrangler.toml:
      GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET   the GitHub App's, secret
      SESSION_SECRET                           any long random string, secret
-     REPO                                     owner/name
+     REPO                                     owner/name, the site's repository
      BRANCH                                   the branch the site is built from
+     DATA                                     optional: where the chart is kept,
+                                              owner/name/path/chart.json@branch
+                                              (dataOf); src/chart.json in REPO
+                                              without it
      OWNERS                                   GitHub logins, comma-separated
      EDITORS                                  GitHub logins, comma-separated;
                                               may be empty
@@ -91,7 +95,25 @@
                                               marks are made from (fileMark)
 */
 
-const DATA_PATH = 'src/chart.json';
+/* Where the chart is kept: a repository, the path of chart.json in it, and
+   the branch, said as one string in DATA — `owner/name/path/chart.json@branch`
+   — so a site and its chart need not share a repository. The site's
+   repository is a platform anybody forks; its chart can be a file in that
+   fork or in any other repository the owner's app may write to. Without
+   DATA it is src/chart.json in REPO, on BRANCH, which is where it has always
+   been. The pictures are the media/ folder beside the file. */
+export function parseDataPlace(text){
+  const m = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/((?:[^@\s/]+\/)*[^@\s/]+\.json)(?:@([^@\s]+))?$/.exec(String(text || '').trim());
+  if(!m || m[3].split('/').some(s => s === '.' || s === '..')) return null;
+  return {repo: m[1] + '/' + m[2], path: m[3], branch: m[4] || ''};
+}
+export function dataOf(env){
+  const raw = String(env.DATA || '').trim();
+  const d = raw ? parseDataPlace(raw) : {repo: String(env.REPO || ''), path: 'src/chart.json', branch: ''};
+  if(!d) throw httpError(500, 'DATA does not say where the chart is: owner/name/path/chart.json@branch.');
+  const dir = d.path.includes('/') ? d.path.slice(0, d.path.lastIndexOf('/') + 1) : '';
+  return {repo: d.repo, path: d.path, branch: d.branch || String(env.BRANCH || 'main'), dir, media: dir + 'media'};
+}
 /* Pictures and clips live beside the chart as files of their own, named by
    the SHA-256 of their bytes (MEDIA_REF in the page). The name is checked
    against the bytes here, so a file in the folder is always what it says it
@@ -105,7 +127,6 @@ const DATA_PATH = 'src/chart.json';
    data: URI, which has no address on the site to be opened at, and this
    refuses a file that would give it one. A font is among them: opened at
    its address it is a font, and runs nothing. */
-const MEDIA_DIR = 'src/media';
 const MEDIA_REF = /^media\/([0-9a-f]{64})\.(png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)$/;
 const MEDIA_REF_IN_TEXT = /media\/[0-9a-f]{64}\.(?:png|jpg|gif|webp|avif|bmp|ico|webm|mp4|ogv|mov|ttf|otf|woff2?)/g;
 // A session with nothing to renew itself with lasts as long as its token.
@@ -526,25 +547,25 @@ async function gh(token, path, init, refused){
 /* The current head of the branch, the chart.json inside it, and the names in
    the media folder beside it (none, before the first picture is saved). */
 async function currentData(env, token){
-  const ref = await gh(token, `/repos/${env.REPO}/git/ref/heads/${env.BRANCH}`);
-  const commit = await gh(token, `/repos/${env.REPO}/git/commits/${ref.object.sha}`);
+  const ref = await gh(token, `/repos/${dataOf(env).repo}/git/ref/heads/${dataOf(env).branch}`);
+  const commit = await gh(token, `/repos/${dataOf(env).repo}/git/commits/${ref.object.sha}`);
   // Walked down the tree rather than asked of the contents endpoint, which
   // stops describing a file once it passes a megabyte — and this one could.
   const walk = async (sha, path) => {
     for(const name of path.split('/')){
-      const tree = await gh(token, `/repos/${env.REPO}/git/trees/${sha}`);
+      const tree = await gh(token, `/repos/${dataOf(env).repo}/git/trees/${sha}`);
       const entry = (tree.tree || []).find(e => e.path === name);
       if(!entry) return null;
       sha = entry.sha;
     }
     return sha;
   };
-  const sha = await walk(commit.tree.sha, DATA_PATH);
-  if(!sha) throw httpError(500, `${DATA_PATH} is not in the repository.`);
-  const dir = await walk(commit.tree.sha, MEDIA_DIR);
+  const sha = await walk(commit.tree.sha, dataOf(env).path);
+  if(!sha) throw httpError(500, `${dataOf(env).path} is not in ${dataOf(env).repo}.`);
+  const dir = await walk(commit.tree.sha, dataOf(env).media);
   const media = new Set();
   if(dir){
-    const tree = await gh(token, `/repos/${env.REPO}/git/trees/${dir}`);
+    const tree = await gh(token, `/repos/${dataOf(env).repo}/git/trees/${dir}`);
     (tree.tree || []).forEach(e => media.add('media/' + e.path));
   }
   return {head: ref.object.sha, tree: commit.tree.sha, sha, media};
@@ -576,7 +597,7 @@ export async function checkMedia(files, next, file, have){
 }
 
 async function readBlob(env, token, sha){
-  const blob = await gh(token, `/repos/${env.REPO}/git/blobs/${sha}`);
+  const blob = await gh(token, `/repos/${dataOf(env).repo}/git/blobs/${sha}`);
   // Plain base64, broken into lines.
   return dec.decode(unb64(String(blob.content).replace(/\s+/g, '')));
 }
@@ -622,7 +643,7 @@ export function saveTitle(before, after, pictures){
    was then only manners.
 
    With GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY set, an editor's save is
-   committed by the app itself, with a token for its installation on REPO
+   committed by the app itself, with a token for its installation on the chart's repository (dataOf)
    that can write contents and nothing else, good for an hour. The editor
    needs no access to the repository at all, and this service is the one
    door. Without them it is as it was, and an editor still needs Write.
@@ -666,8 +687,8 @@ export async function appToken(env){
   try{ jwt = await appJwt(env); }
   catch(e){ throw httpError(503, 'GITHUB_APP_PRIVATE_KEY is not a private key this service can read.'); }
   const refused = 'the app is not installed on the repository, or may not write its contents.';
-  const inst = await gh(jwt, `/repos/${env.REPO}/installation`, undefined, refused);
-  const name = String(env.REPO).split('/')[1];
+  const inst = await gh(jwt, `/repos/${dataOf(env).repo}/installation`, undefined, refused);
+  const name = dataOf(env).repo.split('/')[1];
   const got = await gh(jwt, `/app/installations/${inst.id}/access_tokens`, {method: 'POST',
     body: JSON.stringify({repositories: [name], permissions: {contents: 'write'}})}, refused);
   if(!got || typeof got.token !== 'string') throw httpError(502, 'GitHub did not hand the app a token.');
@@ -679,20 +700,20 @@ export async function appToken(env){
    endpoint will not take, and the ref update is a fast-forward only —
    a push that landed in between makes it fail rather than be overwritten. */
 async function commitData(env, token, now, text, login, media, was){
-  const blob = await gh(token, `/repos/${env.REPO}/git/blobs`, {method: 'POST', body: JSON.stringify({content: text, encoding: 'utf-8'})});
-  const entries = [{path: DATA_PATH, mode: '100644', type: 'blob', sha: blob.sha}];
+  const blob = await gh(token, `/repos/${dataOf(env).repo}/git/blobs`, {method: 'POST', body: JSON.stringify({content: text, encoding: 'utf-8'})});
+  const entries = [{path: dataOf(env).path, mode: '100644', type: 'blob', sha: blob.sha}];
   for(const f of media || []){
-    const b = await gh(token, `/repos/${env.REPO}/git/blobs`, {method: 'POST', body: JSON.stringify({content: f.b64, encoding: 'base64'})});
-    entries.push({path: 'src/' + f.ref, mode: '100644', type: 'blob', sha: b.sha});
+    const b = await gh(token, `/repos/${dataOf(env).repo}/git/blobs`, {method: 'POST', body: JSON.stringify({content: f.b64, encoding: 'base64'})});
+    entries.push({path: dataOf(env).dir + f.ref, mode: '100644', type: 'blob', sha: b.sha});
   }
-  const tree = await gh(token, `/repos/${env.REPO}/git/trees`, {method: 'POST', body: JSON.stringify({
+  const tree = await gh(token, `/repos/${dataOf(env).repo}/git/trees`, {method: 'POST', body: JSON.stringify({
     base_tree: now.tree, tree: entries
   })});
-  const commit = await gh(token, `/repos/${env.REPO}/git/commits`, {method: 'POST', body: JSON.stringify({
+  const commit = await gh(token, `/repos/${dataOf(env).repo}/git/commits`, {method: 'POST', body: JSON.stringify({
     message: `${saveTitle(was, text, (media || []).length)}\n\nSaved by ${login} through the chart's own Save button.`,
     tree: tree.sha, parents: [now.head]
   })});
-  const res = await fetch(`https://api.github.com/repos/${env.REPO}/git/refs/heads/${env.BRANCH}`, {
+  const res = await fetch(`https://api.github.com/repos/${dataOf(env).repo}/git/refs/heads/${dataOf(env).branch}`, {
     method: 'PATCH',
     headers: {'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + token,
               'User-Agent': 'rhizome-edit', 'Content-Type': 'application/json'},
@@ -992,7 +1013,7 @@ async function suggestions(env, request, ctx){
   const s = await session(env, request, ctx, 'reader');
   const out = [];
   for(let n = 1; n <= SUGGESTION_PAGES; n++){
-    const got = await gh(s.gh, `/repos/${env.REPO}/issues?state=open&per_page=100&page=${n}`, undefined,
+    const got = await gh(s.gh, `/repos/${dataOf(env).repo}/issues?state=open&per_page=100&page=${n}`, undefined,
                          'GitHub refused: the sign-in app may not read this repository\'s issues.');
     for(const issue of got){
       const one = readSuggestion(issue);
@@ -1018,7 +1039,7 @@ async function suggest(env, request, ctx){
   // A title of the reader's own, when they gave one: one line, as a title is.
   const title = String(typeof body.title === 'string' ? body.title : '').replace(/\s+/g, ' ').trim().slice(0, MAX_SUGGESTION_TITLE);
   if(!s.owner) await withinSuggestionLimits(env, s);
-  const issue = await gh(s.gh, `/repos/${env.REPO}/issues`, {method: 'POST', body: JSON.stringify({
+  const issue = await gh(s.gh, `/repos/${dataOf(env).repo}/issues`, {method: 'POST', body: JSON.stringify({
     title: `${kind}: ${title || (entry && label ? label : 'the chart')}`,
     body: suggestionBody(text, entry, body.kind, !!title)
   })}, 'GitHub refused: the sign-in app may not open issues here. It needs the Issues permission.');
@@ -1029,7 +1050,7 @@ async function suggest(env, request, ctx){
    rather than kept here: the service keeps nothing, and the issues are the
    record. Only suggestions count — an issue about the code is not one. */
 async function withinSuggestionLimits(env, s){
-  const mine = await gh(s.gh, `/repos/${env.REPO}/issues?state=all&creator=${encodeURIComponent(s.login)}&sort=created&direction=desc&per_page=100`,
+  const mine = await gh(s.gh, `/repos/${dataOf(env).repo}/issues?state=all&creator=${encodeURIComponent(s.login)}&sort=created&direction=desc&per_page=100`,
                         undefined, 'GitHub refused: the sign-in app may not read this repository\'s issues. It needs the Issues permission.');
   const theirs = (Array.isArray(mine) ? mine : []).filter(i => readSuggestion(i));
   if(theirs.filter(i => i.state === 'open').length >= MAX_OPEN_SUGGESTIONS)
@@ -1045,7 +1066,7 @@ async function resolve(env, request, ctx){
   const number = body && Number(body.number);
   if(!Number.isInteger(number) || number < 1) throw httpError(400, 'which suggestion?');
   const reason = body.reason === 'not_planned' ? 'not_planned' : 'completed';
-  const path = `/repos/${env.REPO}/issues/${number}`;
+  const path = `/repos/${dataOf(env).repo}/issues/${number}`;
   // Looked at first, so a page holding the wrong number closes nothing that
   // is not a suggestion — an issue about the code included.
   if(!readSuggestion(await gh(s.gh, path))) throw httpError(400, 'that issue is not a suggestion.');

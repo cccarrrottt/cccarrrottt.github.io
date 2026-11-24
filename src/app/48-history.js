@@ -1,8 +1,9 @@
 /* =========================================================================
    THE CHART'S HISTORY
    -------------------------------------------------------------------------
-   Every Save on the site is a commit of src/chart.json, so the history of
-   the chart is the repository's history of that one file — the way a
+   Every Save on the site is a commit of the chart's file (DATA_PLACE:
+   src/chart.json, or wherever 00-config.js keeps it), so the history of
+   the chart is its repository's history of that one file — the way a
    wiki's page has its own history (the owner's list of 22.11, night: "as
    on TFWiki"). About opens it: each edit by when, by whom and what it was
    called, newest first, with the change itself (what that edit did) and
@@ -22,10 +23,11 @@ const historyList = document.getElementById('historyList');
 const HISTORY_PER_PAGE = 30;
 const historyState = {page: 0, done: false, busy: false};
 
-function historyRepoUrl(){ return 'https://github.com/' + SITE_REPO; }
+function historyRepoUrl(){ return 'https://github.com/' + DATA_PLACE.repo; }
 /* The edits, as GitHub lists them for the file. */
 async function fetchChartHistory(page){
-  const url = 'https://api.github.com/repos/' + SITE_REPO + '/commits?path=src/chart.json&per_page=' +
+  const url = 'https://api.github.com/repos/' + DATA_PLACE.repo + '/commits?path=' + DATA_PLACE.path +
+              '&sha=' + DATA_PLACE.branch + '&per_page=' +
               HISTORY_PER_PAGE + '&page=' + page;
   const res = await fetch(url, {headers: {Accept: 'application/vnd.github+json'}});
   if(!res.ok) throw new Error('GitHub answered ' + res.status);
@@ -78,8 +80,8 @@ function historyRow(c){
       links.appendChild(a);
     };
     link('This edit', historyRepoUrl() + '/commit/' + sha, 'What this edit changed, on GitHub');
-    link('Since then', historyRepoUrl() + '/compare/' + sha + '...main', 'Everything changed from this version to now, on GitHub');
-    link('This version', historyRepoUrl() + '/blob/' + sha + '/src/chart.json', 'The chart as it stood after this edit, on GitHub');
+    link('Since then', historyRepoUrl() + '/compare/' + sha + '...' + DATA_PLACE.branch, 'Everything changed from this version to now, on GitHub');
+    link('This version', historyRepoUrl() + '/blob/' + sha + '/' + DATA_PLACE.path, 'The chart as it stood after this edit, on GitHub');
     li.appendChild(links);
   }
   return li;
@@ -111,7 +113,7 @@ function openHistory(){
   historyOverlay.classList.add('open');
   historyToggle.setAttribute('aria-expanded', 'true');
   const all = document.getElementById('historyAll');
-  if(all) all.href = historyRepoUrl() + '/commits/main/src/chart.json';
+  if(all) all.href = historyRepoUrl() + '/commits/' + DATA_PLACE.branch + '/' + DATA_PLACE.path;
   /* Read afresh each time it opens, so a Save just made is in it. */
   historyList.textContent = '';
   historyState.page = 0; historyState.done = false;

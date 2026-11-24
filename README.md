@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.27.2** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.28.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -226,8 +226,11 @@ service; `repo`, the repository — are said once, in `src/app/00-config.js`,
 and the build, the program and the suite all read them from there. The
 service keeps its own copy in `worker/wrangler.toml` (`REPO`,
 `ALLOWED_ORIGINS`), because Cloudflare deploys it from that file;
-`tests/build_guard.py` fails if the two disagree. Publishing the chart from
-another account or repository is a matter of changing those two files.
+`tests/build_guard.py` fails if the two disagree. Those are this
+repository's own values: a copy published from another repository changes
+neither file, because CI works its addresses out from where it runs
+(`tools/where.py`) and writes them into the page it publishes and the
+service it deploys — see DISTRIBUTING.md, step 2.
 
 1. **Cloudflare.** Make a free account and open *Workers & Pages* once, which
    gives the account its `*.workers.dev` subdomain. The service will live at
@@ -263,7 +266,10 @@ another account or repository is a matter of changing those two files.
    Variables and Secrets): `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` from
    the app, and `SESSION_SECRET`, any random string of 32 characters or more
    (`openssl rand -hex 32`). They stay in Cloudflare; a deploy does not touch
-   them, and nobody else needs to see them.
+   them, and nobody else needs to see them. (A copy may keep them as Actions
+   secrets instead, named `RHIZOME_` and the secret's name, which CI hands
+   to the service on each deploy; and with no `SESSION_SECRET` anywhere,
+   the first deploy makes one.)
 
 `worker/wrangler.toml` holds the rest: the repository, the branch, the owner
 logins, the editors' and the site's address.

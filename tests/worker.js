@@ -86,7 +86,11 @@ function fakeGitHub(){
               : body.code === 'code-nouser' ? {access_token: 'tok-gone'} : {error: 'bad_verification_code'});
     }
     if(!gh.users[auth]) return new Response('{}', {status: 401});
-    const p = u.pathname.replace('/repos/owner/site', '');
+    // Which repository was asked, so a test can hold the service to the
+    // one DATA names (dataOf); the store itself is the same for any.
+    const asked = /^\/repos\/([^/]+\/[^/]+)/.exec(u.pathname);
+    if(asked) (gh.reposAsked = gh.reposAsked || new Set()).add(asked[1]);
+    const p = u.pathname.replace(/^\/repos\/[^/]+\/[^/]+/, '');
     if(p === '/user') return ok({login: gh.users[auth]});
     if(p === '/git/ref/heads/main') return ok({object: {sha: gh.head}});
     let m;
@@ -1152,6 +1156,40 @@ const diffLines = (a, b) => { const A = a.split('\n'), B = new Set(b.split('\n')
           w.saveTitle(DATA, w.chartText(c), 0) === 'Chart: 2 entries added, 1 entry changed', w.saveTitle(DATA, w.chartText(c), 0));
     check('and a save of only a picture says so', w.saveTitle(DATA, DATA, 1) === 'Chart: a picture');
     check('a file that does not read is named as it always was', w.saveTitle('nonsense', DATA, 0) === 'Save the chart from the site');
+  }
+
+  /* Where the chart is kept. The site's repository is a platform anybody
+     may fork, and its chart may be a file in another repository: DATA
+     says which, and every read and write of the chart goes there. */
+  {
+    const place = w.parseDataPlace;
+    check('a place is a repository, a path to a .json and a branch',
+          JSON.stringify(place('someone/charts/data/chart.json@trunk')) === JSON.stringify({repo: 'someone/charts', path: 'data/chart.json', branch: 'trunk'}));
+    check('the branch may be left out, and the file may be at the top',
+          JSON.stringify(place('someone/charts/chart.json')) === JSON.stringify({repo: 'someone/charts', path: 'chart.json', branch: ''}));
+    check('a place with no file, or one that climbs out with .., is no place',
+          place('someone/charts') === null && place('someone/charts/data') === null && place('someone/charts/../x/chart.json') === null
+          && place('some one/charts/chart.json') === null);
+    const was = w.dataOf(ENV);
+    check('without DATA the chart is src/chart.json in REPO, on BRANCH, as it always was',
+          was.repo === 'owner/site' && was.path === 'src/chart.json' && was.branch === 'main' && was.media === 'src/media');
+    const top = w.dataOf({...ENV, DATA: 'someone/charts/chart.json'});
+    check('a chart at the top of its repository keeps its pictures in media/ beside it, on BRANCH',
+          top.media === 'media' && top.dir === '' && top.branch === 'main');
+    let threw = null;
+    try{ w.dataOf({...ENV, DATA: 'nowhere'}); }catch(e){ threw = e; }
+    check('a DATA that says no place is a fault of the service, named', threw && threw.status === 500 && /DATA/.test(threw.message));
+
+    const other = fakeGitHub();
+    globalThis.fetch = other.fetch;
+    const ENV2 = {...ENV, DATA: 'someone/charts/src/chart.json@main'};
+    const tok = await w.seal(ENV2, 'session', {login: 'TheOwner', gh: 'tok-owner', exp: Date.now() + 60000});
+    const res = await svc.fetch(new Request(SVC + '/save', {method: 'POST', headers: {Authorization: 'Bearer ' + tok, Origin: SITE,
+      'Content-Type': 'application/json'}, body: JSON.stringify({base: gitSha(DATA), chart: chartWith(c => c.refs.push({key: 'elsewhere', title: 'Kept in another repository'}))})}), ENV2);
+    check('a save goes to the repository DATA names, and to no other',
+          res.status === 200 && other.head !== 'c0' && [...other.reposAsked].join() === 'someone/charts',
+          res.status + ' ' + [...(other.reposAsked || [])].join());
+    globalThis.fetch = gh.fetch;
   }
 
   /* The configuration. The three secrets live in Cloudflare; written into

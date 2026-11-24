@@ -528,10 +528,10 @@ def main():
     # worker/wrangler.toml says — so the two are held together here: an
     # address changed in one and not the other would otherwise surface as a
     # sign-in that fails on the live site.
-    config = dict(re.findall(r"^\s*(site|api|repo): '([^']*)',?\s*$",
+    config = dict(re.findall(r"^\s*(site|api|repo|data): '([^']*)',?\s*$",
                              (ROOT / 'src' / 'app' / '00-config.js').read_text(encoding='utf-8'), re.M))
     wrangler = dict(re.findall(r'^(\w+) = "([^"]*)"', (ROOT / 'worker' / 'wrangler.toml').read_text(encoding='utf-8'), re.M))
-    check('the config says site, api and repo', all(k in config for k in ('site', 'api', 'repo')), str(config))
+    check('the config says site, api, repo and data', all(k in config for k in ('site', 'api', 'repo', 'data')), str(config))
     # A copy with no write service (api empty) is read-only for everybody
     # and deploys nothing, so what wrangler.toml says is nobody's business.
     # The service lets in an ORIGIN: a site under a path is let in by the
@@ -619,6 +619,89 @@ def main():
           'og:title" content="Rhizome Project"' in head and 'og:description' not in head
           and 'name="description"' not in head, r.stdout + r.stderr)
     chart_file.write_text(chart_text, encoding='utf-8')
+
+    # A copy published from another repository is told where it lives by
+    # CI (tools/where.py), not by a file it had to change: the build writes
+    # what the environment says in place of 00-config.js's lines, in the
+    # single page and the site alike, and the file stays as it was.
+    told = {'RHIZOME_SITE': 'https://alice.github.io/rhizome', 'RHIZOME_API': '',
+            'RHIZOME_REPO': 'alice/rhizome', 'RHIZOME_DATA': 'alice/charts/data/chart.json@trunk'}
+    r = run(tmp, extra_env=told)
+    nexus = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    site_page = (tmp / 'dist' / 'site' / 'index.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    program = ''.join((tmp / 'dist' / 'site' / n).read_text(encoding='utf-8') for n in site_files(tmp) if n.endswith('.js')) if r.returncode == 0 else ''
+    said = ["site: 'https://alice.github.io/rhizome'", "api: ''", "repo: 'alice/rhizome'", "data: 'alice/charts/data/chart.json@trunk'"]
+    check('a copy told where it lives carries that in its program, in the page and on the site',
+          all(x in nexus for x in said)
+          # minified on the site, so quoted either way
+          and all(re.search(re.escape(x.split(': ')[0]) + r':\s*["\']' + re.escape(x.split(": '")[1].rstrip("'")) + r'["\']', program)
+                  for x in said), r.stdout + r.stderr)
+    check('and names that site in its preview, with no service in its policy',
+          'og:url" content="https://alice.github.io/rhizome/"' in site_page and config.get('api', '-') not in site_page.split('<!-- @@PAGE:BEGIN@@ -->')[0])
+    check('and leaves 00-config.js as it was', part.read_text(encoding='utf-8') == text)
+    r = run(tmp, extra_env={'RHIZOME_SITE': "https://x.example/'+alert(1)+'"})
+    check('an address that would end the string it is written into stops the build',
+          r.returncode != 0 and 'RHIZOME_SITE' in (r.stdout + r.stderr), r.stdout + r.stderr)
+    r = run(tmp, extra_env={'RHIZOME_DATA': 'alice/charts'})
+    check('and so does a place for the chart that names no file',
+          r.returncode != 0 and 'data must say' in (r.stdout + r.stderr), r.stdout + r.stderr)
+
+    # The chart may be kept in another repository; CI fetches it and names
+    # the file (RHIZOME_CHART). The build draws that one, takes its
+    # pictures from the media/ beside it, and names it as the file the
+    # page was built from.
+    away = tmp / 'away' / 'data'
+    (away / 'media').mkdir(parents=True)
+    ch = json.loads(chart_text)
+    ch['settings'] = dict(ch.get('settings') or {}, title='Kept elsewhere')
+    away_text = json.dumps(ch)
+    (away / 'chart.json').write_text(away_text, encoding='utf-8')
+    picture = 'f' * 64 + '.png'
+    (away / 'media' / picture).write_bytes(b'not really a png')
+    r = run(tmp, extra_env={'RHIZOME_CHART': str(away / 'chart.json')})
+    nexus = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8') if r.returncode == 0 else ''
+    raw = away_text.encode('utf-8')
+    check('a chart kept elsewhere is the chart the page draws, and the one it says it was built from',
+          '<title>Kept elsewhere</title>' in nexus
+          and hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest() in nexus, r.stdout + r.stderr)
+    check('with the pictures beside it',
+          (tmp / 'dist' / 'media' / picture).exists())
+    check('and the same chart published as data beside the site',
+          r.returncode == 0 and json.loads((tmp / 'dist' / 'site' / 'chart.json').read_text(encoding='utf-8'))['settings'].get('title') == 'Kept elsewhere')
+
+    # tools/where.py, which tells CI those things. This repository is what
+    # its files say; a fork is what it can see of itself, and its variables.
+    def where(**env):
+        e = {k: v for k, v in os.environ.items() if not k.startswith(('RHIZOME_', 'CLOUDFLARE_', 'GITHUB_'))}
+        e.update(env)
+        got = subprocess.run([sys.executable, str(ROOT / 'tools' / 'where.py')], capture_output=True, text=True, env=e)
+        return got.returncode, dict(l.split('=', 1) for l in got.stdout.splitlines() if '=' in l), got.stderr
+    code, own, err = where(GITHUB_REPOSITORY=config.get('repo', ''))
+    check('where this repository lives is what 00-config.js and wrangler.toml say',
+          code == 0 and own.get('upstream') == 'true' and own.get('site') == config.get('site') and own.get('api') == config.get('api')
+          and own.get('owners') == wrangler.get('OWNERS') and own.get('data_here') == 'true', str(own) + err)
+    code, fork, err = where(GITHUB_REPOSITORY='Alice/rhizome', GITHUB_REPOSITORY_OWNER='Alice')
+    check('a fork lives where Pages serves it, is edited by its owner, and keeps its chart in itself',
+          code == 0 and fork.get('upstream') == 'false' and fork.get('site') == 'https://alice.github.io/rhizome'
+          and fork.get('owners') == 'Alice' and fork.get('data') == 'Alice/rhizome/src/chart.json@main'
+          and fork.get('origins') == 'https://alice.github.io', str(fork) + err)
+    check('with no Cloudflare of its own, a fork has no service, and deploys none',
+          fork.get('api') == '' and fork.get('deploy') == 'false')
+    check('and inherits nothing of ours: not our service, not our owner',
+          fork.get('api') != config.get('api') and fork.get('owners') != wrangler.get('OWNERS')
+          and config.get('repo') not in fork.get('data', ''), str(fork))
+    code, user_site, err = where(GITHUB_REPOSITORY='bob/Bob.github.io')
+    check('a fork named <owner>.github.io is served at the top of that address',
+          code == 0 and user_site.get('site') == 'https://bob.github.io', str(user_site) + err)
+    code, told, err = where(GITHUB_REPOSITORY='Alice/rhizome', RHIZOME_DATA='alice/charts/chart.json',
+                            RHIZOME_SITE='https://charts.example/', RHIZOME_API='https://api.charts.example',
+                            RHIZOME_EDITORS='carol')
+    check("a fork's variables win, and its chart may be in another repository, at its top",
+          code == 0 and told.get('site') == 'https://charts.example' and told.get('api') == 'https://api.charts.example'
+          and told.get('data_repo') == 'alice/charts' and told.get('data_here') == 'false' and told.get('media_dir') == 'media'
+          and told.get('editors') == 'carol' and told.get('data') == 'alice/charts/chart.json@main', str(told) + err)
+    code, _, err = where(GITHUB_REPOSITORY='Alice/rhizome', RHIZOME_DATA='alice/charts')
+    check('a place for the chart with no file in it is refused', code != 0 and 'RHIZOME_DATA' in err, err)
 
     part.write_text(text.replace("site: '", "site: \"").replace(f"{old_site}',", f'{old_site}",'), encoding='utf-8')
     r = run(tmp)

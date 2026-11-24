@@ -41,35 +41,27 @@ file. Steps 1, 2 and 6, about ten minutes; see "Without the service" below.
    **GitHub Actions**. Not a branch: from a branch, Pages publishes the
    README through Jekyll, succeeds, and the site is not the chart.
 
-## 2. The addresses, said in two files
+## 2. The addresses: nothing to write
 
-Your site, your service and your repository are written once in
-`src/app/00-config.js`:
+Your site's address, your write service's, your repository and who may
+edit are **worked out by CI** from where it runs (`tools/where.py`, since
+0.28.0), and written into the page it publishes; you change no file for
+them, and "Sync fork" never meets a line of ours you changed:
 
-```js
-const SITE_CONFIG = {
-  site: 'https://<you>.github.io',            // or 'https://<you>.github.io/<repo>'
-  api: 'https://rhizome-api.<your subdomain>.workers.dev',   // or '' for no service
-  repo: '<you>/<repo>',
-};
-```
+| | worked out as | or, if you set this repository **variable** |
+| --- | --- | --- |
+| the site | `https://<you>.github.io`, or `https://<you>.github.io/<repo>` | `RHIZOME_SITE` (a domain of your own) |
+| the service | `https://rhizome-api.<subdomain>.workers.dev` on your Cloudflare account (step 3); none without Cloudflare | `RHIZOME_API` |
+| who edits | you, the repository's owner | `RHIZOME_OWNERS`, and `RHIZOME_EDITORS` beside them |
+| the chart | `src/chart.json` in your repository | `RHIZOME_DATA` (see "Where the chart is kept") |
 
-`site` has no slash at the end. With a service, the service keeps its own
-copy in `worker/wrangler.toml`, because Cloudflare deploys it from that
-file. `ALLOWED_ORIGINS` is the site's address **without** its path, which is
-all a browser tells the service:
+Variables are under *Settings → Secrets and variables → Actions →
+Variables*. A fork does not copy them, so a fork of yours never inherits
+your chart or your owner either. What CI worked out is printed at the top
+of every run, in *Where this copy lives*.
 
-```toml
-REPO = "<you>/<repo>"
-OWNERS = "<your GitHub login>"
-EDITORS = ""
-ALLOWED_ORIGINS = "https://<you>.github.io"
-```
-
-`tests/build_guard.py` fails if the two disagree, so a mistake here shows
-up as a red check rather than as a sign-in that does not work. Your
-Cloudflare subdomain comes from step 3; until you know it, leave `api` as it
-is and come back.
+`src/app/00-config.js` and `worker/wrangler.toml` hold the original's
+values, and are used only by the repository they name.
 
 **The About panel** carries the original author's contacts (`about-contact`
 links in `src/index.html`). Put yours there, or take them out, then run
@@ -86,13 +78,14 @@ card, and can be edited to draw yours).
 
 1. Make a free Cloudflare account and open *Workers & Pages* once. That
    gives the account its `*.workers.dev` subdomain; your service will be
-   `https://rhizome-api.<subdomain>.workers.dev`. Put that in `api` (step 2).
+   `https://rhizome-api.<subdomain>.workers.dev`, which CI asks Cloudflare
+   for itself (step 2).
 2. Let CI deploy it: a Cloudflare API token made from the *Edit Cloudflare
    Workers* template, and your account id, as the repository's Actions
    secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (*Settings →
-   Secrets and variables → Actions*). Once `repo` in `00-config.js` names
-   your repository, the deploy job **fails** without them rather than
-   skipping, so a site never talks to a service that was not deployed.
+   Secrets and variables → Actions*). Without them there is no service:
+   the site is published read-only for everybody (see "Without the
+   service").
 
    (The README's "Setting up the write service" describes the other way,
    importing the repository into Cloudflare. Use one, not both.)
@@ -111,11 +104,18 @@ your site never touch anyone else's service.
    - Installable only on your account.
 2. Generate a client secret, then **Install** the app on your repository
    only.
-3. In Cloudflare, *your Worker → Settings → Variables and Secrets*, add
-   three **Secrets** (not plain text, which a deploy wipes):
-   - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, from the app;
-   - `SESSION_SECRET`: any random 32 characters or more
-     (`openssl rand -hex 32`).
+3. Give the service the app's client id and secret, in either place:
+   - in GitHub, as Actions **secrets** `RHIZOME_GITHUB_CLIENT_ID` and
+     `RHIZOME_GITHUB_CLIENT_SECRET` (GitHub refuses secret names that begin
+     `GITHUB_`, hence the prefix): CI hands them to the service on every
+     deploy. Every secret below can be kept this way, as `RHIZOME_` and its
+     name;
+   - or in Cloudflare, *your Worker → Settings → Variables and Secrets*, as
+     **Secrets** `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (not plain
+     text, which a deploy wipes).
+
+   `SESSION_SECRET`, the key sessions are sealed with, is made by the first
+   deploy, at random, if neither place has one; never again after that.
 
 Never write any of these into `worker/wrangler.toml`: that file is public,
 and `tests/worker.js` refuses it if one appears there.
@@ -198,9 +198,8 @@ secrets. Nobody signs in on it, the owner included, and there are no
 suggestions; the chart changes by a commit of `src/chart.json`.
 
 1. Step 1 as above.
-2. In `src/app/00-config.js`, `site` and `repo` as above and **`api: ''`**.
-   `worker/wrangler.toml` can be left as it is: with no service named,
-   nothing checks it and CI deploys nothing.
+2. Add no Cloudflare secrets. With none, CI names no service and deploys
+   none.
 3. Push. The site is published as a reader for everybody.
 
 To change the chart, open your copy anywhere but the site and edit it
@@ -209,7 +208,23 @@ opens from a disk and edits into that browser. When it is as you want it,
 *Export the contents* gives a `chart.json`; put it in place of
 `src/chart.json` (on GitHub, *Add file → Upload files* into `src/`). A
 commit that changes only the chart is published without waiting for the
-checks. To add the service later, follow steps 3–5 and fill in `api`.
+checks. To add the service later, follow steps 3–5.
+
+## Where the chart is kept
+
+In your repository, as `src/chart.json` with its pictures in `src/media/`,
+unless the variable `RHIZOME_DATA` says otherwise:
+`<owner>/<repo>/<path>/chart.json@<branch>` — for instance
+`you/my-charts/chart.json@main`, a repository of its own holding only the
+chart and a `media/` folder beside it. Save then commits there, About's
+history of edits is that file's, and suggestions are that repository's
+issues. Install your GitHub App on that repository too. If it is private,
+add an Actions secret `DATA_TOKEN`, a token that may read it, for CI to
+fetch the chart with; the chart is public all the same once published.
+
+A chart kept elsewhere is published when this repository's CI runs: a
+Save does not start it yet, so run the workflow (*Actions → CI → Run
+workflow*) after saving.
 
 ## The chart as data
 
@@ -228,12 +243,11 @@ chart and everything it names or carries; rewrite it for your own chart.
 ## Checklist
 
 - [ ] fork (any name), Actions on, Pages from GitHub Actions
-- [ ] `src/app/00-config.js`: `site` (with the path, if any), `api` (or `''`), `repo`
-- [ ] with a service: `worker/wrangler.toml` `REPO`, `OWNERS`, `EDITORS`, `ALLOWED_ORIGINS` (origin only)
+- [ ] (only if they differ from what CI works out) variables `RHIZOME_SITE`, `RHIZOME_API`, `RHIZOME_OWNERS`, `RHIZOME_EDITORS`, `RHIZOME_DATA`
 - [ ] About contacts changed, `node tools/i18n.js` run
 - [ ] Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 - [ ] GitHub App, installed on your repository
-- [ ] Worker Secrets `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET` (and, with editors, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`)
+- [ ] the app's id and secret: Actions secrets `RHIZOME_GITHUB_CLIENT_ID`, `RHIZOME_GITHUB_CLIENT_SECRET`, or Worker Secrets without the prefix (and, with editors, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`)
 - [ ] pushed, signed in, chart made your own with Save, named in About
 - [ ] your own `src/site/og-image.png`
 - [ ] (optional) drives' Secrets, analytics variable

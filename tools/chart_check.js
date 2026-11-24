@@ -33,10 +33,14 @@ const ROOT = path.join(__dirname, '..');
 
 (async () => {
   const w = await import(path.join(ROOT, 'worker', 'index.js'));
-  const text = fs.readFileSync(path.join(ROOT, 'src', 'chart.json'), 'utf8');
+  /* src/chart.json, or the chart CI fetched from the repository the site's
+     `data` names, when that is another (RHIZOME_CHART, as build.py takes it). */
+  const file = process.env.RHIZOME_CHART ? path.resolve(process.env.RHIZOME_CHART) : path.join(ROOT, 'src', 'chart.json');
+  const name = path.relative(process.cwd(), file) || file;
+  const text = fs.readFileSync(file, 'utf8');
   let chart;
   try { chart = w.readChart(text); }
-  catch (e) { console.error(`chart check: src/chart.json is not a chart: ${e.message}.`); process.exit(1); }
+  catch (e) { console.error(`chart check: ${name} is not a chart: ${e.message}.`); process.exit(1); }
 
   // A chart kept in the first form is a list of lists; the schema is about
   // records, and the page brings a first-form chart through MIGRATIONS
@@ -55,20 +59,20 @@ const ROOT = path.join(__dirname, '..');
   }
 
   for (const r of w.looseEnds(chart)) console.log(`  note ${r.region} ${r.item} names '${r.to}', which is not an entry`);
-  if (w.chartText(chart) !== text) console.log('  note src/chart.json is not written one item to a line; the next Save will write it so');
+  if (w.chartText(chart) !== text) console.log(`  note ${name} is not written one item to a line; the next Save will write it so`);
   /* A file in src/media/ that the chart no longer names is still published
      with the site, for good. Said, not removed: an open page or a Save
      waiting in a phone's outbox may still name it, and git keeps it anyway.
      Taken out by hand, in a commit of its own, once that cannot be so. */
   const named = new Set(text.match(/media\/[0-9a-f]{64}\.\w+/g) || []);
-  const dir = path.join(ROOT, 'src', 'media');
+  const dir = path.join(path.dirname(file), 'media');
   const spare = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /^[0-9a-f]{64}\.\w+$/.test(f) && !named.has('media/' + f)) : [];
   if (spare.length) {
     const bytes = spare.reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
-    console.log(`  note ${spare.length} file${spare.length === 1 ? '' : 's'} in src/media/ (${Math.round(bytes / 1024)} KB) the chart does not name:`);
+    console.log(`  note ${spare.length} file${spare.length === 1 ? '' : 's'} in ${path.relative(process.cwd(), dir) || dir}/ (${Math.round(bytes / 1024)} KB) the chart does not name:`);
     for (const f of spare) console.log(`       ${f}`);
   }
   const counts = ['nodes', 'edgeStyles', 'stickers', 'media', 'comments', 'tagCats', 'refs']
     .map(k => `${k} ${(chart[k] || []).length}`).join(', ');
-  console.log(`src/chart.json is the chart, as the schema describes (${counts}).`);
+  console.log(`${name} is the chart, as the schema describes (${counts}).`);
 })().catch(e => { console.error(e); process.exit(1); });
