@@ -37,7 +37,17 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Run by hand, or by the write service: after a Save to a chart kept in
+  # another repository (nothing here moved, so nothing else publishes it),
+  # and after the owner moves the chart (POST /place), when the service is
+  # deployed again too, so it is told the new place (`service`). With no
+  # code changed since the last publish, it is a data-only run (below).
   workflow_dispatch:
+    inputs:
+      service:
+        description: Deploy the write service as well, even when no code changed
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +66,45 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Where this copy lives: its site, its write service, its repository,
+  # where its chart is kept, who may edit (tools/where.py). Worked out from
+  # where the run is — the repository, its variables, its own Cloudflare
+  # account — so a fork publishes itself without changing a file of ours.
+  # For this repository it is what 00-config.js and wrangler.toml say.
+  # Only what is PUBLISHED asks it: the checks build with 00-config.js as
+  # it stands, because that is what the suite reads.
+  where:
+    name: Where this copy lives
+    runs-on: ubuntu-latest
+    outputs:
+      site: ${{ steps.where.outputs.site }}
+      api: ${{ steps.where.outputs.api }}
+      repo: ${{ steps.where.outputs.repo }}
+      data: ${{ steps.where.outputs.data }}
+      owners: ${{ steps.where.outputs.owners }}
+      editors: ${{ steps.where.outputs.editors }}
+      origins: ${{ steps.where.outputs.origins }}
+      upstream: ${{ steps.where.outputs.upstream }}
+      data_repo: ${{ steps.where.outputs.data_repo }}
+      data_path: ${{ steps.where.outputs.data_path }}
+      data_branch: ${{ steps.where.outputs.data_branch }}
+      data_here: ${{ steps.where.outputs.data_here }}
+      media_dir: ${{ steps.where.outputs.media_dir }}
+      deploy: ${{ steps.where.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: where
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RHIZOME_SITE: ${{ vars.RHIZOME_SITE }}
+          RHIZOME_API: ${{ vars.RHIZOME_API }}
+          RHIZOME_DATA: ${{ vars.RHIZOME_DATA }}
+          RHIZOME_OWNERS: ${{ vars.RHIZOME_OWNERS }}
+          RHIZOME_EDITORS: ${{ vars.RHIZOME_EDITORS }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python3 tools/where.py | tee -a "$GITHUB_STEP_SUMMARY"
+
   # Is this push only the chart's data? Answered from the trees, not from the
   # commit message, so a code change can never ride along unchecked — and
   # against the commit the site was last published from, not against the
@@ -67,6 +116,7 @@ jobs:
   # fetched, counts as code.
   changes:
     name: What changed
+    needs: where
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,21 +129,36 @@ jobs:
       - id: diff
         env:
           GH_TOKEN: ${{ github.token }}
-          IS_PUSH: ${{ github.event_name == 'push' }}
+          EVENT: ${{ github.event_name }}
+          DATA_HERE: ${{ needs.where.outputs.data_here }}
+          DATA_PATH: ${{ needs.where.outputs.data_path }}
+          MEDIA_DIR: ${{ needs.where.outputs.media_dir }}
         run: |
           data_only=false
           BASE=""
-          if [ "$IS_PUSH" = true ]; then
-            BASE=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+          # A pull request's run is never "only data": it publishes nothing,
+          # and its checks are the point of it.
+          if [ "$EVENT" = push ] || [ "$EVENT" = workflow_dispatch ]; then
+            BASE=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=1" \
                      --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null || true)
           fi
           echo "Last published: ${BASE:-none found}"
           if [ -n "$BASE" ] && git fetch --quiet --depth=1 origin "$BASE"; then
             files=$(git diff --name-only "$BASE" HEAD)
             echo "Changed: $files"
-            # The chart, and the pictures a Save puts beside it.
-            others=$(printf '%s\n' "$files" | grep -v -e '^src/chart\.json$' -e '^src/media/[^/]*$' || true)
+            # The chart, and the pictures a Save puts beside it — when the
+            # chart is kept in this repository at all (tools/where.py); kept
+            # in another, every push here is code.
+            if [ "$DATA_HERE" = true ]; then
+              others=$(printf '%s\n' "$files" | awk -v f="$DATA_PATH" -v m="$MEDIA_DIR/" \
+                '$0 != f && !(index($0, m) == 1 && index(substr($0, length(m) + 1), "/") == 0)')
+            else
+              others=$files
+            fi
             [ -n "$files" ] && [ -z "$others" ] && data_only=true
+            # Asked to publish again with nothing changed here: the chart
+            # moved, or is kept elsewhere and was saved there.
+            [ "$EVENT" = workflow_dispatch ] && [ -z "$files" ] && data_only=true
           fi
           echo "data_only=$data_only" >> "$GITHUB_OUTPUT"
           echo "Only the chart's data: $data_only"
@@ -294,15 +359,37 @@ jobs:
           || (needs.build.result == 'success' && needs.test.result == 'success'
               && needs.snapshots.result == 'success' && needs.webkit.result == 'success'))
     runs-on: ubuntu-latest
-    needs: [changes, build, test, snapshots, webkit]
+    needs: [where, changes, build, test, snapshots, webkit]
     permissions:
       pages: write
       id-token: write
+    # What this copy is published as (tools/where.py), for the build to
+    # write in place of 00-config.js's lines, and the chart it draws:
+    # src/chart.json, or the file fetched below from another repository.
+    env:
+      RHIZOME_SITE: ${{ needs.where.outputs.site }}
+      RHIZOME_API: ${{ needs.where.outputs.api }}
+      RHIZOME_REPO: ${{ needs.where.outputs.repo }}
+      RHIZOME_DATA: ${{ needs.where.outputs.data }}
+      RHIZOME_CHART: ${{ needs.where.outputs.data_here == 'true' && needs.where.outputs.data_path || format('_data/{0}', needs.where.outputs.data_path) }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url || steps.deploy-again.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+
+      # The chart, when it is kept in another repository. A public one is
+      # read with this run's own token; a private one needs DATA_TOKEN, a
+      # token that may read it. Only the chart and its pictures are taken.
+      - name: Fetch the chart
+        if: needs.where.outputs.data_here != 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ needs.where.outputs.data_repo }}
+          ref: ${{ needs.where.outputs.data_branch }}
+          token: ${{ secrets.DATA_TOKEN || github.token }}
+          path: _data
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -395,19 +482,37 @@ jobs:
 
   # The write service (worker/), deployed to Cloudflare from main.
   #
-  # Skipped, with a line saying so, until the repository has the two secrets
-  # it needs — so a fork, or this repository before the service is set up,
-  # stays green. The service's own secrets (the GitHub App's id and secret,
-  # and the session key) live in Cloudflare and a deploy leaves them alone.
+  # Told what this copy is (tools/where.py) as variables on the command
+  # line, over what wrangler.toml says, so a fork's service names the fork,
+  # its site and its owner without a file of ours changed. Skipped, with a
+  # line saying so, when there is no service: no Cloudflare secrets, so no
+  # address for one. This repository has one, and there a missing secret is
+  # a failure (below).
+  #
+  # The service's own secrets may be kept in Cloudflare (the dashboard), as
+  # this repository's are, or here, as Actions secrets named RHIZOME_ and
+  # the service's name (GitHub refuses secret names that begin GITHUB_):
+  # those that are here are handed to the service on every deploy. A
+  # SESSION_SECRET neither place has is made once, at random — never over
+  # one the service already has, which would sign every owner out.
   worker:
     name: Deploy the write service
     # After the browser suite as well as the service's own tests, as the
     # site is: the page and the service it talks to go out on the same
     # evidence. A data-only push skips build, and with it this: the service
-    # did not change.
-    if: github.ref == 'refs/heads/main'
+    # did not change — unless the run was asked for it (`service`, which
+    # the service asks after the owner moved the chart, so its DATA names
+    # the new place for editors and readers, whose tokens cannot read the
+    # variable it is kept in).
+    if: >-
+      always() && github.ref == 'refs/heads/main'
+      && needs.where.result == 'success' && needs.changes.result == 'success'
+      && ((needs.changes.outputs.data_only == 'true' && github.event_name == 'workflow_dispatch'
+           && github.event.inputs.service == 'true')
+          || (needs.build.result == 'success' && needs.test.result == 'success'
+              && needs.snapshots.result == 'success' && needs.webkit.result == 'success'))
     runs-on: ubuntu-latest
-    needs: [build, test, snapshots, webkit]
+    needs: [where, changes, build, test, snapshots, webkit]
     steps:
       - uses: actions/checkout@v5
 
@@ -420,29 +525,67 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          API: ${{ needs.where.outputs.api }}
+          UPSTREAM: ${{ needs.where.outputs.upstream }}
+          REPO: ${{ needs.where.outputs.repo }}
+          DATA: ${{ needs.where.outputs.data }}
+          OWNERS: ${{ needs.where.outputs.owners }}
+          EDITORS: ${{ needs.where.outputs.editors }}
+          ORIGINS: ${{ needs.where.outputs.origins }}
+          S_GITHUB_CLIENT_ID: ${{ secrets.RHIZOME_GITHUB_CLIENT_ID }}
+          S_GITHUB_CLIENT_SECRET: ${{ secrets.RHIZOME_GITHUB_CLIENT_SECRET }}
+          S_SESSION_SECRET: ${{ secrets.RHIZOME_SESSION_SECRET }}
+          S_GITHUB_APP_ID: ${{ secrets.RHIZOME_GITHUB_APP_ID }}
+          S_GITHUB_APP_PRIVATE_KEY: ${{ secrets.RHIZOME_GITHUB_APP_PRIVATE_KEY }}
+          S_FILE_MARK_SECRET: ${{ secrets.RHIZOME_FILE_MARK_SECRET }}
+          S_GOOGLE_CLIENT_ID: ${{ secrets.RHIZOME_GOOGLE_CLIENT_ID }}
+          S_GOOGLE_CLIENT_SECRET: ${{ secrets.RHIZOME_GOOGLE_CLIENT_SECRET }}
+          S_GOOGLE_API_KEY: ${{ secrets.RHIZOME_GOOGLE_API_KEY }}
+          S_GOOGLE_PICKER_KEY: ${{ secrets.RHIZOME_GOOGLE_PICKER_KEY }}
+          S_GOOGLE_APP_ID: ${{ secrets.RHIZOME_GOOGLE_APP_ID }}
+          S_YANDEX_CLIENT_ID: ${{ secrets.RHIZOME_YANDEX_CLIENT_ID }}
+          S_YANDEX_CLIENT_SECRET: ${{ secrets.RHIZOME_YANDEX_CLIENT_SECRET }}
         run: |
-          # A copy with no write service (api empty in 00-config.js) is a
-          # site read-only for everybody, its chart changed by committing
-          # src/chart.json (DISTRIBUTING.md, "Without the service"). There
-          # is nothing for the page to talk to, so nothing to deploy.
-          site_api=$(sed -n "s/^[[:space:]]*api: '\([^']*\)'.*/\1/p" ../src/app/00-config.js)
-          if [ -z "$site_api" ]; then
-            echo "The config names no write service; there is nothing to deploy."
-            exit 0
-          fi
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            # A fork has no service of its own to deploy, and passes. The
-            # repository the site names (00-config.js) does: there, a skip
-            # left the live service on the code before 0.23.0 — reading a
-            # data.js that was gone — while every check stayed green and the
-            # owner could no longer edit. So there it is a failure.
-            site_repo=$(sed -n "s/^[[:space:]]*repo: '\([^']*\)'.*/\1/p" ../src/app/00-config.js)
-            if [ "$site_repo" = "$GITHUB_REPOSITORY" ]; then
+            # A fork with no Cloudflare of its own has no service, and its
+            # site is read-only for everybody. This repository does have
+            # one: there, a skip once left the live service on the code
+            # before 0.23.0 — reading a data.js that was gone — while every
+            # check stayed green and the owner could no longer edit.
+            if [ "$UPSTREAM" = true ]; then
               echo "::error::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are not set, so the write service cannot be deployed and the site would talk to an old one. Add them under Settings, Secrets and variables, Actions."
               exit 1
             fi
             echo "No Cloudflare secrets in this repository; the write service is not deployed."
             exit 0
           fi
+          if [ -z "$API" ]; then
+            echo "This copy names no write service; there is nothing to deploy."
+            exit 0
+          fi
           # An exact version: a deploy is not the place to meet a new one.
-          npx --yes wrangler@4.150.0 deploy
+          W="npx --yes wrangler@4.150.0"
+          args=(--var "REPO:$REPO" --var "DATA:$DATA" --var "OWNERS:$OWNERS" --var "ALLOWED_ORIGINS:$ORIGINS")
+          if [ -n "$EDITORS" ]; then args+=(--var "EDITORS:$EDITORS"); fi
+          $W deploy "${args[@]}"
+
+          # The secrets kept here, handed over in one go.
+          python3 - > "$RUNNER_TEMP/secrets.json" <<'PY'
+          import json, os
+          print(json.dumps({k[2:]: v for k, v in os.environ.items() if k.startswith('S_') and v}))
+          PY
+          if [ "$(cat "$RUNNER_TEMP/secrets.json")" != "{}" ]; then
+            $W secret bulk "$RUNNER_TEMP/secrets.json"
+          fi
+          rm -f "$RUNNER_TEMP/secrets.json"
+
+          # A service with no SESSION_SECRET cannot sign anybody in. Made
+          # once, only when Cloudflare has listed the service's secrets and
+          # it is not among them.
+          if [ -z "$S_SESSION_SECRET" ]; then
+            listed=$($W secret list --format json 2>/dev/null || true)
+            if printf '%s' "$listed" | python3 -c 'import json,sys; l=json.load(sys.stdin); sys.exit(0 if isinstance(l, list) and all(e.get("name") != "SESSION_SECRET" for e in l) else 1)' 2>/dev/null; then
+              echo "The service has no SESSION_SECRET; making one."
+              openssl rand -hex 32 | $W secret put SESSION_SECRET
+            fi
+          fi

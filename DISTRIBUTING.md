@@ -13,7 +13,7 @@ What you end up with is what the original has:
 | the site | `https://<you>.github.io`, or `https://<you>.github.io/<repo>`, published by GitHub Pages from your repository |
 | the write service | a Cloudflare Worker on your account, `https://rhizome-api.<your subdomain>.workers.dev` |
 | who edits | the GitHub logins you list in `OWNERS` (and `EDITORS`) |
-| where the chart lives | `src/chart.json` in your repository; Save on the site commits to it |
+| where the chart lives | wherever you choose at the first Save: `data/chart.json` in your repository, or any file in any repository your app may write to |
 | cloud drives | optional; your own Google and Yandex apps |
 
 The README explains each part; this file is the order to do them in. It
@@ -41,35 +41,27 @@ file. Steps 1, 2 and 6, about ten minutes; see "Without the service" below.
    **GitHub Actions**. Not a branch: from a branch, Pages publishes the
    README through Jekyll, succeeds, and the site is not the chart.
 
-## 2. The addresses, said in two files
+## 2. The addresses: nothing to write
 
-Your site, your service and your repository are written once in
-`src/app/00-config.js`:
+Your site's address, your write service's, your repository and who may
+edit are **worked out by CI** from where it runs (`tools/where.py`, since
+0.28.0), and written into the page it publishes; you change no file for
+them, and "Sync fork" never meets a line of ours you changed:
 
-```js
-const SITE_CONFIG = {
-  site: 'https://<you>.github.io',            // or 'https://<you>.github.io/<repo>'
-  api: 'https://rhizome-api.<your subdomain>.workers.dev',   // or '' for no service
-  repo: '<you>/<repo>',
-};
-```
+| | worked out as | or, if you set this repository **variable** |
+| --- | --- | --- |
+| the site | `https://<you>.github.io`, or `https://<you>.github.io/<repo>` | `RHIZOME_SITE` (a domain of your own) |
+| the service | `https://rhizome-api.<subdomain>.workers.dev` on your Cloudflare account (step 3); none without Cloudflare | `RHIZOME_API` |
+| who edits | you, the repository's owner | `RHIZOME_OWNERS`, and `RHIZOME_EDITORS` beside them |
+| the chart | `data/chart.json` in your repository, empty until the first Save | `RHIZOME_DATA`, which the page sets when you choose a place (see "Where the chart is kept") |
 
-`site` has no slash at the end. With a service, the service keeps its own
-copy in `worker/wrangler.toml`, because Cloudflare deploys it from that
-file. `ALLOWED_ORIGINS` is the site's address **without** its path, which is
-all a browser tells the service:
+Variables are under *Settings → Secrets and variables → Actions →
+Variables*. A fork does not copy them, so a fork of yours never inherits
+your chart or your owner either. What CI worked out is printed at the top
+of every run, in *Where this copy lives*.
 
-```toml
-REPO = "<you>/<repo>"
-OWNERS = "<your GitHub login>"
-EDITORS = ""
-ALLOWED_ORIGINS = "https://<you>.github.io"
-```
-
-`tests/build_guard.py` fails if the two disagree, so a mistake here shows
-up as a red check rather than as a sign-in that does not work. Your
-Cloudflare subdomain comes from step 3; until you know it, leave `api` as it
-is and come back.
+`src/app/00-config.js` and `worker/wrangler.toml` hold the original's
+values, and are used only by the repository they name.
 
 **The About panel** carries the original author's contacts (`about-contact`
 links in `src/index.html`). Put yours there, or take them out, then run
@@ -86,13 +78,14 @@ card, and can be edited to draw yours).
 
 1. Make a free Cloudflare account and open *Workers & Pages* once. That
    gives the account its `*.workers.dev` subdomain; your service will be
-   `https://rhizome-api.<subdomain>.workers.dev`. Put that in `api` (step 2).
+   `https://rhizome-api.<subdomain>.workers.dev`, which CI asks Cloudflare
+   for itself (step 2).
 2. Let CI deploy it: a Cloudflare API token made from the *Edit Cloudflare
    Workers* template, and your account id, as the repository's Actions
    secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (*Settings →
-   Secrets and variables → Actions*). Once `repo` in `00-config.js` names
-   your repository, the deploy job **fails** without them rather than
-   skipping, so a site never talks to a service that was not deployed.
+   Secrets and variables → Actions*). Without them there is no service:
+   the site is published read-only for everybody (see "Without the
+   service").
 
    (The README's "Setting up the write service" describes the other way,
    importing the repository into Cloudflare. Use one, not both.)
@@ -106,16 +99,35 @@ your site never touch anyone else's service.
    - Homepage: your site.
    - Callback URL: `https://rhizome-api.<subdomain>.workers.dev/callback`.
    - Keep *Expire user authorization tokens* on. Webhook off.
-   - Repository permissions: **Contents — Read and write** and
-     **Issues — Read and write**, nothing else.
+   - Repository permissions: **Contents**, **Issues**, **Variables** and
+     **Actions**, each **Read and write**, nothing else. Contents and Issues
+     are the chart and the suggestions; Variables is where the site keeps
+     where the chart is (`RHIZOME_DATA`), which the page sets when you
+     choose; Actions lets the service ask the site to publish again after
+     a Save to another repository.
    - Installable only on your account.
-2. Generate a client secret, then **Install** the app on your repository
-   only.
-3. In Cloudflare, *your Worker → Settings → Variables and Secrets*, add
-   three **Secrets** (not plain text, which a deploy wipes):
-   - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, from the app;
-   - `SESSION_SECRET`: any random 32 characters or more
-     (`openssl rand -hex 32`).
+2. Generate a client secret, then **Install** the app on your repository,
+   and on any other repository you mean to keep the chart in (it can be
+   let into more later, from the page).
+
+   An app made before 0.28.0 has only Contents and Issues: add Variables
+   and Actions (*Read and write*) on its page, then accept the new
+   permissions where it is installed (*Settings → Applications →
+   Installed GitHub Apps → the app*, the banner at the top). Until then
+   choosing a place from the page is refused, with a word naming the
+   permission.
+3. Give the service the app's client id and secret, in either place:
+   - in GitHub, as Actions **secrets** `RHIZOME_GITHUB_CLIENT_ID` and
+     `RHIZOME_GITHUB_CLIENT_SECRET` (GitHub refuses secret names that begin
+     `GITHUB_`, hence the prefix): CI hands them to the service on every
+     deploy. Every secret below can be kept this way, as `RHIZOME_` and its
+     name;
+   - or in Cloudflare, *your Worker → Settings → Variables and Secrets*, as
+     **Secrets** `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (not plain
+     text, which a deploy wipes).
+
+   `SESSION_SECRET`, the key sessions are sealed with, is made by the first
+   deploy, at random, if neither place has one; never again after that.
 
 Never write any of these into `worker/wrangler.toml`: that file is public,
 and `tests/worker.js` refuses it if one appears there.
@@ -146,26 +158,33 @@ page becomes the editor for the login in `OWNERS`.
 
 ## 6. Your own chart
 
-The fork carries the original's chart. Start yours **from the site**, once
-you are signed in: take out what you do not want (select, Delete), add your
-own, and press **Save**. That commit changes only `src/chart.json`, so it is
-published at once without waiting for the checks.
+A fork does not carry the original's chart: yours is kept in
+`data/chart.json`, which is not there yet, so your site opens empty.
+Sign in, draw, and press **Save**. The first Save asks where the chart is
+to be kept — this repository, at `data/chart.json` or any other file, or
+any repository the app is installed on — and then makes the file there.
+A Save that changes only the chart and its pictures is published at once,
+without waiting for the checks.
 
-You may also replace `src/chart.json` in a commit of code: the browser
-suite draws a chart of its own, `tests/fixtures/chart.json` with its
-pictures in `tests/fixtures/media/`, and never reads yours. That is why
-a code push comes out green whatever your chart holds, and why bringing
-in the original's code later does not depend on it either.
+Change it later in *About → Where the chart is kept*: **Move the chart
+there** takes it, pictures and all, to a place that holds no chart yet,
+and **Open the chart kept there** switches to a chart already kept
+somewhere (one another site of yours keeps, say). Either way the site is
+published again from the new place in a minute or two.
+
+The browser suite draws a chart of its own, `tests/fixtures/chart.json`
+with its pictures in `tests/fixtures/media/`, and never reads yours. That
+is why a code push comes out green whatever your chart holds, and why
+bringing in the original's code later does not depend on it either.
+(`src/chart.json`, the original's chart, is still in your copy of the
+code until the original keeps its chart elsewhere; nothing of yours reads
+it.)
 
 Then give it its own name: *About → The chart's name and description*.
 The name is the tab's title and what a link to your site shows, with the
 sentence under it; the text below is the top of About. They are saved with
-the chart (`settings.title`, `settings.description`, `settings.about` in
-`src/chart.json`), and a link's preview follows them at the next publish.
-
-The original's chart brings a font of its own (`settings.fonts`, Autobot
-Characters). Remove it under *My files → Fonts* once nothing is set in it,
-unless you have checked that you may use it.
+the chart (`settings.title`, `settings.description`, `settings.about`),
+and a link's preview follows them at the next publish.
 
 ## 7. Optional: cloud drives
 
@@ -195,21 +214,40 @@ site counts nothing.
 
 A site everybody reads, with no Cloudflare account, no GitHub App and no
 secrets. Nobody signs in on it, the owner included, and there are no
-suggestions; the chart changes by a commit of `src/chart.json`.
+suggestions; the chart changes by a commit of `data/chart.json`.
 
 1. Step 1 as above.
-2. In `src/app/00-config.js`, `site` and `repo` as above and **`api: ''`**.
-   `worker/wrangler.toml` can be left as it is: with no service named,
-   nothing checks it and CI deploys nothing.
+2. Add no Cloudflare secrets. With none, CI names no service and deploys
+   none.
 3. Push. The site is published as a reader for everybody.
 
 To change the chart, open your copy anywhere but the site and edit it
 there: *Export/Import → the page* on the site saves a copy of it that
 opens from a disk and edits into that browser. When it is as you want it,
-*Export the contents* gives a `chart.json`; put it in place of
-`src/chart.json` (on GitHub, *Add file → Upload files* into `src/`). A
+*Export the contents* gives a `chart.json`; commit it as
+`data/chart.json` (on GitHub, *Add file → Upload files* into `data/`). A
 commit that changes only the chart is published without waiting for the
-checks. To add the service later, follow steps 3–5 and fill in `api`.
+checks. To add the service later, follow steps 3–5.
+
+## Where the chart is kept
+
+In your repository, as `data/chart.json` with its pictures in `data/media/`,
+unless the variable `RHIZOME_DATA` says otherwise (the page writes it when
+you choose a place; you may also set it by hand):
+`<owner>/<repo>/<path>/chart.json@<branch>` — for instance
+`you/my-charts/chart.json@main`, a repository of its own holding only the
+chart and a `media/` folder beside it. Save then commits there, About's
+history of edits is that file's, and suggestions are that repository's
+issues. Install your GitHub App on that repository too. If it is private,
+add an Actions secret `DATA_TOKEN`, a token that may read it, for CI to
+fetch the chart with; the chart is public all the same once published.
+
+A chart kept elsewhere is published when this repository's CI runs, and
+the service starts that run after each Save (the app's Actions
+permission). Without the permission the Save still lands, and the page
+says the site follows at its next publish; *Actions → CI → Run workflow*
+publishes it by hand. The repository that holds the chart needs at least
+one commit (a README will do) before the first Save there.
 
 ## The chart as data
 
@@ -228,12 +266,11 @@ chart and everything it names or carries; rewrite it for your own chart.
 ## Checklist
 
 - [ ] fork (any name), Actions on, Pages from GitHub Actions
-- [ ] `src/app/00-config.js`: `site` (with the path, if any), `api` (or `''`), `repo`
-- [ ] with a service: `worker/wrangler.toml` `REPO`, `OWNERS`, `EDITORS`, `ALLOWED_ORIGINS` (origin only)
+- [ ] (only if they differ from what CI works out) variables `RHIZOME_SITE`, `RHIZOME_API`, `RHIZOME_OWNERS`, `RHIZOME_EDITORS`, `RHIZOME_DATA`
 - [ ] About contacts changed, `node tools/i18n.js` run
 - [ ] Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-- [ ] GitHub App, installed on your repository
-- [ ] Worker Secrets `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET` (and, with editors, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`)
-- [ ] pushed, signed in, chart made your own with Save, named in About
+- [ ] GitHub App with Contents, Issues, Variables and Actions (read and write), installed on your repository and wherever the chart is to be kept
+- [ ] the app's id and secret: Actions secrets `RHIZOME_GITHUB_CLIENT_ID`, `RHIZOME_GITHUB_CLIENT_SECRET`, or Worker Secrets without the prefix (and, with editors, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`)
+- [ ] pushed, signed in, a place chosen at the first Save, the chart named in About
 - [ ] your own `src/site/og-image.png`
 - [ ] (optional) drives' Secrets, analytics variable

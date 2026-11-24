@@ -397,6 +397,11 @@ async function saveNow(){
       updateOwnerBtn();
       setSaveState('err', 'Your sign-in has expired — press Sign in, then Save again');
     }
+    /* A chart with no home yet: the place is being chosen in About, and
+       Save there sends it. Nothing went wrong. */
+    else if(code === 'no_place'){
+      setSaveState('ok', 'Choose where the chart is kept, then Save');
+    }
     else if(isReadOnlyError(e)){
       markReadOnly();
       setSaveState('err', 'This chart is read-only for you');

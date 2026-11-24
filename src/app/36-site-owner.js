@@ -52,6 +52,9 @@ const siteSavedOver = new Set();
    takes them would otherwise send paths to a service that drops the files,
    and the chart would name pictures nobody has. */
 let siteTakesMedia = false;
+/* Whether the owner has said where a chart with no home yet is to be kept
+   (36b-place.js). Asked once, at the first Save of a fork's empty chart. */
+let sitePlaceChosen = false;
 let siteOwner = null;
 /* Whether whoever signed in edits as one of EDITORS rather than as the
    owner (worker/index.js): the chart is theirs to edit, its settings and
@@ -277,6 +280,9 @@ async function checkSiteOwner(){
   setCloudsFromService(me.clouds);
   siteOwner = me.login || 'owner';
   siteEditor = !!me.editor;
+  // Where the chart is kept now, which may not be where it was when this
+  // page was built: the owner can move it from the page.
+  if(me.data) setDataPlace(me.data);
   rememberOwner(siteOwner);
   updateOwnerBtn();
   /* A kept Save made on an older chart is sent before anything is decided
@@ -344,6 +350,14 @@ window.addEventListener('message', ev=>{
    repository got since, and writes it back one item to a line. */
 async function saveToSite(){
   if(!siteSession()) throw siteError('signed_out', 'you are not signed in.');
+  /* A chart with no home yet — a fork's, before its first Save — is
+     given one first: the place it would go is said, and another may be
+     chosen (36b-place.js). Asked of the owner once; an editor's save goes
+     where the owner keeps it. */
+  if(siteBase === NO_CHART && !siteEditor && !sitePlaceChosen && !siteOffline()){
+    openPlaceChooser(true);
+    throw siteError('no_place', 'choose where the chart is kept.');
+  }
   const chart = chartFileText();
   if(siteOffline()) return keepForLater(chart);
   let answer, sent;
@@ -376,8 +390,14 @@ async function saveToSite(){
   /* An editor's save takes the chart's settings as the repository has
      them (worker/index.js), and the chart it answered with is on screen
      now, so what changed back has to be said, or it reads as lost. */
+  /* Kept in another repository, the save is published by the service
+     asking the site to run again (`published`); a token that may not run
+     workflows saves all the same, and the site follows at its next
+     publish. */
   setSaveState('ok', body && body.settingsKept
     ? 'Saved — but the chart’s settings are the owner’s, and stay as they were'
+    : body && body.published === false
+    ? 'Saved — the site could not be asked to publish it, and shows it the next time it is published'
     : 'Saved — the site shows it in a few minutes');
   clearTimeout(saveStateTimer);
   saveStateTimer = setTimeout(refreshSaveUI, body && body.settingsKept ? 9000 : 4000);

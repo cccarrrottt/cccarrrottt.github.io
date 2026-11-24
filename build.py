@@ -118,6 +118,7 @@ APP_PARTS = [
     '34b-add-menus.js',
     '35-draw-out.js',
     '36-site-owner.js',
+    '36b-place.js',
     '37-style-bar.js',
     '37b-style-bar-edit.js',
     '38-touch.js',
@@ -166,6 +167,7 @@ LAZY_PARTS = [
         '25b-rich-text.js',
     '34b-add-menus.js',
     '37b-style-bar-edit.js',
+    '36b-place.js',
 ]
 # Where a lazy part stood in the site's program, and where it starts in the
 # editor's file. Legal comments, so esbuild keeps them; inlineSiteFiles
@@ -196,7 +198,7 @@ def read_app():
         # simply not there — so it stops the build instead.
         sys.exit(f'build: src/app/ has {", ".join(stray)}, which APP_PARTS does not list')
 
-    texts = [read(SRC / 'app' / n) for n in APP_PARTS]
+    texts = [part_text(n) for n in APP_PARTS]
     # The parts are written out with NOTHING between them, here and in the
     # loader in src/index.html, and that is only safe while every one of them
     # ends in a newline. They all do. Nothing made them, and the day one does
@@ -288,16 +290,89 @@ def wrap(page, head_extra=''):
             '</body>\n</html>\n')
 
 
+# What a copy may be told from outside, in place of what 00-config.js says:
+# CI tells a fork where it lives (tools/where.py), so no fork changes that
+# file. Each is the whole value; set and empty is empty (a copy with no
+# service has api ''), unset is the file's.
+CONFIG_ENV = {'site': 'RHIZOME_SITE', 'api': 'RHIZOME_API', 'repo': 'RHIZOME_REPO', 'data': 'RHIZOME_DATA'}
+CONFIG_LINE = r"^(\s*{key}: ')([^']*)('.*)$"
+
+
 def site_config():
-    """The site's addresses — site, api, repo — as src/app/00-config.js says
-    them. Read as text, one string to a line, so the build need not run the
-    program to learn where it will be published."""
+    """The site's addresses — site, api, repo, data — as src/app/00-config.js
+    says them, or as the environment says them instead (CONFIG_ENV). Read
+    as text, one string to a line, so the build need not run the program to
+    learn where it will be published."""
     text = read(SRC / 'app' / '00-config.js')
-    found = dict(re.findall(r"^\s*(site|api|repo): '([^']*)',?\s*$", text, re.M))
-    if not found.get('site') or 'repo' not in found or 'api' not in found:
-        sys.exit('build: src/app/00-config.js does not say site, api and repo '
+    found = {k: m.group(2) for k in CONFIG_ENV
+             for m in [re.search(CONFIG_LINE.format(key=k), text, re.M)] if m}
+    if not found.get('site') or 'repo' not in found or 'api' not in found or 'data' not in found:
+        sys.exit('build: src/app/00-config.js does not say site, api, repo and data '
                  'as one quoted string to a line')
+    for key, name in CONFIG_ENV.items():
+        if name in os.environ:
+            value = os.environ[name].strip()
+            # It is written between quotes into the program; nothing that
+            # could end the string or the line gets there.
+            if re.search(r"['\\\s<>]", value):
+                sys.exit(f'build: {name} has a quote, a backslash, a space or an angle bracket in it: {value!r}')
+            found[key] = value
+    if not found['site'] or not found['repo']:
+        sys.exit('build: the site has no address or no repository (00-config.js, or RHIZOME_SITE / RHIZOME_REPO)')
+    if found['data'] and not re.fullmatch(r'[\w.-]+/[\w.-]+/(?:[^@\s/]+/)*[^@\s/]+\.json(?:@[^@\s]+)?', found['data']):
+        sys.exit(f"build: data must say owner/name/path/chart.json@branch, not {found['data']!r}")
     return found
+
+
+def config_part(text):
+    """00-config.js as this build's program carries it: the file, with each
+    address the environment gave written in place of the file's. Unchanged
+    when nothing was given, so a build of this repository is the file."""
+    config = site_config()
+    for key in CONFIG_ENV:
+        text = re.sub(CONFIG_LINE.format(key=key), lambda m: m.group(1) + config[key] + m.group(3),
+                      text, count=1, flags=re.M)
+    return text
+
+
+def part_text(name):
+    """One part of the program as this build writes it out: the file, but
+    for 00-config.js, which carries the addresses this build was given."""
+    text = read(SRC / 'app' / name)
+    return config_part(text) if name == '00-config.js' else text
+
+
+def chart_file():
+    """The chart this build draws: src/chart.json, or the file RHIZOME_CHART
+    names — the chart CI fetched from the repository `data` names, when that
+    is not this one. Its pictures are the media/ folder beside it."""
+    named = os.environ.get('RHIZOME_CHART', '').strip()
+    return Path(named) if named else SRC / 'chart.json'
+
+
+# A place with no chart in it yet — a fork's data/chart.json before its
+# first Save — is drawn as a chart with nothing in it, and named by git's id
+# for nothing. The write service says the same of it (NO_CHART and
+# EMPTY_CHART_TEXT in worker/index.js), so the first Save is made on what
+# the service finds there, and makes the file.
+NO_CHART = '0' * 40
+EMPTY_CHART_TEXT = '{\n  "nodes": []\n}\n'
+
+
+def chart_text():
+    """The chart's text, or the empty chart where there is no file yet."""
+    f = chart_file()
+    return read(f) if f.is_file() else EMPTY_CHART_TEXT
+
+
+def chart_sha():
+    """Which chart.json the page is made from, as git names it — the blob id
+    of the file's bytes — or NO_CHART for none."""
+    f = chart_file()
+    if not f.is_file():
+        return NO_CHART
+    raw = f.read_bytes()
+    return hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
 
 
 def site_origin():
@@ -316,7 +391,7 @@ def chart_words():
     platform published as its own until somebody found it. Absent, the
     platform's name, and no sentence."""
     try:
-        settings = json.loads(read(SRC / 'chart.json')).get('settings') or {}
+        settings = json.loads(chart_text()).get('settings') or {}
     except (ValueError, AttributeError):
         settings = {}
     def word(key):
@@ -393,7 +468,7 @@ def split_site_program(app_js):
     The first is the program with each of LAZY_PARTS replaced by its mark;
     the second is those parts in order, each after a mark of its own. Put
     each back where its mark stands and the program is whole again."""
-    texts = {n: read(SRC / 'app' / n) for n in APP_PARTS}
+    texts = {n: part_text(n) for n in APP_PARTS}
     if ''.join(texts[n] for n in APP_PARTS) != app_js:
         sys.exit('build: the program is not its parts written out in order')
     unknown = [n for n in LAZY_PARTS if n not in APP_PARTS]
@@ -666,7 +741,7 @@ def build_site(head_rest, css, body, chart, app_js, data_sha):
     # and a picture it names by path is a file beside it, as on the page.
     published = re.sub(r'("\$schema":\s*")[^"]*(/chart\.schema\.json")',
                        lambda m: m.group(1) + origin + m.group(2),
-                       read(SRC / 'chart.json'), count=1)
+                       chart_text(), count=1)
     (out / 'chart.json').write_text(published, encoding='utf-8')
     if not (out / OG_IMAGE).exists():
         sys.exit(f'build: src/site/{OG_IMAGE} is missing; the preview names it (tools/og-image.js makes it)')
@@ -762,7 +837,7 @@ def build():
     body = slice_between(index, '<!-- @@BODY:BEGIN@@ -->', '<!-- @@BODY:END@@ -->',
                          'src/index.html body block').rstrip('\n')
     css = read(SRC / 'style.css')
-    chart = chart_script(read(SRC / 'chart.json')) + '\n' + lang_script()
+    chart = chart_script(chart_text()) + '\n' + lang_script()
     app_js = read_app()
 
     # Markers around everything the page is made of.
@@ -802,8 +877,7 @@ def build():
     # into the program it would make the program different after every Save,
     # and on the site the program is a file named by its hash, kept by every
     # reader's browser for exactly as long as it does not change.
-    raw = (SRC / 'chart.json').read_bytes()
-    data_sha = hashlib.sha1(b'blob %d\0' % len(raw) + raw).hexdigest()
+    data_sha = chart_sha()
     if f"CHART_ELEMENT_ID = '{CHART_ID}'" not in app_js:
         sys.exit(f'build: the program does not read the chart from #{CHART_ID}; see CHART_ELEMENT_ID in src/app/01-store.js')
     if SHA_META not in app_js:
@@ -829,7 +903,7 @@ def build():
     # where CI stages it beside index.html. A name is what its bytes are, so
     # a file already there with that name is already right; nothing here is
     # ever deleted, because dist/ is never the only copy of a picture.
-    media = SRC / 'media'
+    media = chart_file().parent / 'media'
     if media.is_dir():
         (DIST / 'media').mkdir(exist_ok=True)
         copied = 0

@@ -124,7 +124,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 168 named scenarios, and they do not depend on one another —
+The suite is 169 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies. They do not depend on one
@@ -269,6 +269,36 @@ site") and `build_guard`:
   below it (`atSite`), and the service lets in its origin. An empty `api`
   is a copy with no service: read-only for everybody, and CI deploys
   nothing.
+  Those are THIS repository's values. A copy published from any other
+  repository is told where it lives by CI (`tools/where.py`, the `where`
+  job): the Pages address, the service on its own Cloudflare account, its
+  repository, its owner as `OWNERS` — or the repository variables
+  `RHIZOME_SITE`, `RHIZOME_API`, `RHIZOME_DATA`, `RHIZOME_OWNERS`,
+  `RHIZOME_EDITORS`, which a fork does not copy. Only the publishing build
+  is told (`RHIZOME_SITE` … in the `pages` job; `config_part` writes them in
+  place of the file's lines), and the service gets them as `--var` on
+  deploy; the checks build with 00-config.js as it stands, because the
+  suite reads it. So a fork changes no file of ours for its addresses.
+- **Where the chart is kept is `data`** in 00-config.js,
+  `owner/name/path/chart.json@branch` (`DATA_PLACE`, `01-store.js`;
+  `dataOf`, `worker/index.js`; `RHIZOME_DATA` for a copy). Save commits
+  there, the history of edits is that file's, suggestions are that
+  repository's issues, and the pictures are the `media/` beside the file.
+  Kept in another repository, CI fetches it and names it to the build
+  (`RHIZOME_CHART`, also read by `tools/chart_check.js`). It is still one
+  home: a repository of its own is not a second copy of the chart.
+  A fork's default is `data/chart.json`, absent until its first Save: the
+  build draws the empty chart and writes `NO_CHART` (forty zeros) as
+  `DATA_SHA`, and the service says the same of a place with no file
+  (`NO_CHART`, `EMPTY_CHART_TEXT`), so the first Save is made on what it
+  finds. The owner chooses the place from the page (`36b-place.js`, a
+  lazy part: asked at the first Save, kept in About): `POST /place`
+  writes the site repository's variable `RHIZOME_DATA`, which the service
+  reads again on every request with the owner's token (`livePlace`) and
+  CI reads to publish, and dispatches CI (`service: true`, so the service
+  is redeployed with the new `DATA` for editors and readers, whose tokens
+  cannot read the variable). A Save to another repository dispatches CI
+  too; a dispatch with no code changed is a data-only run.
 - **What the chart is called is the chart's**, not the platform's:
   `settings.title`, `settings.description` and `settings.about`, written in
   About (`showChartWords`, `20-about.js`), carried by Save, Import and

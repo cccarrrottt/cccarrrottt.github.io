@@ -79,10 +79,32 @@ function atSite(href, site){
   return u.origin === base.origin && (u.pathname + '/').indexOf(base.pathname) === 0;
 }
 const SITE_API = SITE_CONFIG.api;
-/* The repository the site is published from, and where suggestions are
-   kept as issues. The page reads the open ones from GitHub itself, so a
-   reader who has not signed in sees them too. */
+/* The repository the site is published from. */
 const SITE_REPO = SITE_CONFIG.repo;
+/* Where the chart is kept (`data` in 00-config.js): its repository, the
+   path of the file in it and the branch. Suggestions are that repository's
+   issues, and the page reads the open ones from GitHub itself, so a reader
+   who has not signed in sees them too; the history of edits is that file's.
+   A config with no `data` keeps it where it always was. The service reads
+   the same string (dataOf, worker/index.js). */
+function dataPlaceOf(text){
+  const m = /^([\w.-]+\/[\w.-]+)\/((?:[^@\s/]+\/)*[^@\s/]+\.json)(?:@([^@\s]+))?$/.exec(String(text || '').trim());
+  return m && !m[2].split('/').some(b => b === '.' || b === '..') ? {repo: m[1], path: m[2], branch: m[3] || ''} : null;
+}
+/* Kept, not frozen: the owner may move the chart from the page (36b-place.js),
+   and /me says where it is now to a page built before a move. */
+const DATA_PLACE = (() => {
+  const d = dataPlaceOf(SITE_CONFIG.data);
+  return d ? Object.assign(d, {branch: d.branch || 'main'}) : {repo: SITE_REPO, path: 'src/chart.json', branch: 'main'};
+})();
+function setDataPlace(text){
+  const d = dataPlaceOf(text);
+  if(d) Object.assign(DATA_PLACE, d, {branch: d.branch || DATA_PLACE.branch});
+}
+/* A place with no chart yet (a fork's, before its first Save) is the
+   empty chart, named by git's id for nothing: what build.py writes into
+   the page as DATA_SHA and what the service finds there (NO_CHART). */
+const NO_CHART = '0'.repeat(40);
 const ON_SITE = atSite(location.href);
 /* What goes wrong in a reader's browser, told to the write service, which
    writes it to its log (POST /report, worker/index.js). Until now a fault

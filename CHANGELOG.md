@@ -6,6 +6,14 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.28.0 — "Where it lives" (2026-11-24)
+
+- A fork of the platform publishes itself without a file of ours changed: CI works out where the copy lives from where it runs (tools/where.py) — the Pages address, the write service on the fork's own Cloudflare account, the repository, and its owner as the one who may edit — and writes that into the page in place of the original's addresses. Repository variables (RHIZOME_SITE, RHIZOME_API, RHIZOME_DATA, RHIZOME_OWNERS, RHIZOME_EDITORS) say otherwise where needed, and a fork does not copy them, so it can never inherit the original's service, owner or chart.
+- The chart can be kept in another repository than the site's: `data` (owner/name/path/chart.json@branch) says where, Save commits there, the history of edits is that file's, and suggestions are that repository's issues. Without it the chart is src/chart.json, as it always was; the original site changes nothing.
+- The write service's own secrets can be kept beside the code, as Actions secrets named RHIZOME_ and the secret's name, and are handed to the service on every deploy; a service with no session secret is given one, once.
+- A fork starts with an empty chart. Its chart is kept in data/chart.json, which is not there until the first Save, so a fork no longer opens with the original's chart; the page draws nothing and the owner, signed in, has the whole editor at once.
+- The owner says where the chart is kept, from the page: the first Save of a chart with no home asks — the fork itself, or any repository the GitHub App may write to, at any file — and About shows where it is kept now, with a way to move it, pictures and all, or to open a chart already kept somewhere else. The choice is the site repository's RHIZOME_DATA, written by the write service, which reads it again on every save, so a move counts at once; the site is asked to publish again after a move and after each Save to another repository. It needs the App's Variables and Actions permissions (read and write).
+
 ## 0.27.2 — "Behind the door" (2026-11-23)
 
 - An editor's Save can be committed by the site's GitHub App itself, once the app's own key is among the service's secrets (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY): an editor then needs no access to the repository at all, and the service is the only way their edits reach it. Until now an editor had to be able to push, which let them change the code and the settings past everything the service holds back.
