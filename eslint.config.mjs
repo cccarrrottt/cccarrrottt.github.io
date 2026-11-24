@@ -98,5 +98,13 @@ export default [
                 setTimeout: 'readonly', ...BROWSER, ...CHART_DATA}
     },
     rules: {'no-unused-vars': RULES['no-unused-vars'], 'no-redeclare': 'error'}
+  },
+  {
+    /* A scenario file is the body of an async function — tests/regression.js
+       runs it by eval inside its main() — so it starts with `await`, which a
+       script may not. Read as a module, where it may; nothing else about a
+       module is asked of it. */
+    files: ['tests/scenarios/*.js'],
+    languageOptions: {sourceType: 'module'}
   }
 ];
