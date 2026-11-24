@@ -407,6 +407,106 @@ function alignEditorOnInk(){
   nodeEditor.style.left = (parseFloat(nodeEditor.style.left) + dx).toFixed(3) + 'px';
   nodeEditor.style.top = (parseFloat(nodeEditor.style.top) + dy).toFixed(3) + 'px';
   seatLinesOnPixels(rec.surface, drawn);
+  seatInlinesOnDrawing(rec.surface, drawn);
+}
+/* What is not a letter stands where the drawing has it too (the owner's
+ * list of 24.11: "once and for all").
+ *
+ * With every line seated, the letters agree to the device pixel — and a
+ * sticker and a reading still did not, by a pixel this way or that,
+ * depending on the zoom: the field lays a picture out on a whole pixel
+ * and a reading at a height worked out from the face, where the drawing
+ * puts each at the fraction its arithmetic gives. Worked out again here
+ * the same way would only be a third place for the two to differ. So
+ * each is measured against the one the drawing made — the n-th sticker
+ * against the n-th, a reading's first letter's pen and baseline against
+ * the drawing's — and moved the rest of the way by a translation, which
+ * lays nothing out again. More than a few pixels apart is not this, and
+ * is left alone. */
+function seatInlinesOnDrawing(surface, drawn){
+  if(!surface || !drawn || !drawn.length) return;
+  const near = (dx, dy)=> Math.abs(dx) <= 4 && Math.abs(dy) <= 4;
+  const holders = [...new Set(drawn.map(e=> e.parentNode).filter(Boolean))];
+  const drawnStickers = holders.flatMap(h=> [...h.querySelectorAll(':scope > .sticker-glyph, :scope > .sticker-missing')]);
+  const typedStickers = [...surface.querySelectorAll('.sticker-inline, .sticker-missing-inline')].filter(e=> !e.closest('rt'));
+  typedStickers.forEach(e=> e.style.removeProperty('translate'));
+  if(drawnStickers.length === typedStickers.length){
+    typedStickers.forEach((e, i)=>{
+      const a = drawnStickers[i].getBoundingClientRect(), b = e.getBoundingClientRect();
+      if(!a.width || !b.width) return;
+      const dx = (a.left + a.width/2) - (b.left + b.width/2), dy = (a.top + a.height/2) - (b.top + b.height/2);
+      if(near(dx, dy) && (Math.abs(dx) > 0.02 || Math.abs(dy) > 0.02)) e.style.translate = `${dx.toFixed(3)}px ${dy.toFixed(3)}px`;
+    });
+  }
+  const annos = drawn.flatMap(e=> [...e.querySelectorAll('tspan.ruby-anno')])
+    .filter(t=> !(t.parentElement && t.parentElement.closest('.ruby-anno')));
+  const rts = [...surface.querySelectorAll('rt')];
+  rts.forEach(rt=> rt.style.removeProperty('translate'));
+  if(!rts.length || annos.length !== rts.length) return;
+  /* A reading is text, and text in the field is painted a pixel from where
+     its geometry says (see seatLinesOnPixels) — so a reading is seated by
+     where it stands from its own word, as the drawing has it, and the word
+     carries the line's correction to both. The letters of the two sides
+     are paired in order, as the lines' are. */
+  const drawnLetters = [];
+  drawn.flatMap(e=> [...e.querySelectorAll('tspan')])
+    .filter(e=> !e.querySelector('tspan') && !e.closest('.ruby-anno') && !e.classList.contains('text-gap'))
+    .forEach(el=>{ const t = el.textContent; for(let i = 0; i < t.length; i++) if(/\S/.test(t[i])) drawnLetters.push({el, i, ch: t[i]}); });
+  const typedAt = new Map();
+  {
+    const w = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+    let tn, k = 0;
+    while((tn = w.nextNode())){
+      if(tn.parentElement && tn.parentElement.closest('rt')) continue;
+      const t = tn.textContent;
+      for(let j = 0; j < t.length; j++) if(/\S/.test(t[j])){ if(!typedAt.has(tn)) typedAt.set(tn, []); typedAt.get(tn).push({j, k: k++}); }
+    }
+  }
+  const penOf = (el, i)=>{ const m = el.getScreenCTM(), p = el.getStartPositionOfChar(i); return new DOMPoint(p.x, p.y).matrixTransform(m); };
+  const firstLetter = (root, skip)=>{
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let tn;
+    while((tn = w.nextNode())){
+      if(skip && skip.contains(tn)) continue;
+      const j = tn.textContent.search(/\S/);
+      if(j >= 0) return {tn, j};
+    }
+    return null;
+  };
+  /* Where a typed letter stands: its pen across, its baseline down — the
+     baseline from an empty mark set just before the text it is in. */
+  const htmlPen = (tn, j)=>{
+    const rg = document.createRange();
+    rg.setStart(tn, j); rg.setEnd(tn, j + 1);
+    const left = rg.getBoundingClientRect().left;
+    const mark = document.createElement('span');
+    mark.style.cssText = 'display:inline-block;width:0;height:0;';
+    tn.parentNode.insertBefore(mark, tn);
+    const base = mark.getBoundingClientRect().bottom;
+    mark.remove();
+    return {x: left, y: base};
+  };
+  const was = seatingReadings;
+  seatingReadings = true;
+  try{
+    rts.forEach((rt, i)=>{
+      const a = annos[i], at = a.textContent.search(/\S/);
+      const r = firstLetter(rt), w = firstLetter(rt.parentElement, rt);
+      if(at < 0 || !r || !w || r.tn.textContent[r.j] !== a.textContent[at]) return;
+      const slot = (typedAt.get(w.tn) || []).find(x=> x.j === w.j);
+      const d = slot && drawnLetters[slot.k];
+      if(!d || d.ch !== w.tn.textContent[w.j]) return;
+      try{
+        const A = penOf(a, at), D = penOf(d.el, d.i);
+        const R = htmlPen(r.tn, r.j), W = htmlPen(w.tn, w.j);
+        const dx = (A.x - D.x) - (R.x - W.x), dy = (A.y - D.y) - (R.y - W.y);
+        if(near(dx, dy) && (Math.abs(dx) > 0.02 || Math.abs(dy) > 0.02)) rt.style.translate = `${dx.toFixed(3)}px ${dy.toFixed(3)}px`;
+      }catch(err){ /* a letter the drawing cannot place: the reading stands as worked out */ }
+    });
+  } finally {
+    if(surface._sizesWatcher) surface._sizesWatcher.takeRecords();
+    seatingReadings = was;
+  }
 }
 /* Across a line, the field's letters and the drawing's can drift apart
  * as the line goes on (the owner's screenshots of 23.11, a phone: the
@@ -629,6 +729,8 @@ function nodeTakesInlineEditor(n){
 function openNodeEditor(id, opts){
   const n = nodes.get(id);
   if(!n || !nodeTakesInlineEditor(n)) return false;
+  // Picking an entry for a scenario is not writing in it.
+  if(scnPickSwallows()) return false;
   /* A portrait's words live on its card, so the card has to be up before
      there is anywhere to put the field. */
   if((n.shape || '') === 'ellipse' && !bioCardLayer.querySelector(
@@ -837,6 +939,7 @@ function syncNodeEditorLook(){
   if(nodeEditorTarget.kind === 'note'){
     rec.surface.style.fontFamily = EDGE_NOTE_FAMILY;
     rec.surface.style.fontSize = (EDGE_NOTE_FS * vs).toFixed(2) + 'px';
+    rec.surface.style.setProperty('--vs', String(vs));
     rec.surface.dataset.lineH = (EDGE_NOTE_LINE_H * vs).toFixed(2);
     rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
     /* …in the connector's ink, which the note is drawn in: the field
@@ -853,6 +956,7 @@ function syncNodeEditorLook(){
              : isCalloutNode(n) ? EDGE_NOTE_FS : NODE_FS;
   rec.surface.style.fontFamily = fontFamilyFor(n.font);
   rec.surface.style.fontSize = (size * vs).toFixed(2) + 'px';
+  rec.surface.style.setProperty('--vs', String(vs));
   rec.surface.dataset.lineH = (LINE_H * (size / NODE_FS) * vs).toFixed(2);
   rec.surface.style.lineHeight = rec.surface.dataset.lineH + 'px';
   /* …and the ink: the entry's own, or the one it inherits — a callout
@@ -860,6 +964,9 @@ function syncNodeEditorLook(){
      no words yet, the field used to show the default ink until the words
      were saved and drawn (the owner's list of 28.10). */
   rec.surface.style.color = n.labelInk || '';
+  /* Where the drawing shows through the field, its caret is all that is
+     seen of the field's ink, so the caret wears it. */
+  rec.surface.style.caretColor = n.labelInk || '';
   return finishNodeEditorLook(rec);
 }
 function noteInkOf(from, to){
@@ -1028,6 +1135,22 @@ setRichEnter('nodeEditorText', ()=> closeNodeEditor(true), {breaks: true});
  * makes; the drawing itself is not touched, and what an edit keeps or
  * redraws (drawOrKeep) is as it was. */
 var nodeEditorVeil = null;
+/* An entry's own words, though, are shown as the chart draws them, and
+ * the field only holds the caret and the selection over them (the owner's
+ * list of 24.11: the field "slightly differs from what is drawn — once and
+ * for all"). Every pass of seating the field on the drawing brought it to
+ * within a device pixel, and a pixel is what a browser's two ways of
+ * painting differ by: an HTML line, a picture in it and a rule under it
+ * land on whole pixels, the drawing on the fractions its arithmetic gives,
+ * and which way each rounds depends on the zoom and the screen. Shown
+ * through, the words being written ARE the drawing — the typing redraws
+ * the entry every frame (beginLabelPreview) — so a rule, a sticker or a
+ * reading cannot stand anywhere else. A note is not redrawn as it is
+ * typed, and a language tab's field is not seated on its drawing, so
+ * those still show the field's own words. */
+function inkFromDrawing(t){
+  return !!t && t.kind === 'entry' && t.tab == null;
+}
 function veilDrawnWords(t){
   if(!nodeEditorVeil){
     if(!t) return;
@@ -1035,7 +1158,10 @@ function veilDrawnWords(t){
     nodeEditorVeil.id = 'nodeEditorVeil';
     document.head.appendChild(nodeEditorVeil);
   }
+  nodeEditor.classList.toggle('ink-from-drawing', !!t && inkFromDrawing(t));
   if(!t){ nodeEditorVeil.textContent = ''; return; }
+  /* …unless the drawing is what is shown (inkFromDrawing). */
+  if(inkFromDrawing(t)){ nodeEditorVeil.textContent = ''; return; }
   const words = ' :is(.node-label-text, .edge-note-text, .sticker-glyph, .sticker-missing, .text-underline)';
   const on = t.kind === 'note'
     ? [`.edge-note[data-from="${cssEscape(t.from)}"][data-to="${cssEscape(t.to)}"]`]
@@ -1104,7 +1230,7 @@ if(window.visualViewport) window.visualViewport.addEventListener('resize', ()=>{
  * sticker or a citation closed the field first — and the insert then
  * landed in a field that was no longer open. The names are the ones the
  * pickers actually wear. */
-const NODE_EDITOR_SATELLITES = '#nodeEditor, .sticker-picker, #stickerPicker, #refPicker, #mediaPicker, .mini-toolbar';
+const NODE_EDITOR_SATELLITES = '#nodeEditor, .sticker-picker, #stickerPicker, #refPicker, #mediaPicker, .mini-toolbar, .tb-drop';
 /* …and a press on the thing being written in is writing in it. The field
    is laid over the entry's words but not over every pixel of the entry —
    it is aligned to the ink — so a press on the words a hair off the field

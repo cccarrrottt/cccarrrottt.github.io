@@ -421,6 +421,18 @@ function wireStickerButtons(){
   document.querySelectorAll('.mini-toolbar').forEach(bar=>{
     addFontButton(bar); addLineButtons(bar); addStickerButton(bar); addRefButton(bar);
     addMediaButton(bar);
+    /* In the order a word processor has them (the owner's list of 24.11):
+       the face and the size first, then bold, italic and the two rules,
+       then the rest. They are made after the buttons the page writes,
+       so they are put in their places here. */
+    const first = bar.querySelector('[data-wrap]');
+    if(first) ['.tb-face-btn', '.tb-size-field', '.tb-size-reset'].forEach(q=>{
+      const e = bar.querySelector(q);
+      if(e) bar.insertBefore(e, first);
+    });
+    const italic = bar.querySelector('[data-wrap="italic"]');
+    const lines = bar.querySelector('.tb-line-group');
+    if(italic && lines) italic.after(lines);
   });
 }
 wireStickerButtons();

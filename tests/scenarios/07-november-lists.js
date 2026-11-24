@@ -1486,7 +1486,12 @@
         const surf = richFields.get('nodeEditorText').surface;
         const c = getComputedStyle(surf, '::before').content;
         const drawn = [...document.querySelectorAll('.node[data-id="o911_f"] .node-label-text')];
-        r.figField = [c === 'none' || c === 'normal', drawn.length > 0 && drawn.every(e=> getComputedStyle(e).opacity === '0')];
+        /* One copy of the heading is seen: veiled under the field's, or —
+           since 24.11 — seen through a field whose own ink is clear. */
+        const through = document.getElementById('nodeEditor').classList.contains('ink-from-drawing');
+        r.figField = [c === 'none' || c === 'normal', drawn.length > 0 && (through
+          ? drawn.every(e=> getComputedStyle(e).opacity !== '0') && getComputedStyle(surf).color === 'rgba(0, 0, 0, 0)'
+          : drawn.every(e=> getComputedStyle(e).opacity === '0'))];
       }
       closeNodeEditor(false);
       deselect();
@@ -1597,7 +1602,7 @@
   check('a selected card glows outward only: its outline over the bands carries no glow, its ground does',
         out.cardGlow[0] === 'none' && out.cardGlow[1] && out.cardGlow[1] !== 'none', JSON.stringify(out.cardGlow));
   check('…and a link node\'s arrow carries none inside its ring', out.linkGlow[0] === 'none' && out.linkGlow[1] !== 'none', JSON.stringify(out.linkGlow));
-  check('the field on a figure\'s card has no frame, and its heading drawn under it is out of sight', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
+  check('the field on a figure\'s card has no frame, and one copy of its heading is seen', out.figField[0] && out.figField[1], JSON.stringify(out.figField));
   check('a citation in the field is set as the chart sets it: the run\'s face, a little over half its size, no box',
         out.chip && Math.abs(out.chip[0] - 0.56) < 0.03 && /rgba\(0, 0, 0, 0\)|transparent/.test(out.chip[1]) && out.chip[2] && Math.abs(+out.chip[3] - 0.55) < 0.01,
         JSON.stringify(out.chip));
@@ -1673,7 +1678,8 @@
         const b2 = document.querySelector('#mediaList .media-kind[data-kind="o1111k"]');
         r.renamedKind = mediaTypeById('o1111k').name + '|' + !b2.classList.contains('shut');
         b2.querySelector('.media-kind-name').dispatchEvent(new MouseEvent('click', {bubbles: true}));
-        await wait(DOUBLE_CLICK_GRACE + 60);
+        /* The fold moves now (24.11): the list changes once it has shut. */
+        await wait(DOUBLE_CLICK_GRACE + FOLD_MS + 80);
         r.headFolds = document.querySelector('#mediaList .media-kind[data-kind="o1111k"]').classList.contains('shut');
         r.line = document.querySelector('.node[data-id="o1111_c"] text.card-medium').textContent.replace(/\s+/g, ' ').trim();
         r.formatGone = !('format' in SETTINGS.mediaTypes[0]);

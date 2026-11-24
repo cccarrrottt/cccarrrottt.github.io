@@ -247,7 +247,7 @@ document.getElementById('styleClose').onclick = ()=> closeEdgePopover();
    sticker picker, a side tab or the toolbar is part of working
    on the connector, not a decision to stop. Only the canvas itself — the
    entries, another connector, empty ground — puts it away. */
-const MENU_SURFACES = ['#stickerPicker', '#refPicker', '.ask-overlay', '.crop-overlay',
+const MENU_SURFACES = ['#stickerPicker', '#refPicker', '.tb-drop', '.ask-overlay', '.crop-overlay',
   '.detail', '.side-tabs', '.file-popover', '.about-overlay',
   '.topbar', '.legend-add-menu', '.tag-menu', '.mini-toolbar', '.touch-menu',
   /* The connector's bar stays up beside its panel (see the style bar's

@@ -322,6 +322,9 @@ syncLod();
 var MINIMAP_KEY = 'rhizome.minimap';
 var MINIMAP_PAD = 30;                 // chart units round the outermost entries
 var minimapFrame = 0, minimapFit = null;
+/* How much closer than the whole chart the overview is drawn, and where
+   it is looking then. Not kept: an overview opened again shows it all. */
+var minimapZoom = {k: 1, cx: NaN, cy: NaN};
 function minimapOpen(){
   const p = document.getElementById('minimapPanel');
   return !!(p && p.classList.contains('open'));
@@ -344,7 +347,20 @@ function minimapLayout(cw, ch){
   const k = Math.min(cw / Math.max(1, x1 - x0), ch / Math.max(1, y1 - y0));
   // Centred in the canvas along whichever axis has room to spare.
   const ox = (cw - (x1 - x0) * k) / 2 - x0 * k, oy = (ch - (y1 - y0) * k) / 2 - y0 * k;
-  return {k, ox, oy, view: v};
+  const z = minimapZoom || {k: 1};
+  if(z.k <= 1.001) return {k, ox, oy, view: v};
+  /* Brought closer by the wheel: the point the overview is centred on is
+     its own, kept in chart units, and follows the view's frame only when
+     the frame would leave it — so the chart's own view is never touched
+     by looking closer at the overview (the owner's list of 24.11). */
+  const kk = k * z.k;
+  const half = {x: cw / 2 / kk, y: ch / 2 / kk};
+  const fx = (v.x0 + v.x1) / 2, fy = (v.y0 + v.y1) / 2;
+  if(!Number.isFinite(z.cx)){ z.cx = fx; z.cy = fy; }
+  const fw = (v.x1 - v.x0) / 2, fh = (v.y1 - v.y0) / 2;
+  if(fw < half.x){ z.cx = Math.min(Math.max(z.cx, v.x1 - half.x), v.x0 + half.x); } else z.cx = fx;
+  if(fh < half.y){ z.cy = Math.min(Math.max(z.cy, v.y1 - half.y), v.y0 + half.y); } else z.cy = fy;
+  return {k: kk, ox: cw / 2 - z.cx * kk, oy: ch / 2 - z.cy * kk, view: v};
 }
 function drawMinimap(){
   const cv = document.getElementById('minimapCanvas');
@@ -391,6 +407,7 @@ function setMinimap(open){
   const btn = document.getElementById('minimapToggle');
   if(btn){ btn.classList.toggle('active', !!open); btn.setAttribute('aria-pressed', open ? 'true' : 'false'); }
   try{ localStorage.setItem(MINIMAP_KEY, open ? '1' : '0'); }catch(e){}
+  minimapZoom = {k: 1, cx: NaN, cy: NaN};
   if(open) drawMinimap();
 }
 {
@@ -438,6 +455,27 @@ function setMinimap(open){
       goTo(ev);
     });
     cv.addEventListener('pointermove', ev=>{ if(held) goTo(ev); });
+    /* The wheel brings the overview closer or takes it back out to the
+       whole chart, about the point under the pointer; the chart's view
+       stays exactly where it was. */
+    cv.addEventListener('wheel', ev=>{
+      ev.preventDefault(); ev.stopPropagation();
+      const fit = minimapFit;
+      if(!fit) return;
+      const r = cv.getBoundingClientRect();
+      const px = ev.clientX - r.left, py = ev.clientY - r.top;
+      const wx = (px - fit.ox) / fit.k, wy = (py - fit.oy) / fit.k;
+      const z = minimapZoom;
+      const nk = Math.min(16, Math.max(1, z.k * Math.exp(-ev.deltaY * 0.0016)));
+      if(nk === z.k) return;
+      const kk = fit.k / z.k * nk;
+      z.k = nk;
+      // The point under the pointer stays under it.
+      z.cx = wx - (px - r.width / 2) / kk;
+      z.cy = wy - (py - r.height / 2) / kk;
+      if(nk <= 1.001){ z.cx = z.cy = NaN; }
+      drawMinimap();
+    }, {passive: false});
     const letGo = ()=>{ held = false; drawMinimap(); };
     cv.addEventListener('pointerup', letGo);
     cv.addEventListener('pointercancel', letGo);

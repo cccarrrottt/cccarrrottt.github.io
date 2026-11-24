@@ -249,8 +249,11 @@ document.querySelectorAll('#stickerOverlay .files-section').forEach(sec=>{
   sec.querySelector('.files-head').addEventListener('click', ev=>{
     if(ev.target.closest('button')) return;
     const kind = sec.dataset.kind;
-    if(filesFolded.has(kind)) filesFolded.delete(kind); else filesFolded.add(kind);
-    sec.classList.toggle('collapsed', filesFolded.has(kind));
+    const shutting = !filesFolded.has(kind);
+    foldWithMotion(sec, shutting, ()=>{
+      if(shutting) filesFolded.add(kind); else filesFolded.delete(kind);
+      sec.classList.toggle('collapsed', shutting);
+    });
   });
 });
 function chartFileCell(f){
@@ -274,6 +277,41 @@ function chartFileCell(f){
     k.className = 'file-kind';
     k.textContent = 'gif';
     cell.appendChild(k);
+  }
+  /* …and moves as the stickers' do, or stands still, or moves only under
+     the pointer (the owner's list of 24.11): the same three, pressed round
+     in turn, for every entry that wears it. A cell is itself a button, so
+     this one is a span that answers as one. */
+  const wearers = f.owners.filter(id=>{ const n = nodes.get(id); return n && n.image === f.src; });
+  if(f.kind !== 'video' && wearers.length && pictureMoves(f.src) && !readOnlyView){
+    const modes = STYLE_BAR_ANIM;
+    const first = nodes.get(wearers[0]);
+    const now = modes.find(m=> m[0] === (first.anim || 'play')) || modes[0];
+    const next = modes[(modes.indexOf(now) + 1) % modes.length];
+    const anim = document.createElement('span');
+    anim.className = 'file-anim';
+    anim.setAttribute('role', 'button');
+    anim.tabIndex = 0;
+    anim.dataset.value = now[0];
+    anim.innerHTML = now[1];
+    anim.title = now[2] + ' — press for ' + next[2].toLowerCase();
+    anim.setAttribute('aria-label', now[2]);
+    const turn = ev=>{
+      ev.stopPropagation(); ev.preventDefault();
+      applyEdit(()=>{
+        wearers.forEach(id=>{
+          const found = workingEntry(id);
+          if(!found) return;
+          const opts = entryOpts(found.entry);
+          if(pictureAnimOf(next[0])) opts.anim = next[0]; else delete opts.anim;
+          putEntry(found.index, found.entry, opts);
+        });
+      });
+      renderChartFiles();
+    };
+    anim.addEventListener('click', turn);
+    anim.addEventListener('keydown', ev=>{ if(ev.key === 'Enter' || ev.key === ' ') turn(ev); });
+    cell.appendChild(anim);
   }
   const where = f.owners.map(id=>{ const n = nodes.get(id); return n ? (stripMarkup(n.label || '').trim() || id) : id; });
   cell.title = (f.name || '') + (where.length ? ' — on ' + where.join(', ') : '');
@@ -734,47 +772,126 @@ function fillFaceSelect(sel){
   const sig = opts.map(f=> f.key + ':' + f.label).join('|');
   if(sel.dataset.faces === sig) return;
   const was = sel.value;
-  sel.innerHTML = '<option value="">Face…</option>' +
-    '<option value="__mixed__" class="tb-custom" hidden>custom</option>' +
-    opts.map(f=> `<option value="${escapeHtml(f.key)}">${escapeHtml(f.label)}</option>`).join('') +
-    '<option value="__clear__">— clear —</option>';
+  sel.innerHTML = '<option value="__mixed__" class="tb-custom" hidden>custom</option>' +
+    opts.map(f=> `<option value="${escapeHtml(f.key)}">${escapeHtml(faceName(f))}</option>`).join('');
   sel.dataset.faces = sig;
   sel.value = was;
   if(sel.value !== was) sel.value = '';
+}
+/* The list a toolbar control drops, one for the page: the faces, the
+ * sizes, the kinds of rule.
+ *
+ * A <select> cannot do what the owner asked of these (the list of 24.11):
+ * a face's name written in that face, a rule drawn as the rule it is.
+ * A browser draws a select's options in its own way, and on most systems
+ * ignores the type given to them. So the selects stay, hidden, as the
+ * value each control holds and the change it announces, and this is
+ * what is seen and pressed. A press in it never takes the caret out of
+ * the text it is for (mousedown is not let through), which is what keeps
+ * the words that were chosen chosen. */
+const tbDrop = document.createElement('div');
+tbDrop.className = 'tb-drop';
+tbDrop.hidden = true;
+tbDrop.setAttribute('role', 'listbox');
+document.body.appendChild(tbDrop);
+let tbDropFor = null;
+function openTbDrop(anchor, items, current, pick){
+  if(tbDropFor === anchor && !tbDrop.hidden){ closeTbDrop(); return; }
+  tbDrop.innerHTML = '';
+  items.forEach(it=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tb-drop-item' + (it.value === current ? ' on' : '');
+    b.dataset.value = it.value;
+    b.setAttribute('role', 'option');
+    if(it.translate === false) b.setAttribute('translate', 'no');
+    b.innerHTML = it.html;
+    if(it.title) b.title = it.title;
+    b.addEventListener('mousedown', ev=> ev.preventDefault());
+    b.addEventListener('click', ev=>{ ev.stopPropagation(); closeTbDrop(); pick(it.value); });
+    tbDrop.appendChild(b);
+  });
+  tbDropFor = anchor;
+  anchor.classList.add('dropped');
+  tbDrop.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  const w = tbDrop.offsetWidth, h = tbDrop.offsetHeight;
+  const below = window.innerHeight - r.bottom - 8;
+  tbDrop.style.left = Math.max(6, Math.min(window.innerWidth - w - 6, r.left)) + 'px';
+  tbDrop.style.top = (below >= h || below >= r.top ? r.bottom + 3 : Math.max(6, r.top - h - 3)) + 'px';
+  const on = tbDrop.querySelector('.on');
+  if(on) on.scrollIntoView({block: 'nearest'});
+}
+function closeTbDrop(){
+  if(tbDrop.hidden) return;
+  tbDrop.hidden = true;
+  if(tbDropFor) tbDropFor.classList.remove('dropped');
+  tbDropFor = null;
+}
+tbDrop.addEventListener('mousedown', ev=> ev.preventDefault());
+document.addEventListener('pointerdown', ev=>{
+  if(tbDrop.hidden || tbDrop.contains(ev.target) || (tbDropFor && tbDropFor.contains(ev.target))) return;
+  closeTbDrop();
+}, true);
+document.addEventListener('keydown', ev=>{ if(ev.key === 'Escape' && !tbDrop.hidden){ ev.stopPropagation(); closeTbDrop(); } }, true);
+window.addEventListener('resize', closeTbDrop);
+/* A face's name as a list says it: what the face is, not what it is for
+   — "(modern)" and "(sci-fi)" were the program describing its choices,
+   and the name written in the face says that better (the owner's list of
+   24.11). */
+function faceName(f){ return String(f.label || f.key).replace(/\s*\([^)]*\)\s*$/, ''); }
+const CARET_SVG = '<svg class="tb-caret" viewBox="0 0 10 7" aria-hidden="true"><path d="M1 1.4L5 5.4L9 1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+/* A control the pointer presses without taking the caret out of the text:
+   the selection is held first, for the command to find again. */
+function keepsCaret(bar, el){
+  el.addEventListener('mousedown', ev=>{ rememberToolbarSelection(bar); if(!el.matches('input:not([readonly])')) ev.preventDefault(); });
 }
 function addFontButton(bar){
   if(bar.querySelector('.tb-font')) return;
   const target = bar.querySelector('[data-wrap-target]');
   if(!target) return;
   const sel = document.createElement('select');
-  sel.className = 'tb-font';
+  sel.className = 'tb-font tb-native';
+  sel.hidden = true;
   sel.title = 'Face for the selected text — or, with nothing selected, for the whole of it';
-  /* "custom" is something the picker SAYS, never something you can pick:
-     hidden keeps it out of the list that drops down, while a select still
-     shows a hidden option's label when that option is the selected one. */
+  /* "custom" is something the picker SAYS, never something you can pick. */
   fillFaceSelect(sel);
-  // Choosing must not first collapse the selection the choice is for.
-  sel.addEventListener('mousedown', ()=>{ fillFaceSelect(sel); rememberToolbarSelection(bar); });
-  sel.addEventListener('focus', ()=> fillFaceSelect(sel));
   sel.addEventListener('change', ev=>{
     ev.stopPropagation();
     const key = sel.value;
     const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
     if(!surface || !key || key === '__mixed__'){ syncToolbarFace(bar); return; }
     selectAllUnlessChosen(surface);
-    applyRichCommand(surface, key === '__clear__' ? 'unfont' : 'font', key);
+    /* The field's own face is no face of the run's: chosen, it takes the
+       run's face off, which is what "— clear —" was for. */
+    const own = key === '__clear__' || key === baseTypeFor(surface).face;
+    applyRichCommand(surface, own ? 'unfont' : 'font', key);
     syncToolbarFace(bar);
   });
   bar.appendChild(sel);
+  const faceBtn = document.createElement('button');
+  faceBtn.type = 'button';
+  faceBtn.className = 'tb-face-btn';
+  faceBtn.title = sel.title;
+  faceBtn.innerHTML = '<span class="tb-face-name" translate="no"></span>' + CARET_SVG;
+  keepsCaret(bar, faceBtn);
+  faceBtn.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    fillFaceSelect(sel);
+    openTbDrop(faceBtn, fontOptions().map(f=>({
+      value: f.key, translate: false,
+      html: `<span style="font-family:${escapeHtml(fontFamilyFor(f.key))}">${escapeHtml(faceName(f))}</span>`
+    })), sel.value, v=>{ sel.value = v; sel.dispatchEvent(new Event('change')); });
+  });
+  bar.appendChild(faceBtn);
 
   const size = document.createElement('select');
-  size.className = 'tb-font tb-size';
+  size.className = 'tb-font tb-size tb-native';
+  size.hidden = true;
   size.title = 'Size for the selected text — or, with nothing selected, for the whole of it';
-  size.innerHTML = '<option value="">Size…</option>' +
-    '<option value="__mixed__" class="tb-custom" hidden>custom</option>' +
-    TB_SIZES.map(v=> `<option value="${v}">${v}</option>`).join('') +
-    '<option value="__clear__">— clear —</option>';
-  size.addEventListener('mousedown', ()=> rememberToolbarSelection(bar));
+  size.innerHTML = '<option value="__mixed__" class="tb-custom" hidden>custom</option>' +
+    TB_SIZES.map(v=> `<option value="${v}">${v}</option>`).join('');
+  size.value = '';
   size.addEventListener('change', ev=>{
     ev.stopPropagation();
     const v = size.value;
@@ -785,6 +902,74 @@ function addFontButton(bar){
     syncToolbarFace(bar);
   });
   bar.appendChild(size);
+  /* The size is a number in a box as wide as a number: pressed, it drops
+     the sizes worth pointing at; typed into (a double click, or a tap on a
+     touch screen, where there is no double click), it takes any size; and
+     ⟲ beside it gives the text back the size it is drawn at by default. */
+  const field = document.createElement('input');
+  field.type = 'text';
+  field.className = 'tb-size-field';
+  field.readOnly = true;
+  field.inputMode = 'decimal';
+  field.maxLength = 5;
+  field.spellcheck = false;
+  field.setAttribute('translate', 'no');
+  field.title = 'Size — pick one, or double-click to type your own';
+  let pressedBy = 'mouse';
+  field.addEventListener('pointerdown', ev=>{ pressedBy = ev.pointerType; });
+  keepsCaret(bar, field);
+  const typeOwn = ()=>{
+    closeTbDrop();
+    rememberToolbarSelection(bar);
+    field.readOnly = false;
+    field.dataset.was = field.value;
+    field.focus();
+    field.select();
+  };
+  const settle = (apply)=>{
+    if(field.readOnly) return;
+    field.readOnly = true;
+    const v = parseFloat(String(field.value).replace(',', '.'));
+    if(apply && isFinite(v) && v >= 4 && v <= 200 && String(v) !== field.dataset.was){
+      const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
+      if(surface){
+        selectAllUnlessChosen(surface);
+        applyRichCommand(surface, 'size', String(Math.round(v * 10) / 10));
+      }
+    }
+    syncToolbarFace(bar);
+  };
+  field.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    if(!field.readOnly) return;
+    if(pressedBy === 'touch' || pressedBy === 'pen'){ typeOwn(); return; }
+    openTbDrop(field, TB_SIZES.map(v=>({value: String(v), html: String(v), translate: false})),
+      size.value, v=>{ size.value = v; size.dispatchEvent(new Event('change')); });
+  });
+  field.addEventListener('dblclick', ev=>{ ev.stopPropagation(); typeOwn(); });
+  field.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(field.readOnly) return;
+    if(ev.key === 'Enter'){ ev.preventDefault(); settle(true); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); field.value = field.dataset.was || ''; settle(false); }
+  });
+  field.addEventListener('blur', ()=> settle(true));
+  bar.appendChild(field);
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.className = 'hex-reset tb-size-reset';
+  reset.textContent = '⟲';
+  reset.title = 'Back to the default size';
+  keepsCaret(bar, reset);
+  reset.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
+    if(!surface) return;
+    selectAllUnlessChosen(surface);
+    applyRichCommand(surface, 'unsize');
+    syncToolbarFace(bar);
+  });
+  bar.appendChild(reset);
 }
 
 /* With no words chosen, a face or a size is for the whole text — as both
@@ -885,7 +1070,7 @@ function syncToolbarFace(bar){
   const face = bar.querySelector('.tb-font:not(.tb-size)');
   const size = bar.querySelector('.tb-size');
   if(face) fillFaceSelect(face);
-  if(!surface){ if(face) face.value = ''; if(size) size.value = ''; return; }
+  if(!surface){ if(face) face.value = ''; if(size) size.value = ''; showToolbarFace(bar); return; }
   const base = baseTypeFor(surface);
   // A run with nothing of its own is set in the field's own face and size,
   // and that is what the picker should say.
@@ -898,6 +1083,14 @@ function syncToolbarFace(bar){
     if(!sel) return;
     if(v === null){ sel.value = ''; return; }
     if(v === '__mixed__'){ sel.value = '__mixed__'; mark(sel); return; }
+    /* A size typed by hand is a size, not a mixture: it is given an
+       option of its own to be the value of. */
+    if(sel === size && !isNaN(parseFloat(v)) && ![...sel.options].some(o=> o.value === v)){
+      sel.querySelectorAll('option.tb-typed').forEach(o=> o.remove());
+      const o = document.createElement('option');
+      o.className = 'tb-typed'; o.hidden = true; o.value = v; o.textContent = v;
+      sel.appendChild(o);
+    }
     sel.value = [...sel.options].some(o=> o.value === v) ? v : '__mixed__';
     mark(sel);
   };
@@ -906,8 +1099,32 @@ function syncToolbarFace(bar){
      applied only inside the drop-down list — where "custom" is hidden and
      therefore never appears. The select itself has to carry it. */
   const mark = (sel)=> sel.classList.toggle('is-custom', sel.value === '__mixed__');
-  put(face, commonValue(runs.filter(r=> !r.noFace), r=> r.face));
-  put(size, commonValue(runs, r=> r.size));
+  /* An empty field is set in its own face and size, and says so rather
+     than nothing — there is no "Face…" left to fall back on. */
+  const faced = runs.filter(r=> !r.noFace);
+  put(face, faced.length ? commonValue(faced, r=> r.face) : base.face);
+  put(size, runs.length ? commonValue(runs, r=> r.size) : String(base.size));
+  showToolbarFace(bar);
+}
+/* What the face button and the size box say: what the hidden selects
+   hold — a face written in itself, a size as a number, and a mixture
+   as "custom" or a dash, in italics. */
+function showToolbarFace(bar){
+  const face = bar.querySelector('.tb-font:not(.tb-size)');
+  const size = bar.querySelector('.tb-size');
+  const btn = bar.querySelector('.tb-face-btn .tb-face-name');
+  const field = bar.querySelector('.tb-size-field');
+  if(face && btn){
+    const f = fontOptions().find(x=> x.key === face.value);
+    btn.textContent = f ? faceName(f) : face.value === '__mixed__' ? 'custom' : '—';
+    btn.style.fontFamily = f ? fontFamilyFor(f.key) : '';
+    btn.parentNode.classList.toggle('is-custom', face.value === '__mixed__');
+  }
+  if(size && field && field.readOnly){
+    field.value = size.value === '__mixed__' ? '' : size.value;
+    field.placeholder = size.value === '__mixed__' ? '–' : '';
+    field.classList.toggle('is-custom', size.value === '__mixed__');
+  }
 }
 // Whichever toolbar owns this surface — matched by asking each of them,
 // which is the same question the commands ask when they act.
@@ -969,36 +1186,14 @@ function addLineButtons(bar){
   if(bar.querySelector('.tb-line-btn')) return;
   const target = bar.querySelector('[data-wrap-target]');
   if(!target) return;
-  const mk = (kind, glyph, title)=>{
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'tb-line-btn tb-line-' + kind;
-    b.innerHTML = glyph;
-    b.title = title;
-    b.addEventListener('mousedown', ()=> rememberToolbarSelection(bar));
-    b.addEventListener('click', ev=>{
-      ev.stopPropagation();
-      const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
-      if(!surface) return;
-      const pick = bar.querySelector('.tb-line-style');
-      applyRichCommand(surface, kind, pick ? pick.value : 'solid');
-      syncToolbarLines(bar);
-    });
-    return b;
-  };
-  /* The three read as one control and are kept on one line: the button
-     that turns a rule on, the kind of rule, and the button for the other
-     rule. Wrapping between them made the picker look as though it
-     belonged to whatever happened to end up beside it. */
-  const group = document.createElement('span');
-  group.className = 'tb-line-group';
-  group.appendChild(mk('under', '<span style="text-decoration:underline">U</span>', 'Rule under the selected text'));
+  /* The kind of rule, held where it always was: one select both buttons
+     share, hidden now, so changing it still restyles what is there. */
   const pick = document.createElement('select');
-  pick.className = 'tb-font tb-line-style';
+  pick.className = 'tb-line-style tb-native';
+  pick.hidden = true;
   pick.title = 'What kind of rule';
   pick.innerHTML = Object.keys(LINE_STYLES)
     .map(k=> `<option value="${k}">${LINE_STYLES[k].label}</option>`).join('');
-  pick.addEventListener('mousedown', ()=> rememberToolbarSelection(bar));
   pick.addEventListener('change', ev=>{
     ev.stopPropagation();
     /* Changing the kind restyles a rule that is already there rather than
@@ -1011,9 +1206,60 @@ function addLineButtons(bar){
     if(state.strike) applyRichCommand(surface, 'strike', pick.value, true);
     syncToolbarLines(bar);
   });
+  /* Each rule is one control of two halves, as a word processor draws it
+     (the owner's list of 24.11): the letter turns the rule on and off and
+     is drawn with the rule it will lay down, and the ▾ on its right drops
+     the kinds of rule, each drawn — and picking one lays that rule down,
+     or restyles the one already there. */
+  const mk = (kind, glyph, title)=>{
+    const wrap = document.createElement('span');
+    wrap.className = 'tb-split tb-split-' + kind;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tb-line-btn tb-line-' + kind;
+    b.innerHTML = glyph;
+    b.title = title;
+    b.setAttribute('translate', 'no');
+    keepsCaret(bar, b);
+    b.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
+      if(!surface) return;
+      applyRichCommand(surface, kind, pick.value || 'solid');
+      syncToolbarLines(bar);
+    });
+    const caret = document.createElement('button');
+    caret.type = 'button';
+    caret.className = 'tb-split-caret';
+    caret.title = 'What kind of rule';
+    caret.innerHTML = CARET_SVG;
+    keepsCaret(bar, caret);
+    const deco = kind === 'under' ? 'underline' : 'line-through';
+    caret.addEventListener('click', ev=>{
+      ev.stopPropagation();
+      openTbDrop(caret, Object.keys(LINE_STYLES).map(k=>({
+        value: k, translate: false,
+        html: `<span class="tb-rule-sample" style="text-decoration:${deco} ${LINE_STYLES[k].css}">${kind === 'under' ? 'Abc' : 'abc'}</span>`
+      })), pick.value, k=>{
+        pick.value = k;
+        const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
+        if(!surface){ syncToolbarLines(bar); return; }
+        const on = lineStateOf(surface)[kind];
+        applyRichCommand(surface, kind, k, !!on);
+        syncToolbarLines(bar);
+      });
+    });
+    wrap.appendChild(b);
+    wrap.appendChild(caret);
+    return wrap;
+  };
+  const group = document.createElement('span');
+  group.className = 'tb-line-group';
+  group.appendChild(mk('under', '<span class="tb-rule-glyph">U</span>', 'Rule under the selected text'));
+  group.appendChild(mk('strike', '<span class="tb-rule-glyph">ab</span>', 'Rule through the selected text'));
   group.appendChild(pick);
-  group.appendChild(mk('strike', '<span style="text-decoration:line-through">S</span>', 'Rule through the selected text'));
   bar.appendChild(group);
+  syncToolbarLines(bar);
 }
 /* Whether the selection already carries a rule, and of what kind. */
 function lineStateOf(surface){
@@ -1058,4 +1304,8 @@ function syncToolbarLines(bar){
   u.classList.toggle('on', !!st.under);
   k.classList.toggle('on', !!st.strike);
   if(pick && (st.under || st.strike)) pick.value = st.under || st.strike;
+  /* The letters wear the rule they would lay down. */
+  const css = pick && LINE_STYLES[pick.value] ? LINE_STYLES[pick.value].css : 'solid';
+  u.style.setProperty('--rule', css);
+  k.style.setProperty('--rule', css);
 }

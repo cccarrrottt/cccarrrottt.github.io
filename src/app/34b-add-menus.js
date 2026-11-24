@@ -13,11 +13,11 @@ function openAddFab(){
    middle of what is on show. An entry with nothing in it is a perfectly
    good entry — a placeholder, a spacer, a box that will hold a picture —
    and it is one grid step square until something is written in it. */
-function addEntryOfStyle(style){
+function addEntryOfStyle(style, at){
   if(readOnlyView) return null;
   const shapeVal = style === 'rect' ? undefined : style;
   const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
-  const spot = emptySpotNearCentre(shapeVal);
+  const spot = at || emptySpotNearCentre(shapeVal);
   /* What the gear beside the kind says it starts as (presets). */
   const preset = (style === 'rect' || style === 'ellipse' || style === 'link') ? presetOptsFor(style) : {};
   applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, shapeVal,
@@ -40,6 +40,80 @@ function addEntryOfStyle(style){
    position that draws it there: a box that closes on its words stores
    the middle of a one-line entry, and an empty one is shorter than that,
    so the two differ by half the difference. */
+/* Carrying a new entry to where it goes (the owner's list of 24.11).
+ *
+   Picked from the + menu with a mouse, an entry is not dropped in the
+   middle of the screen: an outline of it rides under the pointer, and a
+   press on the chart puts it down there, on the grid; Escape, the right
+   button or a press anywhere but the chart lets it go. Picked with a
+   finger, which has no pointer to ride under, it goes where it always
+   went. The + menu shuts as the outline is taken up, unless pinned. */
+var placing = null;
+const placeGhost = document.createElement('div');
+placeGhost.className = 'place-ghost';
+placeGhost.hidden = true;
+document.body.appendChild(placeGhost);
+function placeSize(shapeVal){
+  return {
+    w: shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : GRID,
+    h: shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : GRID
+  };
+}
+function putDown(ev, make){
+  if(ev && ev.pointerType === 'mouse'){ beginPlacing(undefined, make); return; }
+  closeAddFab();
+  make(null);
+}
+function beginPlacing(style, make){
+  const shapeVal = style === 'rect' ? undefined : style;
+  placing = {shapeVal, make, size: placeSize(shapeVal)};
+  if(!addFab.classList.contains('pinned')) closeAddFab();
+  placeGhost.classList.toggle('round', shapeVal === 'ellipse');
+  document.body.classList.add('placing');
+  placeGhost.hidden = true;
+}
+function endPlacing(){
+  placing = null;
+  placeGhost.hidden = true;
+  document.body.classList.remove('placing');
+}
+/* The spot an entry of this kind stands at when its middle is put at
+   this point of the screen — snapped as every entry is, and with the
+   same allowance emptySpotNearCentre makes for an empty box. */
+function spotAtClient(shapeVal, cx, cy){
+  const {w, h} = placeSize(shapeVal);
+  const dy = (shapeVal==='ellipse' || shapeVal==='link' || shapeVal==='image') ? 0 : round2((h - NODE_GROW_REF) / 2);
+  const c = clientToWorld(cx, cy);
+  return {x: snapToGrid(c.x - w/2), y: round2(snapToGrid(c.y - h/2) + dy)};
+}
+document.addEventListener('pointermove', ev=>{
+  if(!placing) return;
+  const over = ev.target && svg.contains(ev.target);
+  placeGhost.hidden = !over;
+  if(!over) return;
+  const {w, h} = placing.size;
+  placeGhost.style.width = (w * vs) + 'px';
+  placeGhost.style.height = (h * vs) + 'px';
+  placeGhost.style.left = (ev.clientX - w * vs / 2) + 'px';
+  placeGhost.style.top = (ev.clientY - h * vs / 2) + 'px';
+}, true);
+document.addEventListener('pointerdown', ev=>{
+  if(!placing) return;
+  if(addFab.contains(ev.target)) return;           // another pick takes its place
+  const onChart = svg.contains(ev.target) && ev.button === 0;
+  if(!onChart){ endPlacing(); return; }
+  ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+  const make = placing.make, spot = spotAtClient(placing.shapeVal, ev.clientX, ev.clientY);
+  endPlacing();
+  /* The press that put it down is not also a click on the ground. */
+  const eat = e=>{ e.stopPropagation(); e.preventDefault(); };
+  window.addEventListener('click', eat, {capture: true, once: true});
+  setTimeout(()=> window.removeEventListener('click', eat, true), 400);
+  make(spot);
+}, true);
+document.addEventListener('keydown', ev=>{
+  if(placing && ev.key === 'Escape'){ ev.stopPropagation(); endPlacing(); }
+}, true);
 function emptySpotNearCentre(shapeVal){
   const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : GRID;
   const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : GRID;
@@ -151,7 +225,7 @@ function buildFigureMenu(){
   head('Flowchart');
   const g1 = grid();
   figurePicks().forEach(p=>{
-    const b = figureButton(p.label, figureIcon(p.value), ()=>{ closeAddFab(); addEntryOfFigure(p.value); });
+    const b = figureButton(p.label, figureIcon(p.value), (ev)=> putDown(ev, at=> addEntryOfFigure(p.value, at)));
     b.dataset.value = p.value;
     g1.appendChild(b);
   });
@@ -161,7 +235,7 @@ function buildFigureMenu(){
      side by side on one track and the track slides, so turning one is a
      movement and not a cut. */
   const tiles = figureTemplatesOffered().map((t, i)=>{
-    const b = figureButton(t.name, figureIcon(t), ()=>{ closeAddFab(); addEntryOfFigure(Object.assign({name: t.name, d: t.d}, t.ar ? {ar: t.ar} : {})); });
+    const b = figureButton(t.name, figureIcon(t), (ev)=> putDown(ev, at=> addEntryOfFigure(Object.assign({name: t.name, d: t.d}, t.ar ? {ar: t.ar} : {}), at)));
     b.classList.add('figure-template');
     b.dataset.template = String(i);
     const x = document.createElement('span');
@@ -230,7 +304,60 @@ function buildFigureMenu(){
   }
   if(count > 1) card.insertBefore(top, name);
   card.appendChild(view);
+  if(count > 1) swipeFigurePages(view, track);
   showFigurePage(false);
+}
+/* The pages follow a finger or a pressed mouse sideways and settle on
+   the nearest when let go, and a sideways wheel turns them too — the
+   arrows are not the only way across, and every way slides (the owner's
+   list of 24.11). A drag that moved is not also a press on a figure. */
+function swipeFigurePages(view, track){
+  let from = null, moved = false;
+  view.addEventListener('pointerdown', ev=>{
+    if(ev.button !== 0) return;
+    from = {x: ev.clientX, y: ev.clientY, id: ev.pointerId};
+    moved = false;
+  });
+  view.addEventListener('pointermove', ev=>{
+    if(!from || ev.pointerId !== from.id) return;
+    const dx = ev.clientX - from.x;
+    if(!moved){
+      if(Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(ev.clientY - from.y)) return;
+      moved = true;
+      view.classList.add('swiping');
+      try{ view.setPointerCapture(ev.pointerId); }catch(e){}
+    }
+    const pages = track.children.length;
+    // Past the first or the last page it gives, but only a little.
+    const edge = (figurePage === 0 && dx > 0) || (figurePage === pages - 1 && dx < 0);
+    track.style.transform = `translateX(calc(${-100 * figurePage}% + ${edge ? dx / 3 : dx}px))`;
+  });
+  const letGo = ev=>{
+    if(!from) return;
+    const dx = ev.clientX - from.x;
+    from = null;
+    if(!moved) return;
+    view.classList.remove('swiping');
+    const step = Math.abs(dx) > Math.min(60, view.clientWidth / 4) ? (dx < 0 ? 1 : -1) : 0;
+    const to = Math.min(Math.max(0, figurePage + step), track.children.length - 1);
+    figurePage = to;
+    showFigurePage(true);
+    const eat = e=>{ e.stopPropagation(); e.preventDefault(); };
+    view.addEventListener('click', eat, {capture: true, once: true});
+    setTimeout(()=> view.removeEventListener('click', eat, true), 300);
+  };
+  view.addEventListener('pointerup', letGo);
+  view.addEventListener('pointercancel', letGo);
+  let wheelAt = 0;
+  view.addEventListener('wheel', ev=>{
+    const d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : (ev.shiftKey ? ev.deltaY : 0);
+    if(!d) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const now = performance.now();
+    if(now - wheelAt < 350 || Math.abs(d) < 4) return;
+    wheelAt = now;
+    turnFigurePage(d > 0 ? 1 : -1);
+  }, {passive: false});
 }
 /* Where the track stands, and which of the arrows can still be pressed.
    `moving` false places it at once — a menu that opens on page three
@@ -401,10 +528,10 @@ function seatPresetCard(){
   addFabPresets.style.transformOrigin = 'right center';
 }
 /* An entry drawn as a figure, put down as Default puts one. */
-function addEntryOfFigure(fig){
+function addEntryOfFigure(fig, at){
   if(readOnlyView) return null;
   const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
-  const spot = emptySpotNearCentre(undefined);
+  const spot = at || emptySpotNearCentre(undefined);
   // A figure is a Default entry of another shape, and starts as Default's preset says.
   applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, undefined,
                                     Object.assign(presetOptsFor('rect'), {pos: [spot.x, spot.y], figure: fig})]));

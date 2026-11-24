@@ -196,18 +196,23 @@ function entryInSight(n){
   const x0 = r.left + vx + n.x*vs, y0 = r.top + vy + n.y*vs, w = n.w*vs, h = n.h*vs;
   if(!(w > 0 && h > 0)) return false;
   const K = 5;
-  let seen = 0;
+  let seen = 0, there = 0;
   for(let i = 0; i < K; i++) for(let j = 0; j < K; j++){
     const x = x0 + (i + 0.5) * w / K, y = y0 + (j + 0.5) * h / K;
     if(x < 0 || y < 0 || x >= W || y >= H) continue;
+    if(x < r.left || y < r.top || x >= r.right || y >= r.bottom) continue;
+    there++;
     const e = document.elementFromPoint(x, y);
     if(!e || !(e === svg || svg.contains(e))) continue;
     const g = e.closest && e.closest('.node');
     if(g && g.dataset.id !== n.id) continue;
     seen++;
   }
-  const part = seen / (K*K);
-  return part >= 0.5 || part * w * h >= 0.4 * r.width * r.height;
+  const enough = (k)=>{ const part = k / (K*K); return part >= 0.5 || part * w * h >= 0.4 * r.width * r.height; };
+  /* On the screen but under something: neither in sight nor out of it.
+     An entry a menu passed over and left was never away, and coming out
+     from under it is not coming into view (the owner's list of 24.11). */
+  return enough(seen) ? true : enough(there) ? 'covered' : false;
 }
 var scnViewAsked = false;
 function scenariosInView(){
@@ -222,7 +227,8 @@ function scenariosInView(){
       if(s.when.type !== 'inView') return;
       const id = s.when.node;
       if(!sight.has(id)) sight.set(id, entryInSight(nodes.get(id)));
-      const now = sight.get(id), was = !!scnInside.get(s.id);
+      const was = !!scnInside.get(s.id);
+      const now = sight.get(id) === 'covered' ? was : sight.get(id);
       scnInside.set(s.id, now);
       if(now && !was && !(s.once && scnSeen.has(s.id))){ scnSeen.add(s.id); runScenario(s, 1); }
     });
@@ -252,9 +258,19 @@ svg.addEventListener('pointerdown', ev=>{
   const cb = scnPick;
   scnPick = null;
   document.body.classList.remove('scn-picking');
+  /* The press is the pick and nothing else (the owner's list of 24.11):
+     the click and the double click that follow it would select the
+     entry, fly to it or open its words for writing. */
+  scnPickedAt = performance.now();
   if(g && g.dataset.id) cb(g.dataset.id);
   else buildStudio();
 }, true);
+var scnPickedAt = -1e9;
+function scnPickSwallows(){ return !!scnPick || performance.now() - scnPickedAt < 600; }
+['click', 'dblclick', 'mousedown', 'mouseup'].forEach(type=> svg.addEventListener(type, ev=>{
+  if(!scnPickSwallows()) return;
+  ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+}, true));
 
 /* ---- The studio ---- */
 function studioPanelEl(){ return document.getElementById('studioPanel'); }

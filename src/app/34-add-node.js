@@ -72,6 +72,10 @@ NODE_STYLE_PICKS.forEach(p=>{
   b.appendChild(cap);
   b.addEventListener('click', ev=>{
     ev.stopPropagation();
+    /* With a mouse, what is picked is carried to where it goes and put
+       down by a press there (the owner's list of 24.11); a finger, which
+       has nothing hovering to carry it, still puts it in the middle. */
+    if(ev.pointerType === 'mouse'){ beginPlacing(p.value, at=> addEntryOfStyle(p.value, at)); return; }
     closeAddFab();
     addEntryOfStyle(p.value);
   });
@@ -80,7 +84,7 @@ NODE_STYLE_PICKS.forEach(p=>{
 /* Whether it was open, so Escape knows it had something to put away. */
 function closeAddFab(){
   const was = addFab.classList.contains('open');
-  addFab.classList.remove('open', 'figures', 'presets');
+  addFab.classList.remove('open', 'figures', 'presets', 'pinned');
   if(typeof presetKind !== 'undefined') presetKind = null;
   addFabBtn.setAttribute('aria-expanded', 'false');
   return was;
@@ -93,17 +97,30 @@ function closeAddFab(){
    toggles; a click with a mouse only ever opens, the pointing having
    already done so. */
 let addFabTouched = false;
+/* Pressed with a mouse, the button pins the menu open (the owner's list of
+   24.11): the button and its plus stay lit and the menu stays up when the
+   pointer leaves, until the button is pressed again. A card opened from
+   the menu — more shapes, or a kind's gear — holds it up the same way
+   while it is open, since it was asked for by a press too. */
+function addFabHeld(){
+  return addFab.classList.contains('pinned') || addFab.classList.contains('figures') || addFab.classList.contains('presets');
+}
 addFab.addEventListener('pointerenter', ev=>{ if(ev.pointerType === 'mouse') openAddFab(); });
-addFab.addEventListener('pointerleave', ev=>{ if(ev.pointerType === 'mouse') closeAddFab(); });
+addFab.addEventListener('pointerleave', ev=>{ if(ev.pointerType === 'mouse' && !addFabHeld()) closeAddFab(); });
 addFabBtn.addEventListener('pointerdown', ev=>{ addFabTouched = ev.pointerType !== 'mouse'; });
 addFabBtn.addEventListener('click', ev=>{
   ev.stopPropagation();
-  if(addFabTouched && addFab.classList.contains('open')) closeAddFab();
-  else openAddFab();
+  if(addFabTouched){
+    if(addFab.classList.contains('open')) closeAddFab(); else openAddFab();
+    return;
+  }
+  if(addFab.classList.contains('pinned')){ closeAddFab(); return; }
+  openAddFab();
+  addFab.classList.add('pinned');
 });
 addFab.addEventListener('mousedown', ev=> ev.stopPropagation());
 document.addEventListener('mousedown', ev=>{
-  if(!addFab.contains(ev.target)) closeAddFab();
+  if(!addFab.contains(ev.target) && !addFab.classList.contains('pinned')) closeAddFab();
 });
 
 function slugify(label){
@@ -228,7 +245,8 @@ function pasteClipboardNode(){
   const items = (Array.isArray(clip.items) && clip.items.length) ? clip.items : [clip];
   const links = Array.isArray(clip.links) ? clip.links : [];
   const existingIds = new Set(workingNodes.map(it=>it[0]));
-  /* A copy lands in the middle of what is on screen — always, wherever the
+  /* A copy lands under the mouse when it is on the chart, else in the
+     middle of what is on screen — always, wherever the
      entries it was copied from happen to be. Pasting beside the originals
      is only ever right while you are still looking at them, and the reader
      who pans across the chart and pastes is not: they are looking at where
@@ -331,12 +349,22 @@ function visibleCanvasRect(){
   return {left, right, top: rect.top, bottom: rect.bottom,
           width: right - left, height: rect.height};
 }
-// Where a paste lands: the middle of what is on show, clear of what is there.
+/* Where the mouse is over the chart, while it is: a paste goes there
+   rather than to the middle of the screen (the owner's list of 24.11).
+   A finger leaves no such place, and a pointer gone off the chart is not
+   one. */
+var chartPointer = null;
+svg.addEventListener('pointermove', ev=>{ chartPointer = ev.pointerType === 'mouse' ? {x: ev.clientX, y: ev.clientY} : null; });
+svg.addEventListener('pointerleave', ()=>{ chartPointer = null; });
+// Where a paste lands: under the mouse on the chart, or else the middle of
+// what is on show, clear of what is there.
 function viewCentreSpot(shapeVal){
   const rect = visibleCanvasRect();
   const w = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_W : 120;
   const h = shapeVal==='ellipse' ? BIO_SIZE : shapeVal==='link' ? LINK_NODE_SIZE : shapeVal==='image' ? IMAGE_DEFAULT_H : NODE_MINH;
-  const c = clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
+  const under = !!chartPointer;
+  const c = under ? clientToWorld(chartPointer.x, chartPointer.y)
+                  : clientToWorld(rect.left + rect.width/2, rect.top + rect.height/2);
   let x = snapToGrid(c.x - w/2), y = snapToGrid(c.y - h/2);
   const taken = [...nodes.values()].filter(n=> !isArrayNode(n)).map(n=>({x:n.x, y:n.y, w:n.w, h:n.h}));
   const clash = (px,py)=> taken.some(t=> px < t.x + t.w + 6 && px + w + 6 > t.x &&
