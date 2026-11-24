@@ -216,9 +216,9 @@ async function scenario(name, body){
   if(LIST){ console.log(`  ${String(index).padStart(3)}  ${name}`); return; }
   if(ONLY && !ONLY_ANY.some(o => name.toLowerCase().includes(o))){ sceneSkipped++; return; }
   if(SHARD && index % SHARD.of !== SHARD.i){ sceneSkipped++; return; }
-  sceneRan++;
   const t0 = Date.now();
   try{
+    if(sceneRan++ && freshPage) await freshPage();
     await body();
   }catch(e){
     // Counted as a failure of this scenario, not as the end of the run.
@@ -226,6 +226,9 @@ async function scenario(name, body){
   }
   sceneTimes.push({name, ms: Date.now() - t0});
 }
+
+/* Set by main() once the page is up: see there. */
+let freshPage = null;
 
 async function main(){
   const srv = http.createServer((q, r) => {
@@ -299,6 +302,41 @@ async function main(){
     };
   });
   await wait(1500);
+
+  /* Every scenario after the first starts on a page just opened, as the
+   * first does.
+   *
+   * The scenarios share one page, and many leave it as they used it: a
+   * chart of their own put back only in part, settings changed, a drawer
+   * open, the view far away, something in storage. In shards each
+   * scenario follows other ones than in a whole run, so a whole run could
+   * fail where all four shards passed — five checks did, unseen,
+   * because CI runs shards. Putting everything back by hand in
+   * each scenario is a promise every new one has to keep; opening the
+   * page again keeps it for them. Storage is emptied first, or the page
+   * would open on what a scenario left there (off the site, a chart in
+   * localStorage is restored). A reload is about a quarter of a second.
+   * What a scenario sets up on the page object — a route, a listener —
+   * is its own business; routes are dropped, the window's size put back. */
+  const PAGE_URL = `http://127.0.0.1:${PORT}/${PAGE}`;
+  freshPage = async () => {
+    await page.evaluate(async () => {
+      try{ localStorage.clear(); sessionStorage.clear(); }catch(e){}
+      try{ for(const d of (indexedDB.databases ? await indexedDB.databases() : [])) indexedDB.deleteDatabase(d.name); }catch(e){}
+    }).catch(() => {});
+    if(page.unrouteAll) await page.unrouteAll({behavior: 'ignoreErrors'});
+    await page.setViewportSize({width: 1500, height: 950});
+    await page.goto(PAGE_URL, {waitUntil: 'load'});
+    await page.waitForFunction(() => typeof rebuildChart === 'function' && document.querySelector('#nodeLayer .node'));
+    await page.evaluate(WAVE_HELPERS);
+    await page.evaluate(()=>{
+      window.__pristine = {
+        nodes: workingNodes.map(item=> item.slice()),
+        styles: EDGE_STYLES.map(x=> Object.assign({}, x))
+      };
+    });
+    await page.evaluate(() => document.fonts.ready.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
+  };
 
   /* The scenarios are in tests/scenarios/, a file to a stretch of the
    * suite's history, run in the order this list gives — which is the order

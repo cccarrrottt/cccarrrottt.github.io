@@ -127,7 +127,12 @@ says nothing about the other; run both.
 The suite is 168 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
-two lines per scenario and moved no bodies.
+two lines per scenario and moved no bodies. They do not depend on one
+another's leavings either: every scenario after the first starts on the
+page opened again, with its storage emptied (`freshPage`). Until 24.11 they
+shared one page as each left it, and a whole run in order failed five
+checks that every shard passed — a chart, settings, a drawer or the view
+left behind by a scenario dozens before.
 
 ```bash
 node tests/regression.js --list           what there is to run

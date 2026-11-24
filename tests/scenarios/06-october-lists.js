@@ -3277,7 +3277,12 @@
     const a = await centreOf('.node[data-id="tn_a"]');
     await page.mouse.move(a.x, a.y); await page.mouse.down();
     const during = [];
-    for(let i = 1; i <= 6; i++){ await page.mouse.move(a.x + i * 31, a.y + i * 13); during.push(await shapeOf()); }
+    /* Each shape is read a frame after the move: a carry moves the entries
+       at once and redraws their lines in the next frame (queueDragRedraw),
+       before anything is painted. Read in between, the arrow looked a step
+       behind its merge — on a slow load, about every other run. */
+    const nextFrame = ()=> page.evaluate(()=> new Promise(ok=> requestAnimationFrame(()=> requestAnimationFrame(ok))));
+    for(let i = 1; i <= 6; i++){ await page.mouse.move(a.x + i * 31, a.y + i * 13); await nextFrame(); during.push(await shapeOf()); }
     await page.mouse.up();
     await new Promise(ok=> setTimeout(ok, 150));
     out.carried = [shape0, ...during, await shapeOf()];
