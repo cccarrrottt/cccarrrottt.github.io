@@ -469,6 +469,10 @@ function redrawEdges(){
       if(cutIn) attrs['stroke-dashoffset'] = cutIn.toFixed(2);
     }
     const drawnLine = edgePath(attrs, style, edgeLayer);
+    /* Leg by leg, each starting and ending on a whole dash (see
+       fittedDash), so a corner is one dash turning it. A curve has no
+       legs, and a ripple's own pattern is its wave. */
+    if(dash && !style.sinusoid && style.routing !== 'curve') fitDashOn(drawnLine, dash);
     /* A candidate to hop over the lines it crosses: a line drawn along its
        route, not a curve, whose straight stretches are what a hop is cut
        into. A ripple hops too, and is handed its own points, which are
@@ -824,6 +828,7 @@ function showHops(rec, shown){
   const d = rec.build(shown);
   rec.line.el.setAttribute('d', d);
   if(rec.line.inner) rec.line.inner.setAttribute('d', d);
+  if(rec.line.el.dataset.fitDash) fitDashOn(rec.line.el, rec.line.el.dataset.fitDash);
   /* What the hops are over, for whoever asks the line (the suite does). */
   rec.line.el.dataset.hops = shown.length;
   rec.line.el.dataset.hopsOver = shown.map(h=> h.overTo).join('\u0002');

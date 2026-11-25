@@ -13,6 +13,24 @@ const BIO_SIZE = 36;
    to a link beside each. Half a portrait across, with nothing written in
    it: what it says is the arrow, and where it goes. */
 const LINK_NODE_SIZE = BIO_SIZE / 2;
+const PORT_SIDES = ['top', 'right', 'bottom', 'left'];
+const PORTS_MAX = 16;
+function cleanPorts(v){
+  if(!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out = {};
+  PORT_SIDES.forEach(k=>{
+    const c = Math.round(+v[k]);
+    if(Number.isFinite(c) && c > 0) out[k] = Math.min(PORTS_MAX, c);
+  });
+  return Object.keys(out).length ? out : null;
+}
+function fixedPortsOf(opts, shape){
+  return opts && !isFreeShape(shape) && shape !== 'split' && shape !== 'link' ? cleanPorts(opts.ports) : null;
+}
+/* What can be a switch: an entry with a box of its own. */
+function switchable(n){
+  return !!n && !isFreeShape(n.shape) && !['split', 'link', 'array', 'callout', 'ellipse'].includes(n.shape || '');
+}
 function isLinkNode(n){ return !!n && (n.shape || '') === 'link'; }
 /* A split: a coloured dot set on a connector, out of which two or more
    connectors go on (the owner's list of 24.10, evening). It is an entry,
@@ -448,6 +466,8 @@ const TEXTBOX_MAXW = 420;
    before the answer exists throws — which is exactly what happened the
    moment a section heading started carrying an editing control. */
 let readOnlyView = false;
+/* The switches a reader has pressed, against what the chart starts them at. */
+var switchFlips = new Set();
 const NODE_MINW = 84, NODE_MAXW = 178, NODE_MINH = 40;
 /* How wide a one-line entry may grow before its text is clipped instead.
    Wider than NODE_MAXW, which is the ceiling for a label the measurer is
@@ -1030,7 +1050,17 @@ workingNodes.forEach(item=>{
   /* An array's frame is black unless it is given a colour (the owner's
      choice): it is drawn round other entries, half see-through, and the
      default ink would read as one more entry's border. */
-  const colors = ownColors || (isArray ? [ARRAY_INK] : tagColorsOf(tags));
+  let colors = ownColors || (isArray ? [ARRAY_INK] : tagColorsOf(tags));
+  /* A switch (the owner's list of 25.11): an entry that is 0 or 1, and
+     looks the part of whichever it is. What it starts at is the chart's
+     (opts.switch.on); a reader's presses are their own reading and are
+     never saved (switchFlips). When 1 it may wear a colour of its own;
+     its words for each state are the pill's, so the entry's own label is
+     never swapped for them and the editor goes on editing the one it has. */
+  const sw = (!isArray && shape !== 'split' && shape !== 'link' && opts && opts.switch && typeof opts.switch === 'object') ? opts.switch : null;
+  const swOn = !!sw && (!!sw.on !== !!(typeof switchFlips !== 'undefined' && switchFlips && switchFlips.has(id)));
+  const swInk = sw && swOn && hexColors([sw.onColor]);
+  if(swInk) colors = swInk;
   nodes.set(id,{
     id, label, note:note||null,
     // A character bio is a small circle rather than a box: it carries a
@@ -1045,6 +1075,11 @@ workingNodes.forEach(item=>{
     w: (shape==='ellipse' ? BIO_SIZE : shape==='link' ? LINK_NODE_SIZE : shape==='split' ? SPLIT_SIZE : BOXW), h:56,
     children:[],
     link: (opts && opts.link) || null,
+    /* Ports fixed by hand (the owner's list of 25.11, after a fibre
+       splitter): how many on each side, evenly spaced, and connectors meet
+       the entry only there. Absent is the usual fan along every side. */
+    ports: fixedPortsOf(opts, shape),
+    switch: sw ? {on: swOn, words: [typeof sw.offLabel === 'string' ? sw.offLabel : '', typeof sw.onLabel === 'string' ? sw.onLabel : '']} : null,
     colors, ownColors,
     color: (colors && colors[0]) || DEFAULT_NODE_COLOR,
     /* What the entry is filled with. One colour is a flat ground; more

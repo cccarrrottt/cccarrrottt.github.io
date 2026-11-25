@@ -123,7 +123,7 @@ const touchMenu = (()=>{
   m.hidden = true;
   m.setAttribute('role', 'menu');
   [['cut', 'Cut'], ['copy', 'Copy'], ['paste', 'Paste'], ['array', 'Array'],
-   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['split', 'Split'], ['branch', 'New line'], ['background', 'Background'], ['delete', 'Delete']].forEach(([act, label])=>{
+   ['merge', 'Merge'], ['unmerge', 'Unmerge'], ['split', 'Split'], ['branch', 'New line'], ['background', 'Background'], ['switch', 'Switch'], ['ports', 'Ports'], ['template', 'Save as template'], ['delete', 'Delete']].forEach(([act, label])=>{
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.act = act;
@@ -159,6 +159,9 @@ const touchMenu = (()=>{
     }
     else if(act === 'branch' && selectedId) beginSplitBranch(selectedId);
     else if(act === 'background') openBackgroundMenu(touchMenu.at.x, touchMenu.at.y);
+    else if(act === 'switch' && selectedId) openSwitchMenu(touchMenu.at.x, touchMenu.at.y, selectedId);
+    else if(act === 'ports' && selectedId) openPortsMenu(touchMenu.at.x, touchMenu.at.y, selectedId);
+    else if(act === 'template' && selectedId) saveAsTemplate(selectedId);
     else if(act === 'delete') deletePicked();
     syncTouchTools();
   });
@@ -184,6 +187,9 @@ function openTouchMenu(x, y, kind, byMouse){
   }
   /* A split, held on its own, offers a new line out of it. */
   if((kind === true || kind === 'selection') && multiSelection.size <= 1 && isSplitNode(nodes.get(selectedId))) offers.push('branch');
+  /* One entry with a box, held on its own, may be made a switch, or its
+     switch set (51-switch.js). */
+  if((kind === true || kind === 'selection') && multiSelection.size <= 1 && switchable(nodes.get(selectedId))) offers.push('switch', 'ports', 'template');
   touchMenu.at = {x, y};
   touchMenu.querySelectorAll('button').forEach(b=>{
     b.hidden = !offers.includes(b.dataset.act);

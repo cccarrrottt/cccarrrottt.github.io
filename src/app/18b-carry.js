@@ -17,8 +17,42 @@
 function carryBends(st, offX, offY){
   if(!st.bendCarry || !st.bendCarry.length) return;
   st.bendCarry.forEach(c=>{
-    c.style.bends = c.bends.map(b=> [+(b[0] + offX).toFixed(2), +(b[1] + offY).toFixed(2)]);
+    const moved = c.from ? slideBends(c, offX, offY)
+      : c.bends.map(b=> [b[0] + offX, b[1] + offY]);
+    c.style.bends = moved.map(b=> [+b[0].toFixed(2), +b[1].toFixed(2)]);
   });
+}
+/* A connector with ONE end carried keeps its bends — but not all of them
+   where they were (the owner's list of 25.11). Pinned to the paper, the
+   corners made the stretch out of the carried entry step sideways as soon
+   as the entry left its line. Now the corners between the entry and the
+   first stretch that runs the way the entry is going go along with it,
+   and that stretch is the one that grows or shrinks: carried right, an
+   entry whose line drops and then turns takes the drop with it and the
+   level stretch gets longer. Each axis on its own, so a carry on the
+   slant does both. Worked out from the bends as the carry found them,
+   every frame, so carrying back puts every corner back. */
+function slideBends(c, offX, offY){
+  const list = c.bends.map(b=> [b[0], b[1]]);
+  const chain = c.reversed ? list.slice().reverse() : list;
+  const orig = chain.map(b=> [b[0], b[1]]);
+  const slide = (axis, off)=>{
+    if(!off) return;
+    const other = 1 - axis;
+    let prev = [c.from.x, c.from.y];
+    for(let i = 0; i < chain.length; i++){
+      const b = orig[i];
+      /* A stretch running along the carry: this is the one that grows. */
+      if(Math.abs(b[other] - prev[other]) <= BEND_ABSORB) return;
+      /* …and one at a slant is too, as the router turns it. */
+      if(Math.abs(b[axis] - prev[axis]) > BEND_ABSORB) return;
+      chain[i][axis] = b[axis] + off;
+      prev = b;
+    }
+  };
+  slide(0, offX);
+  slide(1, offY);
+  return c.reversed ? chain.reverse() : chain;
 }
 function queueDragRedraw(st){
   // A page more as the carry reaches the field's edge, at once (see syncField).

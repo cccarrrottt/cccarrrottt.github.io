@@ -583,8 +583,13 @@ function applyRichCommand(surface, kind, arg, restyle, hadAll){
       ruby.appendChild(frag);
       if(!ruby.textContent) ruby.appendChild(document.createTextNode('word'));
     }
+    /* Empty, waiting for its words: it used to say "reading", which had
+       to be typed over and, left, was a reading of "reading" (the owner's
+       list of 25.11). Held open while the caret is in it (fresh), and
+       gone as soon as it is left empty. */
     const rt = document.createElement('rt');
-    rt.textContent = 'reading';
+    rt.textContent = '\u200b';
+    rt.dataset.fresh = '1';
     ruby.appendChild(rt);
     range.insertNode(ruby);
     // Leave the annotation selected so it can be typed over immediately.

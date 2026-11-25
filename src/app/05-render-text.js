@@ -594,9 +594,9 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
          The base sits on the line and the annotation is centred over it,
          and each of them is laid out run by run — so an annotation can be
          coloured, emboldened or set in another face without the word
-         underneath it changing, and the other way round. Both start from
-         the look of the run the whole unit sits in, which is what keeps a
-         reading inside a bold phrase bold unless it is told otherwise. */
+         underneath it changing, and the other way round. The word starts
+         from the look of the run the whole unit sits in; the reading from
+         its size alone (25.11). */
       const own = w.size || fontSize || NODE_FS;
       const drawRow = (runs, startX, y, scale, cls)=>{
         let cx2 = startX;

@@ -335,6 +335,8 @@ function importChartFromText(text){
     if(settingsIn && settingsIn.hops === false) SETTINGS.hops = false; else delete SETTINGS.hops;
     const backgroundIn = cleanBackground(settingsIn && settingsIn.background);
     if(backgroundIn) SETTINGS.background = backgroundIn; else delete SETTINGS.background;
+    const templatesIn = cleanNodeTemplates(settingsIn && settingsIn.nodeTemplates);
+    if(templatesIn.length) SETTINGS.nodeTemplates = templatesIn; else delete SETTINGS.nodeTemplates;
     const scenariosIn = cleanScenarios(settingsIn && settingsIn.scenarios);
     if(scenariosIn.length) SETTINGS.scenarios = scenariosIn; else delete SETTINGS.scenarios;
     /* The legend's words belong to the chart they describe: brought in

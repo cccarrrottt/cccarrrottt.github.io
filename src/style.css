@@ -602,6 +602,17 @@
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
   .node.selected > rect.local-sheet, .node.selected > path.local-sheet{filter:none;}
+  /* One halo for an outline and the tabs grown out of it: the trace drawn
+     behind them glows, and they do not (drawSelectionHalo). */
+  .node-halo{display:none;pointer-events:none;}
+  .node.selected > .node-halo, .node.multi > .node-halo{display:inline;filter:url(#sel-halo);}
+  /* Filled as the outline and the tabs are (their ground hides the trace's
+     inside), so the glow is as strong as one cast by the shapes. */
+  .node-halo *{fill:#000 !important;stroke:#000 !important;stroke-width:1.6;opacity:1 !important;}
+  .node.selected:has(> .node-halo) > *, .node.multi:has(> .node-halo) > *,
+  .node.selected:has(> .node-halo) > .lang-chips .lang-chip-bg, .node.multi:has(> .node-halo) > .lang-chips .lang-chip-bg,
+  .node.selected:has(> .node-halo) > a > .node-link .node-link-bg, .node.multi:has(> .node-halo) > a > .node-link .node-link-bg{filter:none;}
+  .node.selected > .node-halo, .node.multi > .node-halo{filter:url(#sel-halo) !important;}
   .node.selected > rect.hub-echo{filter:none;}
   /* An array (see 40-arrays.js) is held anywhere inside its frame and on
      a band along it, which is a catcher and not a border, and its
@@ -1060,6 +1071,16 @@
   svg.connector-dragging .node-handle-band{opacity:0.16;}
   .node-handle:hover .node-handle-band{opacity:0.6;}
   svg.connector-dragging .node-handle.drop-target .node-handle-band{opacity:0.9;}
+  /* The selection's frame, while its tool is in the hand (50-select-area.js). */
+  .sel-area-frame{fill:rgba(194,59,34,0.06);stroke:var(--accent);stroke-dasharray:4 3;cursor:move;}
+  .sel-area[data-mode="add"] .sel-area-frame{fill:rgba(46,125,50,0.07);}
+  .sel-area[data-mode="cut"] .sel-area-frame{fill:rgba(90,90,90,0.08);stroke-dasharray:1.5 3;}
+  .sel-area-grip{fill:var(--paper, #fff);stroke:var(--accent);}
+  .sel-area-grip[data-area="nw"], .sel-area-grip[data-area="se"]{cursor:nwse-resize;}
+  .sel-area-grip[data-area="ne"], .sel-area-grip[data-area="sw"]{cursor:nesw-resize;}
+  .sel-area-grip[data-area="n"], .sel-area-grip[data-area="s"]{cursor:ns-resize;}
+  .sel-area-grip[data-area="e"], .sel-area-grip[data-area="w"]{cursor:ew-resize;}
+  body.area-tool #canvas{cursor:crosshair;}
   .marquee{
     fill:rgba(194,59,34,0.08);
     stroke:var(--accent);
@@ -1424,9 +1445,13 @@
      ground and covers the rule between them, the way the tab of a folder
      is part of the folder. */
   .side-tab.open .side-tab-handle{
-    background:var(--panel);width:27px;z-index:1;border-right:none;
+    background:var(--panel);width:26px;z-index:1;border-right:none;
     border-radius:0;box-shadow:none;
   }
+  /* …exactly as wide as the edge: a pixel wider, the rule under the tab
+     ran a pixel into the drawer past the drawer's own side (the owner's
+     list of 25.11). The tab ends on the drawer's border, which goes on
+     down from there. */
   /* Each tab is marked by a sign rather than a word: a tag, a citation,
      a map. */
   .side-tab-handle svg{display:block;width:15px;height:15px;margin:0 auto;}
@@ -2432,6 +2457,13 @@
   .bg-menu .bg-pick{margin:0;padding:3px 8px;font-size:11.5px;}
   .bg-menu .bg-fit{flex:1 1 auto;}
   .bg-menu .hex-reset:disabled{opacity:0.3;cursor:default;}
+  .bg-menu .bg-kind{flex:1 1 auto;}
+  .bg-menu-colours{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding-left:58px;}
+  .bg-menu-colours > .hex-field{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;}
+  .bg-menu-colours .tb-hex{width:62px;}
+  .bg-colour-drop{border:none;background:none;color:var(--ink-faint);cursor:pointer;padding:0 2px;font-size:13px;line-height:1;}
+  .bg-colour-drop:hover{color:var(--accent);}
+  .bg-menu .bg-colour-add{margin:0;padding:1px 7px;font-size:13px;line-height:1.2;}
 
   .coord{
     /* Clear of the tabs at the left edge; the drawers end above it. */
@@ -4218,7 +4250,15 @@
     .search-results{max-height:min(320px, 55dvh);}
 
     .side-tabs{top:8px;bottom:8px;}
-    .side-tab-body{width:calc(100vw - 34px);}
+    /* On a phone an open drawer is the whole screen beside the tabs (the
+       owner's list of 25.11): a fifth of a phone's height held three rows
+       of a list. Its box is its own tab's fifth, so it reaches up by the
+       tabs above it and down to the foot of the column. */
+    .side-tab-body{width:calc(100vw - 34px);
+      top:calc(var(--tab-i, 0) * (-100% - var(--side-tab-gap)));bottom:auto;
+      height:calc(500% + var(--side-tab-gap) * 4);}
+    #tagsPanel{--tab-i:0;} #refsPanel{--tab-i:1;} #keyPanel{--tab-i:2;} #mediaPanel{--tab-i:3;}
+    .side-tab.open, .side-tab.shutting{z-index:2;}
     /* The entry drawer is a sheet from the bottom instead. It opens on
        every tap of an entry, so a panel over the whole screen would have
        hidden the chart each time anything on it was picked — and the
@@ -4380,3 +4420,26 @@ body.scn-picking svg#canvas, body.scn-picking svg#canvas *{cursor:crosshair !imp
 @keyframes scn-glow{0%,100%{filter:none;}50%{filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 3px var(--accent));}}
 @keyframes scn-shake{0%,100%{translate:0 0;}20%{translate:-6px 0;}40%{translate:6px 0;}60%{translate:-4px 0;}80%{translate:4px 0;}}
 @media (prefers-reduced-motion: reduce){ .node.scn-pulse, .node.scn-glow, .node.scn-shake{animation:none;} }
+
+/* A reading is words of its own over a word (the owner's list of 25.11):
+   it takes nothing of the word's look but its size. What it is given of
+   its own is on the runs inside it, which set these again. */
+ruby > rt{font-weight:400;font-style:normal;color:var(--rt-ink, var(--ink));font-family:var(--rt-face, inherit);}
+
+/* A switch's pill (drawSwitchPill, 13-render-nodes.js): 0 or 1. */
+.switch-pill{cursor:pointer;}
+.switch-bg{fill:var(--paper);stroke:var(--switch-ink, var(--ink));stroke-width:1.4;}
+.switch-track{fill:var(--line, #d6dbe3);transition:fill .15s;}
+.switch-pill.on .switch-track{fill:var(--switch-ink, var(--accent));}
+.switch-knob{fill:var(--paper);stroke:var(--switch-ink, var(--ink));stroke-width:1.2;}
+.switch-words{font:500 10px 'IBM Plex Mono',monospace;fill:var(--ink);pointer-events:none;}
+.switch-pill:focus{outline:none;}
+.switch-pill:focus-visible .switch-bg{stroke-width:2.4;}
+.switch-menu .switch-words-field{width:120px;}
+.switch-menu .switch-off{margin-top:8px;}
+.fixed-port{fill:var(--paper);stroke:var(--ink);stroke-width:1.1;pointer-events:none;}
+.node-style-btn.tpl{position:relative;}
+.node-style-btn.tpl .tpl-drop{position:absolute;top:1px;right:3px;font-size:11px;line-height:1;opacity:0;color:var(--muted, #888);cursor:pointer;}
+.node-style-btn.tpl:hover .tpl-drop, .node-style-btn.tpl:focus-visible .tpl-drop{opacity:1;}
+.ports-menu .ports-count{width:56px;}
+.ports-menu .ports-any{margin-top:8px;}

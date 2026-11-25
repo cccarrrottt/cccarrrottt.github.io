@@ -32,8 +32,8 @@ var scnPanelKey = '';
    an entry pressed, coming into sight, finishing an animation, being
    shown or hidden by another scenario — so one leads to the next — or the
    chart being opened. */
-var SCN_TRIGGERS = ['press', 'inView', 'animEnd', 'shown', 'hidden', 'start'];
-var SCN_TRIGGER_WORDS = ['is pressed', 'comes into view', 'finishes an animation', 'appears', 'disappears', 'the chart opens'];
+var SCN_TRIGGERS = ['press', 'inView', 'animEnd', 'shown', 'hidden', 'start', 'switchOn', 'switchOff'];
+var SCN_TRIGGER_WORDS = ['is pressed', 'comes into view', 'finishes an animation', 'appears', 'disappears', 'the chart opens', 'is switched to 1', 'is switched to 0'];
 var SCN_ACTIONS = ['show', 'hide', 'fly', 'anim'];
 var SCN_ANIMS = ['pulse', 'glow', 'shake'];
 /* How long each animation runs (style.css, .node.scn-*), so what follows

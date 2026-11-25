@@ -1201,9 +1201,11 @@ function addLineButtons(bar){
        button is understood to do. */
     const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
     if(!surface) return;
-    const state = lineStateOf(surface);
-    if(state.under) applyRichCommand(surface, 'under', pick.value, true);
-    if(state.strike) applyRichCommand(surface, 'strike', pick.value, true);
+    /* It is the underline's kind: each rule keeps its own (25.11), and
+       restyling one never touches the other. */
+    const ub = bar.querySelector('.tb-line-under');
+    if(ub) ub.dataset.rule = pick.value;
+    if(lineStateOf(surface).under) applyRichCommand(surface, 'under', pick.value, true);
     syncToolbarLines(bar);
   });
   /* Each rule is one control of two halves, as a word processor draws it
@@ -1225,7 +1227,7 @@ function addLineButtons(bar){
       ev.stopPropagation();
       const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
       if(!surface) return;
-      applyRichCommand(surface, kind, pick.value || 'solid');
+      applyRichCommand(surface, kind, b.dataset.rule || 'solid');
       syncToolbarLines(bar);
     });
     const caret = document.createElement('button');
@@ -1234,14 +1236,17 @@ function addLineButtons(bar){
     caret.title = 'What kind of rule';
     caret.innerHTML = CARET_SVG;
     keepsCaret(bar, caret);
-    const deco = kind === 'under' ? 'underline' : 'line-through';
     caret.addEventListener('click', ev=>{
       ev.stopPropagation();
+      /* The kinds are the rules themselves, with nothing written on them
+         (the owner's list of 25.11); the letter on the button is what
+         shows the rule on words. */
       openTbDrop(caret, Object.keys(LINE_STYLES).map(k=>({
-        value: k, translate: false,
-        html: `<span class="tb-rule-sample" style="text-decoration:${deco} ${LINE_STYLES[k].css}">${kind === 'under' ? 'Abc' : 'abc'}</span>`
-      })), pick.value, k=>{
-        pick.value = k;
+        value: k, translate: false, title: k,
+        html: ruleSampleSvg(k)
+      })), b.dataset.rule || 'solid', k=>{
+        b.dataset.rule = k;
+        if(kind === 'under') pick.value = k;
         const surface = restoreToolbarSelection(bar) || surfaceForToolbar(bar);
         if(!surface){ syncToolbarLines(bar); return; }
         const on = lineStateOf(surface)[kind];
@@ -1303,9 +1308,23 @@ function syncToolbarLines(bar){
   const st = surface ? lineStateOf(surface) : {under:null, strike:null};
   u.classList.toggle('on', !!st.under);
   k.classList.toggle('on', !!st.strike);
-  if(pick && (st.under || st.strike)) pick.value = st.under || st.strike;
+  /* Each rule's kind is its own: the one under the selection, or the one
+     last chosen for it. They used to share one, so picking a kind of
+     underline restyled the strike as well (the owner's list of 25.11). */
+  if(st.under) u.dataset.rule = st.under;
+  if(st.strike) k.dataset.rule = st.strike;
+  if(pick) pick.value = u.dataset.rule || 'solid';
   /* The letters wear the rule they would lay down. */
-  const css = pick && LINE_STYLES[pick.value] ? LINE_STYLES[pick.value].css : 'solid';
-  u.style.setProperty('--rule', css);
-  k.style.setProperty('--rule', css);
+  [u, k].forEach(b=> b.style.setProperty('--rule', (LINE_STYLES[b.dataset.rule] || LINE_STYLES.solid).css));
+}
+/* A kind of rule drawn as the rule alone, for the list of kinds. */
+function ruleSampleSvg(k){
+  const ink = 'stroke="currentColor" fill="none" stroke-width="1.4"';
+  const d = k === 'wavy' ? 'M2,6 q2.5,-4 5,0 t5,0 t5,0 t5,0 t5,0 t5,0 t5,0 t5,0'
+          : 'M2,6 H42';
+  const dash = k === 'dashed' ? ' stroke-dasharray="5 3"' : k === 'dotted' ? ' stroke-dasharray="1.4 2.4" stroke-linecap="round"' : '';
+  const line = k === 'double'
+    ? `<path d="M2,4 H42 M2,8 H42" ${ink} stroke-width="1.1"/>`
+    : `<path d="${d}" ${ink}${dash}/>`;
+  return `<svg class="tb-rule-sample" viewBox="0 0 44 12" width="44" height="12" aria-hidden="true">${line}</svg>`;
 }

@@ -120,6 +120,9 @@
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M14.5 5.5l4 4M13 7l4 4-8.8 8.8a1.5 1.5 0 0 1-1.1.4H5.5a1 1 0 0 1-1-1v-1.6a1.5 1.5 0 0 1 .4-1.1z"/><path d="M15.6 4.4a2.1 2.1 0 0 1 3 0l1 1a2.1 2.1 0 0 1 0 3l-1.6 1.6-4-4z" fill="currentColor"/></svg>
         <span class="pipette-swatch" id="pipetteSwatch" hidden></span>
       </button>
+      <button class="tool-btn" id="areaTool" title="Selection frame: draw a frame round what to pick, then pull its sides and corners or carry it; Shift adds, Alt takes away" aria-pressed="false">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="5" y="5" width="14" height="14" stroke-dasharray="2.6 2.4"/><rect x="3" y="3" width="4" height="4" fill="currentColor" stroke="none"/><rect x="17" y="17" width="4" height="4" fill="currentColor" stroke="none"/><rect x="17" y="3" width="4" height="4" fill="currentColor" stroke="none"/><rect x="3" y="17" width="4" height="4" fill="currentColor" stroke="none"/></svg>
+      </button>
       <button class="tool-btn" id="stylePaintTool" title="Copy the style of what is picked, then press another entry or connector to give it the same" aria-pressed="false">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><rect x="4" y="3.5" width="14" height="6" rx="1.2"/><path d="M18 6.5h2v5.5h-8v3"/><rect x="10.5" y="15" width="3" height="6" rx="0.8"/></svg>
       </button>
@@ -128,7 +131,7 @@
 
   <div class="main">
     <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="The chart — its entries are listed as text under About this project">
-      <defs id="svgDefs"><filter id="nsfw-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.5"/></filter></defs>
+      <defs id="svgDefs"><filter id="nsfw-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.5"/></filter><filter id="sel-halo" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="near"/><feFlood flood-color="rgb(194,59,34)" flood-opacity="0.95"/><feComposite in2="near" operator="in" result="tight"/><feMerge result="lit"><feMergeNode in="SourceAlpha"/><feMergeNode in="tight"/></feMerge><feGaussianBlur in="lit" stdDeviation="3.5" result="far"/><feFlood flood-color="rgb(194,59,34)" flood-opacity="0.6"/><feComposite in2="far" operator="in" result="wide"/><feMerge><feMergeNode in="wide"/><feMergeNode in="tight"/></feMerge></filter></defs>
       <g id="viewport"></g>
     </svg>
 
@@ -906,6 +909,9 @@
     '47-scenarios.js',
     '48-history.js',
     '49-background.js',
+    '50-select-area.js',
+    '51-switch.js',
+    '52-templates.js',
   ];
   var NL = String.fromCharCode(10);
   function get(path){

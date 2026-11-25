@@ -644,6 +644,9 @@ function serializeSettings(o){
   if(o.hops === false) extra.hops = false;
   const background = cleanBackground(o.background);
   if(background) extra.background = background;
+  // Entries of the owner's own making, offered by the + menu (52-templates.js).
+  const nodeTemplates = cleanNodeTemplates(o.nodeTemplates);
+  if(nodeTemplates.length) extra.nodeTemplates = nodeTemplates;
   /* The names are keyed by a mark's key, which has a colon in it, so the
      keys are written quoted, as the meanings' are. */
   const quoted = obj=> `{${Object.keys(obj).map(k=> `${jsStr(k)}: ${jsStr(obj[k])}`).join(', ')}}`;
@@ -653,15 +656,46 @@ function serializeSettings(o){
 }
 /* The field's ground: a colour, a picture and how it is laid, each only
    when it is one; nothing at all when neither is set. */
+/* How many colours the field's gradient may hold. */
+const BG_GRADIENT_MAX = 8;
 function cleanBackground(v){
   if(!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const out = {};
   if(isHexColor(v.color)) out.color = v.color.toLowerCase();
+  /* A gradient is the colour and the ones after it, top to bottom (the
+     owner's list of 25.11); it means nothing without the colour it
+     starts from. */
+  if(out.color && Array.isArray(v.gradient)){
+    const more = v.gradient.filter(isHexColor).map(c=> c.toLowerCase()).slice(0, BG_GRADIENT_MAX - 1);
+    if(more.length) out.gradient = more;
+  }
   if(typeof v.image === 'string' && pictureSrcOk(v.image)){
     out.image = v.image;
     if(v.fit === 'tile') out.fit = 'tile';
   }
   return Object.keys(out).length ? out : null;
+}
+/* A template is the look of an entry kept under a name (the owner's list
+   of 25.11): what it is drawn in and how big, and its fixed ports — never
+   its words, its place, its tags or where it goes. */
+const TEMPLATE_KEYS = ['colors', 'bg', 'border', 'decor', 'square', 'font', 'fontSize', 'align', 'size', 'card', 'figure', 'ports', 'switch'];
+const NODE_TEMPLATES_MAX = 60;
+function templateLookOf(opts){
+  const out = {};
+  TEMPLATE_KEYS.forEach(k=>{ if(opts && opts[k] !== undefined) out[k] = JSON.parse(JSON.stringify(opts[k])); });
+  if(out.ports && !cleanPorts(out.ports)) delete out.ports;
+  return out;
+}
+function cleanNodeTemplates(v){
+  if(!Array.isArray(v)) return [];
+  const seen = new Set(), out = [];
+  v.forEach(t=>{
+    if(!t || typeof t !== 'object' || typeof t.id !== 'string' || !t.id || seen.has(t.id)) return;
+    if(out.length >= NODE_TEMPLATES_MAX) return;
+    seen.add(t.id);
+    out.push({id: t.id, name: typeof t.name === 'string' ? t.name.slice(0, 80) : '', opts: templateLookOf(t.opts)});
+  });
+  return out;
 }
 const LEGEND_KEY_RE = /^(shape|border|tag|line|mark):/;
 function cleanTagColors(v){
@@ -736,4 +770,39 @@ function serializeStickers(list){
     `  {key:${jsStr(s.key)}, name:${jsStr(s.name || s.key)}, ` +
     (pictureAnimOf(s.anim) ? `anim:${jsStr(s.anim)}, ` : '') + `src:${jsStr(s.src)}},`
   ).join('\n') + '\n];';
+}
+
+/* ---- Presets: what the + menu puts down (46-hand-tools.js sets them).
+   Here, not there, because every page writes and reads them with the
+   chart, and there is in the editor's file on the site. ---- */
+const PRESET_KINDS = {
+  rect:    ['colors', 'bg', 'border', 'square', 'font', 'fontSize', 'align'],
+  ellipse: ['colors', 'border', 'font', 'fontSize'],
+  link:    ['colors']
+};
+const PRESET_BORDERS = ['solid', 'dashed', 'dotted', 'dashdot', 'double', 'wavy'];
+function cleanPresets(v){
+  const out = {};
+  if(!v || typeof v !== 'object') return out;
+  Object.keys(PRESET_KINDS).forEach(kind=>{
+    const p = v[kind];
+    if(!p || typeof p !== 'object') return;
+    const q = {};
+    PRESET_KINDS[kind].forEach(k=>{
+      const x = p[k];
+      if((k === 'colors' || k === 'bg') && Array.isArray(x) && x.length && x.every(c=> HEX_RE.test(c))) q[k] = x.slice(0, 4);
+      else if(k === 'border' && PRESET_BORDERS.includes(x) && x !== 'solid') q[k] = x;
+      else if(k === 'square' && x === false) q[k] = false;
+      else if(k === 'font' && typeof x === 'string' && x) q[k] = x;
+      else if(k === 'fontSize' && Number.isFinite(x) && x >= 6 && x <= 96) q[k] = x;
+      else if(k === 'align' && (x === 'left' || x === 'right')) q[k] = x;
+    });
+    if(Object.keys(q).length) out[kind] = q;
+  });
+  return out;
+}
+/* What an entry of this kind is put down with, a copy each time. */
+function presetOptsFor(kind){
+  const p = cleanPresets(SETTINGS.presets)[kind];
+  return p ? JSON.parse(JSON.stringify(p)) : {};
 }

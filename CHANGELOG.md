@@ -6,6 +6,21 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.28.0 — "Each side its own" (2026-11-25)
+
+- A picked entry with language tabs or a link tab glows as one shape: the glow goes round the outline and its tabs together, without a seam of light where a tab meets the border.
+- The lists of rule kinds for underline and strike show only the line, and the button itself shows the kind it will draw. Choosing a kind for the underline no longer changes the strike's, and a word both underlined and struck in two kinds is drawn in both.
+- A reading over a word takes only the word's size: not its bold, italic, colour or rules. A new reading is empty instead of saying «reading», and goes away when it is left empty.
+- In card layout with «Cut the frame to the picture», connectors meet the card's body, under the picture.
+- On a phone a drawer opened from its tab takes the whole height of the screen. On every screen the line of a tab no longer shows inside the drawer it opens.
+- The field's ground can be a gradient: Gradient beside the colour brings a second square, and + adds more colours, up to eight.
+- A dashed, dotted or dash-dotted border is dashed side by side, and a connector leg by leg: each side and each leg starts and ends on a whole dash, so every corner is one dash turning it.
+- When an entry with corners set by hand is carried, the corners between it and the first stretch running the way it is carried go along with it, and that stretch grows or shrinks; before, they stayed where they were and the line stepped sideways beside the entry.
+- A selection frame in the bar under the top bar: drawn round what to pick, it stays, its sides and corners make it larger or smaller, a press inside carries the frame, and what it touches is picked as it goes. With Shift a new frame adds to what is picked, with Alt it takes away.
+- A Switch in the + menu, and Switch in the menu of any entry: an entry that is 0 or 1, with a pill beside it that a press flips, for a reader too. Each state has its own words on the pill, 1 may have a colour of its own, and scenarios can start when a switch is switched to 1 or to 0.
+- Ports, in the menu of an entry, fixes how many ports each side has, evenly spaced, and connectors meet the entry only there; a side with none gives way to one that has some. Save as template keeps an entry's look, size and ports, and the + menu offers it after the kinds, with a × to forget it.
+- The editor's background menu and the new tools come with the editor's file, so what a reader downloads stays under its ceiling.
+
 ## 0.27.3 — "Where the pointer is" (2026-11-24)
 
 - The text bar of an entry and of a note is drawn as a word processor's: B in bold, I in italic, the strike as a struck «ab», a reading as a small «ruby» with its reading over it. Underline and strike are split buttons, the rule's kind picked from the arrow on their right and shown on the button itself.

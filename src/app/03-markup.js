@@ -249,8 +249,7 @@ function parseMarkupInto(src, st, out){
        * run around it whole — so an annotation written over a bold red
        * word was bold and red because the word was, and there was no way
        * to say otherwise. Each half is parsed on its own now: the base
-       * still inherits the run it sits in, and the annotation starts from
-       * the run too but can be given anything of its own on top.
+       * still inherits the run it sits in, and the annotation is its own.
        *
        * Scanned rather than matched by a pattern, because a half may now
        * contain `{{…}}` wrappers with braces of their own. */
@@ -261,7 +260,13 @@ function parseMarkupInto(src, st, out){
           flush();
           const baseRuns = [], annoRuns = [];
           parseMarkupInto(src.slice(i + 2, bar), Object.assign({}, st), baseRuns);
-          parseMarkupInto(src.slice(bar + 1, end), Object.assign({}, st), annoRuns);
+          /* …and the reading starts from nothing but the size of the run
+             it sits in (the owner's list of 25.11): it is words of its
+             own over the word, not the word's, so a bold, red or
+             underlined word no longer makes its reading bold, red or
+             underlined. The size stays, so a reading over a word set
+             larger is larger with it. */
+          parseMarkupInto(src.slice(bar + 1, end), st.size ? {size: st.size} : {}, annoRuns);
           out.push(Object.assign({type:'ruby',
             base: runsText(baseRuns), anno: runsText(annoRuns),
             baseRuns, annoRuns}, st));
