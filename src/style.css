@@ -2434,6 +2434,9 @@
     position:absolute;z-index:97;display:flex;
     background:var(--panel);border:1px solid var(--line);border-radius:8px;
     box-shadow:var(--shadow);overflow:hidden;
+    /* Wider than a phone, it goes on to a second row (25.11: Switch,
+       Ports and Save as template made one entry's row seven long). */
+    flex-wrap:wrap;max-width:calc(100vw - 16px);
   }
   .touch-menu[hidden]{display:none;}
   .touch-menu button{
