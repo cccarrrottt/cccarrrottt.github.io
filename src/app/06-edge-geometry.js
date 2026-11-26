@@ -348,7 +348,12 @@ function portOnSide(n, side, i, count, ring){
      away. A band inside an entry is not a second entry; adding one changes
      the entry's size, and its size is the whole of what a connector has to
      know. */
-  const sideY = y + h * t;
+  /* …but a card cut to its picture has no frame beside the picture, and
+     there its upright sides are the body's alone: a line meeting the left
+     or right side meets the words, spread over them, not the air beside
+     the picture (the owner's sketch of 26.11). */
+  const bodyTop = n.card && n.cardBodyRun ? n.y + n.cardBodyRun[0].y * n.h + inset : y;
+  const sideY = bodyTop + (y + h - bodyTop) * t;
   /* Carried on the port so a cap and a run-out both know how much of the
      entry's own border still stands OUTSIDE this ring. */
   const rings = ringCountOf(n);
@@ -387,7 +392,7 @@ function portOnSide(n, side, i, count, ring){
           // How far the border can swing either side of the box — what a
           // line with no head has to get under to be sure of touching.
           band: prof ? (prof.amp || 0) : 0,
-          owner: n.id, span: sideIsVertical(side) ? w : h,
+          owner: n.id, span: sideIsVertical(side) ? w : y + h - bodyTop,
           slot: i, slots: count};
 }
 /* A port does not travel along its side at all, and the three helpers

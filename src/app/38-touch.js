@@ -187,9 +187,11 @@ function openTouchMenu(x, y, kind, byMouse){
   }
   /* A split, held on its own, offers a new line out of it. */
   if((kind === true || kind === 'selection') && multiSelection.size <= 1 && isSplitNode(nodes.get(selectedId))) offers.push('branch');
-  /* One entry with a box, held on its own, may be made a switch, or its
-     switch set (51-switch.js). */
-  if((kind === true || kind === 'selection') && multiSelection.size <= 1 && switchable(nodes.get(selectedId))) offers.push('switch', 'ports', 'template');
+  /* One entry with a box, held on its own, may have its ports fixed, be
+     made a switch or saved as a template (51-switch.js, 52-templates.js) —
+     the last two while they are not SHELVED. */
+  if((kind === true || kind === 'selection') && multiSelection.size <= 1 && switchable(nodes.get(selectedId)))
+    offers.push(...['switch', 'ports', 'template'].filter(a=> !SHELVED[a]));
   touchMenu.at = {x, y};
   touchMenu.querySelectorAll('button').forEach(b=>{
     b.hidden = !offers.includes(b.dataset.act);

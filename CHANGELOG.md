@@ -6,6 +6,16 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.28.1 — "The last stretch" (2026-11-26)
+
+- When an entry with corners set by hand is carried, the stretch that grows or shrinks is the last one running the way it is carried, the one nearest the other entry; the corners before it go along. The short stretch out of the carried entry keeps its length, where in 0.28.0 it was the one that grew.
+- The selection frame's sides and corners are taken by a finger as well as by the pointer, anywhere along a side and over an entry too; a phone's press used to carry the whole frame instead. While the frame is in the hand, Pick, Add and Take away say what the next frame does, for a screen with no Shift or Alt.
+- A reading put on with nothing selected goes over the word the caret is in, and pressed again in or just after a reading it puts the caret in that reading: it no longer adds «word». A new reading is shown as a dashed box to type into, and the caret goes there; where a browser will not keep a caret in a reading, a small box over the word takes the reading instead.
+- A card cut to its picture is met on its left and right sides at its body, spread over the words, and its tabs stand on the body rather than over the picture.
+- Taking the picture off a card leaves the card's body: a height set by hand loses the picture's band instead of keeping it as empty paper over the words.
+- On a phone a drawer is as wide as on a wide screen, no longer the whole width of the phone, and as tall as before 0.28.0.
+- The Switch and templates of one's own are set aside for now: + and the menu of an entry no longer offer them. A switch or a template a chart already holds is still drawn and still works.
+
 ## 0.28.0 — "Each side its own" (2026-11-25)
 
 - A picked entry with language tabs or a link tab glows as one shape: the glow goes round the outline and its tabs together, without a seam of light where a tab meets the border.

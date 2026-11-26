@@ -988,7 +988,9 @@ function bendSlides(group){
     const r = drawnRoutes.get(calloutEdgeKey(o.from, o.to));
     if(!r || !r.pts || r.pts.length < 2) return;
     const port = inFrom ? r.pts[0] : r.pts[r.pts.length - 1];
-    out.push({style: o, bends: o.bends.map(b=> [b[0], b[1]]), from: {x: port.x, y: port.y}, reversed: inTo});
+    const far = inFrom ? r.pts[r.pts.length - 1] : r.pts[0];
+    out.push({style: o, bends: o.bends.map(b=> [b[0], b[1]]), from: {x: port.x, y: port.y},
+              to: {x: far.x, y: far.y}, reversed: inTo});
   });
   return out;
 }

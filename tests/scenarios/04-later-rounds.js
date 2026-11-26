@@ -1941,8 +1941,10 @@
               left: body.left, right: body.right,
               otherTabFree: !!(at && at.closest('#refsTab'))};
     });
-    check('a tab opens across the phone, and the other tab is still there to press',
-          panel.open && panel.left >= 0 && panel.right <= 390 && panel.right - panel.left > 340 && panel.otherTabFree,
+    /* As wide as on a wide screen: across the whole phone was the bug the
+       owner named on 26.11. */
+    check('a tab opens on a phone as wide as on a wide screen, and the other tab is still there to press',
+          panel.open && panel.left >= 0 && panel.right <= 390 && panel.right - panel.left <= 253 && panel.right - panel.left > 200 && panel.otherTabFree,
           JSON.stringify(panel));
     await tap(...await tabAt('tagsTab'));
     await wait(250);
@@ -2689,7 +2691,7 @@
       out.fabShutAtRest = !shown() && turned() === 'none';
       document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
-      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 6 &&
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
@@ -4671,7 +4673,7 @@
     const flow = [s0, sMenu, sCanvas, sPaste, sDel, sUndo, sRedo];
     check('on a phone undo and redo are one button in two halves', s0.tools === 'undo,redo', s0.tools);
     check('a long press on the selection brings up cut, copy, paste and delete; on canvas, paste and the ground',
-          s0.sel === 'tkA' && sMenu.menu && sMenu.items === 'cut,copy,paste,switch,ports,template,delete' && sMenu.sel === 'tkA' &&
+          s0.sel === 'tkA' && sMenu.menu && sMenu.items === 'cut,copy,paste,ports,delete' && sMenu.sel === 'tkA' &&
           sCanvas.menu && sCanvas.items === 'paste,background' &&
           sPaste.n === s0.n + 1 && !sPaste.menu && sDel.n === sPaste.n - 1 && sDel.sel !== 'tkA',
           JSON.stringify(flow));
@@ -4724,7 +4726,7 @@
     const after = await pp.evaluate(()=> ({edge: structEdges.filter(e=> e.from === 'tkA' && e.to === 'tkB').length,
                                            a: nodes.has('tkA'), b: nodes.has('tkB')}));
     check('a long press on an entry not yet picked picks it and brings up the menu',
-          sFresh.menu && sFresh.items === 'cut,copy,paste,switch,ports,template,delete' && sFresh.sel === 'tkA', JSON.stringify(sFresh));
+          sFresh.menu && sFresh.items === 'cut,copy,paste,ports,delete' && sFresh.sel === 'tkA', JSON.stringify(sFresh));
     check('a long press on a connector offers Split and Delete, and Delete takes the connector and nothing else',
           sEdge.menu && sEdge.items === 'split,delete' && edgesBefore === 1 && after.edge === 0 && after.a && after.b && !sEdgeDel.menu,
           JSON.stringify({sEdge, edgesBefore, after}));

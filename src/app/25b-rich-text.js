@@ -537,12 +537,23 @@ function applyRichCommand(surface, kind, arg, restyle, hadAll){
     const enclosing = anchor && anchor.closest ? anchor.closest('ruby') : null;
     if(enclosing){
       const rt = enclosing.querySelector('rt');
-      if(rt){
-        const pick = document.createRange();
-        pick.selectNodeContents(rt);
-        sel.removeAllRanges();
-        sel.addRange(pick);
-      }
+      if(rt) caretIntoReading(surface, rt);
+      return;
+    }
+    /* Nothing picked: the press is about a reading the caret has just
+       come out of, or the word it stands in — never a new reading over
+       nothing. It used to put one over the placeholder "word" wherever
+       the caret was, and a caret that had slipped out of the reading being
+       typed was at the end of the words, so a second press while writing a
+       reading added "word" there (the owner's list of 26.11). */
+    if(range.collapsed){
+      const near = readingBesideCaret(surface, range);
+      if(near){ caretIntoReading(surface, near.querySelector('rt') || near); return; }
+      const word = wordAroundCaret(range);
+      if(!word) return;
+      sel.removeAllRanges();
+      sel.addRange(word);
+      applyRichCommand(surface, 'ruby');
       return;
     }
     const contents = range.cloneContents();
@@ -578,10 +589,11 @@ function applyRichCommand(surface, kind, arg, restyle, hadAll){
     const probe = document.createElement('div');
     probe.appendChild(frag.cloneNode(true));
     if(probe.querySelector('div, p, br')){
-      ruby.appendChild(document.createTextNode(probe.textContent || 'word'));
+      if(!probe.textContent.trim()){ range.insertNode(frag); return; }
+      ruby.appendChild(document.createTextNode(probe.textContent));
     } else {
+      if(!probe.textContent.trim()){ range.insertNode(frag); return; }
       ruby.appendChild(frag);
-      if(!ruby.textContent) ruby.appendChild(document.createTextNode('word'));
     }
     /* Empty, waiting for its words: it used to say "reading", which had
        to be typed over and, left, was a reading of "reading" (the owner's
@@ -592,14 +604,166 @@ function applyRichCommand(surface, kind, arg, restyle, hadAll){
     rt.dataset.fresh = '1';
     ruby.appendChild(rt);
     range.insertNode(ruby);
-    // Leave the annotation selected so it can be typed over immediately.
-    const pick = document.createRange();
-    pick.selectNodeContents(rt);
-    sel.removeAllRanges();
-    sel.addRange(pick);
+    caretIntoReading(surface, rt);
     // Same as the colour: inserted by hand, so the commit has to be told.
     surface.dispatchEvent(new Event('input', {bubbles:true}));
   }
+}
+/* The caret into a reading, to be typed in at once.
+ *
+   Put on the reading's own text, after the zero-width space a new one
+   holds, rather than round the element: a selection of a whole inline
+   element is one a browser may lift out of it when typing replaces it,
+   and one at the element's edge is one it may settle outside. Where the
+   browser still will not keep a caret in a reading (some do not let one
+   into an <rt> at all), the reading gets a box of its own over its word,
+   and what is typed there is the reading (the owner's list of 26.11: the
+   first press left the caret where it was, waiting). */
+function caretIntoReading(surface, rt){
+  if(!rt) return;
+  surface.focus({preventScroll:true});
+  let t = rt.lastChild;
+  if(!t || t.nodeType !== 3){ t = document.createTextNode(rt.textContent ? '' : '\u200b'); rt.appendChild(t); }
+  const sel = window.getSelection();
+  const r = document.createRange();
+  r.setStart(t, t.data.length);
+  r.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(r);
+  const at = sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
+  const held = at && rt.contains(at);
+  if(!held || readingBoxWanted) openReadingBox(surface, rt);
+}
+/* A test's way to have the box whatever the browser does. */
+var readingBoxWanted = false;
+function openReadingBox(surface, rt){
+  closeReadingBox();
+  const ruby = rt.closest('ruby');
+  const box = document.createElement('input');
+  box.type = 'text';
+  box.className = 'reading-box';
+  box.setAttribute('aria-label', 'Reading');
+  box.value = rt.textContent.replace(/[\u200b\ufeff]/g, '');
+  const at = (ruby || rt).getBoundingClientRect();
+  box.style.left = Math.max(4, at.left + at.width / 2 - 60) + 'px';
+  box.style.top = Math.max(4, at.top - 30) + 'px';
+  document.body.appendChild(box);
+  readingBox = {box, rt, surface};
+  box.addEventListener('input', ()=>{
+    rt.textContent = box.value || '\u200b';
+    if(box.value) delete rt.dataset.fresh; else rt.dataset.fresh = '1';
+    surface.dispatchEvent(new Event('input', {bubbles:true}));
+  });
+  box.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key === 'Enter' || ev.key === 'Escape'){ ev.preventDefault(); closeReadingBox(true); }
+  });
+  box.addEventListener('blur', ()=> setTimeout(()=>{ if(readingBox && readingBox.box === box) closeReadingBox(); }, 0));
+  box.focus();
+}
+var readingBox = null;
+/* Done with the box: the caret goes back into the words, after the word
+   the reading is over, and a reading left with nothing in it goes. */
+function closeReadingBox(back){
+  const h = readingBox;
+  if(!h) return;
+  readingBox = null;
+  h.box.remove();
+  const ruby = h.rt.closest('ruby');
+  if(back && ruby && ruby.isConnected){
+    h.surface.focus({preventScroll:true});
+    const r = document.createRange();
+    r.setStartAfter(ruby); r.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(r);
+  }
+  if(typeof dropEmptyReadings === 'function') dropEmptyReadings(h.surface, true);
+  h.surface.dispatchEvent(new Event('input', {bubbles:true}));
+}
+/* A reading typed away to nothing is no reading: its word stands on its
+   own again, and a new reading is put over it with the Ruby button. The
+   empty slot used to stay — written to the chart as the bare word, but
+   still in the field, where nothing could be typed into it again (the
+   owner's list of 15.11). The caret goes where the reading was, after
+   its word. */
+/* The reading being typed in a box of its own in this field, if any
+   (openReadingBox, 25b-rich-text.js). */
+function boxedReading(surface){
+  return typeof readingBox !== 'undefined' && readingBox && readingBox.surface === surface ? readingBox.rt : null;
+}
+function dropEmptyReadings(surface, leaving){
+  surface.querySelectorAll('ruby').forEach(ruby=>{
+    const rt = ruby.querySelector('rt');
+    if(rt && boxedReading(surface) === rt) return;
+    const sel = window.getSelection();
+    const hadCaret = !!(sel && sel.rangeCount && ruby.contains(sel.getRangeAt(0).startContainer));
+    if(rt && rt.textContent.replace(/[\u200b\ufeff]/g, '') !== ''){
+      delete rt.dataset.fresh;
+      tidyReadingSpace(rt, sel);
+      return;
+    }
+    /* A reading just made waits for its words while the caret is in it. */
+    if(rt && rt.dataset.fresh && hadCaret && !leaving) return;
+    if(rt) rt.remove();
+    const parent = ruby.parentNode, last = ruby.lastChild;
+    while(ruby.firstChild) parent.insertBefore(ruby.firstChild, ruby);
+    const after = ruby.nextSibling;
+    ruby.remove();
+    if(hadCaret && sel){
+      const r = document.createRange();
+      if(last && last.parentNode === parent) r.setStartAfter(last);
+      else if(after) r.setStartBefore(after);
+      else r.selectNodeContents(parent), r.collapse(false);
+      r.collapse(true);
+      sel.removeAllRanges(); sel.addRange(r);
+    }
+  });
+}
+/* The zero-width space a new reading was opened with goes once it has
+   words, the caret kept where it was among them (dropEmptyReadings). */
+function tidyReadingSpace(rt, sel){
+  const walk = document.createTreeWalker(rt, NodeFilter.SHOW_TEXT);
+  for(let t = walk.nextNode(); t; t = walk.nextNode()){
+    const i = t.data.indexOf('\u200b');
+    if(i < 0 || t.data.length < 2) continue;
+    const here = sel && sel.rangeCount && sel.getRangeAt(0).startContainer === t ? sel.getRangeAt(0).startOffset : -1;
+    t.data = t.data.slice(0, i) + t.data.slice(i + 1);
+    if(here >= 0){
+      const r = document.createRange();
+      r.setStart(t, Math.min(t.data.length, here > i ? here - 1 : here)); r.collapse(true);
+      sel.removeAllRanges(); sel.addRange(r);
+    }
+  }
+}
+/* A reading the caret stands against: just after one, or just before. */
+function readingBesideCaret(surface, range){
+  const c = range.startContainer, o = range.startOffset;
+  const rubyOf = n=> n && n.nodeType === 1 ? (n.tagName === 'RUBY' ? n : n.querySelector && [...n.querySelectorAll('ruby')].pop()) : null;
+  let before = null, after = null;
+  if(c.nodeType === 3){
+    if(o === 0) before = c.previousSibling;
+    if(o === c.data.length) after = c.nextSibling;
+    if(o === 0 && !before && c.parentNode !== surface) before = c.parentNode.previousSibling;
+  } else {
+    before = c.childNodes[o - 1] || null;
+    after = c.childNodes[o] || null;
+  }
+  const hit = rubyOf(before) || (after && after.nodeType === 1 && after.tagName === 'RUBY' ? after : null);
+  return hit && surface.contains(hit) ? hit : null;
+}
+/* The word a caret stands in or at the end of, as a range, or null. */
+function wordAroundCaret(range){
+  const c = range.startContainer;
+  if(c.nodeType !== 3) return null;
+  const text = c.data, at = range.startOffset;
+  const isW = ch=> /[\p{L}\p{N}_'’-]/u.test(ch);
+  let a = at, b = at;
+  while(a > 0 && isW(text[a - 1])) a--;
+  while(b < text.length && isW(text[b])) b++;
+  if(a === b) return null;
+  const r = document.createRange();
+  r.setStart(c, a); r.setEnd(c, b);
+  return r;
 }
 function rememberSurfaceSelection(box){
   const surface = surfaceForHexBox(box);

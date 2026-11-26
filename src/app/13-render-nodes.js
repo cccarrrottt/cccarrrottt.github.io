@@ -69,7 +69,11 @@ function tabBaseOf(n){
      and cut off at the ripple (tabMaskFor): it grows out of the wave the
      way it grows out of a straight border, and its top stays where it was. */
   const sink = isWavyBorder(n) ? 2 * POCKET_AMP + NODE_BORDER_W : 0;
-  return {y: n.y - own - out + sink, sink, left: n.x - own, right: n.x + n.w + own};
+  /* A card cut to its picture has its frame round the words alone, and
+     its tabs stand on that frame, the body's top (the owner's list of
+     26.11), not up in the air over the picture's corners. */
+  const top = n.card && n.cardBodyRun ? n.y + n.cardBodyRun[0].y * n.h : n.y;
+  return {y: top - own - out + sink, sink, left: n.x - own, right: n.x + n.w + own};
 }
 /* How far an entry's outermost border reaches past the line it is drawn
    on: half a stroke, half the band of a double border, or the crest of a

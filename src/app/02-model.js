@@ -468,6 +468,11 @@ const TEXTBOX_MAXW = 420;
 let readOnlyView = false;
 /* The switches a reader has pressed, against what the chart starts them at. */
 var switchFlips = new Set();
+/* Set aside by the owner (26.11) until they are thought through: a new
+   switch and the owner's own templates are not offered anywhere. What a
+   chart already holds of either is still drawn and still works, so
+   nothing saved is lost; making them false brings the offers back. */
+const SHELVED = {switch: true, template: true};
 const NODE_MINW = 84, NODE_MAXW = 178, NODE_MINH = 40;
 /* How wide a one-line entry may grow before its text is clipped instead.
    Wider than NODE_MAXW, which is the ceiling for a label the measurer is

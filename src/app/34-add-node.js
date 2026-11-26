@@ -68,6 +68,7 @@ const addFab = document.getElementById('addFab');
 const addFabBtn = document.getElementById('addFabBtn');
 const addFabStyles = document.getElementById('addFabStyles');
 NODE_STYLE_PICKS.forEach(p=>{
+  if(SHELVED[p.value]) return;
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'node-style-btn';

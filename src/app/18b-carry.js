@@ -23,32 +23,42 @@ function carryBends(st, offX, offY){
   });
 }
 /* A connector with ONE end carried keeps its bends — but not all of them
-   where they were (the owner's list of 25.11). Pinned to the paper, the
-   corners made the stretch out of the carried entry step sideways as soon
-   as the entry left its line. Now the corners between the entry and the
-   first stretch that runs the way the entry is going go along with it,
-   and that stretch is the one that grows or shrinks: carried right, an
-   entry whose line drops and then turns takes the drop with it and the
-   level stretch gets longer. Each axis on its own, so a carry on the
-   slant does both. Worked out from the bends as the carry found them,
-   every frame, so carrying back puts every corner back. */
+   where they were (the owner's lists of 25.11 and 26.11). Pinned to the
+   paper, the corners made the stretch out of the carried entry step
+   sideways as soon as the entry left its line. The stretch that grows or
+   shrinks is the LAST one running the way the entry is going — the one
+   nearest the other end — and every corner between the carried entry and
+   it goes along: carried down, an entry whose line drops, turns and drops
+   again into the other keeps its first drop as it was, the level stretch
+   rides down with it, and the drop into the other entry is the one that
+   gets shorter. It was the FIRST such stretch in 0.28.0, and that one is
+   usually the short stub at the entry, which the owner wants left alone
+   unless the stretch across it is the one taken hold of. Each axis on its
+   own, so a carry on the slant does both. A stretch at a slant, which the
+   router turns, ends the search: it takes up what is left. Worked out
+   from the bends as the carry found them, every frame, so carrying back
+   puts every corner back. */
 function slideBends(c, offX, offY){
   const list = c.bends.map(b=> [b[0], b[1]]);
   const chain = c.reversed ? list.slice().reverse() : list;
   const orig = chain.map(b=> [b[0], b[1]]);
+  const pts = [[c.from.x, c.from.y]].concat(orig);
+  if(c.to) pts.push([c.to.x, c.to.y]);
   const slide = (axis, off)=>{
     if(!off) return;
     const other = 1 - axis;
-    let prev = [c.from.x, c.from.y];
-    for(let i = 0; i < chain.length; i++){
-      const b = orig[i];
-      /* A stretch running along the carry: this is the one that grows. */
-      if(Math.abs(b[other] - prev[other]) <= BEND_ABSORB) return;
-      /* …and one at a slant is too, as the router turns it. */
-      if(Math.abs(b[axis] - prev[axis]) > BEND_ABSORB) return;
-      chain[i][axis] = b[axis] + off;
-      prev = b;
+    /* Which stretch grows: the last along the carry, up to the first at a
+       slant. With none, nothing is said about this axis and the corners
+       stay; with the far end unknown, they all go, as they used to. */
+    let grows = -1;
+    for(let i = 0; i + 1 < pts.length; i++){
+      const along = Math.abs(pts[i + 1][axis] - pts[i][axis]) > BEND_ABSORB;
+      const across = Math.abs(pts[i + 1][other] - pts[i][other]) > BEND_ABSORB;
+      if(along) grows = i;
+      if(along && across) break;
     }
+    if(grows < 0 && !c.to) grows = orig.length;
+    for(let k = 0; k < grows; k++) chain[k][axis] = orig[k][axis] + off;
   };
   slide(0, offX);
   slide(1, offY);

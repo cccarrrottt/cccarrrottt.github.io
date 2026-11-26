@@ -129,6 +129,7 @@ function syncTemplatePicks(){
   const host = document.getElementById('addFabStyles');
   if(!host) return;
   host.querySelectorAll('.node-style-btn.tpl').forEach(b=> b.remove());
+  if(SHELVED.template) return;
   nodeTemplates().forEach(t=>{
     const b = document.createElement('button');
     b.type = 'button';

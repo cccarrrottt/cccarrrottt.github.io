@@ -1080,6 +1080,13 @@
   .sel-area-grip[data-area="ne"], .sel-area-grip[data-area="sw"]{cursor:nesw-resize;}
   .sel-area-grip[data-area="n"], .sel-area-grip[data-area="s"]{cursor:ns-resize;}
   .sel-area-grip[data-area="e"], .sel-area-grip[data-area="w"]{cursor:ew-resize;}
+  .area-modes{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:30;
+    display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:8px;
+    background:var(--panel);box-shadow:var(--shadow);}
+  .area-modes[hidden]{display:none;}
+  .area-modes button{font:inherit;font-size:12px;padding:5px 10px;border:0;border-radius:6px;
+    background:transparent;color:var(--ink);cursor:pointer;}
+  .area-modes button.active{background:var(--accent);color:var(--paper, #fff);}
   body.area-tool #canvas{cursor:crosshair;}
   .marquee{
     fill:rgba(194,59,34,0.08);
@@ -4039,6 +4046,22 @@
     position:absolute;left:50%;top:0;transform:translateX(-50%);
     white-space:pre;
   }
+  /* A reading just made, still empty, is a place to type into, and shows
+     as one: on the entry the field's own ink is not painted, so an empty
+     reading with the caret in it was nothing at all to look at (the
+     owner's list of 26.11). */
+  .rich-surface rt[data-fresh]{
+    min-width:1.6em;min-height:1em;display:inline-block;
+    outline:1px dashed var(--accent);outline-offset:1px;border-radius:2px;
+  }
+  .node-editor .rich-surface ruby rt[data-fresh]{display:block;}
+  /* …and where a browser keeps no caret in a reading, a box of its own. */
+  .reading-box{
+    position:fixed;z-index:60;width:120px;
+    font:inherit;font-size:12px;padding:3px 6px;
+    border:1px solid var(--accent);border-radius:4px;
+    background:var(--paper);color:var(--ink);
+  }
 
   /* ---- smart guides -------------------------------------------------
      A hairline through everything the entry in your hand has lined up
@@ -4253,15 +4276,11 @@
     .search-results{max-height:min(320px, 55dvh);}
 
     .side-tabs{top:8px;bottom:8px;}
-    /* On a phone an open drawer is the whole screen beside the tabs (the
-       owner's list of 25.11): a fifth of a phone's height held three rows
-       of a list. Its box is its own tab's fifth, so it reaches up by the
-       tabs above it and down to the foot of the column. */
-    .side-tab-body{width:calc(100vw - 34px);
-      top:calc(var(--tab-i, 0) * (-100% - var(--side-tab-gap)));bottom:auto;
-      height:calc(500% + var(--side-tab-gap) * 4);}
-    #tagsPanel{--tab-i:0;} #refsPanel{--tab-i:1;} #keyPanel{--tab-i:2;} #mediaPanel{--tab-i:3;}
-    .side-tab.open, .side-tab.shutting{z-index:2;}
+    /* On a phone a drawer is as wide as on a wide screen, and never wider
+       than the screen beside the tabs leaves: it was the whole width of
+       the phone, the chart gone behind it (the owner's lists of 25.11 and
+       26.11 — the bug was that width, not its height). */
+    .side-tab-body{width:min(252px, calc(100vw - 46px));}
     /* The entry drawer is a sheet from the bottom instead. It opens on
        every tap of an entry, so a panel over the whole screen would have
        hidden the chart each time anything on it was picked — and the

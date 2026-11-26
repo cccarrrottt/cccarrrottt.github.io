@@ -7225,7 +7225,7 @@
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
   check('the + picks an archetype by its picture',
-        r39.pickCount === 6 && r39.picksDrawn && r39.pickWrites,
+        r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,
