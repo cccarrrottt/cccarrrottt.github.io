@@ -74,7 +74,7 @@ function setInkTool(tool){
   inkTool = tool === inkTool ? null : tool;
   inkHand = null;
   // One tool in the hand: the eyedropper or the brush is put down (46-hand-tools.js).
-  if(inkTool && handTool) setHandTool(null);
+  if(inkTool && typeof handTool !== 'undefined' && handTool) setHandTool(null);
   document.body.classList.toggle('ink-pen', inkTool === 'pen');
   document.body.classList.toggle('ink-eraser', inkTool === 'eraser');
   const pen = document.getElementById('inkPen'), er = document.getElementById('inkEraser');

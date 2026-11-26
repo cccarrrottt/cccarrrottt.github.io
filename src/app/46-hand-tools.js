@@ -213,37 +213,6 @@ document.addEventListener('keydown', ev=>{ if(ev.key === 'Escape' && handTool) s
 });
 
 /* ---- Presets ---- */
-const PRESET_KINDS = {
-  rect:    ['colors', 'bg', 'border', 'square', 'font', 'fontSize', 'align'],
-  ellipse: ['colors', 'border', 'font', 'fontSize'],
-  link:    ['colors']
-};
-const PRESET_BORDERS = ['solid', 'dashed', 'dotted', 'dashdot', 'double', 'wavy'];
-function cleanPresets(v){
-  const out = {};
-  if(!v || typeof v !== 'object') return out;
-  Object.keys(PRESET_KINDS).forEach(kind=>{
-    const p = v[kind];
-    if(!p || typeof p !== 'object') return;
-    const q = {};
-    PRESET_KINDS[kind].forEach(k=>{
-      const x = p[k];
-      if((k === 'colors' || k === 'bg') && Array.isArray(x) && x.length && x.every(c=> HEX_RE.test(c))) q[k] = x.slice(0, 4);
-      else if(k === 'border' && PRESET_BORDERS.includes(x) && x !== 'solid') q[k] = x;
-      else if(k === 'square' && x === false) q[k] = false;
-      else if(k === 'font' && typeof x === 'string' && x) q[k] = x;
-      else if(k === 'fontSize' && Number.isFinite(x) && x >= 6 && x <= 96) q[k] = x;
-      else if(k === 'align' && (x === 'left' || x === 'right')) q[k] = x;
-    });
-    if(Object.keys(q).length) out[kind] = q;
-  });
-  return out;
-}
-/* What an entry of this kind is put down with, a copy each time. */
-function presetOptsFor(kind){
-  const p = cleanPresets(SETTINGS.presets)[kind];
-  return p ? JSON.parse(JSON.stringify(p)) : {};
-}
 function setPresetField(kind, key, value){
   applyEdit(()=>{
     const all = cleanPresets(SETTINGS.presets);

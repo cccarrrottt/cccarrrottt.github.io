@@ -259,12 +259,14 @@ function borderProfileOf(n, ring){
     const grow = (ring || 0) * ringStepFor(n);
     return figureProfile(fig, {x: n.x - grow, y: n.y - grow, w: n.w + grow*2, h: n.h + grow*2});
   }
-  /* A card cut to its picture is met where its frame is, as a figure is:
-     the frame steps in round the picture (cardCutRun, drawn by
-     renderNodes). */
-  if(n.card && n.cardCutRun){
+  /* A card cut to its picture is met at its words: the top of the bands
+     under the picture (cardBodyRun, worked out by renderNodes), as though
+     the picture were not there (the owner's list of 25.11). It was met
+     where the frame steps round the picture, which put every line from
+     above on the picture's top edge. */
+  if(n.card && n.cardBodyRun){
     const grow = (ring || 0) * ringStepFor(n);
-    return figureProfile({runs: [n.cardCutRun]}, {x: n.x - grow, y: n.y - grow, w: n.w + grow*2, h: n.h + grow*2});
+    return figureProfile({runs: [n.cardBodyRun]}, {x: n.x - grow, y: n.y - grow, w: n.w + grow*2, h: n.h + grow*2});
   }
   if(isWavyBorder(n)){
     const o = pocketOutlineOfRing(n, ring || 0);
@@ -1117,4 +1119,128 @@ function buildObstacleRects(){
     rects.push({id, x0:n.x-6, y0:n.y-6, x1:n.x+n.w+6, y1:n.y+n.h+6});
   });
   return rects;
+}
+
+/* =========================================================================
+   DASHES LAID SIDE BY SIDE
+   -------------------------------------------------------------------------
+   A dash pattern is measured from a path's start and runs on round every
+   corner, so where it happens to be when it reaches one is chance: half a
+   dash on one side, a gap swallowing the corner, a dot just short of it.
+   Each side of a border and each leg of a connector is given its own
+   pattern instead (the owner's list of 25.11), stretched or squeezed a
+   little to start and end on a whole dash, so every corner is one dash
+   turning it — the way a draughtsman dashes a box.
+ *
+   Worked out from the path's own commands: a straight run is a side, a
+   curve (a rounded corner, a hop) is a turn whose middle is where one
+   side gives way to the next, and two straight runs meeting at an angle
+   meet at a corner. The answer is a dasharray that sums to the path's
+   length, and the offset that puts its start where the path starts. */
+function pathRuns(d){
+  const tok = String(d || '').match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi);
+  if(!tok) return null;
+  const segs = [];
+  let i = 0, cmd = '', x = 0, y = 0, sx = 0, sy = 0, closed = false;
+  const num = ()=> +tok[i++];
+  const line = (nx, ny)=>{
+    const len = Math.hypot(nx - x, ny - y);
+    if(len > 1e-6) segs.push({len, curve: false, dx: (nx - x) / len, dy: (ny - y) / len});
+    x = nx; y = ny;
+  };
+  const bez = (pts)=>{
+    let len = 0, px = x, py = y;
+    const n = pts.length - 1;
+    for(let k = 1; k <= 8; k++){
+      const t = k / 8;
+      /* de Casteljau on [here, …pts] */
+      let q = [{x, y}].concat(pts);
+      while(q.length > 1){ const r = []; for(let m = 0; m + 1 < q.length; m++) r.push({x: q[m].x + (q[m+1].x - q[m].x) * t, y: q[m].y + (q[m+1].y - q[m].y) * t}); q = r; }
+      len += Math.hypot(q[0].x - px, q[0].y - py); px = q[0].x; py = q[0].y;
+    }
+    if(len > 1e-6) segs.push({len, curve: true});
+    x = pts[n].x; y = pts[n].y;
+  };
+  while(i < tok.length){
+    if(/[A-Za-z]/.test(tok[i])) cmd = tok[i++];
+    if(cmd === 'M'){ x = sx = num(); y = sy = num(); if(segs.length) return null; cmd = 'L'; }
+    else if(cmd === 'L') line(num(), num());
+    else if(cmd === 'H') line(num(), y);
+    else if(cmd === 'V') line(x, num());
+    else if(cmd === 'Q'){ const a = {x: num(), y: num()}, b = {x: num(), y: num()}; bez([a, b]); }
+    else if(cmd === 'C'){ const a = {x: num(), y: num()}, b = {x: num(), y: num()}, c = {x: num(), y: num()}; bez([a, b, c]); }
+    else if(cmd === 'Z' || cmd === 'z'){ line(sx, sy); closed = true; if(i < tok.length) return null; }
+    else return null;
+    if(!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  }
+  return segs.length ? {segs, closed} : null;
+}
+/* The lengths of the sides, from one corner's middle to the next. For a
+   closed outline the piece that runs over the seam is put first, with
+   how far into it the path starts. */
+function runPieces(runs){
+  const pieces = [];
+  let acc = 0, prev = null;
+  runs.segs.forEach(s=>{
+    if(s.curve){
+      acc += s.len / 2; pieces.push(acc); acc = s.len / 2; prev = null; return;
+    }
+    if(prev && prev.dx * s.dx + prev.dy * s.dy < 0.86){ pieces.push(acc); acc = 0; }
+    acc += s.len; prev = s;
+  });
+  if(!runs.closed){ pieces.push(acc); return {pieces, offset: 0}; }
+  /* The tail runs on into the first side: one piece over the seam. If
+     the seam is itself a corner (two straight sides meeting there), the
+     tail is a side of its own. */
+  const first = runs.segs[0], last = runs.segs[runs.segs.length - 1];
+  const seamIsCorner = !first.curve && !last.curve && (first.dx * last.dx + first.dy * last.dy < 0.86);
+  if(seamIsCorner){ pieces.push(acc); return {pieces, offset: 0}; }
+  if(!pieces.length) return {pieces: [acc], offset: 0};
+  pieces[0] += acc;
+  return {pieces, offset: acc};
+}
+function fittedDash(d, dash){
+  const pat = String(dash || '').trim().split(/[\s,]+/).map(Number).filter(v=> v >= 0);
+  if(pat.length < 2 || pat.length % 2) return null;
+  const runs = pathRuns(d);
+  if(!runs) return null;
+  const {pieces, offset} = runPieces(runs);
+  const P = pat.reduce((a, b)=> a + b, 0), d0 = pat[0];
+  const out = [];
+  const push = (v, isDash)=>{
+    /* A dash ending a side and the one starting the next are one dash. */
+    if(isDash && out.length % 2 === 1){ out[out.length - 1] += v; return; }
+    if(!isDash && out.length % 2 === 0){ out.push(0); }
+    out.push(v);
+  };
+  pieces.forEach(L=>{
+    if(!(L > 0)) return;
+    const n = Math.max(0, Math.round((L - d0) / P));
+    const k = L / (n * P + d0);
+    for(let r = 0; r < n; r++) pat.forEach((v, j)=> push(v * k, j % 2 === 0));
+    push(d0 * k, true);
+  });
+  if(out.length % 2) out.push(0);
+  return {array: out.map(v=> v.toFixed(2)).join(' '), offset};
+}
+/* Puts the fitted pattern on a drawn path, or the plain one where the
+   path is not one this can read. */
+function fitDashOn(elm, dash){
+  if(!elm || !dash) return;
+  const f = fittedDash(elm.getAttribute('d'), dash);
+  if(!f){ elm.setAttribute('stroke-dasharray', dash); return; }
+  elm.setAttribute('stroke-dasharray', f.array);
+  if(f.offset) elm.setAttribute('stroke-dashoffset', f.offset.toFixed(2));
+  else elm.removeAttribute('stroke-dashoffset');
+  elm.dataset.fitDash = dash;
+}
+/* …and the same for a rect, whose outline is worked out from its box. */
+function rectOutlineD(x, y, w, h, rx){
+  const r = Math.max(0, Math.min(rx || 0, w / 2, h / 2));
+  const f = v=> (+v).toFixed(2);
+  if(!r) return `M${f(x)},${f(y)} L${f(x + w)},${f(y)} L${f(x + w)},${f(y + h)} L${f(x)},${f(y + h)} Z`;
+  return `M${f(x + r)},${f(y)} L${f(x + w - r)},${f(y)} Q${f(x + w)},${f(y)} ${f(x + w)},${f(y + r)}` +
+         ` L${f(x + w)},${f(y + h - r)} Q${f(x + w)},${f(y + h)} ${f(x + w - r)},${f(y + h)}` +
+         ` L${f(x + r)},${f(y + h)} Q${f(x)},${f(y + h)} ${f(x)},${f(y + h - r)}` +
+         ` L${f(x)},${f(y + r)} Q${f(x)},${f(y)} ${f(x + r)},${f(y)} Z`;
 }

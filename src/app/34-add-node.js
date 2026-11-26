@@ -18,7 +18,8 @@ const NODE_STYLE_PICKS = [
   {value:'ellipse', label:'Character',     hint:'A portrait circle, with its words on a card beside it.'},
   {value:'link',    label:'Link',          hint:'A small circle that goes to another entry on a double press — to join two entries far apart.'},
   {value:'textbox', label:'Text',          hint:'A loose line of text on the chart — no connections.'},
-  {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'}
+  {value:'image',   label:'Image',         hint:'A picture placed on the chart — no connections.'},
+  {value:'switch',  label:'Switch',        hint:'An entry that is 0 or 1: a press on its pill flips it, for a reader too, and can set scenarios off.'}
   /* Array stood here too, greyed until two entries were picked. It is not
      a new entry but a frame round picked ones, so it lives where the
      picked ones are acted on: the menu a right click or a long press opens
@@ -45,6 +46,14 @@ function nodeStyleIcon(kind){
   } else if(kind === 'link'){
     add('circle', {cx:20, cy:15, r:6.5, class:'nsi-box'});
     add('path', {d:'M17.4,17.6 L22.4,12.6 M18.8,12.6 H22.4 V16.2', class:'nsi-mark'});
+  } else if(kind === 'ports'){
+    box(10, 10);
+    add('circle', {cx:10, cy:15, r:1.8, class:'nsi-fill-soft'});
+    [11, 14, 17, 20].forEach(y=> add('circle', {cx:30, cy:y, r:1.5, class:'nsi-fill-soft'}));
+  } else if(kind === 'switch'){
+    add('rect', {x:6, y:10, width:16, height:10, rx:5, class:'nsi-box'});
+    add('circle', {cx:17, cy:15, r:3, class:'nsi-fill-soft'});
+    add('rect', {x:25, y:10, width:10, height:10, rx:1, class:'nsi-box'});
   } else if(kind === 'textbox'){
     box(8, 14);
     add('path', {d:'M15,12 H25 M20,12 V19', class:'nsi-mark'});

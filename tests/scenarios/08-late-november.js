@@ -1,4 +1,4 @@
-/* tests/scenarios/08-late-november.js — scenarios 151 to 167 of the suite.
+/* tests/scenarios/08-late-november.js — scenarios 151 to 168 of the suite.
  *
  * From 20.11 on: the page in another language, the field, the chart's own
  * fonts, the cloud drives, the field on an entry as the drawing, NSFW, the
@@ -610,7 +610,7 @@
   });
   const near = v=> typeof v === 'number' && v < 0.6;
   check('a reading wider than its word: the word keeps its letters together, as drawn', near(r.wide), JSON.stringify(r.wide));
-  check('…and a reading in an underlined run is underlined in the field too', /underline/.test(r.ruled || ''), r.ruled);
+  check('…and a reading in an underlined run is not underlined in the field either (25.11)', !/underline/.test(r.ruled || ''), r.ruled);
   check('lines with a reading or a larger run stand as far apart as drawn', near(r.lines), JSON.stringify(r.lines));
   check('a reading over a larger word stands where the drawing puts it', near(r.larger), JSON.stringify(r.larger));
   check('bold, italic and a smaller run set where drawn', near(r.dressed), JSON.stringify(r.dressed));
@@ -1567,7 +1567,7 @@
       document.getElementById('studioToggle').click(); await wait(80);
       const trig = document.querySelector('#studioList .scn-card .scn-select');
       const cards = [...document.querySelectorAll('#studioList .scn-card')];
-      out.studio = !!trig && trig.options.length === 6 && document.querySelectorAll('#studioList .scn-secs').length === 6 &&
+      out.studio = !!trig && trig.options.length === 8 && document.querySelectorAll('#studioList .scn-secs').length === 6 &&
                    cards.length === 6 && !cards[5].firstElementChild.querySelector('.scn-chip');
       const secs = document.querySelectorAll('#studioList .scn-secs')[3];
       out.secsShown = secs && secs.value === '0.3';
@@ -1669,7 +1669,7 @@
   check('a chain: an animation\'s end sets off the next, which waits its seconds, and an entry going shows another',
         r.chainBefore && r.shook && r.waited && r.chained, JSON.stringify([r.chainBefore, r.shook, r.waited, r.chained]));
   check('…and Reset stops what was still waiting', r.resetStops);
-  check('the studio offers the six triggers and a step\'s seconds, and keeps them with the chart',
+  check('the studio offers its eight triggers and a step\'s seconds, and keeps them with the chart',
         r.studio && r.secsShown && r.secsSet && r.saved, JSON.stringify([r.studio, r.secsShown, r.secsSet, r.saved]));
   check('citations are set in bold and italic from References, measured so, and kept', r.refFace && r.refKept && r.refOff,
         JSON.stringify([r.refFace, r.refKept, r.refOff]));
@@ -1935,9 +1935,20 @@
   check('a headless end stops at the middle of a see-through border, and only there', r.bareCut);
 
   /* 10, 15: pinned by a click, and carried to where the pointer puts it. */
-  const fab = await page.evaluate(()=>{ const b = document.getElementById('addFabBtn').getBoundingClientRect();
+  /* Pointed at first, and pressed once the menu the pointer opened has
+     settled and the button is what a press there reaches: on a slower
+     runner a press made at once could land while the menu was still
+     coming out (CI, 24.11). */
+  const fabAt = ()=> page.evaluate(()=>{ const b = document.getElementById('addFabBtn').getBoundingClientRect();
     return {x: b.left + b.width / 2, y: b.top + b.height / 2}; });
-  await page.mouse.move(fab.x, fab.y); await page.mouse.click(fab.x, fab.y); await page.waitForTimeout(150);
+  let fab = await fabAt();
+  await page.mouse.move(fab.x, fab.y); await page.waitForTimeout(300);
+  fab = await fabAt();
+  await page.waitForFunction(({x, y})=>{ const e = document.elementFromPoint(x, y);
+    return !!e && document.getElementById('addFabBtn').contains(e); }, fab, {timeout: 3000}).catch(()=>{});
+  const fabSeen = await page.evaluate(({x, y})=>{ const e = document.elementFromPoint(x, y);
+    return [e ? e.tagName + '.' + e.className : null, document.getElementById('addFab').className].join(' | '); }, fab);
+  await page.mouse.click(fab.x, fab.y); await page.waitForTimeout(150);
   const pinned = await page.evaluate(()=> document.getElementById('addFab').classList.contains('pinned'));
   await page.mouse.move(fab.x - 300, fab.y - 300); await page.waitForTimeout(150);
   const held = await page.evaluate(()=> document.getElementById('addFab').classList.contains('open'));
@@ -1960,7 +1971,152 @@
     closeAddFab(); rebuildChart();
     return res;
   }, {x: at.x, y: at.y, before});
-  check('a click on + pins its menu open until the next one', pinned && held, JSON.stringify([pinned, held]));
+  check('a click on + pins its menu open until the next one', pinned && held, JSON.stringify([pinned, held, fabSeen]));
   check('an entry picked with a mouse rides under the pointer and is put down where it is pressed',
         ghost && put.added && put.near && put.done, JSON.stringify([ghost, put]));
+  });
+
+  await scenario("the owner's list of 25.11: one glow round an entry and its tabs, rules of two kinds, readings, the card's body, the field's gradient, dashes side by side, legs that grow, the selection's frame, switches, templates and fixed ports", async () => {
+  const r = await page.evaluate(async ()=>{
+    const wait = ms=> new Promise(res=> setTimeout(res, ms));
+    const out = {};
+    const X = 70000, Y = 70000;
+    applyEdit(()=>{
+      workingNodes.push(['h1', 'Linked', null, null, null, null, {pos: [X, Y], link: 'https://example.com', multiLang: true, langTabs: [{tag: 'JP', text: 'a'}, {tag: 'RU', text: 'b'}]}]);
+      workingNodes.push(['d1', 'Dashed', null, null, null, null, {pos: [X + 300, Y], border: 'dashed', size: [120, 60]}]);
+      workingNodes.push(['d2', 'Below', 'd1', null, null, null, {pos: [X + 500, Y + 300]}]);
+      workingNodes.push(['sw', 'Power', null, null, null, null, {pos: [X, Y + 400], switch: {onLabel: 'on', onColor: '#2e7d32'}}]);
+      workingNodes.push(['sp', 'Splitter', ['h1'], null, null, null, {pos: [X + 900, Y], size: [100, 80], ports: {left: 1, right: 4}}]);
+      for(let i = 0; i < 4; i++) workingNodes.push(['so' + i, 'Out ' + i, 'sp', null, null, null, {pos: [X + 1200, Y - 120 + i * 80]}]);
+    });
+    const ds = EDGE_STYLES.find(o=> o.from === 'd1' && o.to === 'd2') || (EDGE_STYLES.push({from: 'd1', to: 'd2'}), EDGE_STYLES[EDGE_STYLES.length - 1]);
+    ds.dash = 'dashed'; ds.routing = 'orthogonal';
+    routeLast = null; rebuildChart(); await wait(200);
+
+    // 1: one halo, traced round the outline and its tabs.
+    selectNode('h1'); await wait(80);
+    const g = document.querySelector('.node[data-id="h1"]');
+    const halo = g && g.querySelector(':scope > .node-halo');
+    out.halo = !!halo && g.firstElementChild === halo && halo.children.length >= 2 &&
+               getComputedStyle(halo).display !== 'none';
+    deselect();
+
+    // 2: an underline and a strike of two kinds are two boxes.
+    const two = runToHtml({type: 'text', text: 'x', under: 'wavy', strike: 'solid'});
+    out.twoRules = /line-through;text-decoration-style:solid/.test(two) && /underline;text-decoration-style:wavy/.test(two);
+    out.ruleSample = !!ruleSampleSvg && !/>\s*ab|>\s*U</.test(ruleSampleSvg('dashed'));
+
+    // 7: a reading takes only its word's size.
+    const t7 = tokenizeLabel('{{s:20|**[[w|a]]**}}')[0];
+    out.rubyBare = !!t7 && !(t7.annoRuns || []).some(x=> x.bold);
+
+    // 5: the field's gradient.
+    applyEdit(()=>{ SETTINGS.background = {color: '#ffffff', gradient: ['#c9d3e3', '#334455']}; });
+    await wait(60);
+    const grad = document.getElementById('chart-field-grad');
+    out.gradient = !!grad && grad.querySelectorAll('stop').length === 3;
+    out.gradientKept = JSON.stringify(cleanBackground({color: '#fff000', gradient: ['#000000', 'bad']}).gradient) === '["#000000"]';
+    applyEdit(()=>{ delete SETTINGS.background; });
+
+    // 10: each side and each leg starts and ends on a whole dash.
+    const border = document.querySelector('.node[data-id="d1"] [stroke-dasharray]');
+    const arr = border ? border.getAttribute('stroke-dasharray').split(/\s+/).map(Number) : [];
+    out.borderFitted = arr.length > 4 && border.getAttribute('stroke-dasharray') !== '7 5';
+    const line = document.querySelector('.edge.struct[data-from="d1"][data-to="d2"]');
+    const f = line && fittedDash(line.getAttribute('d'), '7 5');
+    const sum = f ? f.array.split(' ').map(Number).reduce((a, b)=> a + b, 0) : 0;
+    out.legsFitted = !!line && !!line.dataset.fitDash && Math.abs(sum - line.getTotalLength()) < 1.5;
+
+    // 3: a stretch out of a carried entry goes with it, and the one along the carry grows.
+    const slid = slideBends({bends: [[X + 360, Y + 150], [X + 560, Y + 150]], from: {x: X + 360, y: Y + 60}, reversed: false}, 40, 0);
+    out.slides = slid[0][0] === X + 400 && slid[1][0] === X + 560;
+    const down = slideBends({bends: [[X + 360, Y + 150], [X + 560, Y + 150]], from: {x: X + 360, y: Y + 60}, reversed: false}, 0, 30);
+    out.slidesDown = down[0][1] === Y + 150;
+
+    // 8: a cut card's connectors meet its body.
+    applyEdit(()=>{
+      workingNodes.push(['cc', 'Card', null, null, 'Body', null, {pos: [X, Y + 700], card: true, cardCut: true, image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='}]);
+    });
+    await wait(80);
+    const cn = nodes.get('cc');
+    out.cardBody = !!cn && (!cn.cardCutRun || (Array.isArray(cn.cardBodyRun) && cn.cardBodyRun[0].y > 0));
+
+    // 11: a switch flips: saved by the editor, the reader's own in reading.
+    let pill = document.querySelector('[data-switch="sw"]');
+    out.switchDrawn = !!pill && pill.getAttribute('aria-checked') === 'false';
+    pill.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    await wait(80);
+    out.switchSaved = workingEntry('sw').entry[6].switch.on === true && nodes.get('sw').color === '#2e7d32' &&
+                      document.querySelector('[data-switch="sw"]').getAttribute('aria-checked') === 'true';
+    readOnlyView = true;
+    flipSwitch('sw');
+    out.switchReader = nodes.get('sw').switch.on === false && workingEntry('sw').entry[6].switch.on === true;
+    readOnlyView = false; switchFlips.clear(); rebuildChart();
+    out.switchTriggers = SCN_TRIGGERS.includes('switchOn') && SCN_TRIGGERS.includes('switchOff');
+
+    // 6: fixed ports, kept by a template.
+    const ports = [];
+    drawnRoutes.forEach((rt, k)=>{ if(k.startsWith('sp::')) ports.push(Math.round(rt.pts[0].x) + ',' + Math.round(rt.pts[0].y)); });
+    const spn = nodes.get('sp');
+    out.fixedRight = ports.length === 4 && new Set(ports).size === 4 && ports.every(p=> +p.split(',')[0] === Math.round(spn.x + spn.w));
+    const into = drawnRoutes.get('h1::sp');
+    out.fixedLeft = !!into && Math.round(into.pts[into.pts.length - 1].x) === Math.round(spn.x);
+    out.portMarks = document.querySelectorAll('.node[data-id="sp"] .fixed-port').length === 5;
+    saveAsTemplate('sp');
+    const tpl = (SETTINGS.nodeTemplates || []).find(t=> t.name === 'Splitter');
+    out.template = !!tpl && tpl.opts.ports.left === 1 && tpl.opts.ports.right === 4 && !tpl.opts.pos;
+    openAddFab(); await wait(40);
+    out.templateOffered = !!document.querySelector('#addFabStyles .node-style-btn.tpl');
+    closeAddFab();
+    const made = addFromTemplate(tpl, {x: X + 900, y: Y + 400});
+    closeNodeEditor();
+    out.templateMade = !!made && !!nodes.get(made).ports && nodes.get(made).ports.right === 4;
+    return out;
+  });
+  check('a picked entry and its tabs glow as one shape', r.halo);
+  check('an underline and a strike of different kinds are drawn each in its own kind, and the list shows only lines',
+        r.twoRules && r.ruleSample, JSON.stringify([r.twoRules, r.ruleSample]));
+  check('a reading keeps the size of its word and nothing else', r.rubyBare);
+  check('the field takes a gradient of several colours, kept with the colour it starts from',
+        r.gradient && r.gradientKept, JSON.stringify([r.gradient, r.gradientKept]));
+  check('a dashed border and a dashed connector are dashed side by side, leg by leg',
+        r.borderFitted && r.legsFitted, JSON.stringify([r.borderFitted, r.legsFitted]));
+  check('carried along a stretch, the corners before it go with the entry and that stretch grows',
+        r.slides && r.slidesDown, JSON.stringify([r.slides, r.slidesDown]));
+  check('a card cut to its picture is met at its body', r.cardBody);
+  check('a switch flips: the editor\'s press is saved, a reader\'s is their own',
+        r.switchDrawn && r.switchSaved && r.switchReader && r.switchTriggers,
+        JSON.stringify([r.switchDrawn, r.switchSaved, r.switchReader, r.switchTriggers]));
+  check('ports fixed by hand are where connectors meet, and a side with none gives way',
+        r.fixedRight && r.fixedLeft && r.portMarks, JSON.stringify([r.fixedRight, r.fixedLeft, r.portMarks]));
+  check('an entry saved as a template is offered by + and comes out with its ports',
+        r.template && r.templateOffered && r.templateMade, JSON.stringify([r.template, r.templateOffered, r.templateMade]));
+
+  /* 4: the selection's frame, by the hand. */
+  await page.evaluate(()=>{
+    applyEdit(()=>{
+      for(let i = 0; i < 3; i++) for(let j = 0; j < 2; j++)
+        workingNodes.push(['fa' + i + j, 'F' + i + j, null, null, null, null, {pos: [80000 + i * 140, 80000 + j * 100]}]);
+    });
+    rebuildChart(); centreViewOn(80140, 80050, 1.3); deselect();
+  });
+  await page.waitForTimeout(150);
+  const toS = (x, y)=> page.evaluate(([x, y])=>{ const b = svg.getBoundingClientRect(); return {x: b.left + x * vs + vx, y: b.top + y * vs + vy}; }, [x, y]);
+  await page.click('#areaTool');
+  let a = await toS(79980, 79980), b = await toS(80040, 80040);
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, {steps: 4}); await page.mouse.up();
+  const first = await page.evaluate(()=> [...multiSelection].sort().join(',') || selectedId);
+  const e = await page.evaluate(()=>{ const g = document.querySelector('.sel-area-grip[data-area="e"]').getBoundingClientRect(); return {x: g.x + g.width / 2, y: g.y + g.height / 2}; });
+  await page.mouse.move(e.x, e.y); await page.mouse.down(); await page.mouse.move(e.x + 300 * 1.3, e.y, {steps: 4}); await page.mouse.up();
+  const wider = await page.evaluate(()=> [...multiSelection].sort().join(','));
+  a = await toS(80150, 80200); b = await toS(80130, 79960);
+  await page.keyboard.down('Alt');
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, {steps: 4}); await page.mouse.up();
+  await page.keyboard.up('Alt');
+  const cut = await page.evaluate(()=> [...multiSelection].sort().join(','));
+  await page.keyboard.press('Escape');
+  const down = await page.evaluate(()=> !areaToolOn && !document.querySelector('.sel-area-frame'));
+  check('the selection\'s frame stays, grows by its grips, and Alt takes away what it catches',
+        first === 'fa00' && wider === 'fa00,fa10,fa20' && cut === 'fa00,fa20' && down,
+        JSON.stringify([first, wider, cut, down]));
   });

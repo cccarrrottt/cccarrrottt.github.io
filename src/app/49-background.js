@@ -93,20 +93,59 @@ function buildBackgroundMenu(){
     r.appendChild(b);
   };
   // The colour: a square, as every colour on the page is (squareForHexInput).
+  /* One colour, or a gradient down the field from it through more (the
+     owner's list of 25.11): Gradient brings a second square, and a + for
+     each one after that; a colour past the second has a × of its own. */
   const cr = row('Colour');
-  const wrap = document.createElement('div');
-  wrap.className = 'hex-field';
-  const box = document.createElement('input');
-  box.type = 'text'; box.className = 'tb-hex'; box.maxLength = 9; box.spellcheck = false;
-  box.value = bg.color || '';
-  wrap.appendChild(box);
-  cr.appendChild(wrap);
-  squareForHexInput(box, {title: 'the colour of the field', fallback: ()=> '#ffffff'});
-  box.addEventListener('input', ()=>{
-    const v = hexFieldValue(box.value);
-    if(HEX_RE.test(v)) setBackground({color: v.toLowerCase()});
+  const kind = document.createElement('select');
+  kind.className = 'style-select bg-kind';
+  kind.title = 'One colour, or a gradient of several';
+  [['solid', 'Solid'], ['gradient', 'Gradient']].forEach(([v, t])=>{
+    const o = document.createElement('option'); o.value = v; o.textContent = t; kind.appendChild(o);
   });
-  reset(cr, !!bg.color, ()=> setBackground({color: undefined}), 'Back to the paper');
+  const more = bg.gradient || [];
+  kind.value = more.length ? 'gradient' : 'solid';
+  kind.addEventListener('change', ()=>{
+    if(kind.value === 'gradient') setBackground({color: bg.color || '#ffffff', gradient: [bg.color && bg.color !== '#dde3ee' ? '#dde3ee' : '#c9d3e3']});
+    else setBackground({gradient: undefined});
+  });
+  cr.appendChild(kind);
+  reset(cr, !!bg.color, ()=> setBackground({color: undefined, gradient: undefined}), 'Back to the paper');
+  const colours = document.createElement('div');
+  colours.className = 'bg-menu-colours';
+  bgMenu.appendChild(colours);
+  const square = (value, title, put, drop)=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'hex-field';
+    const box = document.createElement('input');
+    box.type = 'text'; box.className = 'tb-hex'; box.maxLength = 9; box.spellcheck = false;
+    box.value = value || '';
+    wrap.appendChild(box);
+    colours.appendChild(wrap);
+    squareForHexInput(box, {title, fallback: ()=> '#ffffff'});
+    box.addEventListener('input', ()=>{
+      const v = hexFieldValue(box.value);
+      if(HEX_RE.test(v)) put(v.toLowerCase());
+    });
+    if(drop){
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'bg-colour-drop'; x.textContent = '×';
+      x.title = 'Take this colour out of the gradient';
+      x.addEventListener('click', ev=>{ ev.stopPropagation(); drop(); });
+      wrap.appendChild(x);
+    }
+  };
+  square(bg.color, 'the colour of the field', v=> setBackground({color: v}));
+  more.forEach((c, i)=> square(c, 'a colour of the gradient',
+    v=>{ const g = more.slice(); g[i] = v; setBackground({gradient: g}); },
+    more.length > 1 ? ()=>{ const g = more.slice(); g.splice(i, 1); setBackground({gradient: g}); } : null));
+  if(more.length && more.length < BG_GRADIENT_MAX - 1){
+    const add = document.createElement('button');
+    add.type = 'button'; add.className = 'editor-btn bg-colour-add'; add.textContent = '+';
+    add.title = 'Another colour at the foot of the gradient';
+    add.addEventListener('click', ev=>{ ev.stopPropagation(); setBackground({gradient: more.concat([more[more.length - 1]])}); });
+    colours.appendChild(add);
+  }
   // The picture: chosen from a file, laid to fill or repeated, taken off.
   const pr = row('Picture');
   const pick = document.createElement('button');

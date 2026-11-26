@@ -1937,7 +1937,10 @@
   check('the text entry is called Text, in the add menu and the shape list', out.textLabel === 'Text,Text', out.textLabel);
   check('a card\'s rules are as wide and as dashed as its border, at full strength',
         out.ruleW.length >= 1 && out.ruleW.every(w=> Math.abs(w - out.nodeBorderW) < 0.01) &&
-        out.ruleDash.every(d=> d === out.borderDash) && out.borderDash !== 'none' && out.ruleOpacity.every(o=> o === '1'),
+        /* Dashed in the border's pattern; each line is fitted to its own
+           length since 25.11, so it is the dash that is compared. */
+        out.ruleDash.every(d=> d !== 'none' && Math.abs(parseFloat(d) - parseFloat(out.borderDash)) / parseFloat(out.borderDash) < 0.25) &&
+        out.borderDash !== 'none' && out.ruleOpacity.every(o=> o === '1'),
         JSON.stringify([out.ruleW, out.ruleDash, out.borderDash, out.ruleOpacity]));
   check('…and a double border\'s rules are doubled', out.doubleRules >= 2 && out.doubleInner * 2 === out.doubleRules,
         JSON.stringify([out.doubleRules, out.doubleInner]));

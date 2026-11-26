@@ -743,12 +743,16 @@
       a.every((v, i)=> Math.abs(+v - +b[i]) < 0.6);
     out.waveTails = JSON.stringify({a, b, na:plainCrests.length, nb:inCrests.length});
 
-    // A dash pattern keeps its rhythm too, by being offset the same amount.
+    /* A dash pattern used to keep its rhythm by being offset as far as a
+       head shortened the line. Since 25.11 each leg is dashed on its own,
+       starting and ending on a whole dash (fittedDash), so what is asked
+       is that the line starts on a dash with a head or without one. */
     const dashed = async (st)=>{
       refill(EDGE_STYLES, [Object.assign({from:'dr', to:'dt', dash:'dashed'}, st)]);
       rebuildChart(); await new Promise(r=> setTimeout(r, 320));
-      return document.querySelector('#edgeLayer path.edge.struct[data-from="dr"][data-to="dt"]')
-        .getAttribute('stroke-dashoffset');
+      const p = document.querySelector('#edgeLayer path.edge.struct[data-from="dr"][data-to="dt"]');
+      const a = p.getAttribute('stroke-dasharray').split(/\s+/).map(Number);
+      return !p.getAttribute('stroke-dashoffset') && a[0] > 4 && a[0] < 10 ? 'whole' : JSON.stringify(a.slice(0, 3));
     };
     out.dashPlainOff = await dashed({});
     out.dashInOff = await dashed({arrowIn:true});
@@ -931,8 +935,8 @@
   check('a wavy pattern holds its crests when a head is added',
         r10.waveHeld,
         JSON.stringify({held:r10.waveHeld, dropped:r10.waveDropped, tails:r10.waveTails}));
-  check('a dash pattern is offset to hold its rhythm too',
-        !r10.dashPlainOff && +r10.dashInOff > 0, `${r10.dashPlainOff} -> ${r10.dashInOff}`);
+  check('a dashed line starts on a whole dash, with a head or without one',
+        r10.dashPlainOff === 'whole' && r10.dashInOff === 'whole', `${r10.dashPlainOff} -> ${r10.dashInOff}`);
   check('an amalgam bar is straight, with the junction sitting on it',
         r10.beadFound && r10.beadOnBar && r10.beadAboveChild && r10.twoMembers,
         JSON.stringify(r10));
@@ -2245,15 +2249,16 @@
     rebuildChart();
     await new Promise(r=> setTimeout(r, 480));
 
-    /* A reading belongs to the run it sits in — bold, italic, coloured,
-       and sized with it, annotation and all. */
+    /* The word under a reading is drawn in the run it sits in — bold,
+       italic, coloured — and the reading over it is not: since 25.11 it
+       takes only the size (the owner's list). */
     const ru = [...document.querySelectorAll('[data-id="ru"] text tspan')].map(t=>({
       txt:t.textContent, w:t.getAttribute('font-weight'), i:t.getAttribute('font-style'),
       st:t.getAttribute('style'), fs:t.getAttribute('font-size'),
       anno:(t.getAttribute('class')||'').indexOf('ruby-anno') >= 0}));
     const rbBase = ru.find(x=> x.txt === 'base'), rbAnno = ru.find(x=> x.txt === 'anno');
     out.rubyStyled = !!(rbBase && rbAnno && rbBase.w === '700' && rbBase.i === 'italic' &&
-      /c23b22/.test(rbBase.st || '') && rbAnno.w === '700' && /c23b22/.test(rbAnno.st || ''));
+      /c23b22/.test(rbBase.st || '') && rbAnno.w !== '700' && !/c23b22/.test(rbAnno.st || ''));
     const bigAnno = ru.find(x=> x.txt === 'top');
     out.rubyScales = !!(bigAnno && +bigAnno.fs > RUBY_FS + 1);
 
@@ -2451,7 +2456,7 @@
     await new Promise(r=> setTimeout(r, 350));
     return out;
   });
-  check('a reading takes the look of the run it sits in', r16.rubyStyled);
+  check('the word under a reading takes the look of its run, and the reading does not', r16.rubyStyled);
   check('and its annotation grows when the run does', r16.rubyScales);
   check('a sticker grows with the phrase it is set in', r16.stickerGrew);
   check('and so does a citation', r16.markGrew);
@@ -3158,11 +3163,12 @@
     dRuby.innerHTML = inlineToHtml('[[**base**|{{#c23b22|anno}}]]');
     out.rubyHtml = dRuby.innerHTML;
     out.rubyRound = richHtmlToMarkup(dRuby);
-    // A reading inside a bold phrase is bold in both halves unless told
-    // otherwise — inheriting is the default, overriding is now possible.
+    // A reading inside a bold phrase covers a bold word, and is not bold
+    // itself: it keeps only the size of what it sits in (the owner's
+    // list of 25.11; it inherited everything until then).
     const inh = tokenizeLabel('**[[w|a]]**')[0];
     out.rubyInherits = (inh.baseRuns || []).every(x=> x.bold) &&
-                       (inh.annoRuns || []).every(x=> x.bold);
+                       !(inh.annoRuns || []).some(x=> x.bold);
 
     // …and the chart draws each half in its own look.
     applyEdit(()=>{
@@ -3230,7 +3236,7 @@
         JSON.stringify(r20.rubyToks));
   check('and survive the editor unchanged',
         r20.rubyRound === '[[**base**|{{#c23b22|anno}}]]', r20.rubyRound);
-  check('a reading still inherits the run it sits in',
+  check('a reading inherits nothing but the size of the run it sits in',
         r20.rubyInherits);
   check('the chart draws each half in its own look',
         r20.baseDrawnBold && r20.annoDrawnRed && r20.annoNotBold && r20.annoSmaller,
@@ -4312,6 +4318,9 @@
         const rg = document.createRange(); rg.setStart(s0, o0); rg.setEnd(s1, o1);
         const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
         applyRichCommand(surf, 'ruby', 'reading');
+        // A new reading is empty, waiting to be typed (25.11).
+        const rt = surf.querySelector('rt');
+        if(rt) rt.textContent = 'reading';
         return richHtmlToMarkup(surf);
       };
       out.rubyKeepsDress = over('{{u:solid|{{t:solid|asdasd[1]}}}}', 0, 9);
@@ -7061,7 +7070,15 @@
         `.node[data-id="${id}"] > path:not(.border-inner)`);
       const dash = (id)=>{ const e = outline(id); return e ? (e.getAttribute('stroke-dasharray') || '') : '?'; };
       out.dashes = ['sb0','sb1','sb2','sb3'].map(dash).join('|');
-      out.dashesRight = out.dashes === '|7 5|1.5 4|9 4 1.5 4';
+      /* Each side is dashed on its own since 25.11 (fittedDash): the
+         pattern is the style's, a little stretched or squeezed, as many
+         times over as the outline holds. */
+      const want = ['', '7 5', '1.5 4', '9 4 1.5 4'];
+      out.dashesRight = out.dashes.split('|').every((got, i)=>{
+        if(!want[i]) return got === '';
+        const a = got.split(/\s+/).map(Number), w = want[i].split(' ').map(Number);
+        return a.length > w.length && Math.abs(a[0] - w[0]) / w[0] < 0.25 && Math.abs(a[1] - w[1]) / w[1] < 0.25;
+      });
       out.doubleHasTwo = document.querySelectorAll('.node[data-id="sb4"] .border-inner').length === 1;
       out.wavyIsPath = !!outline('sb5') && outline('sb5').tagName.toLowerCase() === 'path';
 
@@ -7208,7 +7225,7 @@
   check('and the archetype list has lost the two that became properties',
         r39.archetypesTrimmed, r39.shapeOptions);
   check('the + picks an archetype by its picture',
-        r39.pickCount === 5 && r39.picksDrawn && r39.pickWrites,
+        r39.pickCount === 6 && r39.picksDrawn && r39.pickWrites,
         JSON.stringify({count:r39.pickCount, drawn:r39.picksDrawn, writes:r39.pickWrites}));
   check('furniture is turned freely by a handle on itself, and only furniture',
         r39.captionHandle && r39.entryNoHandle && r39.turnedLive && r39.snapStep === 45,

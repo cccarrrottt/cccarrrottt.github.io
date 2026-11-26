@@ -132,6 +132,9 @@ APP_PARTS = [
     '47-scenarios.js',
     '48-history.js',
     '49-background.js',
+    '50-select-area.js',
+    '51-switch.js',
+    '52-templates.js',
 ]
 # The editing parts, which the published site does not hand a reader.
 #
@@ -166,6 +169,11 @@ LAZY_PARTS = [
         '25b-rich-text.js',
     '34b-add-menus.js',
     '37b-style-bar-edit.js',
+    '46-hand-tools.js',
+    '49-background.js',
+    '50-select-area.js',
+    '51-switch.js',
+    '52-templates.js',
 ]
 # Where a lazy part stood in the site's program, and where it starts in the
 # editor's file. Legal comments, so esbuild keeps them; inlineSiteFiles

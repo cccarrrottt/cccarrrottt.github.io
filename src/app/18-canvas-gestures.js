@@ -971,9 +971,26 @@ function beginNodeDrag(ev, n, g){
     bendCarry: EDGE_STYLES
       .filter(o=> Array.isArray(o.bends) && o.bends.length && group.includes(o.to) &&
                   (group.includes(o.from) || (o.from === '' && mergeCarriedWhole(o.to, group))))
-      .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])})),
+      .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])}))
+      .concat(bendSlides(group)),
     moved: false
   };
+}
+/* Which connectors have one end carried, and what their bends slide
+   from: see slideBends (18b-carry.js). Here rather than there because a
+   carry begins here, and asks for the answer. */
+function bendSlides(group){
+  const out = [];
+  EDGE_STYLES.forEach(o=>{
+    if(!Array.isArray(o.bends) || !o.bends.length || !o.from || o.from === o.to) return;
+    const inFrom = group.includes(o.from), inTo = group.includes(o.to);
+    if(inFrom === inTo) return;
+    const r = drawnRoutes.get(calloutEdgeKey(o.from, o.to));
+    if(!r || !r.pts || r.pts.length < 2) return;
+    const port = inFrom ? r.pts[0] : r.pts[r.pts.length - 1];
+    out.push({style: o, bends: o.bends.map(b=> [b[0], b[1]]), from: {x: port.x, y: port.y}, reversed: inTo});
+  });
+  return out;
 }
 /* A merge's arrow starts on its bar, and the bar stands where its
    lineages are: with the merged entry and every one of them in the group,

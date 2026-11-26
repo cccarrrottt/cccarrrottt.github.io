@@ -315,6 +315,132 @@ function drawingSig(pieces){
      .forEach((id, i)=>{ text = text.split(id).join('\u0001' + i + '\u0001'); });
   return text;
 }
+/* The trace an entry with tabs glows by when picked: its outline's pieces
+   and its tabs' grounds, stroked only, behind everything else it draws. */
+const HALO_SKIP = /(^|\s)(local-sheet|hub-echo|array-hit|array-hatch|card-rule|card-outline|figure-mark|link-node-arrow|border-inner|node-hover-pad|node-halo)(\s|$)/;
+function drawSelectionHalo(g, isBio){
+  const halo = document.createElementNS(NS, 'g');
+  halo.setAttribute('class', 'node-halo');
+  halo.setAttribute('aria-hidden', 'true');
+  const bare = (c)=>{
+    c.removeAttribute('id'); c.removeAttribute('class'); c.removeAttribute('style');
+    c.removeAttribute('filter');
+    return c;
+  };
+  [...g.children].forEach(p=>{
+    const tag = p.tagName.toLowerCase();
+    if(/^(rect|polygon|ellipse|path)$/.test(tag) || (isBio && tag === 'circle')){
+      if(!HALO_SKIP.test(p.getAttribute('class') || '')) halo.appendChild(bare(p.cloneNode(false)));
+      return;
+    }
+    if(p.classList.contains('bio-ring')){ halo.appendChild(bare(p.cloneNode(true))); return; }
+    const tabs = p.classList.contains('lang-chips') ? p : tag === 'a' ? p : null;
+    if(!tabs) return;
+    const copy = document.createElementNS(NS, 'g');
+    ['mask', 'transform'].forEach(a=>{ if(tabs.hasAttribute(a)) copy.setAttribute(a, tabs.getAttribute(a)); });
+    tabs.querySelectorAll('.lang-chip-bg, .node-link-bg').forEach(bg=>{
+      /* Each ground with the turns and moves of the groups it stands in. */
+      let at = bg, chain = [];
+      while(at && at !== tabs){ if(at.getAttribute('transform')) chain.unshift(at.getAttribute('transform')); at = at.parentNode; }
+      const c = bare(bg.cloneNode(false));
+      if(chain.length) c.setAttribute('transform', chain.join(' '));
+      copy.appendChild(c);
+    });
+    if(copy.firstChild) halo.appendChild(copy);
+  });
+  if(halo.firstChild) g.insertBefore(halo, g.firstChild);
+}
+/* The outline of any shape an entry draws, as a path, for fittedDash. */
+function outlineDOf(elm){
+  const tag = elm.tagName.toLowerCase(), A = (k)=> +elm.getAttribute(k) || 0;
+  if(tag === 'path') return elm.getAttribute('d');
+  if(tag === 'rect') return rectOutlineD(A('x'), A('y'), A('width'), A('height'), A('rx'));
+  if(tag === 'line') return `M${A('x1')},${A('y1')} L${A('x2')},${A('y2')}`;
+  if(tag === 'polygon' || tag === 'polyline'){
+    const v = String(elm.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number);
+    if(v.length < 4) return null;
+    let d = `M${v[0]},${v[1]}`;
+    for(let i = 2; i + 1 < v.length; i += 2) d += ` L${v[i]},${v[i+1]}`;
+    return tag === 'polygon' ? d + ' Z' : d;
+  }
+  return null;
+}
+/* A round outline has no sides: it is given a whole number of repeats
+   round it, so the dash it starts on is the dash it ends on. */
+function roundDash(elm, dash){
+  const tag = elm.tagName.toLowerCase(), A = (k)=> +elm.getAttribute(k) || 0;
+  const rx = tag === 'circle' ? A('r') : A('rx'), ry = tag === 'circle' ? A('r') : A('ry');
+  if(!(rx > 0 && ry > 0)) return null;
+  const L = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
+  const pat = String(dash).trim().split(/[\s,]+/).map(Number);
+  const P = pat.reduce((a, b)=> a + b, 0);
+  if(!(P > 0)) return null;
+  const k = L / (Math.max(1, Math.round(L / P)) * P);
+  return pat.map(v=> (v * k).toFixed(2)).join(' ');
+}
+function fitDashesIn(g, dash){
+  g.querySelectorAll('[stroke-dasharray]').forEach(elm=>{
+    if(elm.getAttribute('stroke-dasharray') !== dash || elm.closest('.node-halo')) return;
+    const tag = elm.tagName.toLowerCase();
+    if(tag === 'circle' || tag === 'ellipse'){
+      const a = roundDash(elm, dash);
+      if(a) elm.setAttribute('stroke-dasharray', a);
+      return;
+    }
+    const f = fittedDash(outlineDOf(elm), dash);
+    if(!f) return;
+    elm.setAttribute('stroke-dasharray', f.array);
+    if(f.offset) elm.setAttribute('stroke-dashoffset', f.offset.toFixed(2));
+  });
+}
+/* A switch's pill, standing just left of the entry: 0 or 1, with
+   its knob at that end and the state's own words beside it. Pressing it
+   flips the switch — for anybody: a reader's press is theirs alone and
+   sets off the scenarios that wait on it; the editor's is the state the
+   chart starts at. */
+const SWITCH_H = 14, SWITCH_GAP = 5;
+const SWITCH_FACE = "'IBM Plex Mono',monospace";
+function drawSwitchPill(g, n, liveN){
+  const on = n.switch.on, words = n.switch.words[on ? 1 : 0] || (on ? '1' : '0');
+  const tw = Math.max(8, measureText(words, {fontSize: 10, family: SWITCH_FACE}));
+  const w = SWITCH_H * 1.7 + tw + 8, x = n.x - w - SWITCH_GAP, y = n.y + n.h / 2 - SWITCH_H / 2;
+  const pg = el('g', {class: 'switch-pill' + (on ? ' on' : ''), 'data-switch': n.id, role: 'switch',
+                      'aria-checked': on ? 'true' : 'false', tabindex: '0',
+                      style: `--switch-ink:${n.color || 'var(--ink)'};`}, g);
+  el('rect', {class: 'switch-bg', x: x.toFixed(2), y: y.toFixed(2), width: w.toFixed(2), height: SWITCH_H, rx: SWITCH_H / 2}, pg);
+  const tx = x + 4 + SWITCH_H * 0.85, kr = SWITCH_H / 2 - 3;
+  el('rect', {class: 'switch-track', x: (x + 3).toFixed(2), y: (y + 3).toFixed(2), width: (SWITCH_H * 1.7 - 2).toFixed(2),
+              height: SWITCH_H - 6, rx: (SWITCH_H - 6) / 2}, pg);
+  el('circle', {class: 'switch-knob', cx: (on ? x + 1 + SWITCH_H * 1.7 - kr : x + 3 + kr).toFixed(2), cy: (y + SWITCH_H / 2).toFixed(2), r: kr}, pg);
+  const t = el('text', {class: 'switch-words', x: (tx + SWITCH_H * 0.85 + 2).toFixed(2), y: (y + SWITCH_H / 2 + 3.5).toFixed(2)}, pg);
+  t.textContent = words;
+  t.setAttribute('translate', 'no');
+  pg.addEventListener('mousedown', ev=> ev.stopPropagation());
+  pg.addEventListener('pointerdown', ev=> ev.stopPropagation());
+  pg.addEventListener('dblclick', ev=> ev.stopPropagation());
+  const flip = (ev)=>{ ev.stopPropagation(); ev.preventDefault(); flipSwitch(liveN().id); };
+  pg.addEventListener('click', flip);
+  pg.addEventListener('keydown', ev=>{ if(ev.key === 'Enter' || ev.key === ' ') flip(ev); });
+}
+function flipSwitch(id){
+  const n = nodes.get(id);
+  if(!n || !n.switch) return;
+  const nowOn = !n.switch.on;
+  if(readOnlyView){
+    if(switchFlips.has(id)) switchFlips.delete(id); else switchFlips.add(id);
+    rebuildChart();
+    scenariosFire(nowOn ? 'switchOn' : 'switchOff', id);
+    return;
+  }
+  applyEdit(()=>{
+    const w = workingEntry(id);
+    if(!w) return;
+    const opts = entryOpts(w.entry);
+    opts.switch = Object.assign({}, opts.switch || {}, {on: nowOn});
+    if(!opts.switch.on) delete opts.switch.on;
+    putEntry(w.index, w.entry, opts);
+  });
+}
 function drawOrKeep(n, kept, draw){
   const old = kept.get(n.id);
   const layers = ENTRY_LAYERS();
@@ -1429,6 +1555,10 @@ const drawOne = (n)=>{
           : [{x:n.x, y:picY}, {x:n.x + w, y:picY}, {x:n.x + w, y:n.y + h}, {x:n.x, y:n.y + h}])
       : null;
     n.cardCutRun = cutPts ? cutPts.map(p=> ({x: (p.x - n.x) / w, y: (p.y - n.y) / h})) : null;
+    /* …but a connector goes to the card's words, not to its picture (the
+       owner's list of 25.11): it is met where the bands under the picture
+       begin, as though the picture were not there, and runs in under it. */
+    n.cardBodyRun = cutPts ? [{x: 0, y: (cardImgB - n.y) / h}, {x: 1, y: (cardImgB - n.y) / h}, {x: 1, y: 1}, {x: 0, y: 1}] : null;
     const cutD = (i, r)=>{
       const run = i ? offsetRun(cutPts, i) : cutPts;
       if(isWavy){ const wv = waveRun(run); if(wv) return smoothPath(wv, true); }
@@ -2203,6 +2333,18 @@ const drawOne = (n)=>{
     }
   });
 
+  if(n.switch && !isFree && !isLinkNode && !isSplit) drawSwitchPill(g, n, liveN);
+  /* Ports fixed by hand are marked where they are, so it can be seen
+     where a connector may meet the entry. */
+  if(n.ports && !isFree && !isLinkNode && !isSplit){
+    const pm = el('g', {class: 'fixed-ports', 'aria-hidden': 'true'}, g);
+    PORT_SIDES.forEach(side=>{
+      for(let i = 0; i < (n.ports[side] || 0); i++){
+        const p = portOnSide(n, side, i, n.ports[side], 0);
+        el('circle', {class: 'fixed-port', cx: (+p.x).toFixed(2), cy: (+p.y).toFixed(2), r: 2.2}, pm);
+      }
+    });
+  }
   if(n.link && safeUrl(n.link) && !isFree && !isLinkNode && !isSplit){
     // A real SVG <a> (not a JS window.open() call) — the artifact host
     // renders this page inside a sandboxed iframe, which silently blocks
@@ -2264,6 +2406,19 @@ const drawOne = (n)=>{
      the half nearest the border quietly starting a connector drag
      instead. Raised to the top it is a button all the way round. */
   if(linkWrap && linkWrap.parentNode === g) g.appendChild(linkWrap);
+  /* With tabs grown out of its border, the entry is picked as one shape
+     (the owner's list of 25.11): each piece wearing a glow of its own put
+     a seam of light between the border and every tab, where the tab's
+     glow lay over the border and the border's over the tab. So the
+     outline and its tabs are traced once more, at the back of the entry,
+     and only that trace glows (#sel-halo draws the glow and not the trace
+     itself): one halo round the shape they make together. */
+  if((chipGroup || linkWrap) && !isFree) drawSelectionHalo(g, isBio);
+  /* Every dashed line the entry drew is dashed side by side (the owner's
+     list of 25.11): each side of the border, each rule and each mark of a
+     figure starts and ends on a whole dash, so a corner is one dash
+     turning it. See fittedDash. */
+  if(borderDash) fitDashesIn(g, borderDash);
 
   /* The veil of an entry tagged NSFW (see NSFW_TAG): a round badge as
      tall as the entry, over its middle, and — to a reader, while it is

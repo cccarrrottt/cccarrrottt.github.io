@@ -316,7 +316,7 @@ function richHtmlToMarkup(root, opts){
           holder.appendChild(c.cloneNode(true));
         });
         const base = richHtmlToMarkup(holder, {rubyHalf:true}).trim();
-        const anno = rt ? richHtmlToMarkup(rt, {rubyHalf:true}).trim() : '';
+        const anno = rt ? richHtmlToMarkup(rt, {rubyHalf:true}).replace(/[\u200b\ufeff]/g, '').trim() : '';
         if(base) writeText(anno ? `[[${base}|${anno}]]` : base);
         return;
       }
@@ -497,12 +497,14 @@ function readingWordAt(surface, x, y){
    still in the field, where nothing could be typed into it again (the
    owner's list of 15.11). The caret goes where the reading was, after
    its word. */
-function dropEmptyReadings(surface){
+function dropEmptyReadings(surface, leaving){
   surface.querySelectorAll('ruby').forEach(ruby=>{
     const rt = ruby.querySelector('rt');
-    if(rt && rt.textContent.replace(/[\u200b\ufeff]/g, '') !== '') return;
     const sel = window.getSelection();
     const hadCaret = !!(sel && sel.rangeCount && ruby.contains(sel.getRangeAt(0).startContainer));
+    if(rt && rt.textContent.replace(/[\u200b\ufeff]/g, '') !== ''){ delete rt.dataset.fresh; return; }
+    /* A reading just made waits for its words while the caret is in it. */
+    if(rt && rt.dataset.fresh && hadCaret && !leaving) return;
     if(rt) rt.remove();
     const parent = ruby.parentNode, last = ruby.lastChild;
     while(ruby.firstChild) parent.insertBefore(ruby.firstChild, ruby);
@@ -579,6 +581,21 @@ function makeRichField(textarea){
   textarea.style.display = 'none';
   /* Before the field's text is read, so the markup and the field agree. */
   surface.addEventListener('input', (ev)=>{ if(!ev.isComposing) dropEmptyReadings(surface); }, true);
+  /* …and one left without them goes when the field is left, or the caret
+     goes elsewhere in it. */
+  surface.addEventListener('focusout', ()=>{
+    if(!surface.querySelector('rt[data-fresh]')) return;
+    dropEmptyReadings(surface, true);
+    textarea.value = richHtmlToMarkup(surface);
+  });
+  document.addEventListener('selectionchange', ()=>{
+    const fresh = surface.querySelector('rt[data-fresh]');
+    if(!fresh) return;
+    const sel = window.getSelection();
+    if(sel && sel.rangeCount && fresh.contains(sel.getRangeAt(0).startContainer)) return;
+    dropEmptyReadings(surface, true);
+    textarea.value = richHtmlToMarkup(surface);
+  });
   surface.addEventListener('input', ()=>{ textarea.value = richHtmlToMarkup(surface); });
   wordInReadingOnly(surface);
   // See insertIntoReading: a character typed inside a reading is placed by

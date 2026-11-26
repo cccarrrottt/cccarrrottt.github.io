@@ -583,6 +583,20 @@ function avoidLeaderSide(n, side){
   if(!taken || taken !== side) return side;
   return (SIDE_FALLBACK[side] || [])[0] || side;
 }
+function sideWithPorts(n, side, other){
+  const fixed = n && n.ports;
+  if(!fixed || fixed[side]) return side;
+  const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+  const ox = other.x + other.w / 2 - cx, oy = other.y + other.h / 2 - cy;
+  const normal = {top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0]};
+  let best = side, bestDot = -Infinity;
+  PORT_SIDES.forEach(k=>{
+    if(!fixed[k]) return;
+    const d = normal[k][0] * ox + normal[k][1] * oy;
+    if(d > bestDot){ bestDot = d; best = k; }
+  });
+  return best;
+}
 function resolvePorts(edgesList, sideOverrides){
   const ends = [];   // one entry per edge end
   edgesList.forEach(e=>{
@@ -656,6 +670,11 @@ function resolvePorts(edgesList, sideOverrides){
     /* …but never the side a callout's own leader already occupies. */
     fromSide = avoidLeaderSide(a, fromSide);
     toSide = avoidLeaderSide(b, toSide);
+    /* An entry with its ports fixed is met only on a side that has one:
+       a side with none gives way to the side with ports that best faces
+       the other end. */
+    fromSide = sideWithPorts(a, fromSide, b);
+    toSide = sideWithPorts(b, toSide, a);
     ends.push({edge:e, end:'from', nodeId:e.from, node:a, side:fromSide, ring:style.fromRing,
                other:b, merged: !!over});
     ends.push({edge:e, end:'to',   nodeId:e.to,   node:b, side:toSide,   ring:style.toRing,   other:a});
@@ -717,7 +736,15 @@ function resolvePorts(edgesList, sideOverrides){
     /* A split is one point of a line: every connector on a side of it
        meets it at that side's middle, so the lines going on from it leave
        from where the line came in, as one line forking. */
-    if(isSplitNode(list[0].node)){
+    const fixed = list[0].node.ports;
+    if(fixed){
+      /* Its own ports, however many connectors there are: spread over
+         them in order, and sharing one when there are more connectors
+         than ports, as fibres share a splitter's port. */
+      const k = fixed[list[0].side] || 1, m = list.length;
+      list.forEach((en, j)=> seat(en, m === 1 ? Math.floor((k - 1) / 2)
+        : m <= k ? Math.round(j * (k - 1) / (m - 1)) : Math.min(k - 1, Math.floor(j * k / m)), k));
+    } else if(isSplitNode(list[0].node)){
       list.forEach(en=> seat(en, 0, 1));
     } else if(mergedEnds.length && plainEnds.length){
       const total = list.length;

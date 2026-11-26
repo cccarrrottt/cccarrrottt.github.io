@@ -351,7 +351,7 @@ function runToHtml(t){
       t.type === 'sticker' ? stickerImgHtml(t.key) :
       t.type === 'ruby'
         ? `<ruby>${runsToHtml(rubyHalfRuns(t, t.baseRuns))}` +
-          `<rt>${runsToHtml(rubyHalfRuns(t, t.annoRuns))}</rt></ruby>` :
+          `<rt>${runsToHtml(t.annoRuns)}</rt></ruby>` :
       escapeHtml(t.text);
     /* A figure takes no run dressing at all. Bold, a colour or a face on
        a paragraph says nothing about a picture inside it, and a size
@@ -364,13 +364,20 @@ function runToHtml(t){
         : inner;
     }
     let html = inner;
-    if(t.under || t.strike){
+    /* A box paints one kind of rule, so a run both underlined and struck
+       in two kinds is two boxes, one inside the other: as one it wore the
+       underline's kind through its strike as well (the owner's list of
+       25.11). Of the same kind, it is one box, as it always was. */
+    const ruled = (lines, kind, attrs, inner)=>
+      `<span style="text-decoration-line:${lines};text-decoration-style:${(LINE_STYLES[kind] || LINE_STYLES.solid).css}"${attrs}>${inner}</span>`;
+    if(t.under && t.strike && t.under !== t.strike){
+      html = ruled('line-through', t.strike, ` data-strike="${escapeHtml(t.strike)}"`, html);
+      html = ruled('underline', t.under, ` data-under="${escapeHtml(t.under)}"`, html);
+    } else if(t.under || t.strike){
       const lines = [t.under ? 'underline' : '', t.strike ? 'line-through' : ''].filter(Boolean);
-      const key = t.under || t.strike;
-      const css = (LINE_STYLES[key] || LINE_STYLES.solid).css;
-      html = `<span style="text-decoration-line:${lines.join(' ')};text-decoration-style:${css}"` +
+      html = ruled(lines.join(' '), t.under || t.strike,
              `${t.under ? ` data-under="${escapeHtml(t.under)}"` : ''}` +
-             `${t.strike ? ` data-strike="${escapeHtml(t.strike)}"` : ''}>${html}</span>`;
+             `${t.strike ? ` data-strike="${escapeHtml(t.strike)}"` : ''}`, html);
     }
     if(t.italic) html = `<i>${html}</i>`;
     if(t.bold) html = `<b>${html}</b>`;

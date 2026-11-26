@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.27.3** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.28.0** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -66,7 +66,7 @@ dist/          GENERATED — not in the repository, see "The repository" below
 
 ## One scope, many files
 
-`src/app/` holds 54 files, one per subsystem. They are **not modules**. The
+`src/app/` holds 57 files, one per subsystem. They are **not modules**. The
 page is a single scope, and the build assembles it by writing those files out
 one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
 as the single `app.js` used to read top to bottom. Nothing has its own scope,
@@ -856,7 +856,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 169 named scenarios, and they are independent of one
+The browser suite is 170 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:

@@ -990,7 +990,7 @@
     return {shown: !m.hidden, acts: [...m.querySelectorAll('button')].filter(b=> !b.hidden).map(b=> b.dataset.act),
             sel: selectedId, box: m.getBoundingClientRect().toJSON()}; });
   check('a right click on an entry picks it and offers Cut, Copy, Paste and Delete at the pointer',
-        m1.shown && m1.sel === 'rc_a' && m1.acts.join() === 'cut,copy,paste,delete' &&
+        m1.shown && m1.sel === 'rc_a' && m1.acts.join() === 'cut,copy,paste,switch,ports,template,delete' &&
         Math.abs(m1.box.left - r.a.x) < 8 && Math.abs(m1.box.top - r.a.y) < 8, JSON.stringify(m1));
   await page.keyboard.press('Escape');
   await page.evaluate(()=>{ selectNode('rc_a'); multiSelection.add('rc_a'); multiSelection.add('rc_b'); });
@@ -3821,15 +3821,19 @@
                         multiLang:true, langTabs:[{tag:'JP',text:'a'}]}]); });
       rebuildChart();
       selectNode('o31_l');
-      const chip = document.querySelector('.node[data-id="o31_l"] .lang-chip-bg');
-      r.chipGlow = chip ? getComputedStyle(chip).filter : 'none';
+      /* Since 25.11 the glow is one halo round the outline and its tabs
+         together, traced at the back of the entry (drawSelectionHalo). */
+      const haloOf = (id)=>{
+        const h = document.querySelector(`.node[data-id="${id}"] > .node-halo`);
+        return h && h.querySelector('g') ? getComputedStyle(h).filter : 'none';
+      };
+      r.chipGlow = haloOf('o31_l');
       deselect();
       applyEdit(()=>{ workingNodes.push(['o31_k','Beast Wars',null,null,null,null,{pos:[X + 300, Y + 900],
                         link:'https://example.com/'}]); });
       rebuildChart();
       selectNode('o31_k');
-      const tab = document.querySelector('.node[data-id="o31_k"] .node-link-bg');
-      r.linkGlow = tab ? getComputedStyle(tab).filter : 'none';
+      r.linkGlow = haloOf('o31_k');
       deselect();
 
       /* 5. A rule runs across the spaces it was put on. */
@@ -3906,8 +3910,8 @@
         out.arrow.side0 === 'top' && out.arrow.side === 'left' && out.arrow.pin === 'bottom,left', JSON.stringify(out.arrow));
   check('a card\'s picture comes in at its heading\'s width',
         Math.abs(out.card[0] - out.card[1]) < 0.01 && Math.abs(out.card[2] - out.card[1]) < 0.01, JSON.stringify(out.card));
-  check('a picked entry\'s chips glow with its border', /drop-shadow/.test(out.chipGlow), out.chipGlow);
-  check('…and so does its link\'s tab', /drop-shadow/.test(out.linkGlow), out.linkGlow);
+  check('a picked entry\'s chips glow with its border, as one shape', /sel-halo/.test(out.chipGlow), out.chipGlow);
+  check('…and so does its link\'s tab', /sel-halo/.test(out.linkGlow), out.linkGlow);
   check('a rule runs across the spaces it was put on, as one line',
         out.rules[0] === 1 && out.rules[1] === 1 && out.rules[2] !== null && out.rules[2] < 1, JSON.stringify(out.rules));
   check('two entries one over the other keep their ends at their middles, whatever their words',

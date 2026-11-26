@@ -867,22 +867,11 @@ function seatFieldReadings(surface){
     rubies.forEach(ruby=>{
       const rt = ruby.querySelector('rt');
       if(!rt) return;
-      /* A reading inside an underlined or struck run is drawn with the
-         run's rule (the reading's runs start from the run's look, see
-         parseMarkupInto), but a rule is not inherited in CSS — it is
-         painted by the box that carries it, and never across a box taken
-         out of the line, which the reading now is. So the field wore the
-         rule under the word and none under the reading the chart
-         underlines. It is put on the reading here, from the nearest run
-         that has each. */
-      let under = null, strike = null;
-      for(let e = ruby.parentElement; e && e !== surface; e = e.parentElement){
-        if(!under) under = underOfEl(e);
-        if(!strike) strike = strikeOfEl(e);
-      }
-      const lines = [under ? 'underline' : '', strike ? 'line-through' : ''].filter(Boolean);
-      rt.style.textDecorationLine = lines.join(' ');
-      rt.style.textDecorationStyle = lines.length ? (LINE_STYLES[under || strike] || LINE_STYLES.solid).css : '';
+      /* A reading takes no rule from the run it sits in (the owner's list
+         of 25.11), as the chart draws it: whatever rule it has is its own,
+         on the runs inside it. */
+      rt.style.removeProperty('text-decoration-line');
+      rt.style.removeProperty('text-decoration-style');
       /* The height is rubyRise's, asked of the same letters at the same
          sizes: the word's tallest letter run by run, RUBY_PAD at the size
          the unit is set in, and the reading's depth at its largest run.
@@ -947,6 +936,7 @@ function syncNodeEditorLook(){
        list of 3.11). A line in two colours writes its note in a gradient,
        which a field cannot wear; it takes the first. */
     rec.surface.style.color = noteInkOf(nodeEditorTarget.from, nodeEditorTarget.to);
+    rec.surface.style.setProperty('--rt-ink', rec.surface.style.color || 'var(--ink)');
     return finishNodeEditorLook(rec);
   }
   const n = nodes.get(nodeEditorTarget.id);
@@ -964,6 +954,8 @@ function syncNodeEditorLook(){
      no words yet, the field used to show the default ink until the words
      were saved and drawn (the owner's list of 28.10). */
   rec.surface.style.color = n.labelInk || '';
+  rec.surface.style.setProperty('--rt-ink', n.labelInk || 'var(--ink)');
+  rec.surface.style.setProperty('--rt-face', fontFamilyFor(n.font));
   /* Where the drawing shows through the field, its caret is all that is
      seen of the field's ink, so the caret wears it. */
   rec.surface.style.caretColor = n.labelInk || '';

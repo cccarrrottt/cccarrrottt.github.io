@@ -927,7 +927,7 @@
         Math.abs(at[1] + LINK_TAB/2 - (base.y + TAB_SINK)) < 0.01;
       const chip = document.querySelector('.node[data-id="cdA"] .lang-chips .lang-chip');
       const cb = chip ? chip.getBoundingClientRect() : null;
-      const box = document.querySelector('.node[data-id="cdA"] rect');
+      const box = document.querySelector('.node[data-id="cdA"] > rect');
       const bb = box ? box.getBoundingClientRect() : null;
       out.cardChipsTopLeft = !!(cb && bb) && cb.bottom <= bb.top + 0.5 &&
                              cb.left < bb.left + bb.width * 0.5;
@@ -2689,7 +2689,7 @@
       out.fabShutAtRest = !shown() && turned() === 'none';
       document.getElementById('addFab').dispatchEvent(new PointerEvent('pointerenter', {pointerType:'mouse'}));
       await wait(600);
-      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 5 &&
+      out.fabOpens = shown() && styles.querySelectorAll('.node-style-btn').length === 6 &&
         styles.getBoundingClientRect().bottom <= r.top + 0.5;
       out.fabTurns = /transform/.test(getComputedStyle(btn.querySelector('svg')).transitionProperty) &&
         turned() !== 'none';
@@ -4671,7 +4671,7 @@
     const flow = [s0, sMenu, sCanvas, sPaste, sDel, sUndo, sRedo];
     check('on a phone undo and redo are one button in two halves', s0.tools === 'undo,redo', s0.tools);
     check('a long press on the selection brings up cut, copy, paste and delete; on canvas, paste and the ground',
-          s0.sel === 'tkA' && sMenu.menu && sMenu.items === 'cut,copy,paste,delete' && sMenu.sel === 'tkA' &&
+          s0.sel === 'tkA' && sMenu.menu && sMenu.items === 'cut,copy,paste,switch,ports,template,delete' && sMenu.sel === 'tkA' &&
           sCanvas.menu && sCanvas.items === 'paste,background' &&
           sPaste.n === s0.n + 1 && !sPaste.menu && sDel.n === sPaste.n - 1 && sDel.sel !== 'tkA',
           JSON.stringify(flow));
@@ -4724,7 +4724,7 @@
     const after = await pp.evaluate(()=> ({edge: structEdges.filter(e=> e.from === 'tkA' && e.to === 'tkB').length,
                                            a: nodes.has('tkA'), b: nodes.has('tkB')}));
     check('a long press on an entry not yet picked picks it and brings up the menu',
-          sFresh.menu && sFresh.items === 'cut,copy,paste,delete' && sFresh.sel === 'tkA', JSON.stringify(sFresh));
+          sFresh.menu && sFresh.items === 'cut,copy,paste,switch,ports,template,delete' && sFresh.sel === 'tkA', JSON.stringify(sFresh));
     check('a long press on a connector offers Split and Delete, and Delete takes the connector and nothing else',
           sEdge.menu && sEdge.items === 'split,delete' && edgesBefore === 1 && after.edge === 0 && after.a && after.b && !sEdgeDel.menu,
           JSON.stringify({sEdge, edgesBefore, after}));

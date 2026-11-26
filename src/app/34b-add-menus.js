@@ -7,6 +7,7 @@
 function openAddFab(){
   if(readOnlyView) return;
   addFab.classList.add('open');
+  syncTemplatePicks();
   addFabBtn.setAttribute('aria-expanded', 'true');
 }
 /* One new entry of the given style, empty, on the clear ground nearest the
@@ -15,13 +16,16 @@ function openAddFab(){
    and it is one grid step square until something is written in it. */
 function addEntryOfStyle(style, at){
   if(readOnlyView) return null;
+  /* A switch is an ordinary entry with a pill (opts.switch). */
+  const isSwitch = style === 'switch';
+  if(isSwitch) style = 'rect';
   const shapeVal = style === 'rect' ? undefined : style;
   const id = uniqueId(slugify(''), new Set(workingNodes.map(it=> it[0])));
   const spot = at || emptySpotNearCentre(shapeVal);
   /* What the gear beside the kind says it starts as (presets). */
   const preset = (style === 'rect' || style === 'ellipse' || style === 'link') ? presetOptsFor(style) : {};
   applyEdit(()=> workingNodes.push([id, '', undefined, undefined, undefined, shapeVal,
-                                    Object.assign(preset, {pos: [spot.x, spot.y]})]));
+                                    Object.assign(preset, {pos: [spot.x, spot.y]}, isSwitch ? {switch: {}} : {})]));
   selectNode(id);
   /* Words go in where they will stand. A portrait and a picture have a
      picture to choose before anything else, which their settings ask for;
@@ -65,7 +69,7 @@ function putDown(ev, make){
   make(null);
 }
 function beginPlacing(style, make){
-  const shapeVal = style === 'rect' ? undefined : style;
+  const shapeVal = (style === 'rect' || style === 'switch') ? undefined : style;
   placing = {shapeVal, make, size: placeSize(shapeVal)};
   if(!addFab.classList.contains('pinned')) closeAddFab();
   placeGhost.classList.toggle('round', shapeVal === 'ellipse');

@@ -114,7 +114,11 @@
                                        "manualOp", "preparation", "delay", "display", "storedData", "connector", "offPage", "extract", "merge"]},
                              {"$ref": "#/definitions/figureTemplate"}]},
         "bioSide": {"enum": ["left", "right"]},
-        "medium": {"type": "string"}
+        "medium": {"type": "string"},
+        "switch": {"type": "object", "additionalProperties": false, "properties": {"on": {"type": "boolean"}, "offLabel": {"type": "string"}, "onLabel": {"type": "string"}, "onColor": {"$ref": "#/definitions/hex"}},
+                   "description": "An entry that is 0 or 1: what it starts at, the words its pill shows at each, and the colour it wears at 1 (0.28.0)."},
+        "ports": {"type": "object", "additionalProperties": false, "properties": {"top": {"type": "integer", "minimum": 0, "maximum": 16}, "right": {"type": "integer", "minimum": 0, "maximum": 16}, "bottom": {"type": "integer", "minimum": 0, "maximum": 16}, "left": {"type": "integer", "minimum": 0, "maximum": 16}},
+                  "description": "How many ports each side has, evenly spaced; connectors meet the entry only there (0.28.0)."}
       }
     },
     "edgeStyle": {
@@ -211,7 +215,9 @@
                           "properties": {"pts": {"type": "array", "items": {"type": "number"}, "minItems": 4},
                                          "w": {"type": "number", "exclusiveMinimum": 0, "maximum": 40}}},
                 "description": "Notes pencilled by hand over the field (0.26.1): each stroke the world points it passes through, x and y in turn, and its width when it is not the pencil's own 2."},
-        "background": {"type": "object", "additionalProperties": false, "properties": {"color": {"$ref": "#/definitions/hex"}, "image": {"type": "string"}, "fit": {"enum": ["cover", "tile"]}}, "description": "The field's ground: a colour, and a picture laid to fill it or repeated (0.26.5)."},
+        "background": {"type": "object", "additionalProperties": false, "properties": {"color": {"$ref": "#/definitions/hex"}, "gradient": {"type": "array", "items": {"$ref": "#/definitions/hex"}, "maxItems": 7, "description": "Colours after `color`, top to bottom: the field is a gradient through them (0.28.0)."}, "image": {"type": "string"}, "fit": {"enum": ["cover", "tile"]}}, "description": "The field's ground: a colour, or a gradient from it, and a picture laid to fill it or repeated (0.26.5)."},
+        "nodeTemplates": {"type": "array", "maxItems": 60, "items": {"type": "object", "required": ["id", "opts"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "opts": {"type": "object"}}},
+                          "description": "Entries of the chart's own making, offered by the + menu: a look, a size and ports kept under a name (0.28.0)."},
         "hops": {"type": "boolean", "description": "false: connectors that cross are drawn straight through each other, with no hop (0.26.5)."},
         "fonts": {"type": "array",
                   "items": {"type": "object", "required": ["key", "src"], "additionalProperties": false,

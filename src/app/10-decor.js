@@ -312,10 +312,25 @@ function syncBackdrop(){
   const color = isHexColor(bg.color) ? bg.color : '';
   const image = typeof bg.image === 'string' && pictureSrcOk(bg.image) ? bg.image : '';
   const fit = bg.fit === 'tile' ? 'tile' : 'cover';
-  const key = [color, image.length, image.slice(-64), fit, f ? [f.x0, f.y0, f.x1, f.y1].join(',') : ''].join('|');
+  const more = color && Array.isArray(bg.gradient) ? bg.gradient.filter(isHexColor) : [];
+  const key = [color, more.join(','), image.length, image.slice(-64), fit, f ? [f.x0, f.y0, f.x1, f.y1].join(',') : ''].join('|');
   if(key === backdropKey) return;
   backdropKey = key;
-  fieldRect.style.fill = color;
+  /* A gradient runs down the whole field, from its colour through the
+     ones after it, evenly spaced (the owner's list of 25.11). A double
+     line's gap is the first of them, where most lines are not, but it
+     is the field's colour as far as anything drawn on it can ask. */
+  let grad = document.getElementById('chart-field-grad');
+  if(more.length){
+    if(!grad) grad = el('linearGradient', {id: 'chart-field-grad', x1: 0, y1: 0, x2: 0, y2: 1}, svgDefs);
+    grad.textContent = '';
+    const all = [color].concat(more);
+    all.forEach((c, i)=> el('stop', {offset: (all.length > 1 ? i / (all.length - 1) : 0).toFixed(4), 'stop-color': c}, grad));
+    fieldRect.style.fill = 'url(#chart-field-grad)';
+  } else {
+    if(grad) grad.remove();
+    fieldRect.style.fill = color;
+  }
   if(color) svg.style.setProperty('--field', color); else svg.style.removeProperty('--field');
   if(!image || !f){
     if(backdropEl){ backdropEl.remove(); backdropEl = null; }
