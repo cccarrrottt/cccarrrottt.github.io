@@ -491,35 +491,8 @@ function readingWordAt(surface, x, y){
   out.setStart(node, a); out.setEnd(node, b);
   return out;
 }
-/* A reading typed away to nothing is no reading: its word stands on its
-   own again, and a new reading is put over it with the Ruby button. The
-   empty slot used to stay — written to the chart as the bare word, but
-   still in the field, where nothing could be typed into it again (the
-   owner's list of 15.11). The caret goes where the reading was, after
-   its word. */
-function dropEmptyReadings(surface, leaving){
-  surface.querySelectorAll('ruby').forEach(ruby=>{
-    const rt = ruby.querySelector('rt');
-    const sel = window.getSelection();
-    const hadCaret = !!(sel && sel.rangeCount && ruby.contains(sel.getRangeAt(0).startContainer));
-    if(rt && rt.textContent.replace(/[\u200b\ufeff]/g, '') !== ''){ delete rt.dataset.fresh; return; }
-    /* A reading just made waits for its words while the caret is in it. */
-    if(rt && rt.dataset.fresh && hadCaret && !leaving) return;
-    if(rt) rt.remove();
-    const parent = ruby.parentNode, last = ruby.lastChild;
-    while(ruby.firstChild) parent.insertBefore(ruby.firstChild, ruby);
-    const after = ruby.nextSibling;
-    ruby.remove();
-    if(hadCaret && sel){
-      const r = document.createRange();
-      if(last && last.parentNode === parent) r.setStartAfter(last);
-      else if(after) r.setStartBefore(after);
-      else r.selectNodeContents(parent), r.collapse(false);
-      r.collapse(true);
-      sel.removeAllRanges(); sel.addRange(r);
-    }
-  });
-}
+/* dropEmptyReadings, which lets go of a reading typed away to nothing, is
+   in 25b-rich-text.js: only an editor types in these fields. */
 function wordInReadingOnly(surface){
   const pick = (x, y)=>{
     const r = readingWordAt(surface, x, y);
@@ -583,14 +556,16 @@ function makeRichField(textarea){
   surface.addEventListener('input', (ev)=>{ if(!ev.isComposing) dropEmptyReadings(surface); }, true);
   /* …and one left without them goes when the field is left, or the caret
      goes elsewhere in it. */
+  /* A reading being typed in its own box (openReadingBox) is not left. */
+  const boxed = ()=> typeof readingBox !== 'undefined' && !!readingBox && readingBox.surface === surface;
   surface.addEventListener('focusout', ()=>{
-    if(!surface.querySelector('rt[data-fresh]')) return;
+    if(!surface.querySelector('rt[data-fresh]') || boxed()) return;
     dropEmptyReadings(surface, true);
     textarea.value = richHtmlToMarkup(surface);
   });
   document.addEventListener('selectionchange', ()=>{
     const fresh = surface.querySelector('rt[data-fresh]');
-    if(!fresh) return;
+    if(!fresh || boxed()) return;
     const sel = window.getSelection();
     if(sel && sel.rangeCount && fresh.contains(sel.getRangeAt(0).startContainer)) return;
     dropEmptyReadings(surface, true);

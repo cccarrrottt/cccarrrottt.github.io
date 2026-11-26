@@ -990,7 +990,7 @@
     return {shown: !m.hidden, acts: [...m.querySelectorAll('button')].filter(b=> !b.hidden).map(b=> b.dataset.act),
             sel: selectedId, box: m.getBoundingClientRect().toJSON()}; });
   check('a right click on an entry picks it and offers Cut, Copy, Paste and Delete at the pointer',
-        m1.shown && m1.sel === 'rc_a' && m1.acts.join() === 'cut,copy,paste,switch,ports,template,delete' &&
+        m1.shown && m1.sel === 'rc_a' && m1.acts.join() === 'cut,copy,paste,ports,delete' &&
         Math.abs(m1.box.left - r.a.x) < 8 && Math.abs(m1.box.top - r.a.y) < 8, JSON.stringify(m1));
   await page.keyboard.press('Escape');
   await page.evaluate(()=>{ selectNode('rc_a'); multiSelection.add('rc_a'); multiSelection.add('rc_b'); });

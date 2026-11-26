@@ -187,6 +187,14 @@ function commitNodeEdit(){
        a size dragged out for the one before was kept, and the new one
        came in at the old one's size (the owner's list of 31.10). */
     if(!cardKept || !newImage || newImage !== hadImage){ delete opts.cardImgH; delete opts.cardImgW; }
+    /* A card that lets its picture go is its words: the band the picture
+       stood in goes with it, and a height set by hand loses that much,
+       rather than keeping the picture's room as empty paper over the text
+       (the owner's sketches of 26.11). Its width is still what was set. */
+    const was = nodes.get(id);
+    if(hadImage && !newImage && newCard && was && was.card && Array.isArray(opts.size) && opts.size.length === 2 &&
+       was.cardTop > 0.5)
+      opts.size = [opts.size[0], Math.max(NODE_MINH, Math.round(opts.size[1] - was.cardTop))];
     /* The card's middle line: its kind of medium and the facts of it.
        A line typed by hand is let go of the first time the card is
        edited — it is not drawn and has nowhere to be edited (the owner's

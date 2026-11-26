@@ -1,4 +1,4 @@
-/* tests/scenarios/08-late-november.js — scenarios 151 to 168 of the suite.
+/* tests/scenarios/08-late-november.js — scenarios 152 to 170 of the suite.
  *
  * From 20.11 on: the page in another language, the field, the chart's own
  * fonts, the cloud drives, the field on an entry as the drawing, NSFW, the
@@ -2066,7 +2066,10 @@
     const tpl = (SETTINGS.nodeTemplates || []).find(t=> t.name === 'Splitter');
     out.template = !!tpl && tpl.opts.ports.left === 1 && tpl.opts.ports.right === 4 && !tpl.opts.pos;
     openAddFab(); await wait(40);
-    out.templateOffered = !!document.querySelector('#addFabStyles .node-style-btn.tpl');
+    /* Templates are set aside (26.11): kept and still made from, but + no
+       longer offers them, nor + a new switch. */
+    out.templateOffered = !document.querySelector('#addFabStyles .node-style-btn.tpl') &&
+                          !document.querySelector('#addFabStyles .node-style-btn[data-value="switch"]');
     closeAddFab();
     const made = addFromTemplate(tpl, {x: X + 900, y: Y + 400});
     closeNodeEditor();
@@ -2089,7 +2092,7 @@
         JSON.stringify([r.switchDrawn, r.switchSaved, r.switchReader, r.switchTriggers]));
   check('ports fixed by hand are where connectors meet, and a side with none gives way',
         r.fixedRight && r.fixedLeft && r.portMarks, JSON.stringify([r.fixedRight, r.fixedLeft, r.portMarks]));
-  check('an entry saved as a template is offered by + and comes out with its ports',
+  check('an entry saved as a template comes out with its ports, and + offers neither templates nor switches while they are set aside',
         r.template && r.templateOffered && r.templateMade, JSON.stringify([r.template, r.templateOffered, r.templateMade]));
 
   /* 4: the selection's frame, by the hand. */
@@ -2119,4 +2122,148 @@
   check('the selection\'s frame stays, grows by its grips, and Alt takes away what it catches',
         first === 'fa00' && wider === 'fa00,fa10,fa20' && cut === 'fa00,fa20' && down,
         JSON.stringify([first, wider, cut, down]));
+  });
+  await scenario("the owner's list of 26.11: the last stretch along a carry grows, readings without a placeholder, a cut card's body, a card without its picture, a drawer of its own width, the frame's grips by a finger and its modes", async () => {
+    const r = await page.evaluate(async ()=>{
+      const wait = ms=> new Promise(ok=> setTimeout(ok, ms));
+      const out = {};
+      const X = snapToGrid(64000), Y = snapToGrid(64000);
+      /* 1: down, across, down into the other entry, carried down and to the
+         left: the first drop stays as it is, the stretch across rides down
+         and grows to the left, the drop into the other gets shorter. */
+      const c = {bends: [[X, Y + 40], [X + 200, Y + 40]], from: {x: X, y: Y}, to: {x: X + 200, y: Y + 300}, reversed: false};
+      const s1 = slideBends(c, -30, 50);
+      out.lastGrows = s1[0][0] === X - 30 && s1[0][1] === Y + 90 && s1[1][0] === X + 200 && s1[1][1] === Y + 90;
+      /* …and from the other end, the same chain read backwards. */
+      const back = slideBends({bends: [[X + 200, Y + 40], [X, Y + 40]], from: {x: X + 200, y: Y + 300}, to: {x: X, y: Y}, reversed: true}, 0, 20);
+      out.lastGrowsBack = back[0][1] === Y + 40 && back[1][1] === Y + 40;
+      /* A carry along nothing that runs its way moves no corner. */
+      const none = slideBends({bends: [[X, Y + 40]], from: {x: X, y: Y}, to: {x: X + 200, y: Y + 40}, reversed: false}, 0, 0);
+      out.stillWhenStill = none[0][0] === X && none[0][1] === Y + 40;
+
+      /* 4, 6: a cut card is met at its body on its upright sides, its tabs
+         stand on the body, and taking its picture off leaves the body. */
+      const IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      applyEdit(()=>{
+        workingNodes.push(['ck', 'Card', null, null, 'Body', null, {pos: [X, Y + 600], card: true, cardCut: true, image: IMG, size: [220, 260]}]);
+        workingNodes.push(['cr', 'Right', 'ck', null, null, null, {pos: [X + 500, Y + 640]}]);
+      });
+      await wait(120);
+      const ck = nodes.get('ck');
+      const bodyTop = ck.y + ck.cardBodyRun[0].y * ck.h;
+      const route = drawnRoutes.get('ck::cr');
+      out.cutMeetsBody = !!route && route.pts[0].y > bodyTop && route.pts[0].y < ck.y + ck.h;
+      out.tabsOnBody = Math.abs(tabBaseOf(ck).y + borderHalfOf(ck) - bodyTop) < 0.5;
+      selectNode('ck');
+      detailEditToggle.click();
+      await wait(150);
+      document.getElementById('editImageClear').click();
+      await wait(500);
+      closeEditForm();
+      const bare = nodes.get('ck');
+      out.picOffShrinks = !bare.image && bare.h < 80 && workingEntry('ck').entry[6].size[0] === 220;
+      deselect();
+
+      /* 3: a reading made over nothing is made over the word the caret is
+         in, never over "word", and a second press inside or just after a
+         reading puts the caret in it rather than making another. */
+      selectNode(nodes.get('cr').id);
+      document.getElementById('detailNoteEdit').click();
+      await wait(120);
+      const surf = richFields.get('detailNoteInput').surface;
+      surf.focus();
+      surf.innerHTML = '<div>hello world</div>';
+      surf.dispatchEvent(new Event('input', {bubbles: true}));
+      const put = (node, at)=>{ const q = document.createRange(); q.setStart(node, at); q.collapse(true); getSelection().removeAllRanges(); getSelection().addRange(q); };
+      put(surf.firstChild.firstChild, 3);
+      applyRichCommand(surf, 'ruby');
+      const ruby = surf.querySelector('ruby');
+      const inRt = ()=>{ const a = getSelection().getRangeAt(0).startContainer; return !!(a.nodeType === 3 ? a.parentNode : a).closest('rt'); };
+      out.rubyOverWord = !!ruby && ruby.firstChild.data === 'hello' && inRt() && !/word/.test(surf.textContent);
+      document.execCommand('insertText', false, 'ab');
+      const after = document.createRange(); after.setStartAfter(ruby); after.collapse(true);
+      getSelection().removeAllRanges(); getSelection().addRange(after);
+      applyRichCommand(surf, 'ruby');
+      out.rubyAgain = surf.querySelectorAll('ruby').length === 1 && inRt() && !/word/.test(surf.textContent) &&
+                      ruby.querySelector('rt').textContent === 'ab';
+      /* Where a browser will not keep the caret in a reading, a box does. */
+      readingBoxWanted = true;
+      const t2 = surf.firstChild.lastChild;
+      const pick = document.createRange(); pick.setStart(t2, 1); pick.setEnd(t2, 6);
+      getSelection().removeAllRanges(); getSelection().addRange(pick);
+      applyRichCommand(surf, 'ruby');
+      const box = document.querySelector('.reading-box');
+      if(box){ box.value = 'mir'; box.dispatchEvent(new Event('input')); box.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'})); }
+      readingBoxWanted = false;
+      const rts = [...surf.querySelectorAll('rt')].map(t=> t.textContent);
+      out.rubyBox = !!box && !document.querySelector('.reading-box') && rts.join() === 'ab,mir';
+      document.getElementById('detailNoteEdit').click();
+      deselect();
+      return out;
+    });
+    check('carried, the last stretch running the way of the carry grows and the stub at the entry stays',
+          r.lastGrows && r.lastGrowsBack && r.stillWhenStill, JSON.stringify([r.lastGrows, r.lastGrowsBack, r.stillWhenStill]));
+    check('a cut card is met on its sides at its body, and its tabs stand on the body',
+          r.cutMeetsBody && r.tabsOnBody, JSON.stringify([r.cutMeetsBody, r.tabsOnBody]));
+    check('a card whose picture is taken off is its body, its width kept', r.picOffShrinks);
+    check('a reading is put over the word at the caret, never over "word", and a second press goes into the reading',
+          r.rubyOverWord && r.rubyAgain, JSON.stringify([r.rubyOverWord, r.rubyAgain]));
+    check('where the caret cannot stay in a reading, the reading is typed in a box of its own', r.rubyBox);
+
+    /* 2 and 5, on a phone: a drawer is not the whole width, a side of the
+       frame is pulled by a finger, and the modes stand in for Shift. */
+    const phone = await browser.newContext({viewport: {width: 390, height: 844},
+      deviceScaleFactor: 2, isMobile: true, hasTouch: true});
+    await phone.route('https://fonts.googleapis.com/**', noFonts);
+    await phone.route('https://fonts.gstatic.com/**', noFonts);
+    const pp = await phone.newPage();
+    pp.on('pageerror', e => errors.push('phone: ' + e.message));
+    try{
+      await pp.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil: 'networkidle'});
+      await wait(900);
+      const drawer = await pp.evaluate(async ()=>{
+        const tab = document.querySelector('#tagsPanel .side-tab-handle');
+        tab.click();
+        await new Promise(ok=> setTimeout(ok, 400));
+        const b = document.querySelector('#tagsPanel .side-tab-body').getBoundingClientRect();
+        const h = document.querySelector('#tagsPanel').getBoundingClientRect();
+        tab.click();
+        return {w: b.width, narrow: b.width <= 253 && b.right < innerWidth - 20, ownHeight: Math.abs(b.height - h.height) < 2};
+      });
+      check('on a phone a drawer is as wide as on a wide screen, not the whole screen, and as tall as its tab',
+            drawer.narrow && drawer.ownHeight, JSON.stringify(drawer));
+      await pp.evaluate(()=>{
+        applyEdit(()=>{ for(let i = 0; i < 3; i++) workingNodes.push(['pf' + i, 'P' + i, null, null, null, null, {pos: [70000 + i * 140, 70000]}]); });
+        rebuildChart(); centreViewOn(70140, 70000, 0.6); deselect();
+      });
+      await wait(200);
+      const cdp = await phone.newCDPSession(pp);
+      const toS = (x, y)=> pp.evaluate(([x, y])=>{ const b = svg.getBoundingClientRect(); return {x: b.left + x * vs + vx, y: b.top + y * vs + vy}; }, [x, y]);
+      const drag = async (a, b)=>{
+        await cdp.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: [{x: a.x, y: a.y}]});
+        for(let k = 1; k <= 6; k++) await cdp.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: [{x: a.x + (b.x - a.x) * k / 6, y: a.y + (b.y - a.y) * k / 6}]});
+        await cdp.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
+        await wait(150);
+      };
+      const tool = await pp.evaluate(()=>{ const b = document.getElementById('areaTool').getBoundingClientRect(); return {x: b.x + b.width / 2, y: b.y + b.height / 2}; });
+      await pp.touchscreen.tap(tool.x, tool.y);
+      await wait(150);
+      const modes = await pp.evaluate(()=> !document.getElementById('areaModes').hidden);
+      await drag(await toS(69980, 69980), await toS(70040, 70040));
+      const first = await pp.evaluate(()=> [...multiSelection].sort().join(',') || selectedId);
+      // The east side, a few pixels off its grip, as a finger lands.
+      const e = await pp.evaluate(()=>{ const g = document.querySelector('.sel-area-grip[data-area="e"]').getBoundingClientRect(); return {x: g.x + g.width / 2 + 6, y: g.y + g.height / 2 + 5}; });
+      await drag(e, {x: e.x + 110, y: e.y});
+      const wider = await pp.evaluate(()=> [...multiSelection].sort().join(','));
+      const addBtn = await pp.evaluate(()=>{ const b = document.querySelector('#areaModes [data-mode="add"]').getBoundingClientRect(); return {x: b.x + b.width / 2, y: b.y + b.height / 2}; });
+      await pp.touchscreen.tap(addBtn.x, addBtn.y);
+      await wait(100);
+      await drag(await toS(70260, 69980), await toS(70320, 70040));
+      const added = await pp.evaluate(()=> [...multiSelection].sort().join(','));
+      check('on a phone the frame\'s side is pulled by a finger, and Add stands in for Shift',
+            modes && first === 'pf0' && wider === 'pf0,pf1' && added === 'pf0,pf1,pf2',
+            JSON.stringify([modes, first, wider, added]));
+    } finally {
+      await phone.close();
+    }
   });

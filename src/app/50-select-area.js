@@ -21,7 +21,9 @@ var selArea = null;        // {x, y, w, h, base: Set, mode: 'set'|'add'|'cut'}
 var areaHand = null;       // the gesture under way
 var areaLayer = null;
 var areaDrawnAt = 0;       // the zoom the grips were sized for
+var areaMode = 'set';      // what a new frame does with no key held
 const AREA_GRIP_PX = 5;
+const AREA_GRIPS = [['nw', 0, 0], ['n', 0.5, 0], ['ne', 1, 0], ['e', 1, 0.5], ['se', 1, 1], ['s', 0.5, 1], ['sw', 0, 1], ['w', 0, 0.5]];
 
 /* What the frame catches: anything it touches, as a lasso does. */
 function areaHits(a){
@@ -53,8 +55,7 @@ function drawArea(){
   el('rect', {class:'sel-area-frame', x: a.x, y: a.y, width: Math.max(0, a.w), height: Math.max(0, a.h),
               'stroke-width': 1.2 / vs, 'data-area': 'move'}, areaLayer);
   const r = AREA_GRIP_PX / vs;
-  [['nw', 0, 0], ['n', 0.5, 0], ['ne', 1, 0], ['e', 1, 0.5], ['se', 1, 1], ['s', 0.5, 1], ['sw', 0, 1], ['w', 0, 0.5]]
-    .forEach(([k, fx, fy])=> el('rect', {class:'sel-area-grip', 'data-area': k, x: a.x + a.w * fx - r, y: a.y + a.h * fy - r,
+  AREA_GRIPS.forEach(([k, fx, fy])=> el('rect', {class:'sel-area-grip', 'data-area': k, x: a.x + a.w * fx - r, y: a.y + a.h * fy - r,
                                          width: r * 2, height: r * 2, 'stroke-width': 1 / vs}, areaLayer));
   areaLayer.dataset.mode = a.mode;
 }
@@ -75,16 +76,51 @@ function setAreaTool(on){
     } else selArea = null;
   } else selArea = null;
   document.body.classList.toggle('area-tool', areaToolOn);
+  areaModes.hidden = !areaToolOn;
+  if(!areaToolOn) setAreaMode('set');
   const b = document.getElementById('areaTool');
   if(b){ b.classList.toggle('active', areaToolOn); b.setAttribute('aria-pressed', areaToolOn ? 'true' : 'false'); }
   drawArea();
 }
-/* A press the tool takes: anything on the chart but an entry. */
+/* A press the tool takes: anything on the chart but an entry — and a
+   grip or a side of the frame even where an entry is under it. */
 function areaTakes(ev){
   if(!areaToolOn || readOnlyView) return false;
   const t = ev.target;
   if(t && t.closest && t.closest('.sel-area')) return true;
+  if(selArea){
+    const pt = ev.touches && ev.touches[0] ? ev.touches[0] : ev;
+    if(pt && pt.clientX != null){
+      const touch = ev.pointerType ? ev.pointerType !== 'mouse' : !!ev.touches;
+      const part = areaPartAt(clientToWorld(pt.clientX, pt.clientY), touch ? 'touch' : 'mouse');
+      if(part && part !== 'move') return true;
+    }
+  }
   return !(t && t.closest && t.closest('.node, [data-id]'));
+}
+/* Which part of the frame a press is on, worked out from where it is
+   rather than from what it landed on: a finger is wider than a grip, and
+   a phone gave the press to the frame under it, so a side pulled by hand
+   carried the whole frame instead (the owner's list of 26.11). A grip is
+   met anywhere within a finger's reach of it, the nearest one winning. */
+function areaPartAt(w, pointerType){
+  const a = selArea;
+  if(!a) return null;
+  const reach = (pointerType === 'touch' || pointerType === 'pen' ? 16 : AREA_GRIP_PX + 3) / (vs || 1);
+  let best = null, bestD = Infinity;
+  AREA_GRIPS.forEach(([k, fx, fy])=>{
+    const d = Math.hypot(w.x - (a.x + a.w * fx), w.y - (a.y + a.h * fy));
+    if(d <= reach && d < bestD){ best = k; bestD = d; }
+  });
+  if(best) return best;
+  /* …and a side anywhere along it, not only at its middle. */
+  const inX = w.x >= a.x - reach && w.x <= a.x + a.w + reach, inY = w.y >= a.y - reach && w.y <= a.y + a.h + reach;
+  if(inY && Math.abs(w.x - a.x) <= reach) return 'w';
+  if(inY && Math.abs(w.x - (a.x + a.w)) <= reach) return 'e';
+  if(inX && Math.abs(w.y - a.y) <= reach) return 'n';
+  if(inX && Math.abs(w.y - (a.y + a.h)) <= reach) return 's';
+  if(w.x > a.x && w.x < a.x + a.w && w.y > a.y && w.y < a.y + a.h) return 'move';
+  return null;
 }
 function areaDown(ev){
   if(!areaTakes(ev)) return;
@@ -92,12 +128,11 @@ function areaDown(ev){
   ev.preventDefault();
   ev.stopPropagation();
   const w = clientToWorld(ev.clientX, ev.clientY);
-  const grip = ev.target.closest && ev.target.closest('[data-area]');
-  const part = grip && selArea ? grip.dataset.area : null;
+  const part = areaPartAt(w, ev.pointerType);
   if(part){
     areaHand = {id: ev.pointerId, part, from: w, was: Object.assign({}, selArea)};
   } else {
-    const mode = ev.shiftKey ? 'add' : ev.altKey ? 'cut' : 'set';
+    const mode = ev.shiftKey ? 'add' : ev.altKey ? 'cut' : areaMode;
     const base = new Set(multiSelection.size ? multiSelection : (selectedId ? [selectedId] : []));
     selArea = {x: w.x, y: w.y, w: 0, h: 0, base, mode};
     areaHand = {id: ev.pointerId, part: 'new', from: w};
@@ -168,3 +203,37 @@ document.addEventListener('keydown', ev=>{ if(ev.key === 'Escape' && areaToolOn)
   const b = document.getElementById('areaTool');
   if(b) b.addEventListener('click', ev=>{ ev.stopPropagation(); setAreaTool(); });
 }
+/* Shift and Alt without a keyboard (the owner's list of 26.11): while the
+   tool is in the hand, three buttons say what the next frame does — picks
+   what it catches, adds it to what is picked, or takes it away. A key
+   held still has its way for that one frame; the buttons are what a
+   phone has instead, and stay as set until the tool is put down. */
+const areaModes = document.createElement('div');
+areaModes.className = 'area-modes';
+areaModes.id = 'areaModes';
+areaModes.hidden = true;
+areaModes.setAttribute('role', 'radiogroup');
+areaModes.setAttribute('aria-label', 'What the frame does');
+[['set', 'Pick', 'Pick what the frame catches'],
+ ['add', 'Add', 'Add what the frame catches to what is picked (Shift)'],
+ ['cut', 'Take away', 'Take what the frame catches away from what is picked (Alt)']].forEach(([mode, label, title])=>{
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.mode = mode;
+  b.textContent = label;
+  b.title = title;
+  b.setAttribute('role', 'radio');
+  b.addEventListener('click', ev=>{ ev.stopPropagation(); setAreaMode(mode); });
+  areaModes.appendChild(b);
+});
+function setAreaMode(mode){
+  areaMode = mode;
+  areaModes.querySelectorAll('button').forEach(b=>{
+    const on = b.dataset.mode === mode;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+}
+setAreaMode('set');
+areaModes.addEventListener('pointerdown', ev=> ev.stopPropagation());
+(document.querySelector('.app > .main') || document.body).appendChild(areaModes);
